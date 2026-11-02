@@ -89,34 +89,42 @@ FORMAT: ...
   <!-- ============ BUILDER (F4) ============ -->
   <main id="s-builder" class="view">
     <section class="panel blist">
-      <h2>MISSION BUILDER <span class="dim">— no typing keys</span></h2>
-      <div class="bglobal">
-        <label>Project <input id="b-project" list="dl-projects" placeholder="optional: a profile in Projects/"></label>
-        <label>Rules for every task <textarea id="b-rules" rows="2" placeholder="optional, e.g. Plain voice. No exclamation marks."></textarea></label>
-      </div>
-      <h2 class="sub">TASKS <span class="dim">run in this order; pictures and video go last so the GPU switches once</span></h2>
+      <h2>BUILD IT STEP BY STEP <span class="dim">— pick what you want, fill in the blanks</span></h2>
+      <h2 class="sub">TONIGHT JOE WILL MAKE <span class="dim">done in this order; pictures and video last</span></h2>
       <div id="b-tasks" class="btasks" tabindex="0"></div>
       <div class="row buttons">
-        <button data-b="add">[ + ADD ]</button><button data-b="dup">[ COPY ]</button>
-        <button data-b="up">[ ↑ ]</button><button data-b="down">[ ↓ ]</button>
-        <button data-b="split">[ SPLIT ]</button><button data-b="del">[ DELETE ]</button>
+        <button data-b="add" title="Add another thing for Joe to make.">[ + ADD SOMETHING ]</button>
+        <button data-b="dup" title="Make a copy of the one you picked.">[ COPY ]</button>
+        <button data-b="up" title="Do this one earlier.">[ ↑ ]</button><button data-b="down" title="Do this one later.">[ ↓ ]</button>
+        <button data-b="split" title="Cut a big job into two halves.">[ SPLIT ]</button>
+        <button data-b="del" title="Take this one off the list.">[ REMOVE ]</button>
       </div>
-      <h2 class="sub">PASTE A WHOLE MISSION <span class="dim">it becomes tasks you can reorder</span></h2>
-      <textarea id="b-paste" rows="3" spellcheck="false" placeholder="Paste a === JOE MISSION === block here, then IMPORT"></textarea>
-      <div class="row buttons"><button data-b="import">[ IMPORT ]</button><button data-b="import-box">[ IMPORT FROM F2 BOX ]</button><button data-b="clear">[ START OVER ]</button></div>
-      <h2 class="sub">HISTORY <span class="dim">revisit or rerun a past mission</span></h2>
+      <div class="bglobal">
+        <label title="Applies to everything on the list, e.g. tone of voice or words to avoid.">Rules for everything <textarea id="b-rules" rows="2" placeholder="optional, e.g. Plain, friendly voice. No exclamation marks."></textarea></label>
+      </div>
+      <details class="more">
+        <summary title="Profiles, pasting a mission, starting over">MORE</summary>
+        <div class="bglobal">
+          <label title="A business or project profile from the Projects folder (facts Joe should know).">Profile <input id="b-project" list="dl-projects" placeholder="optional"></label>
+        </div>
+        <h2 class="sub">PASTE A WHOLE MISSION <span class="dim">it becomes a list you can change</span></h2>
+        <textarea id="b-paste" rows="3" spellcheck="false" placeholder="Paste a === JOE MISSION === block here, then IMPORT"></textarea>
+        <div class="row buttons"><button data-b="import">[ IMPORT ]</button><button data-b="import-box" title="Bring in the plan from the Queue screen.">[ BRING IN THE QUEUE PLAN ]</button><button data-b="clear">[ START OVER ]</button></div>
+      </details>
+      <h2 class="sub">PAST MISSIONS <span class="dim">open or run one again</span></h2>
       <div id="b-history" class="bhistory"></div>
     </section>
     <section class="panel bform">
-      <h2>TASK</h2>
+      <h2>THE ONE YOU PICKED</h2>
       <form id="b-form" class="setup bf" autocomplete="off"></form>
-      <h2 class="sub">MISSION <span id="b-status" class="dim"></span></h2>
-      <pre id="b-out" class="out bout"></pre>
+      <h2 class="sub">JOE'S PLAN <span id="b-status" class="dim"></span></h2>
+      <ul id="b-sum" class="planlist"></ul>
+      <details class="more"><summary title="The plan written out for Joe.">MISSION TEXT</summary><pre id="b-out" class="out bout"></pre></details>
       <div class="row buttons">
-        <button data-b="run" id="b-run">[ RUN NOW ]</button>
-        <button data-b="queue">[ ADD TO QUEUE ]</button>
-        <button data-b="send">[ SEND TO F2 ]</button>
-        <input id="b-name" placeholder="name" size="14"><button data-b="save">[ SAVE ]</button>
+        <button data-b="run" id="b-run" title="Start now (or wait in line if Joe is busy).">[ RUN IT ]</button>
+        <button data-b="queue" title="Put it in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
+        <button data-b="send" title="Show this plan on the Queue screen without running it.">[ SEND TO QUEUE SCREEN ]</button>
+        <input id="b-name" placeholder="name it" size="12" title="Give it a name to save it for later."><button data-b="save" title="Save this mission so you can run it again another night.">[ SAVE ]</button>
       </div>
     </section>
     <datalist id="dl-projects"></datalist><datalist id="dl-models"></datalist>

@@ -884,8 +884,12 @@ def make_handler(app: App):
                     from .mission import to_text
                     text = to_text(b.get("project", ""), b.get("rules", ""), b.get("tasks") or [])
                     chk = app.check(text)
-                    return self._json({"ok": chk["ok"], "text": text, "error": chk.get("error", ""),
-                                       "check": chk})
+                    out = {"ok": chk["ok"], "text": text, "error": chk.get("error", ""), "check": chk}
+                    if chk["ok"]:
+                        from . import describe as describe_mod
+                        out["summary"] = describe_mod.plain_summary(chk)
+                        out["time"] = describe_mod.plain_time(chk["eta_min"])
+                    return self._json(out)
                 if u.path == "/api/mission/save_as":
                     name = re.sub(r"[^A-Za-z0-9 _-]", "", b.get("name", "")).strip()[:60]
                     if not name:

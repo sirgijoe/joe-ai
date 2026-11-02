@@ -751,9 +751,19 @@ function tick() {
 })();
 
 /* ---------------- builder (F4): missions without typing keys ---------------- */
-const KINDS = { list: "List of items", doc: "Document (sections)", sheet: "Spreadsheet (CSV)", image: "Pictures", video: "Video clips" };
-const SIZES = [["", "model default"], ["1024x1024", "1024 × 1024 square"], ["1216x832", "1216 × 832 landscape"],
-  ["832x1216", "832 × 1216 portrait"], ["1344x768", "1344 × 768 wide"], ["512x512", "512 × 512 (SD 1.5)"]];
+const KINDS = { list: "A list of things (posts, descriptions, emails…)", doc: "A document, section by section",
+  sheet: "A spreadsheet (a table)", image: "Pictures", video: "Short video clips" };
+const KIND_SHORT = { list: "list", doc: "document", sheet: "spreadsheet", image: "pictures", video: "video" };
+const SIZES = [["", "Joe picks"], ["1024x1024", "Square"], ["1216x832", "Wide (landscape)"],
+  ["832x1216", "Tall (portrait)"], ["1344x768", "Extra wide"], ["512x512", "Small square (older models)"]];
+// "How many?" -> small batches, so the model stays sharp. Exact when it can be.
+function batches(n, media) {
+  n = Math.max(1, Math.min(Math.round(n) || 1, media ? 400 : 5000));
+  if (n <= (media ? 6 : 10)) return [1, n];
+  for (const s of media ? [4, 3, 5, 6, 2] : [8, 10, 6, 5, 7, 9, 4]) if (n % s === 0 && n / s <= 500) return [n / s, s];
+  const s = media ? 4 : 8; return [Math.ceil(n / s), s];       // rounds up a little
+}
+let bMore = false;
 const B = { project: "", rules: "", tasks: [], sel: 0, lists: { projects: [], workflows: [], inbox: [], image_models: [] } };
 const newTask = (n) => ({ name: `Task ${n}`, save: "", type: "text", project: "", parts: 4, part_size: 5, part_prompts: [],
   format: "", rules: "", min_words: 0, header: "", inputs: [], export: [], model: "", notes: "", workflow: "", negative: "",
@@ -784,58 +794,88 @@ async function importToBuilder(text) {
   if (current === "builder") loadBuilder();
   return true;
 }
-function renderTasks() {
-  $("#b-tasks").innerHTML = B.tasks.map((t, i) => {
-    const k = t._kind, n = (t.part_prompts || []).filter((x) => x.trim()).length;
-    const size = k === "doc" ? `${n} sections` : (k === "image" || k === "video") && n ? `${n} briefs × ${t.variants}` :
-      `${t.parts} × ${t.part_size}${k === "image" ? " × " + t.variants : ""}`;
-    return `<div class="btask${i === B.sel ? " sel" : ""}" data-i="${i}"><span class="n">${i + 1}.</span><span class="t">[${k}] ${esc(t.name)} → ${esc(t.save || "?")}</span><span>${size}</span></div>`;
-  }).join("") || '<div class="dim">No tasks yet. Press + ADD or import a mission.</div>';
+function taskSize(t) {
+  const k = t._kind, n = (t.part_prompts || []).filter((x) => x.trim()).length;
+  if (k === "doc") return `${n} section${n === 1 ? "" : "s"}`;
+  if (k === "image" || k === "video") {
+    const p = n || t.parts * t.part_size, all = p * (t.variants || 1);
+    return `${all} ${k === "image" ? "picture" : "clip"}${all === 1 ? "" : "s"}`;
+  }
+  const c = t.parts * t.part_size;
+  return `${c} ${k === "sheet" ? "row" : "item"}${c === 1 ? "" : "s"}`;
 }
-function field(label, html, hint) { return `<label>${label} ${html}</label>${hint ? `<div class="hint">${hint}</div>` : ""}`; }
+function renderTasks() {
+  $("#b-tasks").innerHTML = B.tasks.map((t, i) => `<div class="btask${i === B.sel ? " sel" : ""}" data-i="${i}" title="Click to change this one">` +
+    `<span class="n">${i + 1}.</span><span class="t">${esc(t.name)} <span class="kind">(${KIND_SHORT[t._kind]})</span></span><span>${taskSize(t)}</span></div>`).join("")
+    || '<div class="dim">Nothing yet. Press + ADD SOMETHING.</div>';
+}
+function field(label, html, hint, tip) {
+  return `<label${tip ? ` title="${esc(tip)}"` : ""}>${label} ${html}</label>${hint ? `<div class="hint">${hint}</div>` : ""}`;
+}
 function renderForm() {
   const t = B.tasks[B.sel], f = $("#b-form");
-  if (!t) { f.innerHTML = '<div class="dim">Add a task to start.</div>'; return; }
+  if (!t) { f.innerHTML = '<div class="dim">Press + ADD SOMETHING to start.</div>'; return; }
   const k = t._kind, media = k === "image" || k === "video";
   const v = (x) => esc(x ?? "");
   const lines = (t.part_prompts || []).join("\n");
-  let h = field("Name", `<input data-f="name" value="${v(t.name)}">`);
-  h += field("Kind", `<select data-f="_kind">${Object.entries(KINDS).map(([a, b]) => `<option value="${a}"${a === k ? " selected" : ""}>${b}</option>`).join("")}</select>`);
-  h += field("Save to", `<input data-f="save" value="${v(t.save)}" placeholder="blank = Joe picks (project / task name)">`,
-    "Optional. Leave it blank and Joe saves to Output/project/task name. He never overwrites: a second run saves a _v2.");
-  h += field("Project", `<input data-f="project" list="dl-projects" value="${v(t.project)}" placeholder="same as the mission">`);
+  const briefs = (t.part_prompts || []).filter((x) => x.trim()).length;
+  let h = field("What is it?", `<select data-f="_kind">${Object.entries(KINDS).map(([a, b]) => `<option value="${a}"${a === k ? " selected" : ""}>${b}</option>`).join("")}</select>`);
+  h += field("Call it", `<input data-f="name" value="${v(t.name)}" placeholder="e.g. Mug descriptions">`, "", "A short name. It becomes the file name too.");
   if (k === "doc") {
-    h += field("Sections", `<textarea data-f="part_prompts" rows="5" placeholder="## Overview. Goals and how it works.\n## Details. Tables with example rows.">${v(lines)}</textarea>`,
-      "One section per line. Joe writes them in this order and keeps his text as written.");
-  } else {
-    h += field(media ? "How many" : "How much", `<span class="inline"><input type="number" min="1" max="500" data-f="parts" value="${t.parts}"> parts of <input type="number" min="1" max="50" data-f="part_size" value="${t.part_size}"> ${media ? "prompts" : k === "sheet" ? "rows" : "items"}</span>`,
-      `= ${t.parts * t.part_size} ${media ? `prompt(s) Joe writes himself` : k === "sheet" ? "rows" : "items"}. Small parts keep the model sharp.`);
+    h += field("Sections, in order", `<textarea data-f="part_prompts" rows="5" placeholder="Welcome. Who we are and what we make.\nHow to order. Steps, shipping, returns.\nCare. How to wash and store each piece.">${v(lines)}</textarea>`,
+      "One section per line: its title, then what goes in it. Joe writes them in this order.");
+  } else if (!(media && briefs)) {
+    const count = t.parts * t.part_size;
+    const q = { list: "How many?", sheet: "How many rows?", image: "How many pictures?", video: "How many clips?" }[k];
+    const unit = { list: "items", sheet: "rows", image: "different pictures", video: "clips" }[k];
+    h += field(q, `<input type="number" min="1" max="${media ? 400 : 5000}" data-f="_count" value="${count}">`,
+      media ? `Joe writes a description for each one, then draws it.` : `Joe writes them ${t.part_size} at a time so the AI stays sharp.`
+      + (t._asked && t._asked !== count ? ` (He'll make ${count} ${unit} so the batches come out even.)` : ""));
   }
+  if (k === "image") h += field("Versions of each picture", `<input type="number" min="1" max="16" data-f="variants" value="${t.variants}">`,
+    `${(briefs || t.parts * t.part_size) * t.variants} pictures in all. More versions = more to choose from.`);
+  if (k === "sheet") h += field("Columns", `<input data-f="header" value="${v(t.header)}" placeholder="Name, Description, Price">`, "The column names, separated by commas. Joe checks every row has them all.");
+  const fmtLabel = { list: "What each one looks like", doc: "How to write it", sheet: "What goes in each row", image: "What the pictures show", video: "What happens in the clips" }[k];
+  const fmtPh = { list: "A catchy title, then one short paragraph about look, feel and use. End with a care tip.",
+    doc: "Friendly and plain. Short paragraphs. Use a table where it helps.",
+    sheet: "One row per product. Leave Price empty if you don't know it.",
+    image: "Handmade mugs on a wooden table, soft morning light, muted earth tones, no people.",
+    video: "Slow pan across a pottery shelf, warm light, steam rising from a mug." }[k];
+  h += field(fmtLabel, `<textarea data-f="format" rows="3" placeholder="${fmtPh}">${v(t.format)}</textarea>`, "", "Say it the way you'd tell a person. Tone, length, style, what to include or avoid.");
   if (media) {
-    h += field("Or your own briefs", `<textarea data-f="part_prompts" rows="3" placeholder="optional, one picture per line">${v(lines)}</textarea>`,
-      "If you list briefs, Joe uses these instead of the count above.");
-    h += field("Use briefs as written", `<input type="checkbox" data-f="prompts_as_written"${t.prompts_as_written ? " checked" : ""}>`, "Off = Joe turns each brief into a detailed prompt first.");
+    h += field("Or describe each one yourself", `<textarea data-f="part_prompts" rows="3" placeholder="optional, one ${k === "image" ? "picture" : "clip"} per line">${v(lines)}</textarea>`,
+      briefs ? `Joe makes these ${briefs} instead of a count.` : "Leave it empty and Joe comes up with them from the box above.");
+    if (briefs) h += field("Use my words exactly", `<input type="checkbox" data-f="prompts_as_written"${t.prompts_as_written ? " checked" : ""}>`, "Off = Joe adds detail to each one first (usually better).");
   }
-  if (k === "sheet") h += field("Columns", `<input data-f="header" value="${v(t.header)}" placeholder="SKU,Name,Description,Price">`, "Column names, separated by commas. Joe checks every row.");
-  if (k === "list" || k === "doc") h += field("Finished copies", `<span class="checks">${["docx", "pdf", "epub"].map((x) => `<label class="inline"><input type="checkbox" data-ex="${x}"${(t.export || []).includes(x) ? " checked" : ""}> ${{ docx: "Word", pdf: "PDF", epub: "EPUB (e-book)" }[x]}</label>`).join("")}</span>`, "Made from the finished file with Pandoc (F10 > System check installs it).");
-  if (k === "list" || k === "doc") h += field("Min words each", `<input type="number" min="0" max="2000" data-f="min_words" value="${t.min_words}">`, "0 = no minimum. Short items get expanded.");
-  h += field(media ? "Style / brief" : "Format", `<textarea data-f="format" rows="3" placeholder="${media ? "Soft morning light, linen, muted earth tones, no people." : "One paragraph about look, feel and use. End with a care tip."}">${v(t.format)}</textarea>`);
-  h += field("Task rules", `<textarea data-f="rules" rows="2" placeholder="optional, just for this task">${v(t.rules)}</textarea>`);
-  if (B.lists.inbox.length) h += field("Reference files", `<span class="checks">${B.lists.inbox.map((n) => `<label class="inline"><input type="checkbox" data-in="${esc(n)}"${(t.inputs || []).includes(n) ? " checked" : ""}> ${esc(n)}</label>`).join("")}</span>`, "From your Inbox folder. Joe uses them as facts.");
-  if (media) {
-    h += field("Model", `<input data-f="model" list="dl-models" value="${v(t.model)}" placeholder="best fit for your GPU">`);
+  if (k === "list" || k === "doc") {
+    h += field("At least … words each", `<input type="number" min="0" max="2000" data-f="min_words" value="${t.min_words}">`, "0 = any length. Joe expands anything too short.");
+    h += field("Also make", `<span class="checks">${["docx", "pdf", "epub"].map((x) => `<label class="inline"><input type="checkbox" data-ex="${x}"${(t.export || []).includes(x) ? " checked" : ""}> ${{ docx: "Word", pdf: "PDF", epub: "e-book" }[x]}</label>`).join("")}</span>`, "Finished copies of the writing, ready to print or send.");
+  }
+  if (B.lists.inbox.length) h += field("Use these files as facts", `<span class="checks">${B.lists.inbox.map((n) => `<label class="inline"><input type="checkbox" data-in="${esc(n)}"${(t.inputs || []).includes(n) ? " checked" : ""}> ${esc(n)}</label>`).join("")}</span>`, "From your Inbox folder (price lists, notes, old descriptions…).");
+  if (k === "image") {
     const sz = t.width && t.height ? `${t.width}x${t.height}` : "";
-    h += field("Size", `<select data-f="_size">${SIZES.map(([a, b]) => `<option value="${a}"${a === sz ? " selected" : ""}>${b}</option>`).join("")}${sz && !SIZES.some(([a]) => a === sz) ? `<option value="${sz}" selected>${sz}</option>` : ""}</select>`);
-    h += field("Versions of each", `<input type="number" min="1" max="16" data-f="variants" value="${t.variants}">`);
-    h += field("Avoid", `<input data-f="negative" value="${v(t.negative)}" placeholder="e.g. text, watermark, blurry">`);
-    h += field("Workflow", `<select data-f="workflow"><option value="">${k === "video" ? "(pick one — video needs a workflow)" : "built-in text-to-image"}</option>${B.lists.workflows.map((w) => `<option${w === t.workflow ? " selected" : ""}>${esc(w)}</option>`).join("")}</select>`,
-      "Workflows are ComfyUI files in your Workflows folder (ComfyUI: Workflow > Export (API)).");
-    h += field("Seed", `<input data-f="seed" value="${v(t.seed)}">`, "random, or a number to repeat a run exactly.");
-    if (k === "video") h += field("Frames per second", `<input type="number" min="1" max="60" data-f="fps" value="${t.fps}">`);
-  } else {
-    h += field("Model", `<input data-f="model" value="${v(t.model)}" placeholder="the Setup default">`);
+    h += field("Shape", `<select data-f="_size">${SIZES.map(([a, b]) => `<option value="${a}"${a === sz ? " selected" : ""}>${b}</option>`).join("")}${sz && !SIZES.some(([a]) => a === sz) ? `<option value="${sz}" selected>${sz}</option>` : ""}</select>`);
+    h += field("Leave out", `<input data-f="negative" value="${v(t.negative)}" placeholder="e.g. text, watermark, blurry">`);
   }
+  // Everything below is optional; most people never open it.
+  let m = field("Rules just for this one", `<textarea data-f="rules" rows="2" placeholder="optional">${v(t.rules)}</textarea>`);
+  m += field("Save as", `<input data-f="save" value="${v(t.save)}" placeholder="blank = Joe picks (recommended)">`,
+    "A file or folder name inside Output. Joe never overwrites: a second run saves a _v2.");
+  m += field("Profile", `<input data-f="project" list="dl-projects" value="${v(t.project)}" placeholder="same as everything else">`, "A business or project profile from the Projects folder.");
+  if (k !== "doc" && !(media && briefs)) m += field("Batches", `<span class="inline"><input type="number" min="1" max="500" data-f="parts" value="${t.parts}"> batches of <input type="number" min="1" max="50" data-f="part_size" value="${t.part_size}"></span>`, "How Joe splits the work. Smaller batches keep the AI sharp.");
+  if (media) {
+    m += field("Picture model", `<input data-f="model" list="dl-models" value="${v(t.model)}" placeholder="best fit for your graphics card">`);
+    m += field("ComfyUI workflow", `<select data-f="workflow"><option value="">${k === "video" ? "built-in video (Wan 2.2)" : "built-in"}</option>${B.lists.workflows.map((w) => `<option${w === t.workflow ? " selected" : ""}>${esc(w)}</option>`).join("")}</select>`,
+      "Your own ComfyUI files from the Workflows folder (ComfyUI: Workflow > Export (API)).");
+    m += field("Seed", `<input data-f="seed" value="${v(t.seed)}">`, "random, or a number to repeat a run exactly.");
+    if (k === "video") m += field("Frames per second", `<input type="number" min="1" max="60" data-f="fps" value="${t.fps}">`);
+    if (k === "video") m += field("Versions of each clip", `<input type="number" min="1" max="16" data-f="variants" value="${t.variants}">`);
+  } else {
+    m += field("Writing model", `<input data-f="model" value="${v(t.model)}" placeholder="the Setup default">`);
+  }
+  h += `<details class="more"${bMore ? " open" : ""}><summary title="File names, batches, models and other fine-tuning">MORE OPTIONS</summary>${m}</details>`;
   f.innerHTML = h;
+  f.querySelector("details.more").addEventListener("toggle", (ev) => (bMore = ev.target.open));
 }
 function readField(t, el) {
   const key = el.dataset.f;
@@ -847,23 +887,42 @@ function readField(t, el) {
   }
   let val = el.type === "checkbox" ? el.checked : el.value;
   if (el.type === "number") val = Number(val) || 0;
-  if (key === "part_prompts") { t.part_prompts = val.split("\n").map((x) => x.trim()).filter(Boolean); return; }
+  if (key === "_count") {
+    if (!val) return;
+    const media = t._kind === "image" || t._kind === "video";
+    [t.parts, t.part_size] = batches(val, media);
+    t._asked = val;
+    return;
+  }
+  if (key === "part_prompts") {
+    const before = (t.part_prompts || []).length > 0;
+    t.part_prompts = val.split("\n").map((x) => x.trim()).filter(Boolean);
+    if (before !== t.part_prompts.length > 0 && (t._kind === "image" || t._kind === "video")) t._rerender = true;
+    return;
+  }
   if (key === "_size") { const [w, h2] = (val || "0x0").split("x").map(Number); t.width = w || 0; t.height = h2 || 0; return; }
   t[key] = val;
+  if (key === "parts" || key === "part_size") t._asked = 0;
   if (key === "_kind") {
     t.type = val === "image" || val === "video" ? val : "text";
     if (val === "sheet" && t.save && !/\.csv$/i.test(t.save)) t.save = t.save.replace(/\.\w+$/, "") + ".csv";
-    if (val !== "sheet") t.header = val === "sheet" ? t.header : "";
+    if (val !== "sheet") t.header = "";
     if (val !== "doc" && val !== "image" && val !== "video") t.part_prompts = [];
-    renderForm();
+    if (val === "image" || val === "video") [t.parts, t.part_size] = val === "video" ? [1, 2] : [1, 4];
+    else if (t.part_size < 4) [t.parts, t.part_size] = [2, 5];
+    t._rerender = true;
   }
 }
 $("#b-form").addEventListener("input", (ev) => {
   const t = B.tasks[B.sel]; if (!t) return;
   readField(t, ev.target); renderTasks(); scheduleBuild();
+  if (t._rerender && ev.target.tagName === "SELECT") { t._rerender = false; renderForm(); }
 });
+// Hints that depend on a number (or on briefs being there) refresh when you leave the box.
 $("#b-form").addEventListener("change", (ev) => {
-  if (ev.target.tagName === "SELECT" || ev.target.type === "checkbox") { const t = B.tasks[B.sel]; if (t) { readField(t, ev.target); renderTasks(); scheduleBuild(); } }
+  const t = B.tasks[B.sel]; if (!t) return;
+  if (ev.target.tagName === "SELECT" || ev.target.type === "checkbox") { readField(t, ev.target); renderTasks(); scheduleBuild(); }
+  if (t._rerender || ["_count", "variants", "parts", "part_size"].includes(ev.target.dataset.f)) { t._rerender = false; renderForm(); }
 });
 $("#b-form").addEventListener("submit", (ev) => ev.preventDefault());
 ["#b-project", "#b-rules"].forEach((id) => $(id).addEventListener("input", () => { B.project = $("#b-project").value; B.rules = $("#b-rules").value; scheduleBuild(); }));
@@ -875,11 +934,14 @@ let buildTimer, built = { ok: false, text: "" };
 function scheduleBuild() { clearTimeout(buildTimer); buildTimer = setTimeout(build, 300); }
 async function build() {
   const tasks = B.tasks.map(({ _kind, ...t }) => t);
-  if (!tasks.length) { $("#b-out").textContent = ""; $("#b-status").textContent = ""; built = { ok: false, text: "" }; return built; }
+  if (!tasks.length) { $("#b-out").textContent = ""; $("#b-status").textContent = ""; $("#b-sum").innerHTML = ""; built = { ok: false, text: "" }; return built; }
   const r = await api("/api/mission/build", { project: B.project, rules: B.rules, tasks });
   built = r;
   $("#b-out").textContent = r.text;
-  $("#b-status").textContent = r.ok ? `— looks good · about ${r.check.eta_min} min` + (r.check.warnings && r.check.warnings.length ? " · " + r.check.warnings.join(" ") : "") : "— ERROR: " + r.error;
+  $("#b-status").textContent = r.ok ? "— " + r.time : "";
+  $("#b-sum").innerHTML = r.ok ? r.summary.map((x) => `<li>${esc(x)}</li>`).join("") +
+      (r.check.warnings || []).map((w) => `<li class="warn">! ${esc(w)}</li>`).join("")
+    : `<li class="warn">! ${esc(r.error)}</li>`;
   return r;
 }
 function splitTask(t) {

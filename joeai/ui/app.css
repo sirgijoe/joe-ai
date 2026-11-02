@@ -299,3 +299,14 @@ textarea#describe { min-height: 4.6em; height: 7.5em; resize: vertical; width: 1
 .adv[open] > textarea#mission { display: block; width: 100%; height: 14em; flex: none; margin-top: 4px; }
 .qfoot { margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--ph-faint); }
 #s-queue .mission .prompt { white-space: normal; }
+
+/* ---------- builder: plain words, extras tucked away ---------- */
+details.more { margin: 6px 0 2px; }
+details.more > summary { cursor: pointer; color: var(--ph-dim); list-style: none; letter-spacing: .06em; }
+details.more > summary::before { content: "▸ "; }
+details.more[open] > summary::before { content: "▾ "; }
+details.more > summary:hover { color: var(--ph); }
+.bf details.more[open] { display: grid; grid-template-columns: 1fr; gap: 6px; border-left: 1px dashed var(--ph-dim); padding-left: 10px; }
+.btask .kind { color: var(--ph-dim); font-size: .85em; }
+.btask.sel .kind { color: var(--bg); }
+#b-sum { min-height: 1.2em; }
