@@ -277,6 +277,7 @@ FORMAT: ...
           <button type="button" data-act="start-ollama">[ START OLLAMA ]</button>
           <button type="button" data-act="start-comfy">[ START COMFYUI ]</button>
           <button type="button" data-act="check-update">[ CHECK FOR UPDATES ]</button>
+          <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
         </div>
         <pre id="setup-msg" class="out"></pre>
       </form>
@@ -458,6 +459,12 @@ FORMAT: ...
 </div>
 <div id="boot" class="boot" aria-hidden="true"><div><div id="boot-bin" class="boot-bin"></div><div id="boot-name" class="boot-name">JOE</div><div class="boot-sub dim">humans can't say that, so we just call him Joe</div></div></div>
 <div id="dropveil" class="dropveil" hidden><span class="inv">&nbsp;DROP IT — JOE WILL TAKE A LOOK&nbsp;</span></div>
+<div id="welcome" class="modal welcome" hidden><div class="panel"><h2 id="w-title">WELCOME</h2>
+  <div id="w-steps" class="wsteps"></div>
+  <div id="w-body" class="wbody"></div>
+  <div class="row buttons wnav"><button id="w-back" title="Go back a step">[ ◂ BACK ]</button><span class="grow"></span>
+    <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
+    <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
 <div id="confirm" class="modal" hidden><div class="panel"><h2>CONFIRM</h2><p id="confirm-text"></p>
   <p class="row"><button id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>

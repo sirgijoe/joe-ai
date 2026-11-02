@@ -310,3 +310,16 @@ details.more > summary:hover { color: var(--ph); }
 .btask .kind { color: var(--ph-dim); font-size: .85em; }
 .btask.sel .kind { color: var(--bg); }
 #b-sum { min-height: 1.2em; }
+
+/* ---------- first-start welcome ---------- */
+.welcome .panel { width: min(860px, 94vw); max-height: 90vh; min-height: 420px; padding-top: 18px; }
+.welcome[hidden] { display: none; }
+.wsteps { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: .8em; border-bottom: 1px dashed var(--ph-dim); padding-bottom: 6px; margin-bottom: 8px; }
+.wsteps .on { background: var(--ph); color: var(--bg); padding: 0 4px; text-shadow: none; }
+.wsteps .done { color: var(--ph); }
+.wbody { flex: 1; overflow: auto; }
+.wbody p { margin: 6px 0; }
+.witem { border: 1px solid var(--ph-dim); padding: 6px 10px; margin: 8px 0; display: flex; flex-direction: column; gap: 4px; align-items: flex-start; }
+.wlooks { display: flex; flex-wrap: wrap; gap: 8px; }
+.wlooks .on { outline: 2px solid var(--ph); }
+.wnav { border-top: 1px dashed var(--ph-dim); padding-top: 6px; }

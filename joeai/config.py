@@ -74,6 +74,7 @@ class UISettings:
     text_size: int = 22              # px
     sounds: bool = False
     check_updates: bool = True       # look for a newer release on GitHub when Joe starts
+    welcomed: bool = False           # the first-start welcome (setup helper) has been seen
 
 
 @dataclass

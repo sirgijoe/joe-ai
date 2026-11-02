@@ -202,6 +202,7 @@ async function poll() {
   } else if (lastFix === -1) lastFix = fr.n || 0;
   $("#busy") && ($("#busy").textContent = state.busy ? state.busy + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") + "…" : "");
   $("#f5label").textContent = state.running ? "Stop" : "Run";
+  welcomeTick();
   $("#btn-run").innerHTML = state.running ? '[ STOP <span class="k">F5</span> ]' : '[ RUN <span class="k">F5</span> ]';
 }
 
@@ -598,6 +599,7 @@ document.addEventListener("click", async (ev) => {
       });
       return;
     }
+    if (act === "welcome") { await loadThemes().catch(() => {}); welcomeOpen(); return; }
     if (act === "check-update") { $("#setup-msg").textContent = "Checking GitHub…"; await checkUpdate(true); return; }
     if (act === "clear") {
       $("#mission").value = ""; $("#plan").textContent = ""; $("#describe").value = ""; $("#describe-msg").textContent = "";
@@ -645,11 +647,16 @@ function handleKey(key) {
   return false;
 }
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "F6") { ev.preventDefault(); if (!ev.repeat) f6Down(); return; }
+  if (ev.key === "F6") { ev.preventDefault(); if (!ev.repeat && $("#welcome").hidden) f6Down(); return; }
   if (!$("#confirm").hidden) {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
+    return;
+  }
+  if (!$("#welcome").hidden) {                 // the setup helper is up: only Esc (close) works
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); welcomeClose(); }
     return;
   }
   const typing = /^(TEXTAREA|INPUT|SELECT)$/.test(ev.target.tagName);
@@ -731,10 +738,14 @@ function tick() {
   await poll();
   setInterval(poll, 1000);
   // First thing on launch: make sure the tools are there. Ask before fixing anything.
+  // The very first time, the welcome helper walks through it step by step instead.
   try {
-    const d = await loadDoctor();
-    const need = d && d.issues.find((it) => !it.optional);
-    if (need && !(state && state.running)) askFix(need);
+    if (state && !state.ui.welcomed && !state.running) { await loadThemes().catch(() => {}); welcomeOpen(); }
+    else {
+      const d = await loadDoctor();
+      const need = d && d.issues.find((it) => !it.optional);
+      if (need && !(state && state.running)) askFix(need);
+    }
   } catch (e) {}
   await voiceSettings();
   // Fresh start, unless the last run didn't finish.
@@ -1442,3 +1453,142 @@ async function checkUpdate(manual) {
     () => window.open(r.url, "_blank", "noopener"));
 }
 setTimeout(() => checkUpdate(false), 8000);
+
+/* ---------------- first-start welcome (setup helper) ---------------- */
+// One small step at a time, in plain words. Each YES is the person's OK for that one install;
+// the System check (F10) does the actual work underneath.
+const W_STEPS = [
+  { id: "hello", name: "Hello" },
+  { id: "pc", name: "Your PC" },
+  { id: "writing", name: "Writing", ids: ["install-ollama", "start-ollama", "pull-model", "use-model"], need: true },
+  { id: "pictures", name: "Pictures", ids: ["install-comfyui", "get-image-model", "get-video-model"] },
+  { id: "talk", name: "Talking", ids: ["install-voice", "pull-vision", "install-clone"] },
+  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg"] },
+  { id: "look", name: "Look" },
+  { id: "done", name: "Ready" },
+];
+const W_TEXT = {
+  "install-ollama": ["Joe needs Ollama: a free program that runs AI writing models on your own PC.", "YES, INSTALL OLLAMA", "Windows may ask for permission."],
+  "start-ollama": ["Ollama is installed but switched off.", "YES, START IT", ""],
+  "pull-model": [null, "YES, DOWNLOAD IT", "It can take a while. You can keep going while it downloads."],
+  "use-model": [null, "YES, USE IT", ""],
+  "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Windows may ask for permission. Skip this if you only want writing."],
+  "get-image-model": ["ComfyUI needs a picture model to draw with.", "YES, DOWNLOAD ONE", ""],
+  "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
+  "install-voice": ["So you can talk to Joe and hear him answer. About 500 MB.", "YES, SET UP HIS VOICE", "Runs on the regular processor, so it never slows the night's work."],
+  "pull-vision": ["So Joe can look at pictures you show him.", "YES, DOWNLOAD IT", ""],
+  "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice."],
+  "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
+  "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
+};
+let W = { open: false, i: 0, d: null, busyWas: "", asked: {} };
+function welcomeOpen(at = 0) {
+  W.open = true; W.i = at; W.asked = {};
+  $("#welcome").hidden = false;
+  wRender(); wCheck();
+}
+async function welcomeClose() {
+  W.open = false; $("#welcome").hidden = true;
+  try { await api("/api/settings", { ui: { welcomed: true } }); } catch (e) {}
+}
+async function wCheck() {
+  try { W.d = await api("/api/doctor"); doctorData = W.d; } catch (e) { W.d = null; }
+  if (W.open) wRender();
+}
+function wIssues(step) {
+  const ids = step.ids || [];
+  return W.d ? W.d.issues.filter((it) => ids.includes(it.id)).sort((a, b) => ids.indexOf(a.id) - ids.indexOf(b.id)) : [];
+}
+function wGpuLine(d) {
+  if (!d) return "Checking your computer…";
+  if (!d.gpu) return `I couldn't find an NVIDIA graphics card. I can still write, just more slowly, but pictures and video need one. Memory: ${d.ram_gb} GB.`;
+  const v = d.vram_gb;
+  const verdict = v >= 16 ? "Plenty for writing, pictures and short videos." : v >= 10 ? "Great for writing and pictures, and fine for short videos."
+    : v >= 6 ? "Good for writing and pictures." : "Enough for small writing models; pictures will be slow.";
+  return `Graphics card: ${d.gpu.name || "NVIDIA"} with ${v} GB of video memory. ${verdict}\nMemory: ${d.ram_gb} GB.`;
+}
+function wItem(it) {
+  const [say, yes, note] = W_TEXT[it.id] || [it.text, "YES", ""];
+  const busy = state && state.busy;
+  const mine = W.asked[it.id];
+  const pct = busy && state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "";
+  return `<div class="witem"><div>${esc(say || it.text)}</div>${say ? "" : ""}` +
+    (note ? `<div class="dim small">${esc(note)}</div>` : "") +
+    (mine && busy ? `<div class="blink">Working on it…${pct}</div>`
+      : `<button data-wfix="${esc(it.id)}"${busy ? " disabled title=\"Wait for the current setup to finish\"" : ""}>[ ${yes} ]</button>`) + `</div>`;
+}
+function wRender() {
+  const st = W_STEPS[W.i], d = W.d;
+  $("#w-steps").innerHTML = W_STEPS.map((s, i) => `<span class="${i === W.i ? "on" : i < W.i ? "done" : "dim"}">${i < W.i ? "√" : i + 1}. ${s.name}</span>`).join("");
+  $("#w-title").textContent = st.id === "hello" ? "HI, I'M JOE" : st.name.toUpperCase();
+  let h = "";
+  if (st.id === "hello") {
+    h = `<p>01000001 01001001, if you're fancy. Humans can't say that, so just call me Joe.</p>
+      <p>I do the grunt work on your own computer while you sleep: lists, descriptions, documents, spreadsheets, pictures and short videos. Free, private, nothing leaves this PC.</p>
+      <p>Let's get me set up. It's a few short steps, and I ask before installing anything.</p>`;
+  } else if (st.id === "pc") {
+    h = `<pre class="out">${esc(wGpuLine(d))}</pre>`;
+  } else if (st.ids) {
+    const left = wIssues(st);
+    const intro = { writing: "This is the part Joe can't work without: a free program and a writing model.",
+      pictures: "Optional. Skip it if you only want writing.", talk: "Optional. You can always type instead.",
+      extras: "Optional little helpers." }[st.id];
+    h = `<p class="dim">${intro}</p>`;
+    if (!d) h += '<div class="blink">Checking…</div>';
+    else if (!left.length) {
+      const ok = { writing: `√ Ready. Joe writes with ${d.ollama.best || d.ollama.configured}.`,
+        pictures: d.comfyui.installed ? `√ Ready. Pictures: ${d.comfyui.best_image || "ComfyUI found"}${d.comfyui.best_video ? "; video: " + d.comfyui.best_video : ""}.` : "√ Nothing to do here.",
+        talk: d.voice ? "√ Ready. Press F6 any time to talk to Joe." : "√ Nothing to do here.",
+        extras: "√ All set." }[st.id];
+      h += `<div class="bright">${esc(ok)}</div>`;
+    } else h += left.map(wItem).join("");
+  } else if (st.id === "look") {
+    const opts = [...$("#theme-select").options].map((o) => [o.value, o.textContent]);
+    const cur = state ? state.ui.phosphor : "";
+    h = `<p>Pick a look. You can change it any time in Setup (F10).</p><div class="wlooks">` +
+      opts.map(([v, n]) => `<button data-wlook="${esc(v)}" class="${v === cur ? "on" : ""}">[ ${esc(n)} ]</button>`).join("") + "</div>";
+  } else if (st.id === "done") {
+    const need = W.d && W.d.issues.find((it) => !it.optional);
+    h = need ? `<p>Almost: Joe still needs his writing setup (step 3) before he can work.</p>`
+      : `<p>All set. Here's how it works:</p><ol class="planlist"><li>On the Queue screen, tell Joe what you need in your own words.</li>
+        <li>He shows you a plan. Press RUN IT.</li><li>Go to bed. In the morning, press R for the report.</li></ol>
+        <p class="dim small">Hover over any button to see what it does. F1 is help.</p>`;
+  }
+  $("#w-body").innerHTML = h;
+  $("#w-back").disabled = W.i === 0;
+  $("#w-next").textContent = W.i === W_STEPS.length - 1 ? "[ START USING JOE ]" : st.ids && wIssues(st).length && !st.need ? "[ NOT NOW, NEXT ▸ ]" : "[ NEXT ▸ ]";
+}
+function welcomeTick() {                          // called by poll(): show progress, re-check when a setup ends
+  if (!W.open || !state) return;
+  if (state.busy !== W.busyWas) {
+    const ended = W.busyWas && !state.busy;
+    W.busyWas = state.busy;
+    if (ended) wCheck(); else wRender();
+  } else if (state.busy) wRender();
+}
+$("#welcome").addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  ev.stopPropagation();
+  if (b.id === "w-back" && W.i > 0) { W.i--; wRender(); }
+  if (b.id === "w-next") { if (W.i === W_STEPS.length - 1) { welcomeClose(); show("queue"); setTimeout(() => $("#describe").focus(), 50); } else { W.i++; wRender(); wCheck(); } }
+  if (b.id === "w-skip") welcomeClose();
+  if (b.dataset.wfix) {
+    const it = W.d && W.d.issues.find((x) => x.id === b.dataset.wfix); if (!it) return;
+    W.asked[it.id] = true;
+    b.disabled = true; b.textContent = "[ STARTING… ]";
+    try {
+      const r = await api("/api/doctor/fix", { ...it, approved: true });
+      if (!r.ok) { toast(r.error); W.asked[it.id] = false; }
+      else if (!r.started) await wCheck();
+    } catch (e) { toast(e.message); }
+    wRender();
+  }
+  if (b.dataset.wlook) {
+    try {
+      const look = b.dataset.wlook;
+      await api("/api/settings", { ui: { phosphor: look } });
+      $("#theme-select").value = look;
+    } catch (e) { toast(e.message); }
+    setTimeout(wRender, 1100);                       // poll() applies the new look
+  }
+});
