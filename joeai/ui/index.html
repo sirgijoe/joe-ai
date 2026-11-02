@@ -24,8 +24,28 @@
   <!-- ============ QUEUE (F2) ============ -->
   <main id="s-queue" class="view active">
     <section class="panel mission">
-      <h2>MISSION</h2>
-      <div class="prompt">C:\JOE&gt; What can I help you with?</div>
+      <h2>WHAT DO YOU NEED?</h2>
+      <div class="prompt" title="No special words needed. Say what you want made, how many, and any style or tone.">C:\JOE&gt; Tell Joe in your own words. He makes a plan, you check it, then press RUN.</div>
+      <textarea id="describe" spellcheck="true" placeholder="For example:
+40 product descriptions for handmade coffee mugs, friendly and short,
+plus 8 pictures of mugs on a wooden table in morning light."></textarea>
+      <div class="row buttons">
+        <button data-act="describe" id="btn-describe" title="Joe turns what you wrote into a plan. Nothing runs until you press RUN IT.">[ MAKE A PLAN ]</button>
+        <span id="describe-msg" class="dim"></span>
+      </div>
+      <div id="plancard" class="plancard" hidden>
+        <h2 class="sub">JOE'S PLAN <span id="plan-time" class="dim"></span></h2>
+        <ul id="plan-list" class="planlist"></ul>
+        <div id="plan-warn" class="small"></div>
+        <div class="row buttons">
+          <button data-act="plan-run" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
+          <button data-act="queue-add" title="Put this plan in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
+          <button data-act="to-builder" title="Change the numbers, style or details with simple forms.">[ CHANGE IT <span class="k">F4</span> ]</button>
+          <button data-act="clear" title="Throw this plan away and start fresh.">[ START OVER ]</button>
+        </div>
+      </div>
+      <details id="adv" class="adv">
+      <summary title="The plan written out for Joe. Only needed if you like editing it by hand.">ADVANCED: THE MISSION TEXT</summary>
       <textarea id="mission" spellcheck="false" placeholder="What can I help you with?
 
 Paste tonight's mission here,
@@ -37,20 +57,24 @@ TASK: ...  SAVE: ...  CHUNKS: 8 x 10
 FORMAT: ...
 === END ==="></textarea>
       <div class="row buttons">
-        <button data-act="check">[ CHECK ]</button>
-        <button data-act="run" id="btn-run">[ RUN <span class="k">F5</span> ]</button>
-        <button data-act="queue-add">[ ADD TO QUEUE ]</button>
-        <button data-act="to-builder">[ EDIT IN BUILDER <span class="k">F4</span> ]</button>
-        <button data-act="report">[ REPORT <span class="k">R</span> ]</button>
-        <button data-act="clear">[ CLEAR ]</button>
+        <button data-act="check" title="Check the mission text for mistakes and show what it will make.">[ CHECK ]</button>
+        <button data-act="run" id="btn-run" title="Run the mission text now (or stop a run).">[ RUN <span class="k">F5</span> ]</button>
+        <button data-act="queue-add" title="Add this mission after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
+        <button data-act="to-builder" title="Open this mission in the Builder's forms.">[ EDIT IN BUILDER <span class="k">F4</span> ]</button>
+        <button data-act="clear" title="Empty the box.">[ CLEAR ]</button>
       </div>
       <pre id="plan" class="out"></pre>
+      </details>
+      <div class="row buttons qfoot">
+        <button data-act="report" title="What Joe finished last time, and what needs a look.">[ MORNING REPORT <span class="k">R</span> ]</button>
+        <button data-key="F6" title="Talk or type to Joe. He can plan work for you too.">[ TALK TO JOE <span class="k">F6</span> ]</button>
+      </div>
     </section>
 
     <div class="rightcol">
     <section class="panel jobs">
         <h2>QUEUE</h2>
-        <div id="joblist"><div class="dim">Nothing running. Paste a mission and press F5, or build one with F4.</div></div>
+        <div id="joblist"><div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F4.</div></div>
         <div id="queued"></div>
         <h2 class="sub">LOG</h2>
         <pre id="log" class="out log"></pre>

@@ -869,6 +869,17 @@ def make_handler(app: App):
                         return self._json({"ok": True, **mission_to_dict(parse((b.get("text", ""))))})
                     except MissionError as e:
                         return self._json({"ok": False, "error": str(e)})
+                if u.path == "/api/describe":          # plain words in, a mission + summary out
+                    from . import describe as describe_mod
+                    return self._json(describe_mod.draft(app, b.get("text", "")))
+                if u.path == "/api/summary":           # plain-English summary of any mission
+                    from . import describe as describe_mod
+                    chk = app.check(b.get("text", ""))
+                    if not chk["ok"]:
+                        return self._json(chk)
+                    return self._json({"ok": True, "summary": describe_mod.plain_summary(chk),
+                                       "time": describe_mod.plain_time(chk["eta_min"]),
+                                       "warnings": chk.get("warnings", [])})
                 if u.path == "/api/mission/build":
                     from .mission import to_text
                     text = to_text(b.get("project", ""), b.get("rules", ""), b.get("tasks") or [])

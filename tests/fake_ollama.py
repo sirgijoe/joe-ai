@@ -100,6 +100,15 @@ class FakeOllama:
             user = req["messages"][-1]["content"]
             self.prompts.append(user)
             self.systems.append(req["messages"][0]["content"])
+            if req["messages"][0]["content"].startswith("You turn a plain request"):
+                if "BADFIRST" in req["messages"][1]["content"] and "That didn't work" not in user:
+                    return 200, self._reply("Sure! I'll get right on it.")      # no mission at all
+                text = ("```\n=== JOE MISSION ===\nRULES: Warm, plain voice.\n"
+                        "TASK: Menu blurbs\nCHUNKS: 6 x 8\nFORMAT: Dish name, then two sentences.\n"
+                        "TASK: Menu sheet  SAVE: menu.csv  CHUNKS: 2 x 5\nHEADER: Dish,Price\n"
+                        "TASK: Food pictures\nTYPE: image\nCHUNKS: 4 x 4\nFORMAT: Overhead shots, soft light.\n"
+                        "=== END ===\n```")
+                return 200, self._reply(text)
             if "You are Joe (real name" in req["messages"][0]["content"]:
                 if "mission" in user.lower():
                     text = ("Sure thing, I'll handle that tonight.\n\n=== JOE MISSION ===\n"

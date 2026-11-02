@@ -280,3 +280,22 @@ textarea#theme-desc { min-height: 2.4em; resize: vertical; width: 100%; }
 body.dropping #s-talk .talk, body.dropping .dropveil { outline: 3px dashed var(--ph); outline-offset: -8px; }
 .dropveil { position: fixed; inset: 0; z-index: 54; display: grid; place-items: center; background: rgba(0,0,0,.55); font-size: 1.6em; pointer-events: none; }
 .dropveil[hidden] { display: none; }
+
+/* ---------- queue: "just describe it" + plain plan ---------- */
+textarea#describe { min-height: 4.6em; height: 7.5em; resize: vertical; width: 100%; line-height: 1.2; }
+.plancard { border: 1px solid var(--ph-dim); padding: 4px 10px 2px; margin-top: 4px; }
+.plancard[hidden] { display: none; }
+.plancard h2.sub { border-top: 0; margin-top: 0; }
+.planlist { margin: 2px 0 4px; padding-left: 1.4em; }
+.planlist li { margin: 2px 0; }
+.warn { color: var(--ph); }
+.adv { margin-top: 8px; display: flex; flex-direction: column; min-height: 0; }
+.adv[open] { flex: 1 1 0; min-height: 6em; overflow: auto; }
+.mission:has(.adv[open]) textarea#describe { height: 3.6em; }
+.adv summary { cursor: pointer; color: var(--ph-dim); list-style: none; }
+.adv summary::before { content: "▸ "; }
+.adv[open] summary::before { content: "▾ "; }
+.adv summary:hover { color: var(--ph); }
+.adv[open] > textarea#mission { display: block; width: 100%; height: 14em; flex: none; margin-top: 4px; }
+.qfoot { margin-top: auto; padding-top: 6px; border-top: 1px dashed var(--ph-faint); }
+#s-queue .mission .prompt { white-space: normal; }

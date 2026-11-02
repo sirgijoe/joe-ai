@@ -205,10 +205,49 @@ async function poll() {
   $("#btn-run").innerHTML = state.running ? '[ STOP <span class="k">F5</span> ]' : '[ RUN <span class="k">F5</span> ]';
 }
 
+/* ---------------- "just describe it": plain words -> plan -> RUN ---------------- */
+function showPlan(r) {
+  $("#plan-list").innerHTML = r.summary.map((s) => `<li>${esc(s)}</li>`).join("");
+  $("#plan-time").textContent = "— " + r.time;
+  $("#plan-warn").innerHTML = (r.warnings || []).map((w) => `<div class="warn">! ${esc(w)}</div>`).join("");
+  $("#plancard").hidden = false;
+}
+function hidePlan() { $("#plancard").hidden = true; $("#plan-list").innerHTML = ""; }
+async function refreshPlan() {                 // keep the plain plan in step with the mission text
+  const text = $("#mission").value;
+  if (!text.trim()) { hidePlan(); return; }
+  try { const r = await api("/api/summary", { text }); if (r.ok) showPlan(r); else hidePlan(); } catch (e) {}
+}
+let describing = false;
+async function describeIt() {
+  const text = $("#describe").value.trim();
+  if (!text) { $("#describe-msg").textContent = "Type what you need first."; $("#describe").focus(); return; }
+  if (describing) return;
+  describing = true;
+  $("#btn-describe").disabled = true;
+  $("#describe-msg").innerHTML = '<span class="blink">Joe is planning…</span> this takes a few seconds';
+  try {
+    const r = await api("/api/describe", { text });
+    if (!r.ok) { $("#describe-msg").textContent = r.error; return; }
+    $("#mission").value = r.mission;
+    api("/api/mission/save", { text: r.mission });
+    $("#plan").textContent = "";
+    showPlan(r);
+    $("#describe-msg").textContent = "Here's the plan. Change it, or press RUN IT.";
+  } catch (e) { $("#describe-msg").textContent = e.message; }
+  finally { describing = false; $("#btn-describe").disabled = false; }
+}
+$("#describe").addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); describeIt(); }
+});
+try { $("#adv").open = localStorage.getItem("joe-adv") === "1"; } catch (e) {}
+$("#adv").addEventListener("toggle", () => { try { localStorage.setItem("joe-adv", $("#adv").open ? "1" : "0"); } catch (e) {} });
+
 /* ---------------- queue actions ---------------- */
 async function checkMission() {
   const r = await api("/api/check", { text: $("#mission").value });
-  if (!r.ok) { $("#plan").textContent = "ERROR: " + r.error; return null; }
+  refreshPlan();
+  if (!r.ok) { $("#plan").textContent = "ERROR: " + r.error; if (!$("#adv").open) toast(r.error); return null; }
   $("#plan").textContent =
     `PROJECT ${r.project || "(none)"}\n` +
     r.jobs.map((j) => ` [${j.type}] ${j.name}: ${j.type === "image" || j.type === "video" ? `${j.prompts} prompt(s) x ${j.variants} = ${j.prompts * j.variants} ${j.type}(s)${j.workflow ? " via " + j.workflow : ""}` : j.guided ? j.parts + " guided parts" : `${j.parts} x ${j.size} = ${j.items} items`} -> Output/${j.save}${j.min_words ? "  (min " + j.min_words + " words)" : ""}${j.project && j.project !== r.project ? "  {" + j.project + "}" : ""}`).join("\n") +
@@ -221,6 +260,12 @@ async function runOrStop() {
       await api("/api/stop", {});
       toast("Stopping after current step");
     });
+    return;
+  }
+  if (!$("#mission").value.trim()) {           // nothing planned yet: plan it first, never auto-run
+    show("queue");
+    if ($("#describe").value.trim()) await describeIt();
+    else { toast("Tell Joe what you need first"); $("#describe").focus(); }
     return;
   }
   const r = await checkMission();
@@ -236,7 +281,7 @@ async function loadReport() {
 let saveTimer;
 $("#mission").addEventListener("input", () => {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => api("/api/mission/save", { text: $("#mission").value }), 800);
+  saveTimer = setTimeout(() => { api("/api/mission/save", { text: $("#mission").value }); refreshPlan(); }, 800);
 });
 
 /* ---------------- files ---------------- */
@@ -509,6 +554,13 @@ document.addEventListener("click", async (ev) => {
   if (b.dataset.key) { handleKey(b.dataset.key); return; }
   const act = b.dataset.act;
   try {
+    if (act === "describe") await describeIt();
+    if (act === "plan-run") {
+      if (state && state.running) {
+        const r = await api("/api/queue/add", { text: $("#mission").value });
+        toast(r.ok ? `Joe is busy, so it's in line (${r.queued} waiting)` : r.error);
+      } else await runOrStop();
+    }
     if (act === "check") await checkMission();
     if (act === "run") await runOrStop();
     if (act === "report") show("report");
@@ -547,7 +599,10 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (act === "check-update") { $("#setup-msg").textContent = "Checking GitHub…"; await checkUpdate(true); return; }
-    if (act === "clear") { $("#mission").value = ""; $("#plan").textContent = ""; api("/api/mission/save", { text: "" }); }
+    if (act === "clear") {
+      $("#mission").value = ""; $("#plan").textContent = ""; $("#describe").value = ""; $("#describe-msg").textContent = "";
+      hidePlan(); api("/api/mission/save", { text: "" });
+    }
     if (b.dataset.fix !== undefined && doctorData) { askFix(doctorData.issues[+b.dataset.fix]); return; }
     if (b.dataset.themeUse) {
       $("#theme-select").value = "custom:" + b.dataset.themeUse;
@@ -672,7 +727,7 @@ function tick() {
 }
 (async () => {
   tick(); setInterval(tick, 10000);
-  try { const m = await api("/api/mission"); $("#mission").value = m.text || ""; } catch (e) {}
+  try { const m = await api("/api/mission"); $("#mission").value = m.text || ""; if (m.text) refreshPlan(); } catch (e) {}
   await poll();
   setInterval(poll, 1000);
   // First thing on launch: make sure the tools are there. Ask before fixing anything.
