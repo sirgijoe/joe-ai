@@ -450,6 +450,7 @@ async function loadDoctor() {
 function askFix(it) {
   const what = { install: "Install it now (winget, Windows may ask for permission)?", start: "Start it now?",
     use: "Switch to this model?", pull: "Download it now?", "download-image-model": "Download it now?",
+    "download-video-model": "Download it now? About 18 GB in 3 files; it can take an hour or more.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Windows may ask for permission.",
     "install-pandoc": "Install it now (winget)?",
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];

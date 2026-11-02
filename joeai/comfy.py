@@ -300,7 +300,64 @@ def basic_graph(family: str) -> dict:
     }
 
 
+# Built-in video: Wan 2.2 TI2V 5B (Apache 2.0), ComfyUI's own repackaged files.
+# Runs on ~8 GB+ graphics cards (ComfyUI offloads what doesn't fit).
+WAN_VIDEO = {
+    "label": "Wan 2.2 5B", "license": "Apache 2.0", "size_gb": 17.5,
+    "files": [
+        ("diffusion_models", "wan2.2_ti2v_5B_fp16.safetensors",
+         "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/"
+         "diffusion_models/wan2.2_ti2v_5B_fp16.safetensors"),
+        ("text_encoders", "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+         "https://huggingface.co/Comfy-Org/Wan_2.1_ComfyUI_repackaged/resolve/main/split_files/"
+         "text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors"),
+        ("vae", "wan2.2_vae.safetensors",
+         "https://huggingface.co/Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/"
+         "vae/wan2.2_vae.safetensors"),
+    ],
+    "size": (1280, 704), "frames": 121, "fps": 24,      # about 5 seconds
+    "negative": ("static, frozen, blurry, low quality, jpeg artifacts, watermark, text, subtitles, "
+                 "deformed, extra fingers, bad hands, bad face, messy background, walking backwards"),
+}
+
+
+def wan_missing(models_dir: Path | None) -> list[tuple[str, str, str]]:
+    """The Wan 2.2 5B files that aren't in ComfyUI's models folder yet."""
+    if not models_dir:
+        return list(WAN_VIDEO["files"])
+    return [f for f in WAN_VIDEO["files"] if not any((models_dir / f[0]).rglob(f[1]))]
+
+
+def wan_video_graph(frames: int = 0, fps: int = 0) -> dict:
+    """Built-in text-to-video graph (ComfyUI's Wan 2.2 5B template, API format)."""
+    w = WAN_VIDEO
+    unet, clip, vae = (f[1] for f in w["files"])
+    frames = frames or w["frames"]
+    frames = max(5, (frames - 1) // 4 * 4 + 1)          # Wan wants 4n+1 frames
+    return {
+        "37": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
+        "38": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "wan", "device": "default"}},
+        "39": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
+        "48": {"class_type": "ModelSamplingSD3", "inputs": {"shift": 8.0, "model": ["37", 0]}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{PROMPT}}", "clip": ["38", 0]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{NEGATIVE}}", "clip": ["38", 0]}},
+        "55": {"class_type": "Wan22ImageToVideoLatent", "inputs": {
+            "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "length": frames, "batch_size": 1,
+            "vae": ["39", 0]}},
+        "3": {"class_type": "KSampler", "inputs": {
+            "seed": "{{SEED}}", "steps": 20, "cfg": 5.0, "sampler_name": "uni_pc", "scheduler": "simple",
+            "denoise": 1.0, "model": ["48", 0], "positive": ["6", 0], "negative": ["7", 0],
+            "latent_image": ["55", 0]}},
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["39", 0]}},
+        "57": {"class_type": "CreateVideo", "inputs": {"images": ["8", 0], "fps": float(fps or w["fps"])}},
+        "58": {"class_type": "SaveVideo", "inputs": {"video": ["57", 0], "filename_prefix": "{{PREFIX}}",
+                                                     "format": "auto", "codec": "auto"}},
+    }
+
+
 def default_size(family: str) -> tuple[int, int]:
+    if family == "wan":
+        return WAN_VIDEO["size"]
     return (512, 512) if family == "sd15" else (1024, 1024)
 
 

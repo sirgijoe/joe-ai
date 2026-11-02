@@ -463,7 +463,9 @@ class App:
                             self.settings.ollama.text_model = model
                             self.settings.save()
                 elif action == "download-image-model":
-                    doctor.download_image_model(self.settings, self.log, approved=True, progress=prog)
+                    ok = doctor.download_image_model(self.settings, self.log, approved=True, progress=prog)
+                elif action == "download-video-model":
+                    ok = doctor.download_video_model(self.settings, self.log, approved=True, progress=prog)
                 elif action == "install-voice":
                     self.voice.close()
                     ok = addons_mod.install_voice(addons_mod.install_log(self.log), approved=True,
@@ -482,6 +484,7 @@ class App:
                 self.busy, self.busy_pct = "", None
         labels = {"install": f"installing {tool}", "start": f"starting {tool}",
                   "pull": f"downloading {model}", "download-image-model": "downloading image model",
+                  "download-video-model": "downloading video model",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
                   "install-clone": "setting up voice copy"}
         if action not in labels:

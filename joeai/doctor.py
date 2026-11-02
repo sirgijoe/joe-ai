@@ -176,6 +176,13 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        f"{STARTER_IMAGE_MODEL['name']} ({STARTER_IMAGE_MODEL['size_gb']} GB, "
                        f"{STARTER_IMAGE_MODEL['license']}).", "action": "download-image-model",
                        "optional": True})
+    mdir = comfy_models_dir(settings)
+    if (comfy_exe or comfy_up) and mdir and g and vram >= 8 and comfy_mod.wan_missing(mdir):
+        w = comfy_mod.WAN_VIDEO
+        issues.append({"id": "get-video-model", "text": f"No built-in video model. Offer: {w['label']} "
+                       f"(about {w['size_gb']:.0f} GB, {w['license']}). Makes TYPE: video tasks work "
+                       "without a workflow file (about 5-second clips).",
+                       "action": "download-video-model", "optional": True})
     from . import addons as addons_mod
     if oll_up and omodels:
         from .attach import vision_model
@@ -286,6 +293,64 @@ def pull_ollama_model(sm: ServiceManager, name: str, log: Log, approved: bool = 
     except OSError as e:
         log(f"  download failed: {e}")
         return False
+    return True
+
+
+def _download(url: str, dest: Path, log: Log, progress: Callable[[float], None] | None = None,
+              done_bytes: int = 0, all_bytes: int = 0) -> bool:
+    """Download to dest via a .part file (resumes nothing; a failed file is removed)."""
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    part = dest.with_suffix(dest.suffix + ".part")
+    try:
+        with urllib.request.urlopen(url, timeout=60) as r, open(part, "wb") as f:
+            total = int(r.headers.get("Content-Length") or 0)
+            got, last = 0, -10.0
+            while chunk := r.read(1 << 20):
+                f.write(chunk)
+                got += len(chunk)
+                if total:
+                    pct = 100 * got / total
+                    if progress:
+                        progress(100 * (done_bytes + got) / all_bytes if all_bytes else pct)
+                    if pct - last >= 10:
+                        log(f"  {dest.name}: {pct:.0f}%")
+                        last = pct
+        part.replace(dest)
+        return True
+    except OSError as e:
+        log(f"  download failed: {e}")
+        try:
+            part.unlink()
+        except OSError:
+            pass
+        return False
+
+
+def download_video_model(settings: Settings, log: Log, approved: bool = False,
+                         progress: Callable[[float], None] | None = None) -> bool:
+    """Wan 2.2 5B: three files into ComfyUI's models folders."""
+    if not approved:
+        raise PermissionError("download needs the user's approval")
+    mdir = comfy_models_dir(settings)
+    if not mdir:
+        log("Can't find ComfyUI's models folder. Set it in Setup (F10).")
+        return False
+    w = comfy_mod.WAN_VIDEO
+    missing = comfy_mod.wan_missing(mdir)
+    if not missing:
+        log(f"{w['label']} is already installed.")
+        return True
+    log(f"Downloading the video model {w['label']} ({w['license']}), about {w['size_gb']:.0f} GB "
+        "in 3 files. This takes a while.")
+    sizes = {"diffusion_models": 10.0, "text_encoders": 6.3, "vae": 1.3}     # GB, for one progress bar
+    all_b = sum(sizes[f[0]] for f in missing) * 2**30
+    done = 0.0
+    for folder, name, url in missing:
+        log(f"  {name} -> models\\{folder}")
+        if not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
+            return False
+        done += sizes[folder] * 2**30
+    log(f"{w['label']} is ready. Restart ComfyUI so it sees the new files, then TYPE: video tasks work.")
     return True
 
 

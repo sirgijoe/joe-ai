@@ -789,8 +789,15 @@ class Engine:
             self.log(f"  {name} wants '{current}' (not installed); using {alt.name} instead.")
             return g, api_name(alt), alt.family, name
         if job.type == "video":
-            raise comfy_mod.WorkflowError("video tasks need a WORKFLOW (drop an API-format video "
-                                          "workflow into Workflows/).")
+            from .doctor import comfy_models_dir
+            missing = comfy_mod.wan_missing(comfy_models_dir(self.s))
+            if missing:
+                raise comfy_mod.WorkflowError(
+                    "the video model isn't installed yet. F10 > System check offers "
+                    f"{comfy_mod.WAN_VIDEO['label']} (about {comfy_mod.WAN_VIDEO['size_gb']:.0f} GB), "
+                    "or give the task a WORKFLOW.")
+            fps = job.fps if job.fps != 16 else 0          # 16 is the mission default: use Wan's 24
+            return comfy_mod.wan_video_graph(fps=fps), "", "wan", f"built-in video ({comfy_mod.WAN_VIDEO['label']})"
         basic = [m for m in models if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
         m = comfy_mod.best_image_model(basic, vram, "image", want=job.model)
         if not m and job.model:
@@ -825,7 +832,8 @@ class Engine:
         builtin = wf_label.startswith("built-in")
         w, h = (job.width, job.height) if job.width else (
             comfy_mod.default_size(family) if builtin else (None, None))
-        negative = job.negative or (self.s.comfy.negative if builtin else "")
+        negative = job.negative or ((comfy_mod.WAN_VIDEO["negative"] if family == "wan" else
+                                     self.s.comfy.negative) if builtin else "")
         total = len(st.prompts) * job.variants
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
                  + (f", model {ckpt}" if ckpt else "") + f" -> {st.output}/")

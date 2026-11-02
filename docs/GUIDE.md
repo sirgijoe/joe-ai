@@ -125,11 +125,17 @@ twice (20 pictures). Or use `PART:` lines (one picture brief each); `PROMPTS: as
 sends them to ComfyUI unchanged. `MODEL` = part of a checkpoint file name; without it the
 best installed model for your GPU is used. `SEED: 1234` makes runs repeatable.
 
-No `WORKFLOW` = a built-in text-to-image graph for SD 1.5 / SDXL checkpoints. For Flux,
-video or anything fancy, build it in ComfyUI, then **Workflow → Export (API)** and drop the
-file in `Workflows\`. Joe finds the prompt box, seed, size, model and save node by
+No `WORKFLOW` = a built-in text-to-image graph for SD 1.5 / SDXL checkpoints.
+
+**Video without a workflow file:** System check offers Wan 2.2 5B (Apache 2.0, about 18 GB,
+needs an 8 GB+ graphics card). After it downloads, restart ComfyUI once. Then
+`TASK: Shop tour  SAVE: clips/tour.mp4` (or `TYPE: video`) makes about 5-second 1280 x 704
+clips at 24 fps, one per prompt. `SIZE` changes the size; `FPS` the speed.
+
+For Flux, other video models or anything fancy, build it in ComfyUI, then
+**Workflow → Export (API)** and drop the file in `Workflows\`. Joe finds the prompt box, seed, size, model and save node by
 itself, or you can type `{{PROMPT}}`, `{{NEGATIVE}}`, `{{SEED}}`, `{{WIDTH}}`, `{{HEIGHT}}`
-into the workflow before exporting. Video tasks need a `WORKFLOW`; frames or GIFs are
+into the workflow before exporting. With your own video workflow, frames or GIFs are
 turned into MP4 with FFmpeg (`FPS: 16`).
 
 Each folder gets `_prompts.md` and `_media.json` (prompt, seed, model, review marks).

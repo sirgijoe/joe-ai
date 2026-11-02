@@ -257,3 +257,41 @@ def test_text_model_auto(tmp_path, monkeypatch):
     monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
     assert doctor.resolve_text_model(s, ServiceManager(s), lambda m: None) == "qwen3:14b"   # what's installed
     fo.close()
+
+
+def test_builtin_video_wan(env, tmp_path):
+    s, sb, fo, fc = env
+    mdir = tmp_path / "models"
+    s.comfy.models_dir = str(mdir)
+    m = parse("TASK: Kiln clip  SAVE: clips/kiln.mp4  CHUNKS: 1 x 1")
+    assert m.jobs[0].type == "video"
+    st = Engine(s, sb, log=lambda x: None).run_mission(m)[0]
+    assert st.status == "failed" and "System check" in st.note          # model not installed yet
+    for folder, name, _ in comfy.WAN_VIDEO["files"]:
+        (mdir / folder).mkdir(parents=True, exist_ok=True)
+        (mdir / folder / name).write_bytes(b"x")
+    assert comfy.wan_missing(mdir) == []
+    fc.video = True
+    m = parse("TASK: Kiln clip 2  SAVE: clips/kiln2.mp4  CHUNKS: 1 x 1")
+    st = Engine(s, sb, log=lambda x: None).run_mission(m)[0]
+    assert st.status == "done", st.note
+    g = fc.graphs[-1]
+    assert g["55"]["inputs"]["width"] == 1280 and g["55"]["inputs"]["length"] == 121
+    assert g["57"]["inputs"]["fps"] == 24.0 and "{{" not in json.dumps(g)
+    assert g["7"]["inputs"]["text"].startswith("static")                # video negative prompt
+    mp4s = list((sb.output / "clips" / "kiln2").glob("*.mp4"))
+    assert len(mp4s) == 1 and mp4s[0].read_bytes()[4:8] == b"ftyp"
+
+
+def test_doctor_offers_video_model(env, tmp_path, monkeypatch):
+    s, sb, fo, fc = env
+    (tmp_path / "models" / "checkpoints").mkdir(parents=True)
+    s.comfy.models_dir = str(tmp_path / "models")
+    from joeai import hardware
+    from joeai.services import ServiceManager
+    monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU"})
+    monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
+    d = doctor.check(s, ServiceManager(s))
+    assert any(i["action"] == "download-video-model" for i in d["issues"])
+    with pytest.raises(PermissionError):
+        doctor.download_video_model(s, print)

@@ -11,13 +11,16 @@ from urllib.parse import parse_qs, urlparse
 PNG = base64.b64decode(
     "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==")
 
+MP4 = b"\x00\x00\x00\x18ftypmp42" + b"\x00" * 64       # stands in for a real clip
+
 
 class FakeComfy:
     def __init__(self, checkpoints=("SDXL\\example_sdxl_model.safetensors", "v1-5-pruned-emaonly.safetensors"),
-                 frames: int = 1, fail_prompt: bool = False):
+                 frames: int = 1, fail_prompt: bool = False, video: bool = False):
         self.checkpoints = list(checkpoints)
         self.frames = frames
         self.fail_prompt = fail_prompt
+        self.video = video                 # answer like SaveVideo (one .mp4)
         self.graphs: list[dict] = []
         self.history: dict = {}
         self.freed = 0
@@ -49,12 +52,14 @@ class FakeComfy:
                     return self._json(200, {pid: fake.history[pid]} if pid in fake.history else {})
                 if u.path == "/view":
                     q = parse_qs(u.query)
-                    assert q["filename"][0].endswith(".png")
+                    name = q["filename"][0]
+                    assert name.endswith((".png", ".mp4"))
+                    body = MP4 if name.endswith(".mp4") else PNG
                     self.send_response(200)
-                    self.send_header("Content-Type", "image/png")
-                    self.send_header("Content-Length", str(len(PNG)))
+                    self.send_header("Content-Type", "video/mp4" if name.endswith(".mp4") else "image/png")
+                    self.send_header("Content-Length", str(len(body)))
                     self.end_headers()
-                    self.wfile.write(PNG)
+                    self.wfile.write(body)
                     return
                 self._json(404, {})
 
@@ -74,7 +79,12 @@ class FakeComfy:
                     pid = uuid.uuid4().hex
                     imgs = [{"filename": f"NR_{len(fake.graphs):05d}_{i}.png", "subfolder": "Joe",
                              "type": "output"} for i in range(fake.frames)]
-                    fake.history[pid] = {"outputs": {"9": {"images": imgs}},
+                    out = {"9": {"images": imgs}}
+                    if fake.video:
+                        out = {"58": {"images": [{"filename": f"Joe_{len(fake.graphs):05d}_.mp4",
+                                                  "subfolder": "Joe/clip", "type": "output"}],
+                                      "animated": [True]}}
+                    fake.history[pid] = {"outputs": out,
                                          "status": {"status_str": "success", "completed": True}}
                     return self._json(200, {"prompt_id": pid, "number": 1, "node_errors": {}})
                 self._json(404, {})
