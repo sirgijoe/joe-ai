@@ -242,6 +242,14 @@ def test_family_from_file_contents(tmp_path):
     assert comfy.family_of("c.safetensors", 0, st("c.safetensors", ["model.diffusion_model.double_blocks.0.x"])) == "flux"
     assert comfy.family_of("d.safetensors", 0, st("d.safetensors", ["model.diffusion_model.joint_blocks.0.x"])) == "sd3"
     assert comfy.family_of("e.safetensors", 0, st("e.safetensors", ["model.diffusion_model.input_blocks.0.time_stack.x"])) == "svd"
+    # Real SDXL / SD1.5 checkpoints also hold "transformer_blocks.0.attn1.to_q" (their UNet attention):
+    # they must not be mistaken for video models.
+    unet = "model.diffusion_model.input_blocks.4.1.transformer_blocks.0.attn1.to_q.weight"
+    assert comfy.family_of("f.safetensors", 0, st("f.safetensors", [unet, "conditioner.embedders.1.model.x"])) == "sdxl"
+    assert comfy.family_of("g.safetensors", 0, st("g.safetensors", [unet, "cond_stage_model.transformer.x"])) == "sd15"
+    assert comfy.family_of("h.safetensors", 0, st("h.safetensors", [unet])) != "video"
+    assert comfy.family_of("i.safetensors", 0, st("i.safetensors", ["patch_embedding.weight", "blocks.0.self_attn.q.weight"])) == "video"
+    assert comfy.family_of("j.safetensors", 0, st("j.safetensors", ["scale_shift_table", "transformer_blocks.0.attn1.to_q.weight"])) == "video"
     # Unknown contents fall back to the name, then the size.
     assert comfy.family_of("my_sdxl_mix.safetensors", 0, st("my_sdxl_mix.safetensors", ["x"])) == "sdxl"
     assert comfy.family_of("mystery.safetensors", 2.0, st("mystery.safetensors", ["x"])) == "sd15"

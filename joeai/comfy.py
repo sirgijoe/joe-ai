@@ -92,7 +92,12 @@ def arch_of_file(path: Path) -> str:
     except (OSError, ValueError, UnicodeDecodeError):
         return ""
     found = ""
+    # SD1.5/SDXL/SVD UNets use input_blocks (and their attention layers are also called
+    # transformer_blocks...), so a file with input_blocks is never one of the newer video models.
+    sd_unet = any("input_blocks." in k for k in names)
     for fam, needles in _ARCH_KEYS:
+        if fam == "video" and sd_unet:
+            continue
         if any(nd in k for k in names for nd in needles):
             found = fam
             break
