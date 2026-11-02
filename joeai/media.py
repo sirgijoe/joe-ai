@@ -1,0 +1,112 @@
+"""Generated media bookkeeping: per-folder manifest, review marks, FFmpeg to MP4.
+
+Each folder of AI images/videos gets a `_media.json`:
+    {"ai_generated": true, "note": "...", "items": {"001_kiln_1.png": {prompt, seed, model,
+     workflow, created, review: "keep"|"reject"|"star"|""}}}
+Review marks for files Joe didn't make are stored there too (ai_generated unknown).
+"""
+from __future__ import annotations
+
+import json
+import shutil
+import subprocess
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
+from .fsutil import atomic_write_text
+
+MANIFEST = "_media.json"
+AI_NOTE = ("AI-GENERATED. These images/videos were made by an AI model. Do not present them as "
+           "photos of real products, real places or real people.")
+REVIEWS = ("keep", "reject", "star", "")
+STILL = {".png", ".jpg", ".jpeg", ".webp", ".bmp"}
+ANIMATED = {".gif", ".webp"}
+VIDEO = {".mp4", ".webm", ".mov", ".mkv"}
+
+
+def load(folder: Path) -> dict:
+    p = folder / MANIFEST
+    if p.exists():
+        try:
+            d = json.loads(p.read_text(encoding="utf-8"))
+            if isinstance(d, dict):
+                d.setdefault("items", {})
+                return d
+        except (OSError, ValueError):
+            pass
+    return {"items": {}}
+
+
+def save(folder: Path, data: dict) -> None:
+    atomic_write_text(folder / MANIFEST, json.dumps(data, indent=1, ensure_ascii=False))
+
+
+def record(folder: Path, filename: str, meta: dict, job: str = "") -> None:
+    d = load(folder)
+    d["ai_generated"] = True
+    d["note"] = AI_NOTE
+    if job:
+        d["job"] = job
+    meta = {**meta, "ai_generated": True,
+            "created": datetime.now().isoformat(timespec="seconds"), "review": ""}
+    d["items"][filename] = meta
+    save(folder, d)
+
+
+def set_review(folder: Path, filename: str, mark: str) -> str:
+    if mark not in REVIEWS:
+        raise ValueError("bad review mark")
+    d = load(folder)
+    item = d["items"].setdefault(filename, {})
+    item["review"] = "" if item.get("review") == mark else mark      # pressing again clears
+    save(folder, d)
+    return item["review"]
+
+
+def info(folder: Path, filename: str) -> dict:
+    d = load(folder)
+    item = d["items"].get(filename)
+    if item is None:
+        return {}
+    return {**item, "ai_generated": item.get("ai_generated", d.get("ai_generated", False))}
+
+
+def reviews(folder: Path) -> dict[str, str]:
+    d = load(folder)
+    return {k: v.get("review", "") for k, v in d["items"].items() if v.get("review")}
+
+
+# --------------------------------------------------------------------------- ffmpeg
+def _run(cmd: list[str]) -> bool:
+    try:
+        p = subprocess.run(cmd, capture_output=True, timeout=1800,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+        return p.returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
+def to_mp4(ffmpeg: str, src: Path, dest: Path | None = None, fps: int = 16) -> Path | None:
+    """Animated GIF/WebP or another video -> H.264 MP4 that plays everywhere."""
+    dest = dest or src.with_suffix(".mp4")
+    if dest == src:
+        dest = src.with_name(src.stem + "_h264.mp4")
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), "-movflags", "+faststart",
+           "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
+           "-c:v", "libx264", "-preset", "veryfast", "-crf", "20", "-an", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
+def frames_to_mp4(ffmpeg: str, frames: list[Path], dest: Path, fps: int = 16) -> Path | None:
+    if not frames:
+        return None
+    with tempfile.TemporaryDirectory(prefix="nr_frames_") as td:
+        for i, f in enumerate(frames):
+            shutil.copyfile(f, Path(td) / f"f_{i:05d}{f.suffix.lower()}")
+        pattern = str(Path(td) / f"f_%05d{frames[0].suffix.lower()}")
+        cmd = [ffmpeg, "-y", "-loglevel", "error", "-framerate", str(fps), "-i", pattern,
+               "-movflags", "+faststart", "-pix_fmt", "yuv420p",
+               "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264",
+               "-preset", "veryfast", "-crf", "20", str(dest)]
+        return dest if _run(cmd) and dest.exists() else None

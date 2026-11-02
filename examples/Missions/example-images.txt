@@ -1,0 +1,4 @@
+TASK: Mood boards  TYPE: image  CHUNKS: 2 x 3  VARIANTS: 2
+FORMAT: Soft morning light, fresh bread on a wooden table, muted earth tones, no people.
+SIZE: 1216 x 832
+NEGATIVE: text, watermark, logo, blurry

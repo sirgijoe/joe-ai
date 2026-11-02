@@ -1,0 +1,5 @@
+RULES: American English. No exclamation marks.
+TASK: Product blurbs  CHUNKS: 6 x 8  MIN WORDS PER ITEM: 60
+FORMAT: One paragraph describing look, feel and everyday use. End with a one-line care tip.
+TASK: Social captions  CHUNKS: 4 x 10  MIN WORDS PER ITEM: 25
+FORMAT: Two or three sentences, then 3-5 hashtags on their own line.
