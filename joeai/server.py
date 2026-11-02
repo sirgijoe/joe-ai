@@ -135,8 +135,13 @@ class App:
                 if problem:
                     return {"ok": False, "error": f"Task '{j.name}': {problem}"}
             elif j.type == "video":
-                return {"ok": False, "error": f"Task '{j.name}': video tasks need a WORKFLOW file "
-                        "(ComfyUI: Workflow > Export (API), put it in Workflows/)."}
+                from .comfy import WAN_VIDEO, wan_missing
+                from .doctor import comfy_models_dir
+                if wan_missing(comfy_models_dir(self.settings)):
+                    return {"ok": False, "error": (
+                        f"Task '{j.name}': the video model isn't installed yet. F10 > System check "
+                        f"downloads {WAN_VIDEO['label']} (about {WAN_VIDEO['size_gb']:.0f} GB); restart "
+                        "ComfyUI after. Or give the task a WORKFLOW.")}
         if any(j.media for j in m.jobs) and not (self.services.comfy_up() or self.services.comfy_exe()
                                                  or self.settings.comfy.start_command):
             warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")

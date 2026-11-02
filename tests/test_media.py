@@ -303,3 +303,17 @@ def test_doctor_offers_video_model(env, tmp_path, monkeypatch):
     assert any(i["action"] == "download-video-model" for i in d["issues"])
     with pytest.raises(PermissionError):
         doctor.download_video_model(s, print)
+
+
+def test_check_video_needs_model_not_workflow(env, tmp_path):
+    from joeai.server import App
+    s, sb, fo, fc = env
+    s.comfy.models_dir = str(tmp_path / "models")
+    (tmp_path / "models").mkdir()
+    app = App(s)
+    r = app.check("TASK: Clip  SAVE: clips/a.mp4")
+    assert not r["ok"] and "System check" in r["error"]
+    for folder, name, _ in comfy.WAN_VIDEO["files"]:
+        (tmp_path / "models" / folder).mkdir(exist_ok=True)
+        (tmp_path / "models" / folder / name).write_bytes(b"x")
+    assert app.check("TASK: Clip  SAVE: clips/a.mp4")["ok"]
