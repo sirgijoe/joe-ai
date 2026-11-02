@@ -424,3 +424,12 @@ body.modern button.primary .k { color: var(--on-accent); }
 body:not(.modern) button.primary { background: var(--ph-faint); }
 body.modern .plancard h2.sub { border-top: 0; padding-top: 0; margin-top: 4px; }
 body:not(.modern) button.primary:hover, body:not(.modern) button.primary:focus-visible { background: var(--ph); }
+
+/* ---------- comfort ---------- */
+.saver { position: fixed; inset: 0; background: #000; z-index: 80; cursor: none; }
+.saver[hidden] { display: none; }
+#saver-box { position: absolute; transition: left 3s ease, top 3s ease; text-align: center; color: var(--ph-dim); }
+.saver-name { font-size: 3em; letter-spacing: .2em; opacity: .5; color: var(--accent); }
+.setup fieldset.comfort .inline { display: flex; gap: 8px; align-items: center; }
+.setup fieldset.comfort .inline input { width: 6em; }
+.setup fieldset.comfort label { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }

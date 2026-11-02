@@ -256,6 +256,15 @@ FORMAT: ...
           <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
           <label>Check for updates on start <input type="checkbox" data-path="ui.check_updates"></label>
         </fieldset>
+        <fieldset class="wide comfort"><legend>COMFORT</legend>
+          <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
+          <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
+          <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
+          <div class="dim small">PHONE PING WHEN JOE IS DONE (optional). Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>
+          <label title="The same topic name you subscribed to in the ntfy app.">ntfy topic <input data-path="comfort.ntfy_topic" placeholder="blank = off"></label>
+          <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
+          <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
+        </fieldset>
         <fieldset class="wide"><legend>CUSTOM THEME</legend>
           <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
           <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights"></textarea>
@@ -380,9 +389,11 @@ FORMAT: ...
  PRIVACY
  ───────
  No telemetry. No analytics. No phoning home. The only network calls
- are to Ollama and ComfyUI on your own computer, plus the display font
- from Google Fonts when you are online. Installs and model downloads
- (System check, F10) only happen after you say yes.
+ are to Ollama and ComfyUI on your own computer, the display font
+ from Google Fonts when you are online, the update check, and the
+ phone ping if you turn it on (one short line, nothing from your files).
+ Installs and model downloads (System check, F10) only happen after
+ you say yes.
 </pre>
       </div>
       <div class="row buttons"><button data-act="hear-story" title="Joe tells you his story out loud.">[ HEAR JOE TELL IT ]</button><button data-act="hush" title="Stop Joe talking.">[ STOP ]</button></div>
@@ -484,6 +495,7 @@ FORMAT: ...
   <div class="row buttons wnav"><button id="w-back" title="Go back a step">[ ◂ BACK ]</button><span class="grow"></span>
     <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
+<div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
 <div id="confirm" class="modal" hidden><div class="panel"><h2>CONFIRM</h2><p id="confirm-text"></p>
   <p class="row"><button id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>

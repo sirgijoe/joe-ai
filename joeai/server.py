@@ -40,6 +40,7 @@ from . import storage as storage_mod
 from . import themes as themes_mod
 from . import addons as addons_mod
 from . import chat as chat_mod
+from . import notify as notify_mod
 
 UI_DIR = Path(__file__).parent / "ui"
 TEXT_TYPES = {".md", ".txt", ".csv", ".json", ".log", ".py", ".cs", ".cpp", ".h", ".js",
@@ -86,6 +87,8 @@ class App:
         self.chain: list = []                # (mission, states) finished in this queue run
         self.queue_started = ""
         self.queue_finished = None
+        self.pending_ping = ""               # phone ping held back by quiet hours
+        self.finished = {"n": 0, "ok": True, "text": ""}   # last finished queue run (UI chime)
         # The mission box always opens empty ("What can I help you with?"). Past missions
         # stay in Missions/ (F3, L loads one); _last_mission.txt is kept only as a backup.
 
@@ -253,8 +256,38 @@ class App:
             self.log(f"Run stopped; {len(self.queue)} queued mission(s) were not started.")
         self.queue = []
         if not stopped:
+            self._run_finished()
             from .power import when_finished
             when_finished(self.settings.engine.when_finished, self.log)
+
+    # -- comfort: quiet hours, phone ping ---------------------------------------
+    def quiet(self) -> bool:
+        c = self.settings.comfort
+        return notify_mod.in_quiet_hours(c.quiet_start, c.quiet_end)
+
+    def _run_finished(self) -> None:
+        text = notify_mod.summary_line(self.chain)
+        ok = all(s.status == "done" for _, st in self.chain for s in st)
+        self.finished = {"n": self.finished["n"] + 1, "ok": ok, "text": text}
+        if not self.settings.comfort.ntfy_topic.strip():
+            return
+        if self.quiet():
+            self.pending_ping = text
+            self.log("Phone ping waits until quiet hours end.")
+        else:
+            self.send_ping(text)
+
+    def send_ping(self, text: str) -> str:
+        c = self.settings.comfort
+        err = notify_mod.send_ntfy(c.ntfy_server, c.ntfy_topic.strip(), text)
+        self.log("Phone ping sent." if not err else f"Phone ping failed: {err}")
+        return err
+
+    def ping_tick(self) -> None:
+        """Background loop: send a held-back ping once quiet hours are over."""
+        if self.pending_ping and not self.quiet():
+            text, self.pending_ping = self.pending_ping, ""
+            self.send_ping(text)
 
     def dequeue(self, index: int) -> dict:
         with self.lock:
@@ -383,7 +416,9 @@ class App:
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
                 "queued": [e["label"] for _, _, e in self.queue],
                 "media": media[-12:][::-1],
-                "chain": len(self.chain)}
+                "chain": len(self.chain),
+                "quiet": self.quiet(), "finished": self.finished,
+                "comfort": {"screensaver_min": s.comfort.screensaver_min}}
 
     def list_dir(self, rel: str) -> dict:
         p = self.rel_path(rel)
@@ -869,6 +904,11 @@ def make_handler(app: App):
                         return self._json({"ok": True, **mission_to_dict(parse((b.get("text", ""))))})
                     except MissionError as e:
                         return self._json({"ok": False, "error": str(e)})
+                if u.path == "/api/notify/test":       # one test ping, only when the person asks
+                    topic = (b.get("topic") or app.settings.comfort.ntfy_topic).strip()
+                    server = b.get("server") or app.settings.comfort.ntfy_server
+                    err = notify_mod.send_ntfy(server, topic, "Hi, it's Joe. Pings work. I'll tell you here when a run is done.")
+                    return self._json({"ok": not err, "error": err})
                 if u.path == "/api/describe":          # plain words in, a mission + summary out
                     from . import describe as describe_mod
                     return self._json(describe_mod.draft(app, b.get("text", "")))
@@ -1022,6 +1062,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
         while True:
             app.refresh_services()
             app.voice.idle_check()                     # free the voice models after a quiet spell
+            app.ping_tick()
             app.clone.idle_check()
             for _ in range(10):
                 time.sleep(1)

@@ -73,7 +73,7 @@ class UISettings:
                                      # green | amber | white (retro) | custom:<theme id in Themes/>
     crt: int = 2                     # 0 off, 1 subtle, 2 normal, 3 heavy
     text_size: int = 22              # px
-    sounds: bool = False
+    sounds: bool = False             # a soft chime when a run finishes or something fails
     check_updates: bool = True       # look for a newer release on GitHub when Joe starts
     welcomed: bool = False           # the first-start welcome (setup helper) has been seen
 
@@ -86,6 +86,15 @@ class VoiceSettings:
     speak_replies: bool = True       # Joe answers out loud in Talk (F6)
     talk_mode: str = "open"          # open: mic listens while Talk (F6) is open | push: hold a key
     ptt_key: str = "F6"              # push-to-talk key (any key; set in F10 > Voice)
+
+
+@dataclass
+class ComfortSettings:
+    screensaver_min: int = 10        # dim screen + slow-moving status after this many idle minutes (0 = off)
+    quiet_start: str = ""            # "22:00": no sounds or phone pings from here...
+    quiet_end: str = ""              # ..."07:00" (a ping waits until quiet hours end)
+    ntfy_topic: str = ""             # phone ping when a run is done (ntfy app); blank = off
+    ntfy_server: str = "https://ntfy.sh"
 
 
 @dataclass
@@ -106,6 +115,7 @@ class Settings:
     ui: UISettings = field(default_factory=UISettings)
     stats: StatsSettings = field(default_factory=StatsSettings)
     voice: VoiceSettings = field(default_factory=VoiceSettings)
+    comfort: ComfortSettings = field(default_factory=ComfortSettings)
     pandoc: str = ""                 # blank = auto-detect
 
     @property

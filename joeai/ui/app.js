@@ -206,6 +206,7 @@ async function poll() {
   $("#busy") && ($("#busy").textContent = state.busy ? state.busy + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") + "…" : "");
   $("#f5label").textContent = state.running ? "Stop" : "Run";
   welcomeTick();
+  comfortTick();
   $("#btn-run").innerHTML = state.running ? '[ STOP <span class="k">F5</span> ]' : '[ RUN <span class="k">F5</span> ]';
 }
 
@@ -600,6 +601,14 @@ document.addEventListener("click", async (ev) => {
         const r = await api("/api/queue/add", { text: r0.text });
         toast(r.ok ? (r.queued ? "Queued" : "Started") : r.error);
       });
+      return;
+    }
+    if (act === "test-ping") {
+      $("#ping-msg").textContent = "Sending…";
+      const topic = document.querySelector('[data-path="comfort.ntfy_topic"]').value.trim();
+      const server = document.querySelector('[data-path="comfort.ntfy_server"]').value.trim();
+      const r = await api("/api/notify/test", { topic, server });
+      $("#ping-msg").textContent = r.ok ? "Sent. Check your phone. (Press SAVE to keep the topic.)" : "Didn't work: " + r.error;
       return;
     }
     if (act === "welcome") { await loadThemes().catch(() => {}); welcomeOpen(); return; }
@@ -1627,3 +1636,42 @@ new MutationObserver((muts) => {
     else { if (m.target.closest && m.target.closest("button")) debracket(m.target.closest("button")); m.addedNodes.forEach(debracketAll); }
   }
 }).observe(document.body, { childList: true, subtree: true, characterData: true });
+
+/* ---------------- comfort: chime when done, screen saver ---------------- */
+let lastFinished = -1, actx = null;
+function chime(ok) {
+  try {
+    actx = actx || new AudioContext();
+    const notes = ok ? [523.25, 659.25, 783.99] : [392, 311.13];      // C-E-G, or a soft low pair
+    notes.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain(), t = actx.currentTime + i * 0.18;
+      o.type = "sine"; o.frequency.value = f;
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(0.12, t + 0.02); g.gain.exponentialRampToValueAtTime(0.001, t + 0.6);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + 0.65);
+    });
+  } catch (e) {}
+}
+let lastInput = Date.now(), saverMove = 0;
+["mousemove", "mousedown", "keydown", "wheel", "touchstart"].forEach((e) =>
+  window.addEventListener(e, () => { lastInput = Date.now(); if (!$("#saver").hidden) $("#saver").hidden = true; }, { capture: true, passive: true }));
+function comfortTick() {
+  const f = state.finished || { n: 0 };
+  if (lastFinished >= 0 && f.n > lastFinished) {
+    if (state.ui.sounds && !state.quiet) chime(f.ok);
+    toast(f.text || "Joe is done");
+  }
+  lastFinished = f.n;
+  const mins = (state.comfort || {}).screensaver_min || 0;
+  const saver = $("#saver");
+  const busyWithUs = !$("#welcome").hidden || !$("#confirm").hidden || (typeof micStream !== "undefined" && micStream);
+  if (mins > 0 && !busyWithUs && Date.now() - lastInput > mins * 60000) {
+    if (saver.hidden) { saver.hidden = false; saverMove = 0; }
+    const done = state.jobs.reduce((a, j) => a + j.parts_done, 0), total = state.jobs.reduce((a, j) => a + j.parts_total, 0);
+    $("#saver-line").textContent = state.running ? `working · ${done}/${total}` + (state.eta_s != null ? ` · about ${fmtEta(state.eta_s)} left` : "")
+      : "resting · move the mouse to wake me";
+    if (saverMove++ % 20 === 0) {                     // drift slowly so nothing burns in
+      const b = $("#saver-box");
+      b.style.left = Math.round(10 + Math.random() * 60) + "vw"; b.style.top = Math.round(10 + Math.random() * 65) + "vh";
+    }
+  }
+}

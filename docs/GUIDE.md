@@ -68,6 +68,17 @@ Joe opens fresh every time. If the last run didn't finish (stopped, crash, power
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).
 Pictures and video always run after the writing tasks, so the GPU switches over only once.
 
+## Comfort (Setup > Comfort)
+
+- **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).
+- **Screen saver**: after this many minutes without the mouse or keyboard (default 10, 0 = off)
+  the window goes dark with a small, slowly drifting status line. Any key or mouse move wakes it.
+- **Quiet hours** (e.g. 22:00 to 07:00): no chimes and no phone pings. A ping waits until they end.
+- **Phone ping when done** (off until you set it): install the free ntfy app, subscribe to a topic
+  name only you know, type the same name in Setup and press SEND A TEST PING. Joe sends one short
+  line when a run is done ("Joe is done: 3 of 3 tasks done, 48 items."), nothing from your files.
+  It's the only thing Joe ever sends off your PC, and only when you turn it on.
+
 ## Talking to Joe (F6)
 
 Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
