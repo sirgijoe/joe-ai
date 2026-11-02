@@ -323,3 +323,104 @@ details.more > summary:hover { color: var(--ph); }
 .wlooks { display: flex; flex-wrap: wrap; gap: 8px; }
 .wlooks .on { outline: 2px solid var(--ph); }
 .wnav { border-top: 1px dashed var(--ph-dim); padding-top: 6px; }
+
+/* ---------- tabs (top) + footer ---------- */
+.titlebar { align-items: center; flex-wrap: wrap; row-gap: 4px; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs button { padding: 0 8px; border: 1px solid var(--ph-dim); }
+.tabs button b { font-weight: normal; color: var(--ph-dim); font-size: .7em; margin-left: 6px; }
+.tabs button:hover b { color: var(--bg); }
+.tabs button.on { background: var(--ph); color: var(--bg); text-shadow: none; }
+.tabs button.on b { color: var(--bg); }
+.fkeys { align-items: center; }
+.hintline { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 70%; }
+body:not(.modern) button.br::before { content: "[ "; }
+body:not(.modern) button.br::after { content: " ]"; }
+
+/* ---------- modern looks: clean, readable, no CRT ---------- */
+body.modern {
+  --font: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+  --radius: 10px;
+  font-size: calc(var(--fs) * .72);
+  line-height: 1.4;
+}
+body.ph-modern-night, body.ph-modern-auto {
+  --ph: #e7eaf0; --ph-dim: #9aa4b5; --ph-faint: rgba(255,255,255,.07); --bg: #0f1218; --glow: transparent;
+  --panel: #171b23; --line: #2a303c; --accent: #4f9cff; --on-accent: #fff; --btn: #222836;
+}
+body.ph-modern-day {
+  --ph: #1c2230; --ph-dim: #5d6879; --ph-faint: rgba(0,0,0,.06); --bg: #eef0f4; --glow: transparent;
+  --panel: #ffffff; --line: #d9dde5; --accent: #2563eb; --on-accent: #fff; --btn: #f3f5f8;
+}
+@media (prefers-color-scheme: light) {
+  body.ph-modern-auto {
+    --ph: #1c2230; --ph-dim: #5d6879; --ph-faint: rgba(0,0,0,.06); --bg: #eef0f4;
+    --panel: #ffffff; --line: #d9dde5; --accent: #2563eb; --btn: #f3f5f8;
+  }
+}
+body.ph-futuristic {
+  --font: "Bahnschrift", "Segoe UI", system-ui, sans-serif;
+  --ph: #d4ecff; --ph-dim: #7f9bb8; --ph-faint: rgba(0,229,255,.08); --bg: #060a14; --glow: rgba(0,229,255,.35);
+  --panel: rgba(16,28,52,.78); --line: rgba(0,229,255,.28); --accent: #00d9f5; --on-accent: #001018; --btn: rgba(0,229,255,.08);
+  background: radial-gradient(ellipse at top, #0d1d38 0%, #060a14 60%) fixed;
+  letter-spacing: .02em;
+}
+body.modern #screen { padding: 12px 16px 8px; gap: 10px; }
+body.modern .titlebar { border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+body.modern .titlebar .brand { border-radius: 6px; font-weight: 700; background: var(--accent); color: var(--on-accent); }
+body.modern .titlebar .bin { font-family: Consolas, monospace; }
+body.modern .panel { border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel); padding: 12px 14px; }
+body.modern .panel h2 { margin: 0 0 8px; background: none; padding: 0; font-weight: 650; letter-spacing: .03em; font-size: 1.02em; }
+body.modern .panel h2 .dim { font-weight: 400; letter-spacing: 0; }
+body.modern .panel h2.sub { margin: 12px 0 6px; border-top: 1px solid var(--line); padding-top: 10px; }
+body.modern #s-builder .panel > h2:first-child { margin: 0 0 8px; }
+body.modern button { background: var(--btn); border: 1px solid var(--line); border-radius: 8px; padding: 3px 12px; transition: background .12s, border-color .12s; }
+body.modern button:hover, body.modern button:focus-visible { background: var(--accent); border-color: var(--accent); color: var(--on-accent); }
+body.modern button:disabled, body.modern button:disabled:hover { background: var(--btn); color: var(--ph-dim); border-color: var(--line); }
+body.modern .buttons { gap: 8px; }
+body.modern .k { font-size: .8em; opacity: .8; }
+body.modern textarea, body.modern input, body.modern select { background: var(--bg); border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; }
+body.modern textarea:focus, body.modern input:focus, body.modern select:focus { border-color: var(--accent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 25%, transparent); }
+body.modern input[type=checkbox], body.modern input[type=range] { accent-color: var(--accent); }
+body.modern .inv, body.modern .statusbar { background: var(--accent); color: var(--on-accent); }
+body.modern .statusbar { border-radius: 6px; padding: 3px 10px; font-size: .9em; }
+body.modern .tabs button { border-radius: 999px; }
+body.modern .tabs button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+body.modern .tabs button.on b, body.modern .tabs button:hover b { color: var(--on-accent); }
+body.modern .fkeys button b { background: var(--accent); color: var(--on-accent); border-radius: 4px; }
+body.modern .fkeys button { padding: 2px 10px 2px 2px; }
+body.modern .dir .ent.sel, body.modern .btask.sel { background: var(--accent); color: var(--on-accent); border-radius: 6px; }
+body.modern .btask.sel .n, body.modern .btask.sel .kind { color: var(--on-accent); }
+body.modern .plancard, body.modern .witem, body.modern .stat, body.modern .swatch, body.modern .setup fieldset,
+body.modern .talklog, body.modern .btasks, body.modern .bout { border: 1px solid var(--line); border-radius: var(--radius); }
+body.modern .plancard { background: color-mix(in srgb, var(--accent) 7%, var(--panel)); padding: 8px 14px; }
+body.modern .job .bar { font-family: Consolas, monospace; color: var(--accent); }
+body.modern .log, body.modern pre.out, body.modern .help pre, body.modern .about pre, body.modern #b-out { font-family: Consolas, "Cascadia Mono", monospace; font-size: .92em; }
+body.modern .help pre, body.modern .about pre { font-size: .95em; }
+body.modern .modal { background: rgba(0,0,0,.45); backdrop-filter: blur(2px); }
+body.modern .modal .panel { box-shadow: 0 18px 50px rgba(0,0,0,.35); }
+body.modern .hot { background: #e5484d; color: #fff; border-radius: 4px; }
+body.modern .warn { color: #e5484d; }
+body.ph-modern-night .warn, body.ph-futuristic .warn { color: #ff8a8a; }
+body.modern .boot { background: var(--bg); }
+body.modern .boot-name { text-shadow: none; color: var(--accent); }
+body.ph-futuristic .panel { box-shadow: 0 0 0 1px rgba(0,229,255,.06), 0 0 24px rgba(0,229,255,.06) inset; backdrop-filter: blur(6px); }
+body.ph-futuristic .panel h2 { text-transform: uppercase; letter-spacing: .14em; color: var(--accent); }
+body.ph-futuristic .tabs button.on { box-shadow: 0 0 14px var(--glow); }
+body.modern .gstrip .gth.on, body.modern .gstrip .gth:hover { border-color: var(--accent); outline-color: var(--accent); }
+body.modern details.more > summary, body.modern .adv summary { color: var(--accent); }
+body.modern ::selection { background: var(--accent); color: var(--on-accent); }
+body.modern ::-webkit-scrollbar-thumb { background: var(--line); border-radius: 8px; }
+body.modern ::-webkit-scrollbar-track { background: transparent; }
+body.modern .rec-badge, body.modern #ptt.rec { background: #e5484d; color: #fff; border-radius: 999px; }
+.tabs button { font-size: .9em; padding: 0 6px; }
+@media (max-width: 1650px) { body:not(.modern) .titlebar .bin { display: none; } }
+@media (max-width: 1250px) { .titlebar .bin { display: none; } .tabs button b { display: none; } }
+.bf .checks label.inline { display: inline-flex; gap: 6px; align-items: center; }
+body.modern .dosp { display: none; }
+body.modern button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
+body.modern button.primary:hover { filter: brightness(1.08); }
+body.modern button.primary .k { color: var(--on-accent); }
+body:not(.modern) button.primary { background: var(--ph-faint); }
+body.modern .plancard h2.sub { border-top: 0; padding-top: 0; margin-top: 4px; }
+body:not(.modern) button.primary:hover, body:not(.modern) button.primary:focus-visible { background: var(--ph); }

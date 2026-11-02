@@ -17,20 +17,52 @@ Themes\     custom color themes (made in F10, or by hand)
 
 Settings live in `%APPDATA%\joe-ai\settings.json`, never in the app folder.
 
-## Building missions without typing keys (F4)
+## Just describe it (Queue, F2)
 
-The Builder makes the mission block for you:
+The big box on the Queue screen takes plain words: "40 product descriptions for handmade mugs,
+friendly and short, plus 8 pictures of mugs on a wooden table". Press **MAKE A PLAN** (or
+Ctrl+Enter). Joe's local model writes the mission and you see it in plain words:
 
-- **+ ADD** a task, pick its kind (list of items, document, spreadsheet, pictures, video clips)
-  and fill in the form. The finished mission and a time estimate update as you type.
-- **↑ ↓** reorder, **COPY** duplicates, **SPLIT** cuts a task in two (by parts or sections),
-  **DELETE** removes it.
-- **IMPORT** a whole pasted mission to break it into tasks you can reorder or split.
-- **RUN NOW** starts it. **ADD TO QUEUE** adds it after whatever Joe is doing (F2 has the same
-  button for pasted missions). Queued missions run one after another until all are done, with
-  one combined morning report. Sleep/shut down happens only after the last one.
-- **SAVE** keeps it in `Missions\` under a name. **HISTORY** lists every mission you've run,
-  how many tasks finished, and LOAD / RUN buttons to revisit one.
+```
+JOE'S PLAN — about 14 minutes
+ • 40 items: Mug descriptions
+ • 8 pictures: Mugs on a table
+```
+
+**RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in the Builder,
+**START OVER** clears it. Nothing runs until you press RUN IT. The mission text itself is under
+**ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
+
+## Building it step by step (F4)
+
+The Builder makes the mission for you with simple forms:
+
+- **+ ADD SOMETHING**, pick what it is (a list of things, a document, a spreadsheet, pictures,
+  short video clips) and fill in the blanks: **How many?**, what each one looks like, how many
+  **versions of each picture**, the **shape** of the pictures. Joe splits big counts into small
+  batches himself so the AI stays sharp.
+- **MORE OPTIONS** holds the rest: file name, profile, batches, models, seed, ComfyUI workflow.
+- **↑ ↓** reorder, **COPY** duplicates, **SPLIT** cuts one in two, **REMOVE** takes it off.
+- **MORE** (left) has the profile, IMPORT for a pasted mission, and START OVER.
+- **RUN IT** starts it. **ADD TO QUEUE** adds it after whatever Joe is doing. Queued missions
+  run one after another until all are done, with one combined morning report. Sleep/shut down
+  happens only after the last one.
+- **SAVE** keeps it in `Missions\` under a name. **PAST MISSIONS** lists every mission you've
+  run, how many tasks finished, and LOAD / RUN buttons to revisit one.
+
+## First start, tabs and looks
+
+The first time Joe opens, a setup helper walks through it one step at a time: your graphics card
+in plain words, the writing model (the only must-have), pictures, talking, extras, and a look.
+Each **YES** installs just that one thing. Reopen it any time: Setup (F10) > **SETUP HELPER**.
+
+Every screen has a tab along the top (the F-keys still work). Hover over any button and the
+bottom line says what it does.
+
+Looks (Setup > Display > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
+**Modern night**, **Futuristic**, and the **Retro** green, amber and white screens (the old-screen
+effect only applies to the retro looks). CUSTOM THEME still designs a retro-style look from a
+description.
 
 Joe opens fresh every time. If the last run didn't finish (stopped, crash, power cut), he asks on
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).

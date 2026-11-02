@@ -75,10 +75,13 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Never overwrites your files: a second run saves `name_v2`.
 
 **Easy to live with**
-- A retro green-screen window with simple keys (F1 shows them all).
+- Just say what you need in plain words. Joe makes a plan you can read ("40 items, 8
+  pictures, about 14 minutes") and nothing runs until you press RUN IT.
+- A step-by-step setup helper the first time, tabs for every screen, and a hint for every
+  button when you hover over it. The F-keys work too (F1 shows them all).
 - Close the window and he keeps working. Open it again to check on him.
-- Green, amber or white screen, adjustable CRT glow — or describe your own theme in words
-  and Joe designs it for you.
+- Modern light and dark looks, a futuristic one, or the retro green, amber and white screens
+  with CRT glow — or describe your own theme in words and Joe designs it for you.
 - Stats for the number nerds: words written, items, files, hours of work, and how much
   you'd have paid a cloud AI for the same thing.
 - A morning report sized to paste straight into a bigger AI for review.
@@ -90,7 +93,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Touch anything outside his own folder (`Documents\Joe-ai`).
 - Install or download anything without asking you first.
 - Collect data about you. There's no tracking, no analytics, no phoning home.
-- Listen when you're not holding the talk key.
+- Listen unless the Talk screen is open with the mic on (or you're holding the talk key).
 
 ## What you need
 
@@ -109,14 +112,14 @@ Without an NVIDIA card Joe still works, just much slower.
 
 ## How a night with Joe goes
 
-1. **Before bed:** paste a job list into the box (or load one you saved) and press **F5**.
-   A bigger AI like Claude or ChatGPT can write the job list for you; it's plain text.
+1. **Before bed:** tell Joe what you need in your own words, check his plan, press **RUN IT**.
+   (Or build it step by step in the Builder, or paste a job list you or a bigger AI wrote.)
 2. **Overnight:** Joe writes first, then makes the pictures, so your graphics card only has
    to switch jobs once.
 3. **In the morning:** press **R** for the report. Your files are in `Documents\Joe-ai\Output`.
    Review them, fix what he flagged, and finish the good stuff.
 
-A job list looks like this:
+Under the hood, a job list looks like this (you never have to write one):
 
 ```
 PROJECT: My Shop   RULES: Warm, plain voice. No exclamation marks.
@@ -126,7 +129,6 @@ TASK: Mood boards  TYPE: image  CHUNKS: 2 x 5
 FORMAT: Soft morning light, linen, muted earth tones, no people.
 ```
 
-Or skip typing it: F4 Builder fills it in from a form.
 
 That's 48 product blurbs and 10 pictures by morning. Every key is explained in the
 [full guide](docs/GUIDE.md).

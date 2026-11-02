@@ -69,7 +69,8 @@ class EngineSettings:
 
 @dataclass
 class UISettings:
-    phosphor: str = "green"          # green | amber | white | custom:<theme id in Themes/>
+    phosphor: str = "modern-auto"    # modern-auto | modern-night | modern-day | futuristic |
+                                     # green | amber | white (retro) | custom:<theme id in Themes/>
     crt: int = 2                     # 0 off, 1 subtle, 2 normal, 3 heavy
     text_size: int = 22              # px
     sounds: bool = False

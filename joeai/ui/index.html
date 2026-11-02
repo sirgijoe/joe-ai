@@ -13,10 +13,21 @@
 <div id="screen">
 
   <header class="titlebar">
-    <span class="inv">&nbsp;JOE&nbsp;</span>
+    <span class="inv brand">&nbsp;JOE&nbsp;</span>
     <span class="dim bin">01000001 01001001</span>
-    <span id="title-screen">QUEUE</span>
+    <nav class="tabs" aria-label="Screens">
+      <button data-key="F2" title="Tell Joe what you need, run it, and watch it happen.">Queue<b>F2</b></button>
+      <button data-key="F4" title="Build a plan step by step with simple forms.">Builder<b>F4</b></button>
+      <button data-key="F6" title="Talk or type to Joe. Drop a file here to ask about it.">Talk<b>F6</b></button>
+      <button data-key="F3" title="Everything Joe made: open, look through and mark pictures.">Files<b>F3</b></button>
+      <button data-key="R" title="What Joe finished last time and what needs a look.">Report<b>R</b></button>
+      <button data-key="F8" title="How much Joe has done, and how much room he takes up.">Stats<b>F8</b></button>
+      <button data-key="F10" title="Settings, the System check and the look.">Setup<b>F10</b></button>
+      <button data-key="F1" title="Every key and button explained.">Help<b>F1</b></button>
+      <button data-key="F9" title="Joe's story, privacy and license.">About<b>F9</b></button>
+    </nav>
     <span class="grow"></span>
+    <span id="title-screen" class="dim" hidden>QUEUE</span>
     <span id="ver" class="dim"></span>
     <span id="clock">--:--</span>
   </header>
@@ -25,12 +36,12 @@
   <main id="s-queue" class="view active">
     <section class="panel mission">
       <h2>WHAT DO YOU NEED?</h2>
-      <div class="prompt" title="No special words needed. Say what you want made, how many, and any style or tone.">C:\JOE&gt; Tell Joe in your own words. He makes a plan, you check it, then press RUN.</div>
+      <div class="prompt" title="No special words needed. Say what you want made, how many, and any style or tone."><span class="dosp">C:\JOE&gt; </span>Tell Joe in your own words. He makes a plan, you check it, then press RUN.</div>
       <textarea id="describe" spellcheck="true" placeholder="For example:
 40 product descriptions for handmade coffee mugs, friendly and short,
 plus 8 pictures of mugs on a wooden table in morning light."></textarea>
       <div class="row buttons">
-        <button data-act="describe" id="btn-describe" title="Joe turns what you wrote into a plan. Nothing runs until you press RUN IT.">[ MAKE A PLAN ]</button>
+        <button data-act="describe" id="btn-describe" class="primary" title="Joe turns what you wrote into a plan. Nothing runs until you press RUN IT.">[ MAKE A PLAN ]</button>
         <span id="describe-msg" class="dim"></span>
       </div>
       <div id="plancard" class="plancard" hidden>
@@ -38,7 +49,7 @@ plus 8 pictures of mugs on a wooden table in morning light."></textarea>
         <ul id="plan-list" class="planlist"></ul>
         <div id="plan-warn" class="small"></div>
         <div class="row buttons">
-          <button data-act="plan-run" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
+          <button data-act="plan-run" class="primary" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
           <button data-act="queue-add" title="Put this plan in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
           <button data-act="to-builder" title="Change the numbers, style or details with simple forms.">[ CHANGE IT <span class="k">F4</span> ]</button>
           <button data-act="clear" title="Throw this plan away and start fresh.">[ START OVER ]</button>
@@ -121,7 +132,7 @@ FORMAT: ...
       <ul id="b-sum" class="planlist"></ul>
       <details class="more"><summary title="The plan written out for Joe.">MISSION TEXT</summary><pre id="b-out" class="out bout"></pre></details>
       <div class="row buttons">
-        <button data-b="run" id="b-run" title="Start now (or wait in line if Joe is busy).">[ RUN IT ]</button>
+        <button data-b="run" id="b-run" class="primary" title="Start now (or wait in line if Joe is busy).">[ RUN IT ]</button>
         <button data-b="queue" title="Put it in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
         <button data-b="send" title="Show this plan on the Queue screen without running it.">[ SEND TO QUEUE SCREEN ]</button>
         <input id="b-name" placeholder="name it" size="12" title="Give it a name to save it for later."><button data-b="save" title="Save this mission so you can run it again another night.">[ SAVE ]</button>
@@ -142,10 +153,10 @@ FORMAT: ...
       <div class="talkin">
         <textarea id="talk-in" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
         <div class="talkbtns">
-          <button data-act="talk-send">[ SEND ]</button>
-          <button id="ptt" data-act="ptt">[ MIC ON ]</button>
-          <button data-act="talk-attach">[ ATTACH ]</button>
-          <button data-act="talk-clear">[ NEW CHAT ]</button>
+          <button data-act="talk-send" title="Send what you typed (or just press Enter).">[ SEND ]</button>
+          <button id="ptt" data-act="ptt" title="Turn the microphone on or off. With it on, just talk and pause.">[ MIC ON ]</button>
+          <button data-act="talk-attach" title="Pick a file (text, Word, PDF, web page or picture) to ask Joe about.">[ ATTACH ]</button>
+          <button data-act="talk-clear" title="Forget this conversation and start a new one.">[ NEW CHAT ]</button>
           <input type="file" id="talk-file" multiple hidden>
         </div>
       </div>
@@ -157,7 +168,7 @@ FORMAT: ...
     <section class="panel full">
       <h2>MORNING REPORT <span class="dim">— C copies it for Claude · Esc back</span></h2>
       <pre id="report" class="out tall"></pre>
-      <div class="row buttons"><button data-act="read-report">[ READ IT TO ME ]</button><button data-act="hush">[ STOP TALKING ]</button></div>
+      <div class="row buttons"><button data-act="read-report" title="Joe reads the report out loud.">[ READ IT TO ME ]</button><button data-act="hush" title="Stop Joe talking.">[ STOP TALKING ]</button></div>
     </section>
   </main>
 
@@ -199,7 +210,7 @@ FORMAT: ...
         <fieldset class="wide doctor"><legend>SYSTEM CHECK</legend>
           <pre id="doctor" class="out dim">Checking…</pre>
           <div id="issues"></div>
-          <div class="row"><button type="button" data-act="doctor">[ CHECK AGAIN ]</button>
+          <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
             <span id="busy" class="dim"></span></div>
         </fieldset>
         <fieldset class="wide"><legend>WORKSPACE</legend>
@@ -233,9 +244,13 @@ FORMAT: ...
         </fieldset>
         <fieldset><legend>DISPLAY</legend>
           <label>Theme
-            <select data-path="ui.phosphor" id="theme-select"><option value="green">Green</option>
-              <option value="amber">Amber</option><option value="white">White</option></select></label>
-          <label>CRT effect
+            <select data-path="ui.phosphor" id="theme-select">
+              <option value="modern-auto">Modern (follows day and night)</option>
+              <option value="modern-day">Modern day (light)</option><option value="modern-night">Modern night (dark)</option>
+              <option value="futuristic">Futuristic</option>
+              <option value="green">Retro green screen</option>
+              <option value="amber">Retro amber screen</option><option value="white">Retro white screen</option></select></label>
+          <label title="Scanlines and glow, for the retro looks only.">Old-screen effect
             <select data-path="ui.crt"><option value="0">Off</option><option value="1">Subtle</option>
               <option value="2">Normal</option><option value="3">Heavy</option></select></label>
           <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
@@ -244,7 +259,7 @@ FORMAT: ...
         <fieldset class="wide"><legend>CUSTOM THEME</legend>
           <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
           <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights"></textarea>
-          <div class="row"><button type="button" data-act="make-theme">[ MAKE THEME ]</button><span id="theme-msg" class="dim"></span></div>
+          <div class="row"><button type="button" data-act="make-theme" title="Joe designs a color scheme from your description.">[ MAKE THEME ]</button><span id="theme-msg" class="dim"></span></div>
           <div id="swatches" class="swatches"></div>
         </fieldset>
         <fieldset><legend>VOICE</legend>
@@ -255,13 +270,13 @@ FORMAT: ...
           <label>Speak replies in Talk (F6) <input type="checkbox" data-path="voice.speak_replies"></label>
           <label>How to talk
             <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
-          <label>Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt">[ SET KEY ]</button></span></label>
-          <div class="row"><button type="button" data-act="test-voice">[ TEST VOICE ]</button></div>
+          <label>Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
+          <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
           <div class="myvoice">
             <div class="dim">MAKE JOE SOUND LIKE ME</div>
             <div id="mv-status" class="dim small"></div>
             <label class="inline small"><input type="checkbox" id="mv-consent"> This is my own voice, and I'm recording it myself.</label>
-            <div class="row"><button type="button" data-act="mv-record" id="mv-record">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete">[ DELETE MY VOICE ]</button></div>
+            <div class="row"><button type="button" data-act="mv-record" id="mv-record" title="Record yourself reading a short passage (about 30 seconds).">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete" title="Delete your recording; Joe goes back to a built-in voice.">[ DELETE MY VOICE ]</button></div>
             <pre id="mv-script" class="out mvscript" hidden></pre>
             <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
           </div>
@@ -273,10 +288,10 @@ FORMAT: ...
           <label>$ per kWh <input type="number" step="0.01" data-path="stats.kwh_price"></label>
         </fieldset>
         <div class="row buttons">
-          <button type="submit">[ SAVE ]</button>
-          <button type="button" data-act="start-ollama">[ START OLLAMA ]</button>
-          <button type="button" data-act="start-comfy">[ START COMFYUI ]</button>
-          <button type="button" data-act="check-update">[ CHECK FOR UPDATES ]</button>
+          <button type="submit" title="Save these settings (Ctrl+S).">[ SAVE ]</button>
+          <button type="button" data-act="start-ollama" title="Start Ollama, the program that runs the writing models.">[ START OLLAMA ]</button>
+          <button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button>
+          <button type="button" data-act="check-update" title="See if a newer Joe is out.">[ CHECK FOR UPDATES ]</button>
           <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
         </div>
         <pre id="setup-msg" class="out"></pre>
@@ -370,7 +385,7 @@ FORMAT: ...
  (System check, F10) only happen after you say yes.
 </pre>
       </div>
-      <div class="row buttons"><button data-act="hear-story">[ HEAR JOE TELL IT ]</button><button data-act="hush">[ STOP ]</button></div>
+      <div class="row buttons"><button data-act="hear-story" title="Joe tells you his story out loud.">[ HEAR JOE TELL IT ]</button><button data-act="hush" title="Stop Joe talking.">[ STOP ]</button></div>
       <div class="dim small" id="about-ver"></div>
     </section>
   </main>
@@ -380,13 +395,23 @@ FORMAT: ...
     <section class="panel full help">
       <h2>HELP</h2>
 <pre>
+ GETTING STARTED
+ 1. Queue screen: type what you need in your own words,
+    then MAKE A PLAN.
+ 2. Check Joe's plan. RUN IT (or CHANGE IT in the Builder).
+ 3. In the morning, Report (R) says what's done.
+ Click the tabs along the top, or use the keys below.
+ Hover over any button: the bottom line says what it does.
+ Setup (F10) > SETUP HELPER walks through installing things.
+
  KEY   WHAT IT DOES
  ───   ─────────────────────────────────────────────
  F1    This help
- F2    Queue: paste a mission, run it, watch progress
+ F2    Queue: describe what you need, run it, watch progress
+       (ADVANCED shows the mission text)
  F3    Files: browse the workspace, preview, open
- F4    Builder: make a mission with forms, reorder or split
-       tasks, paste a whole mission, rerun past ones
+ F4    Builder: make a plan with simple forms, reorder or
+       split, paste a whole mission, rerun past ones
  F6    Talk to Joe. Drop a file on the window (or ATTACH) and ask about it,
        or say "read it". Text, Word, PDF, web pages; pictures need a vision model.
        Dropped files are copied to Inbox\dropped.
@@ -444,16 +469,10 @@ FORMAT: ...
   <footer>
     <div id="status" class="statusbar inv"></div>
     <nav class="fkeys">
-      <button data-key="F1"><b>F1</b>Help</button>
-      <button data-key="F2"><b>F2</b>Queue</button>
-      <button data-key="F3"><b>F3</b>Files</button>
-      <button data-key="F4"><b>F4</b>Builder</button>
-      <button data-key="F5"><b>F5</b><span id="f5label">Run</span></button>
-      <button data-key="F6"><b>F6</b>Talk</button>
-      <button data-key="F8"><b>F8</b>Stats</button>
-      <button data-key="F9"><b>F9</b>About</button>
-      <button data-key="F10"><b>F10</b>Setup</button>
-      <button data-key="Escape"><b>Esc</b>Back</button>
+      <button data-key="F5" title="Start the plan on the Queue screen, or stop a run (it can pick up again later)."><b>F5</b><span id="f5label">Run</span></button>
+      <button data-key="Escape" title="Back to the Queue screen."><b>Esc</b>Back</button>
+      <span class="grow"></span>
+      <span class="dim small hintline" id="hintline">Hover over anything to see what it does.</span>
     </nav>
   </footer>
 </div>

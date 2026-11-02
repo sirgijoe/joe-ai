@@ -24,7 +24,7 @@ function show(name) {
   current = name;
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "s-" + name));
   $("#title-screen").textContent = name.toUpperCase();
-  document.querySelectorAll(".fkeys button").forEach((b) => b.classList.toggle("on", SCREENS[b.dataset.key] === name));
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (SCREENS[b.dataset.key] || (b.dataset.key === "R" && "report")) === name));
   if (name === "files") loadDir(dirPath, true);
   if (name === "stats") { loadStats(); loadStorage(); }
   if (name === "setup") loadSetup();
@@ -77,9 +77,12 @@ function applyTheme(vars) {
   THEME_VARS.forEach((k) => document.body.style.removeProperty(k));
   if (vars) Object.entries(vars).forEach(([k, v]) => document.body.style.setProperty(k, v));
 }
+// Retro looks (green / amber / white / custom) keep the CRT effect; the modern looks don't use it.
+const MODERN = ["modern-auto", "modern-night", "modern-day", "futuristic"];
 function applyUI(ui, themeVars) {
   const ph = /^custom:/.test(ui.phosphor) ? "custom" : ui.phosphor;
-  document.body.className = `ph-${ph} crt-${ui.crt}`;
+  const modern = MODERN.includes(ph);
+  document.body.className = `ph-${ph} crt-${modern ? 0 : ui.crt}${modern ? " modern" : ""}`;
   document.documentElement.style.setProperty("--fs", ui.text_size + "px");
   applyTheme(themeVars);
 }
@@ -88,9 +91,9 @@ let lastLogLen = -1, lastUI = "", lastBusy = "", lastMedia = "", viewing = "", l
 const isVid = (p) => /\.(mp4|webm|mov|mkv|m4v)$/i.test(p);
 const playerUrl = (p) => "/player?t=" + encodeURIComponent(TOKEN) + "&path=" + encodeURIComponent(p);
 function mediaButtons(p) {
-  return `<div class="gbtns"><button type="button" data-window="${esc(p)}">[ BIG WINDOW ]</button>` +
-    `<button type="button" data-system="${esc(p)}">[ OPEN IN PLAYER ]</button>` +
-    `<button type="button" data-open="${esc(p)}">[ DETAILS F3 ]</button></div>`;
+  return `<div class="gbtns"><button type="button" data-window="${esc(p)}" title="Open it big in its own window.">[ BIG WINDOW ]</button>` +
+    `<button type="button" data-system="${esc(p)}" title="Open it in your usual picture or video program.">[ OPEN IN PLAYER ]</button>` +
+    `<button type="button" data-open="${esc(p)}" title="Find it in Files (F3) to see how it was made, keep or reject it.">[ DETAILS F3 ]</button></div>`;
 }
 // When the browser can't play a format (e.g. HEVC .mp4, .mkv), say so and offer the PC's player.
 function watchVideoErrors(root) {
@@ -457,7 +460,7 @@ async function loadStorage() {
     `<div class="srow total"><span class="sl">Workspace total</span><span class="sb">${fmtBytes(s.workspace_bytes)}</span><span class="sbar"></span></div>` + disk;
   $("#cleanups").innerHTML = s.cleanups.map((c) =>
     `<div class="issue"><span class="t">${esc(c.label)}: ${c.count ? `${c.count} item${c.count === 1 ? "" : "s"}, ${fmtBytes(c.bytes)}` : '<span class="dim">nothing to clean</span>'}</span>` +
-    (c.count ? `<button type="button" data-clean="${esc(c.kind)}" data-label="${esc(c.label)}" data-count="${c.count}" data-bytes="${c.bytes}">[ CLEAN ]</button>` : "") + "</div>").join("");
+    (c.count ? `<button type="button" title="Move these to the Recycle Bin (asks first)." data-clean="${esc(c.kind)}" data-label="${esc(c.label)}" data-count="${c.count}" data-bytes="${c.bytes}">[ CLEAN ]</button>` : "") + "</div>").join("");
 }
 $("#cleanups").addEventListener("click", (ev) => {
   const b = ev.target.closest("[data-clean]"); if (!b) return;
@@ -622,7 +625,7 @@ document.addEventListener("click", async (ev) => {
       $("#theme-msg").textContent = "Designing…";
       const r = await api("/api/theme/make", { description: desc });
       if (!r.ok) { $("#theme-msg").textContent = "ERROR: " + r.error; return; }
-      applyTheme(r.vars); document.body.className = `ph-custom crt-${r.theme.crt}`;
+      applyTheme(r.vars); document.body.className = `ph-custom crt-${r.theme.crt}`;   // custom themes are retro-style
       $("#theme-msg").textContent = `Previewing "${r.theme.name}". Press USE to keep it.`;
       await loadThemes();
       return;
@@ -638,6 +641,7 @@ document.addEventListener("click", async (ev) => {
 /* ---------------- keyboard ---------------- */
 function handleKey(key) {
   if (SCREENS[key]) { show(SCREENS[key]); return true; }
+  if (key === "R") { show("report"); return true; }
   if (key === "F5") { runOrStop().catch((e) => toast(e.message)); return true; }
   if (key === "Escape") {
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
@@ -999,7 +1003,7 @@ async function builderAction(a) {
 async function loadHistory() {
   let r; try { r = await api("/api/history"); } catch (e) { return; }
   $("#b-history").innerHTML = r.missions.length ? r.missions.map((m) =>
-    `<div class="h"><span class="dim">${esc(m.when)}</span><span class="t">${esc(m.label)}</span><span class="dim">${m.done}/${m.tasks} done</span><button data-hload="${esc(m.file)}">[ LOAD ]</button><button data-hrun="${esc(m.file)}">[ RUN ]</button></div>`).join("")
+    `<div class="h"><span class="dim">${esc(m.when)}</span><span class="t">${esc(m.label)}</span><span class="dim">${m.done}/${m.tasks} done</span><button data-hload="${esc(m.file)}" title="Open it here so you can change it.">[ LOAD ]</button><button data-hrun="${esc(m.file)}" title="Run it again.">[ RUN ]</button></div>`).join("")
     : '<div class="dim small">Missions you run show up here.</div>';
 }
 document.addEventListener("keydown", (ev) => {
@@ -1592,3 +1596,34 @@ $("#welcome").addEventListener("click", async (ev) => {
     setTimeout(wRender, 1100);                       // poll() applies the new look
   }
 });
+
+/* ---------------- hover hints + button labels that suit every look ---------------- */
+// Anything with a title shows its hint in the footer as soon as the mouse is over it
+// (the browser's own tooltip takes a second or two to appear).
+const HINT0 = "Hover over anything to see what it does.";
+document.addEventListener("mouseover", (ev) => {
+  const el = ev.target.closest && ev.target.closest("[title]");
+  $("#hintline").textContent = el && el.title ? el.title : HINT0;
+});
+// Buttons are written "[ RUN ]" (the retro look). Strip the brackets once and let the CSS put
+// them back only on the retro looks, so modern looks get clean rounded buttons.
+function debracket(btn) {
+  const first = btn.firstChild, last = btn.lastChild;
+  if (first && first.nodeType === 3 && /^\s*\[\s?/.test(first.nodeValue)) {
+    first.nodeValue = first.nodeValue.replace(/^\s*\[\s?/, "");
+    if (last && last.nodeType === 3) last.nodeValue = last.nodeValue.replace(/\s?\]\s*$/, "");
+    btn.classList.add("br");
+  }
+}
+function debracketAll(root) {
+  if (root.nodeType !== 1) return;
+  if (root.tagName === "BUTTON") debracket(root);
+  root.querySelectorAll && root.querySelectorAll("button").forEach(debracket);
+}
+debracketAll(document.body);
+new MutationObserver((muts) => {
+  for (const m of muts) {
+    if (m.type === "characterData") { const b = m.target.parentElement && m.target.parentElement.closest("button"); if (b) debracket(b); }
+    else { if (m.target.closest && m.target.closest("button")) debracket(m.target.closest("button")); m.addedNodes.forEach(debracketAll); }
+  }
+}).observe(document.body, { childList: true, subtree: true, characterData: true });

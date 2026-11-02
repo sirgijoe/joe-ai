@@ -905,7 +905,7 @@ def make_handler(app: App):
                     if tid and f.exists():
                         f.unlink()
                         if app.settings.ui.phosphor == f"custom:{tid}":
-                            app.settings.ui.phosphor = "green"
+                            app.settings.ui.phosphor = "modern-auto"
                             app.settings.save()
                     return self._json({"ok": True})
                 if u.path == "/api/storage/clean":
