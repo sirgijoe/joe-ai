@@ -181,12 +181,17 @@ class App:
         except OSError:
             pass
 
-    def enqueue(self, text: str) -> dict:
-        """Add a mission to the queue; starts running if Joe is idle."""
+    def enqueue(self, text: str, only: list[str] | None = None) -> dict:
+        """Add a mission to the queue; starts running if Joe is idle.
+        only = run just these task names (resume: skip what already finished)."""
         chk = self.check(text)
         if not chk["ok"]:
             return chk
         mission = parse(text)
+        if only is not None:
+            mission.jobs = [j for j in mission.jobs if j.name in set(only)]
+            if not mission.jobs:
+                return {"ok": False, "error": "Nothing left to do in that mission."}
         with self.lock:
             entry = {"file": self._save_mission_file(text), "label": self._label(mission),
                      "tasks": [j.name for j in mission.jobs], "unfinished": [j.name for j in mission.jobs]}
@@ -291,7 +296,7 @@ class App:
                 continue
             f = self.sb.root / m["file"]
             if f.is_file():
-                r = self.enqueue((f.read_text(encoding="utf-8", errors="replace")))
+                r = self.enqueue(f.read_text(encoding="utf-8", errors="replace"), only=m["unfinished"])
                 started += bool(r.get("ok"))
         return {"ok": started > 0, "started": started,
                 "error": "" if started else "The saved missions couldn't be found."}

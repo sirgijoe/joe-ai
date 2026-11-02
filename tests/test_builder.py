@@ -115,3 +115,19 @@ def test_resume_action_runs_unfinished(app):
     assert app.resume("resume")["ok"]
     _wait(app)
     assert app.resume_offer()["offer"] is False
+
+
+def test_resume_skips_finished_tasks(app):
+    two = """PROJECT: Test Studio
+TASK: Mugs  SAVE: q/mugs.md  CHUNKS: 1 x 2
+TASK: Bowls  SAVE: q/bowls.md  CHUNKS: 1 x 2"""
+    app.enqueue(two)
+    _wait(app)
+    # Pretend Bowls failed (like a picture task with no model): only it should run again.
+    data = json.loads((app.sb.meta / "last_run.json").read_text())
+    data["missions"][0]["unfinished"] = ["Bowls"]
+    (app.sb.meta / "last_run.json").write_text(json.dumps(data))
+    assert app.resume("resume")["ok"]
+    _wait(app)
+    assert [j.name for j in app.chain[-1][0].jobs] == ["Bowls"]
+    assert not (app.sb.output / "q" / "mugs_v2.md").exists()        # finished work isn't redone
