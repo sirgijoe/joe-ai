@@ -90,6 +90,9 @@ def plain_summary(chk: dict) -> list[str]:
     return out
 
 
+ROUGH = " (a rough guess until Joe has timed this PC)"
+
+
 def plain_time(minutes: int) -> str:
     if minutes <= 1:
         return "about a minute"
@@ -130,7 +133,8 @@ def draft(app, request: str) -> dict:
                 chk = app.check(block)
                 if chk["ok"]:
                     return {"ok": True, "mission": block, "summary": plain_summary(chk),
-                            "time": plain_time(chk["eta_min"]), "eta_min": chk["eta_min"],
+                            "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
+                            "eta_min": chk["eta_min"],
                             "warnings": chk.get("warnings", [])}
                 problem = chk["error"]
             except MissionError as e:

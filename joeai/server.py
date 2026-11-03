@@ -149,14 +149,15 @@ class App:
                                                  or self.settings.comfy.start_command):
             warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")
         parts = sum(j.parts for j in m.jobs if not j.media)
-        secs = parts * SECONDS_PER_PART
+        sp = stats_mod.speeds(self.sb)                # learned on this PC; rough defaults at first
+        secs = parts * sp["part"]
         for j in m.jobs:
             if j.media:
                 n = (len(j.part_prompts) or j.parts * j.part_size)
-                secs += n * j.variants * (SECONDS_PER_VIDEO if j.type == "video" else SECONDS_PER_IMAGE)
+                secs += n * j.variants * (sp["video"] if j.type == "video" else sp["image"])
                 secs += 0 if j.prompts_as_written else n * 6
         return {"ok": True, "project": m.project, "parts": parts, "warnings": warnings,
-                "eta_min": round(secs / 60),
+                "eta_min": round(secs / 60), "eta_learned": bool(sp["learned"]),
                 "jobs": [{"name": j.name, "type": "csv" if j.is_csv else j.type, "parts": j.parts,
                           "size": j.part_size, "items": j.total_items, "guided": j.guided,
                           "min_words": j.min_words, "save": j.save, "variants": j.variants,
@@ -402,7 +403,7 @@ class App:
             left = sum(j["parts_total"] - j["parts_done"] for j in jobs
                        if j["status"] in ("pending", "running"))
             el = time.time() - self.run_started
-            per = el / done if done > 0 else SECONDS_PER_PART
+            per = el / done if done > 0 else stats_mod.speeds(self.sb)["part"]
             eta = round(per * left)
         s = self.settings
         return {"version": __version__, "running": self.running,
@@ -563,6 +564,36 @@ class App:
         tid = themes_mod.save(self.sb.themes, t)
         self.log(f"New theme '{t['name']}' saved to Themes/{tid}.json")
         return {"ok": True, "id": tid, "theme": t, "vars": themes_mod.css_vars(t)}
+
+    # -- speed test: one real batch, so time estimates fit this PC ---------------------
+    def speed_test(self) -> dict:
+        if self.running:
+            return {"ok": False, "error": "Joe is busy with a run; its timings teach him anyway."}
+        if not self.services.ensure_ollama():
+            return {"ok": False, "error": "Ollama isn't running (Setup > System check)."}
+        from .doctor import resolve_text_model
+        model = resolve_text_model(self.settings, self.services, self.log)
+        try:
+            self.services.ollama.warm(model)               # loading the model isn't part of the speed
+        except Exception:
+            pass
+        msgs = [{"role": "system", "content": "You write short, plain product copy."},
+                {"role": "user", "content": "Write exactly 5 NEW item(s) about handmade ceramic mugs. "
+                 "Begin each item with a line: ## <title>. Then about 60 words."}]
+        try:
+            r = self.services.ollama.chat(msgs, model=model, keep_alive="20m")
+        except Exception as e:
+            return {"ok": False, "error": f"the model didn't answer: {e}"}
+        secs = round(r.seconds, 1)
+        self.sb.meta.mkdir(parents=True, exist_ok=True)
+        with open(self.sb.meta / "runs.jsonl", "a", encoding="utf-8") as f:
+            f.write(json.dumps({"kind": "speedtest", "ok": True, "model": model, "seconds": secs,
+                                "tokens_out": r.output_tokens,
+                                "ts": datetime.now().isoformat(timespec="seconds")}) + "\n")
+        per100 = max(1, round(secs * 1.15 * 20 / 60))
+        return {"ok": True, "seconds": secs, "model": model,
+                "text": f"A batch of 5 items took {secs:g} seconds with {model}. "
+                        f"So 100 items takes about {per100} minute{'s' if per100 != 1 else ''} on this PC."}
 
     # -- talking to Joe ------------------------------------------------------------
     def talk(self, text: str) -> dict:
@@ -909,6 +940,8 @@ def make_handler(app: App):
                     server = b.get("server") or app.settings.comfort.ntfy_server
                     err = notify_mod.send_ntfy(server, topic, "Hi, it's Joe. Pings work. I'll tell you here when a run is done.")
                     return self._json({"ok": not err, "error": err})
+                if u.path == "/api/speedtest":
+                    return self._json(app.speed_test())
                 if u.path == "/api/describe":          # plain words in, a mission + summary out
                     from . import describe as describe_mod
                     return self._json(describe_mod.draft(app, b.get("text", "")))
@@ -918,7 +951,8 @@ def make_handler(app: App):
                     if not chk["ok"]:
                         return self._json(chk)
                     return self._json({"ok": True, "summary": describe_mod.plain_summary(chk),
-                                       "time": describe_mod.plain_time(chk["eta_min"]),
+                                       "time": describe_mod.plain_time(chk["eta_min"])
+                                       + ("" if chk.get("eta_learned") else describe_mod.ROUGH),
                                        "warnings": chk.get("warnings", [])})
                 if u.path == "/api/mission/build":
                     from .mission import to_text
@@ -928,7 +962,8 @@ def make_handler(app: App):
                     if chk["ok"]:
                         from . import describe as describe_mod
                         out["summary"] = describe_mod.plain_summary(chk)
-                        out["time"] = describe_mod.plain_time(chk["eta_min"])
+                        out["time"] = describe_mod.plain_time(chk["eta_min"]) + \
+                            ("" if chk.get("eta_learned") else describe_mod.ROUGH)
                     return self._json(out)
                 if u.path == "/api/mission/save_as":
                     name = re.sub(r"[^A-Za-z0-9 _-]", "", b.get("name", "")).strip()[:60]

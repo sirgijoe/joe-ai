@@ -73,3 +73,23 @@ def test_plain_summary_kinds():
     assert describe.plain_time(25) == "about 25 minutes"
     assert describe.plain_time(125) == "about 2 hours 5 min"
     assert describe.plain_time(60) == "about 1 hour"
+
+
+def test_speeds_learn_from_runs_and_speed_test(app):
+    import json
+    from joeai import stats
+    assert stats.speeds(app.sb)["part"] == stats.DEFAULT_SPEEDS["part"]
+    r = app.speed_test()
+    assert r["ok"] and "100 items takes about" in r["text"]
+    sp = stats.speeds(app.sb)
+    assert sp["learned"] == ["part"] and sp["part"] == round(r["seconds"] * 1.15, 1)
+    with open(app.sb.meta / "runs.jsonl", "a") as f:
+        for s in (10, 12, 50):
+            f.write(json.dumps({"kind": "write", "ok": True, "seconds": s}) + "\n")
+        for s in (4, 6):
+            f.write(json.dumps({"kind": "image", "ok": True, "seconds": s}) + "\n")
+        f.write(json.dumps({"kind": "image", "ok": False, "seconds": 99}) + "\n")
+    sp = stats.speeds(app.sb)
+    assert sp["part"] == round(12 * 1.15, 1) and sp["image"] == 5 and sp["video"] == 240
+    chk = app.check("TASK: A  CHUNKS: 10 x 5\nTASK: P  TYPE: image  CHUNKS: 1 x 6")
+    assert chk["eta_learned"] and chk["eta_min"] == round((10 * 13.8 + 6 * 5 + 6 * 6) / 60)

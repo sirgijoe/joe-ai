@@ -30,7 +30,9 @@ JOE'S PLAN — about 14 minutes
 ```
 
 **RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in the Builder,
-**START OVER** clears it. Nothing runs until you press RUN IT. The mission text itself is under
+**START OVER** clears it. Nothing runs until you press RUN IT.
+Time estimates learn from your own runs; until then they're marked as a rough guess. TEST MY
+SPEED (in the setup helper or Setup > Ollama) times one small batch to get them right at once. The mission text itself is under
 **ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
 
 ## Building it step by step (F4)

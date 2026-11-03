@@ -603,6 +603,12 @@ document.addEventListener("click", async (ev) => {
       });
       return;
     }
+    if (act === "speedtest") {
+      $("#setup-msg").textContent = "Testing… (about half a minute)";
+      const r = await api("/api/speedtest", {});
+      $("#setup-msg").textContent = r.ok ? r.text : "The test didn't work: " + r.error;
+      return;
+    }
     if (act === "test-ping") {
       $("#ping-msg").textContent = "Sending…";
       const topic = document.querySelector('[data-path="comfort.ntfy_topic"]').value.trim();
@@ -1554,6 +1560,8 @@ function wRender() {
         talk: d.voice ? "√ Ready. Press F6 any time to talk to Joe." : "√ Nothing to do here.",
         extras: "√ All set." }[st.id];
       h += `<div class="bright">${esc(ok)}</div>`;
+      if (st.id === "writing") h += `<div class="witem"><div>How fast is this PC? One quick test (about half a minute) makes Joe's time estimates fit your computer.</div>` +
+        (W.speed ? `<div class="bright">${esc(W.speed)}</div>` : `<button data-wspeed="1"${W.speeding ? " disabled" : ""}>[ ${W.speeding ? "TESTING…" : "TEST MY SPEED"} ]</button>`) + `</div>`;
     } else h += left.map(wItem).join("");
   } else if (st.id === "look") {
     const opts = [...$("#theme-select").options].map((o) => [o.value, o.textContent]);
@@ -1595,6 +1603,12 @@ $("#welcome").addEventListener("click", async (ev) => {
       else if (!r.started) await wCheck();
     } catch (e) { toast(e.message); }
     wRender();
+  }
+  if (b.dataset.wspeed) {
+    W.speeding = true; wRender();
+    try { const r = await api("/api/speedtest", {}); W.speed = r.ok ? r.text : "The test didn't work: " + r.error; }
+    catch (e) { W.speed = e.message; }
+    W.speeding = false; wRender();
   }
   if (b.dataset.wlook) {
     try {

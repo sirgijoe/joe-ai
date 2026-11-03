@@ -71,3 +71,51 @@ def _lines(p: Path) -> int:
         return sum(1 for ln in p.read_text(encoding="utf-8", errors="replace").splitlines() if ln.strip())
     except OSError:
         return 0
+
+
+# --------------------------------------------------------------------------- learned speeds
+DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 240.0}
+_speed_cache: dict = {}
+
+
+def speeds(sb: Sandbox, recent: int = 300) -> dict:
+    """Seconds per text part, picture and video clip on THIS PC, from the latest runs
+    (and the speed test). Falls back to rough defaults until there are a few samples."""
+    runs = sb.meta / "runs.jsonl"
+    try:
+        st = runs.stat()
+    except OSError:
+        return dict(DEFAULT_SPEEDS, learned=[])
+    key = (str(runs), st.st_mtime_ns, st.st_size)
+    if _speed_cache.get("key") == key:
+        return _speed_cache["val"]
+    with open(runs, "rb") as f:                      # only the tail: the file can get long
+        f.seek(max(0, st.st_size - 400_000))
+        tail = f.read().decode("utf-8", "replace").splitlines()[1:] if st.st_size > 400_000 else \
+            f.read().decode("utf-8", "replace").splitlines()
+    got: dict[str, list[float]] = {"write": [], "speedtest": [], "image": [], "video": []}
+    for line in tail[-recent * 3:]:
+        try:
+            r = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        k = r.get("kind")
+        if r.get("ok") and k in got and r.get("seconds"):
+            got[k].append(float(r["seconds"]))
+    out = dict(DEFAULT_SPEEDS, learned=[])
+    text = got["write"][-recent:] or got["speedtest"][-5:]
+    if len(text) >= 3 or got["speedtest"]:
+        out["part"] = round(_median(text) * 1.15, 1)       # + the odd retry / expansion
+        out["learned"].append("part")
+    for k in ("image", "video"):
+        if len(got[k]) >= 2:
+            out[k] = round(_median(got[k][-recent:]), 1)
+            out["learned"].append(k)
+    _speed_cache.update(key=key, val=out)
+    return out
+
+
+def _median(xs: list[float]) -> float:
+    s = sorted(xs)
+    n = len(s)
+    return s[n // 2] if n % 2 else (s[n // 2 - 1] + s[n // 2]) / 2
