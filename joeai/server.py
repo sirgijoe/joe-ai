@@ -610,8 +610,7 @@ class App:
         def work():
             try:
                 if not self.running and self.services.ollama_up():
-                    from .doctor import resolve_text_model
-                    self.services.ollama.warm(resolve_text_model(self.settings, self.services, self.log))
+                    self.services.ollama.warm(chat_mod.talk_model(self))
             except Exception:
                 pass
             if addons_mod.voice_ready():

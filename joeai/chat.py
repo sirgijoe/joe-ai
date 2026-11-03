@@ -149,8 +149,8 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
                           + _spoken_status(app), "mission": ""}}
     if not app.services.ensure_ollama():
         return {"final": {"ok": False, "error": "Ollama isn't running (F10 > System check)."}}
-    from .doctor import resolve_text_model, ollama_models
-    model = resolve_text_model(app.settings, app.services, app.log)
+    from .doctor import ollama_models
+    model = talk_model(app)
     images = []
     if pics:
         from .attach import vision_model
@@ -183,6 +183,20 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         user["images"] = images
     msgs.append(user)
     return {"msgs": msgs, "model": model}
+
+
+def talk_model(app) -> str:
+    """Talk can use its own small, quick model (Setup > Voice); else the writing model."""
+    tm = (app.settings.voice.talk_model or "").strip()
+    if tm:
+        try:
+            if tm in app.services.ollama.list_models():
+                return tm
+            app.log(f"Talk model '{tm}' isn't installed; using the writing model.")
+        except Exception:
+            pass
+    from .doctor import resolve_text_model
+    return resolve_text_model(app.settings, app.services, app.log)
 
 
 def finish(raw: str) -> dict:

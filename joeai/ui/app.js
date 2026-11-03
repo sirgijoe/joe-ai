@@ -484,6 +484,7 @@ async function loadDoctor() {
   try { d = await api("/api/doctor"); } catch (e) { $("#doctor").textContent = e.message; return null; }
   doctorData = d;
   const g = d.gpu, o = d.ollama, c = d.comfyui;
+  const tl = $("#dl-talkmodels"); if (tl) tl.innerHTML = o.models.map((m) => `<option value="${esc(m.name)}">`).join("");
   const yes = (b) => (b ? "YES" : "no ");
   $("#doctor").textContent =
     `GPU      ${g ? `${g.name}  ${d.vram_gb} GB VRAM` : "no NVIDIA GPU found"}   RAM ${d.ram_gb} GB   winget ${d.winget ? "yes" : "no"}\n` +

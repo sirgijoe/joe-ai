@@ -93,7 +93,9 @@ lives in `%LOCALAPPDATA%\joe-ai\addons`. Recordings are deleted right after they
 
 Ask how the run is going, what failed, or tell him what you need done. If he writes a mission,
 it shows up with OPEN IN BUILDER and RUN IT buttons: Joe never starts work on his own.
-F10 > Voice picks his voice, speed, and how carefully he listens. The report screen has
+F10 > Voice picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
+quick model (3-4B) answer in Talk while the big one keeps writing missions overnight; blank uses
+the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
 
 ### Make Joe sound like me (optional)

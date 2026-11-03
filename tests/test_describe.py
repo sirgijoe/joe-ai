@@ -93,3 +93,12 @@ def test_speeds_learn_from_runs_and_speed_test(app):
     assert sp["part"] == round(12 * 1.15, 1) and sp["image"] == 5 and sp["video"] == 240
     chk = app.check("TASK: A  CHUNKS: 10 x 5\nTASK: P  TYPE: image  CHUNKS: 1 x 6")
     assert chk["eta_learned"] and chk["eta_min"] == round((10 * 13.8 + 6 * 5 + 6 * 6) / 60)
+
+
+def test_talk_model_setting(app):
+    from joeai import chat
+    assert chat.talk_model(app) == "qwen3:14b"           # blank = the writing model
+    app.settings.voice.talk_model = "qwen3:14b"
+    assert chat.talk_model(app) == "qwen3:14b"
+    app.settings.voice.talk_model = "not-installed:1b"
+    assert chat.talk_model(app) == "qwen3:14b"

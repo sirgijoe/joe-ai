@@ -86,6 +86,7 @@ class VoiceSettings:
     speak_replies: bool = True       # Joe answers out loud in Talk (F6)
     talk_mode: str = "open"          # open: mic listens while Talk (F6) is open | push: hold a key
     ptt_key: str = "F6"              # push-to-talk key (any key; set in F10 > Voice)
+    talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
 
 
 @dataclass

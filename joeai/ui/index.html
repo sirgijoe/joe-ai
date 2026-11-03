@@ -276,6 +276,8 @@ FORMAT: ...
           <label>Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
           <label>Hearing
             <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
+          <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
+          <datalist id="dl-talkmodels"></datalist>
           <label>Speak replies in Talk (F6) <input type="checkbox" data-path="voice.speak_replies"></label>
           <label>How to talk
             <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
