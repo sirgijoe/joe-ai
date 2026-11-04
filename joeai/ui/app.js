@@ -620,7 +620,8 @@ async function loadDoctor() {
   const tl = $("#dl-talkmodels"); if (tl) tl.innerHTML = o.models.map((m) => `<option value="${esc(m.name)}">`).join("");
   const yes = (b) => (b ? "YES" : "no ");
   $("#doctor").textContent =
-    `GPU      ${g ? `${g.name}  ${d.vram_gb} GB VRAM` : "no NVIDIA GPU found"}   RAM ${d.ram_gb} GB   ${d.os || ""}  installs: ${d.pkg || "by hand"}\n` +
+    `GPU      ${g ? `${g.name}  ${d.vram_gb ? `${d.vram_gb} GB ${g.unified ? "shared memory" : "VRAM"}` : "(shares main memory)"}` : "no graphics card found"}   RAM ${d.ram_gb} GB   ${d.os || ""}  installs: ${d.pkg || "by hand"}\n` +
+    (d.gpu_advice ? `         ${d.gpu_advice}\n` : "") +
     `OLLAMA   installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
     `         best fit installed: ${o.best || "-"}   in use: ${o.configured}\n` +
     `COMFYUI  installed ${yes(c.installed)} running ${yes(c.running)}  ${c.url}\n` +
@@ -1866,11 +1867,15 @@ function wIssues(step) {
 }
 function wGpuLine(d) {
   if (!d) return "Checking your computer…";
-  if (!d.gpu) return `I couldn't find an NVIDIA graphics card. I can still write, just more slowly, but pictures and video need one. Memory: ${d.ram_gb} GB.`;
-  const v = d.vram_gb;
+  if (!d.gpu) return `I couldn't find a graphics card I can use. I can still write, just more slowly, but pictures and video need one. Memory: ${d.ram_gb} GB.`;
+  const v = d.vram_gb, g = d.gpu;
+  if (g.vendor !== "nvidia") {
+    const mem = v ? (g.unified ? ` (${v} GB of the shared memory for graphics)` : ` with ${v} GB of video memory`) : "";
+    return `Graphics: ${g.name}${mem}.\n${d.gpu_advice || ""}\nMemory: ${d.ram_gb} GB.`;
+  }
   const verdict = v >= 16 ? "Plenty for writing, pictures and short videos." : v >= 10 ? "Great for writing and pictures, and fine for short videos."
     : v >= 6 ? "Good for writing and pictures." : "Enough for small writing models; pictures will be slow.";
-  return `Graphics card: ${d.gpu.name || "NVIDIA"} with ${v} GB of video memory. ${verdict}\nMemory: ${d.ram_gb} GB.`;
+  return `Graphics card: ${g.name || "NVIDIA"} with ${v} GB of video memory. ${verdict}\nMemory: ${d.ram_gb} GB.`;
 }
 function wItem(it) {
   const [say, yes, note] = W_TEXT[it.id] || [it.text, "YES", ""];

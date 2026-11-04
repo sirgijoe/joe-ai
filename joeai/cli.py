@@ -63,7 +63,9 @@ def main(argv: list[str] | None = None) -> int:
         sm = ServiceManager(s)
         d = doctor.check(s, sm)
         g = d["gpu"]
-        print(f"GPU:     {g['name'] + ', ' + str(d['vram_gb']) + ' GB' if g else 'no NVIDIA GPU found'}")
+        print(f"GPU:     {g['name'] + ', ' + str(d['vram_gb']) + ' GB' if g else 'no graphics card found'}")
+        if d.get("gpu_advice"):
+            print(f"         {d['gpu_advice']}")
         print(f"Ollama:  installed={d['ollama']['installed']} running={d['ollama']['running']} "
               f"best fit={d['ollama']['best']}")
         print(f"ComfyUI: installed={d['comfyui']['installed']} running={d['comfyui']['running']} "

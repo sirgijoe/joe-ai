@@ -104,7 +104,7 @@ def test_doctor_offers_the_best_models(tmp_path, monkeypatch):
         s.ollama.url = fake.url
         s.comfy.url = "http://127.0.0.1:9"
         s.comfy.models_dir = str(tmp_path / "models")
-        monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU"})
+        monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU", "vendor": "nvidia"})
         monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
         monkeypatch.setattr(doctor, "addons_mod_voice_ready", lambda: True)
         models = [{"name": "qwen3:4b", "writer": True, "params": "4.0B", "size_gb": 2.6, "family": "qwen3"}]

@@ -50,7 +50,7 @@ def _mission_lines(mission: Mission, states: list) -> list[str]:
               f"({tot_in:,} in / {tot_out:,} out), {secs / 60:.1f} min model time.", ""]
 
     notes = [f"- {s.name}: {s.note}" for s in states if s.note]
-    skipped = [f"- {s.name}: parts {', '.join(map(str, s.skipped_parts))} skipped"
+    skipped = [f"- {s.name}: part{'s' if len(s.skipped_parts) > 1 else ''} {', '.join(map(str, s.skipped_parts))} skipped"
                for s in states if s.skipped_parts]
     if notes or skipped:
         L += ["## Problems", "", *notes, *skipped, ""]
@@ -73,7 +73,15 @@ def _mission_lines(mission: Mission, states: list) -> list[str]:
     L += ["## What's left", ""]
     if left:
         for s in left:
-            L.append(f"- {s.name}: {s.status}, {s.parts_total - s.parts_done} part(s) not written"
+            skipped = sorted(set(getattr(s, "skipped_parts", []) or []))
+            missing = max(0, s.parts_total - s.parts_done)
+            bits = []
+            if skipped:
+                bits.append(f"part{'s' if len(skipped) > 1 else ''} {', '.join(map(str, skipped))} "
+                            "skipped (run it again to retry just those)")
+            if missing:
+                bits.append(f"{missing} part(s) not started")
+            L.append(f"- {s.name}: {s.status}" + (", " + "; ".join(bits) if bits else "")
                      + (f" ({s.note})" if s.note else ""))
     else:
         L.append("- Nothing. All tasks finished.")

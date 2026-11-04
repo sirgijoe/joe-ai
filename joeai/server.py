@@ -41,6 +41,12 @@ from .chats import Chats
 from . import notify as notify_mod
 
 UI_DIR = Path(__file__).parent / "ui"
+
+
+def local_font() -> Path | None:
+    """The retro VT323 font shipped with Joe (OFL), if it's there; else Google Fonts is used."""
+    f = UI_DIR / "fonts" / "VT323-Regular.ttf"
+    return f if f.is_file() and f.stat().st_size > 10_000 else None
 TEXT_TYPES = {".md", ".txt", ".csv", ".json", ".log", ".py", ".cs", ".cpp", ".h", ".js",
               ".ts", ".html", ".css", ".ini", ".yaml", ".yml", ".ps1", ".bat", ".xml"}
 IMAGE_TYPES = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"}
@@ -994,6 +1000,10 @@ def make_handler(app: App):
             if u.path in ("/", "/index.html"):
                 html = (UI_DIR / "index.html").read_text(encoding="utf-8")
                 html = html.replace("__INTRO__", "1" if app.settings.ui.intro else "0")
+                if local_font():                          # bundled font: no Google Fonts call at all
+                    html = re.sub(r'<link rel="(?:preconnect|stylesheet)" href="https://fonts\.googleapis\.com[^>]*>\n?',
+                                  "", html)
+                    html = html.replace("</head>", '<link rel="stylesheet" href="/fonts/vt323.css">\n</head>', 1)
                 return self._send(200, html.replace("__TOKEN__", app.token).encode(),
                                   "text/html; charset=utf-8",
                                   {"Content-Security-Policy":
@@ -1004,6 +1014,11 @@ def make_handler(app: App):
                 return self._send(204, b"", "image/x-icon")
             if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle
                 return self._send(200, (UI_DIR / "sounds" / "intro.wav").read_bytes(), "audio/wav")
+            if u.path == "/fonts/vt323.css" and local_font():
+                return self._send(200, b'@font-face{font-family:"VT323";src:url("/fonts/VT323-Regular.ttf") '
+                                  b'format("truetype");font-display:swap}', "text/css; charset=utf-8")
+            if u.path == "/fonts/VT323-Regular.ttf" and local_font():
+                return self._send(200, local_font().read_bytes(), "font/ttf")
             if u.path in ("/app.css", "/app.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"

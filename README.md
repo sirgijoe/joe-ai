@@ -172,7 +172,7 @@ overnight work still runs.
 
 | | Minimum | Better |
 |---|---|---|
-| System | Windows 10 or 11 | Windows 11 |
+| System | Windows 10 or 11 (Mac and Linux: early, see below) | Windows 11 |
 | Graphics card | NVIDIA with 6 GB memory | NVIDIA with 12 GB or more |
 | Memory (RAM) | 16 GB | 32 GB |
 | Free disk space | 15 GB | 50 GB+ if you want pictures and video |
@@ -181,7 +181,18 @@ overnight work still runs.
 Joe will offer to install Ollama, ComfyUI and FFmpeg for you. They're free programs made by
 other people, each under their own license. AI models are big downloads (2–20 GB each).
 
-Without an NVIDIA card Joe still works, just much slower.
+**Other graphics, honestly:**
+- **AMD Radeon:** writing works on many recent cards (RX 6000 and newer) through Ollama. Pictures
+  and video on Windows are shaky (ComfyUI Desktop doesn't support AMD); on Linux they need
+  ComfyUI's AMD (ROCm) setup and are slower than NVIDIA.
+- **Apple Silicon Macs:** writing works well (the memory is shared, so bigger models fit).
+  Pictures work but several times slower than NVIDIA; video is very slow.
+- **Intel graphics, or no card:** writing runs on the processor, so pick a small model; pictures
+  and video aren't practical.
+- "Sound like me" needs an NVIDIA card. The cool-down pause only works on cards that report their
+  temperature (NVIDIA, and AMD on Linux).
+
+System check (Setup) says what your own graphics mean for Joe.
 
 ## How a night with Joe goes
 

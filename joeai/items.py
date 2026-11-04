@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from difflib import SequenceMatcher
 
 _HEAD = re.compile(r"^\s*#{2,3}\s+(.+?)\s*#*\s*$")
 FLAG_RE = re.compile(r"\[(?:CHECK|PRICE|CONFIRM|SHORT|TODO)[^\]\n]{0,60}\]")
@@ -56,21 +55,33 @@ def _strip_md(t: str) -> str:
 
 
 def norm_title(t: str) -> str:
-    return re.sub(r"[^a-z0-9 ]", "", t.lower()).strip()
+    t = re.sub(r"[-_/]", " ", t.lower())                  # "hand-thrown" -> "hand thrown"
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", "", t)).strip()
+
+
+_STOP = frozenset("a an the and or of for to in on with my your our its this that is are be "
+                  "it at by from as".split())
+
+
+def _content(n: str) -> frozenset:
+    """The words that carry meaning, plural-blind ('the blue mugs' -> {blue, mug})."""
+    return frozenset(w[:-1] if len(w) > 3 and w.endswith("s") and not w.endswith("ss") else w
+                     for w in n.split() if w not in _STOP)
 
 
 def is_duplicate(title: str, seen: list[str], threshold: float = 0.9) -> bool:
-    """Exact match, or a near-copy of a longer title. Titles that differ only in a
-    number ('Mug 3' vs 'Mug 4') are treated as different on purpose."""
+    """Exact match, or the same meaningful words in any order, plural-blind ('Blue Mugs'
+    vs 'The Blue Mug'). Titles with one different word ('...for my candle shop' vs
+    '...for my soap shop') or a different number ('Mug 3' vs 'Mug 4') are kept: lists of
+    one-liners and test requests are full of near-twins that are really different.
+    (`threshold` is kept for older callers; it's no longer used.)"""
     n = norm_title(title)
     if not n:
         return True
-    nums = re.findall(r"\d+", n)
+    words = _content(n)
     for s in seen:
-        if n == s:
-            return True
-        if len(n) >= 20 and re.findall(r"\d+", s) == nums \
-                and SequenceMatcher(None, n, s).ratio() >= threshold:
+        s = norm_title(s)
+        if n == s or (words and len(words) >= 2 and words == _content(s)):
             return True
     return False
 

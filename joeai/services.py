@@ -169,6 +169,6 @@ class ServiceManager:
 
 
 def gpu_temperature_c() -> int | None:
-    """NVIDIA GPU temperature (kept here for older imports)."""
+    """Graphics card temperature, None if it doesn't report one (kept for older imports)."""
     from .hardware import gpu_temperature_c as _t
     return _t()

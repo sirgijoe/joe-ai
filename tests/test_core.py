@@ -272,3 +272,26 @@ def test_mission_plain_and_friendly():
     with pytest.raises(MissionError, match="TASK:"):
         parse("make me some captions please")
     assert parse("=== JOE MISSION ===\nTASK: A  SAVE: a.md\n").jobs[0].save == "a.md"   # no END
+
+
+def test_near_twins_are_not_duplicates():
+    from joeai.items import is_duplicate, norm_title
+    seen = [norm_title("Write 10 Instagram captions for my candle shop")]
+    assert not is_duplicate("Write 10 Instagram captions for my soap shop", seen)
+    assert is_duplicate("write 10 instagram captions for the candle shop!", seen)
+    one = [norm_title("Joe is on it. Go to bed.")]
+    assert not is_duplicate("Joe is on it. Go to sleep.", one)
+    assert is_duplicate("Blue Mugs", [norm_title("The Blue Mug")])
+
+
+def test_report_names_skipped_parts():
+    from types import SimpleNamespace
+    from joeai.report import _mission_lines
+    st = SimpleNamespace(name="Test requests", status="partial", parts_total=2, parts_done=2,
+                         skipped_parts=[2], note="", items=15, words=334, retries=3, short_items=0,
+                         duplicates_dropped=15, flags=[], output="joe-dev/x.md", tokens_in=0,
+                         tokens_out=0, model_seconds=0)
+    from joeai.mission import parse
+    m = parse("TASK: Test requests\nCHUNKS: 2 x 15\nFORMAT: one line each")
+    lines = "\n".join(_mission_lines(m, [st]))
+    assert "part 2 skipped" in lines and "0 part(s)" not in lines

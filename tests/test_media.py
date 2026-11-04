@@ -323,7 +323,7 @@ def test_doctor_offers_video_model(env, tmp_path, monkeypatch):
     s.comfy.models_dir = str(tmp_path / "models")
     from joeai import hardware
     from joeai.services import ServiceManager
-    monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU"})
+    monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU", "vendor": "nvidia"})
     monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
     d = doctor.check(s, ServiceManager(s))
     assert any(i["action"] == "download-video-model" for i in d["issues"])

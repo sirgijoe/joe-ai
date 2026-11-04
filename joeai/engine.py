@@ -495,6 +495,8 @@ class Engine:
                     break
                 if is_duplicate(it.title, seen):
                     st.duplicates_dropped += 1
+                    if st.duplicates_dropped <= 5:              # evidence in the log, not a flood
+                        self.log(f"  part {part + 1}: dropped a repeat: {it.title[:80]}")
                     continue
                 if not it.body:
                     continue

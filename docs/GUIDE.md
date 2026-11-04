@@ -85,6 +85,18 @@ Joe opens fresh every time. If the last run didn't finish (stopped, crash, power
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).
 Pictures and video always run after the writing tasks, so the GPU switches over only once.
 
+### Graphics cards other than NVIDIA
+
+System check names your graphics and says plainly what they mean for Joe. NVIDIA cards give the
+full picture (temperature, load, memory). AMD cards on Linux report the same through the driver;
+AMD and Intel on Windows only give the name and memory, and Apple Silicon Macs share the main
+memory with the graphics (Joe counts about two thirds of it for models). Where the card doesn't
+report a temperature, the cool-down pause is simply off. Writing works on all of them (on recent
+AMD cards and Apple Silicon at good speed; on Intel or without a card, on the processor, so pick
+a small model). Pictures and video: fine on NVIDIA, slower on Apple Silicon and AMD on Linux,
+shaky on AMD under Windows (ComfyUI Desktop doesn't support AMD). The video model is only offered
+on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
+
 ## Quality vs speed (Setup > Writing, and Setup > Images & video)
 
 Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but

@@ -255,11 +255,13 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        f"{STARTER_IMAGE_MODEL['license']}).", "action": "download-image-model",
                        "optional": True, "what": f"the SDXL picture model ({STARTER_IMAGE_MODEL['size_gb']} GB)"})
     mdir = comfy_models_dir(settings)
-    if (comfy_exe or comfy_up) and mdir and g and vram >= 8 and comfy_mod.wan_missing(mdir):
+    if (comfy_exe or comfy_up) and mdir and g and g.get("vendor") in ("nvidia", "amd", "apple") \
+            and vram >= 8 and comfy_mod.wan_missing(mdir):
         w = comfy_mod.WAN_VIDEO
+        slow = "" if g.get("vendor") == "nvidia" else " Slow on this graphics card: expect a long wait per clip."
         issues.append({"id": "get-video-model", "text": f"No built-in video model. Offer: {w['label']} "
                        f"(about {w['size_gb']:.0f} GB, {w['license']}). Makes TYPE: video tasks work "
-                       "without a workflow file (about 5-second clips).",
+                       f"without a workflow file (about 5-second clips).{slow}",
                        "action": "download-video-model", "optional": True,
                        "what": f"the {w['label']} video model (about {w['size_gb']:.0f} GB)"})
     if (comfy_exe or comfy_up) and mdir and not comfy_mod.wan_missing(mdir) \
@@ -288,7 +290,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         issues.append({"id": "install-voice", "text": "Joe's voice isn't set up (talk with F6, hear replies "
                        "and reports). About 500 MB: uv, a private Python 3.12, faster-whisper and Kokoro, "
                        "all running on the CPU.", "action": "install-voice", "optional": True})
-    elif not addons_mod.clone_ready() and g and vram >= addons_mod.CLONE_MIN_VRAM_GB:
+    elif not addons_mod.clone_ready() and g and g.get("vendor") == "nvidia" \
+            and vram >= addons_mod.CLONE_MIN_VRAM_GB:
         issues.append({"id": "install-clone", "text": "Voice copy isn't set up (optional: make Joe sound like "
                        "YOU, on this PC only). About 3 GB, uses the graphics card when he talks during the day.",
                        "action": "install-clone", "optional": True})
@@ -300,6 +303,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        "frames/GIFs into MP4).", "action": "install", "tool": "ffmpeg", "optional": True})
     return {
         "gpu": g, "vram_gb": vram, "ram_gb": hardware.ram_total_gb(), "winget": bool(winget()),
+        "gpu_advice": hardware.gpu_advice(g), "vendor": g.get("vendor") if g else "none",
         "os": _system.pretty_name(), "pkg": _system.manager_label(_system.package_manager())
         if _system.package_manager() else "",
         "ollama": {"installed": bool(oll_exe) or oll_up, "running": oll_up, "exe": oll_exe or "",
