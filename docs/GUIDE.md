@@ -79,7 +79,9 @@ bottom line says what it does.
 Looks (Setup > Display & sound > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
 **Modern night**, **Futuristic**, and the **Retro** green, amber and white screens (the old-screen
 effect only applies to the retro looks). CUSTOM THEME still designs a retro-style look from a
-description.
+description. **Easy-to-read font** (same section) switches every look to Atkinson Hyperlegible, a
+font made by the Braille Institute for low vision, where letters like I, l and 1 never look alike.
+All fonts ship with Joe (SIL Open Font License, files in `joeai/ui/fonts`), so nothing loads online.
 
 Joe opens fresh every time. If the last run didn't finish (stopped, crash, power cut), he asks on
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).

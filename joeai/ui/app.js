@@ -84,9 +84,12 @@ const MODERN = ["modern-auto", "modern-night", "modern-day", "futuristic"];
 function applyUI(ui, themeVars) {
   const ph = /^custom:/.test(ui.phosphor) ? "custom" : ui.phosphor;
   const modern = MODERN.includes(ph);
-  document.body.className = `ph-${ph} crt-${modern ? 0 : ui.crt}${modern ? " modern" : ""}`;
+  document.body.className = `ph-${ph} crt-${modern ? 0 : ui.crt}${modern ? " modern" : ""}${ui.easy_read ? " easyread" : ""}`;
   document.documentElement.style.setProperty("--fs", ui.text_size + "px");
   applyTheme(themeVars);
+  // Easy-to-read font wins over every look (set inline, like a custom theme's own font).
+  if (ui.easy_read) document.body.style.setProperty("--font", '"Atkinson Hyperlegible", system-ui, sans-serif');
+  else if (!(themeVars && themeVars["--font"])) document.body.style.removeProperty("--font");
 }
 
 let lastLogLen = -1, lastUI = "", lastBusy = "", lastMedia = "", viewing = "", lastFix = -1;

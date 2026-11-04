@@ -1010,11 +1010,13 @@ def make_handler(app: App):
                 return self._send(204, b"", "image/x-icon")
             if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle
                 return self._send(200, (UI_DIR / "sounds" / "intro.wav").read_bytes(), "audio/wav")
-            if u.path == "/fonts/vt323.css" and local_font():
-                return self._send(200, b'@font-face{font-family:"VT323";src:url("/fonts/VT323-Regular.ttf") '
-                                  b'format("truetype");font-display:swap}', "text/css; charset=utf-8")
-            if u.path == "/fonts/VT323-Regular.ttf" and local_font():
-                return self._send(200, local_font().read_bytes(), "font/ttf")
+            if u.path.startswith("/fonts/"):               # fonts shipped with Joe (OFL)
+                name = u.path[len("/fonts/"):]
+                f = UI_DIR / "fonts" / name
+                if "/" not in name and "\\" not in name and f.suffix in (".ttf", ".css") and f.is_file():
+                    return self._send(200, f.read_bytes(),
+                                      "font/ttf" if f.suffix == ".ttf" else "text/css; charset=utf-8")
+                return self._send(404, b"not found", "text/plain")
             if u.path in ("/app.css", "/app.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"

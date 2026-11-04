@@ -132,7 +132,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   button when you hover over it. The F-keys work too (F1 shows them all).
 - Close the window and he keeps working. Open it again to check on him.
 - Modern light and dark looks, a futuristic one, or the retro green, amber and white screens
-  with CRT glow — or describe your own theme in words and Joe designs it for you.
+  with CRT glow — or describe your own theme in words and Joe designs it for you. An
+  easy-to-read font (Atkinson Hyperlegible) works with every look.
 - Stats for the number nerds: words written, items, files, hours of work, and how much
   you'd have paid a cloud AI for the same thing.
 - A morning report sized to paste straight into a bigger AI for review.

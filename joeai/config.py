@@ -71,6 +71,7 @@ class UISettings:
                                      # green | amber | white (retro) | custom:<theme id in Themes/>
     crt: int = 2                     # 0 off, 1 subtle, 2 normal, 3 heavy
     text_size: int = 22              # px
+    easy_read: bool = False          # Atkinson Hyperlegible everywhere (low vision, dyslexia)
     sounds: bool = False             # a soft chime when a run finishes or something fails
     check_updates: bool = True       # look for a newer release on GitHub when Joe starts
     welcomed: bool = False           # the first-start welcome (setup helper) has been seen

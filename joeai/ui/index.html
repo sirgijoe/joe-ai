@@ -6,7 +6,7 @@
 <meta name="nr-token" content="__TOKEN__">
 <meta name="joe-intro" content="__INTRO__">
 <title>Joe</title>
-<link rel="stylesheet" href="/fonts/vt323.css">
+<link rel="stylesheet" href="/fonts/fonts.css">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body class="ph-green crt-2">
@@ -425,6 +425,7 @@ FORMAT: ...
                   <select data-path="ui.crt"><option value="0">Off</option><option value="1">Subtle</option>
                     <option value="2">Normal</option><option value="3">Heavy</option></select></label>
                 <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
+                <label title="Atkinson Hyperlegible, a font made by the Braille Institute so letters like I, l and 1 never look alike. Works with every look.">Easy-to-read font <input type="checkbox" data-path="ui.easy_read"></label>
                 <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
               </fieldset>
               <fieldset><legend>CUSTOM THEME</legend>
@@ -554,6 +555,7 @@ FORMAT: ...
 
  Other pieces, each under its own license:
    VT323 font ........ SIL Open Font License 1.1 (bundled, joeai/ui/fonts/OFL.txt)
+   Atkinson Hyperlegible  SIL Open Font License 1.1, Braille Institute (bundled)
    Ollama ............ separate program (MIT license)
    ComfyUI ........... separate program (GPL-3.0)
    FFmpeg ............ separate program (LGPL/GPL)

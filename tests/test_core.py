@@ -301,4 +301,8 @@ def test_font_is_bundled_and_served_locally():
     from joeai.server import UI_DIR, local_font
     assert local_font() and (UI_DIR / "fonts" / "OFL.txt").is_file()
     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
-    assert "googleapis" not in html and "/fonts/vt323.css" in html
+    assert "googleapis" not in html and "/fonts/fonts.css" in html
+    css = (UI_DIR / "fonts" / "fonts.css").read_text(encoding="utf-8")
+    for f in __import__("re").findall(r'url\("/fonts/([^"]+)"\)', css):
+        assert (UI_DIR / "fonts" / f).is_file(), f
+    assert (UI_DIR / "fonts" / "OFL-AtkinsonHyperlegible.txt").is_file()

@@ -15,7 +15,8 @@ from .mission import slug
 
 FONTS = {"VT323": '"VT323", monospace', "Cascadia Mono": '"Cascadia Mono", Consolas, monospace',
          "Consolas": "Consolas, monospace", "Lucida Console": '"Lucida Console", monospace',
-         "Courier New": '"Courier New", monospace', "Segoe UI": '"Segoe UI", system-ui, sans-serif'}
+         "Courier New": '"Courier New", monospace', "Segoe UI": '"Segoe UI", system-ui, sans-serif',
+         "Atkinson Hyperlegible": '"Atkinson Hyperlegible", system-ui, sans-serif'}
 COLOR_KEYS = ("bg", "fg", "accent")
 _HEX = re.compile(r"^#([0-9a-f]{3}|[0-9a-f]{6})$", re.I)
 

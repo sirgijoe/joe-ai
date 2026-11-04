@@ -539,3 +539,9 @@ body:not(.modern) .tcard.soon:hover { background: none; color: var(--ph); }
 .msg .trow.failed > span:first-child, .msg .trow.partial > span:first-child { color: var(--warn, #e0a030); }
 .msg .tmedia { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
 .msg .tth { width: 120px; height: 90px; object-fit: cover; cursor: pointer; border: 1px solid var(--ph-dim); border-radius: 4px; background: #000; }
+
+
+/* Easy-to-read font (Setup > Display & sound): Atkinson Hyperlegible on every look, a touch
+   more letter spacing; code-like boxes (logs, missions) keep their fixed-width font. */
+body.easyread { letter-spacing: .01em; }
+body.easyread.ph-green, body.easyread.ph-amber, body.easyread.ph-white, body.easyread.ph-custom { font-size: .9em; }
