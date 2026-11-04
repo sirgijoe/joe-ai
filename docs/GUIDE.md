@@ -512,14 +512,14 @@ be each system, and CI runs the suite on Windows, macOS and Ubuntu.
 
 ## Updates and getting help
 
-**CHECK FOR UPDATES** (Setup > General) asks GitHub for the newest release; Joe also checks when he
+**CHECK FOR UPDATES** (Setup > System check) asks GitHub for the newest release; Joe also checks when he
 opens unless that's off. When Joe was installed with an installer, an update is one click: he
 downloads the installer for your system, checks it against the release's `SHA256SUMS.txt` (and
 refuses it if the checksum is missing or wrong), then on Windows runs it quietly and opens again,
 on a Mac opens it for you to drag onto Applications, and on Linux swaps the AppImage and restarts.
 Not while a run is going. A copy run from source (git) just gets the release page.
 
-**MAKE A HELP FILE** (Setup > General) saves `Joe-help-<date>.zip` in Output and shows it: Joe's
+**MAKE A HELP FILE** (Setup > System check) saves `Joe-help-<date>.zip` in Output and shows it: Joe's
 version and install type, the system and graphics, System check's findings, settings with every
 key, topic and password hidden, and the last part of each log. Your home folder and user name
 become `~` and `<user>`. It never holds your Inbox/Output files, chats, recordings or voices. Logs

@@ -225,7 +225,7 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 - **Check model licenses** before using pictures or text commercially. Each AI model has its
   own license. [THIRD_PARTY.md](THIRD_PARTY.md) lists every program, model and font Joe ships
   or can fetch, with its license.
-- **Need help?** Setup > General > **MAKE A HELP FILE** saves one zip with Joe's version, System
+- **Need help?** Setup > System check > **MAKE A HELP FILE** saves one zip with Joe's version, System
   check and the end of the logs (keys hidden, never your files, chats or recordings) to send to
   whoever is helping you.
 - **Joe is free; what you plug into him might not be.** Joe works with programs, AI models,
