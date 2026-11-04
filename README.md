@@ -102,8 +102,16 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   about cancelling?") and Joe answers only from them, showing the excerpts he used, or says
   the documents don't say. It can also summarize each document. A small optional search model
   (about 270 MB) helps with big folders.
-- More are on the way, shown as "Coming soon" on the Tools tab: removing backgrounds, editing
-  pictures by asking, restoring old photos, animating a photo, and music.
+- **Picture and sound tools** (run in ComfyUI on the graphics card; each needs its model once,
+  offered with its size and license):
+  - **Remove background and upscale**: see-through PNG or white JPG cutouts, optionally 2x/4x
+    bigger and sharper (BiRefNet, MIT; Real-ESRGAN, BSD-3).
+  - **Edit a picture by asking**: "swap the background for a marble counter", "remove the cup"
+    (Qwen-Image-Edit 2511, Apache-2.0, about 31 GB; best with 12 GB graphics + 32 GB memory).
+  - **Restore old photos**: scratches, dust, fading, faces; color if you want it (same editor).
+  - **Animate a photo**: a 5-second clip that starts from your photo (Wan 2.2, the video model).
+  - **Music and sound effects**: instrumental tracks (ACE-Step 1.5, MIT) or sound effects
+    (Stable Audio Open 1.0: free under US$1 million revenue a year), one per line, as MP3.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
   website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".
@@ -157,7 +165,7 @@ internet. None of them send your files, chats or recordings.
 | What | Goes to | When | Your choice |
 |---|---|---|---|
 | Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
-| Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files) | Ollama's model library, Hugging Face | Setup, or when you pick a better model | Asks you first, every time |
+| Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files, and the picture/sound tool models) | Ollama's model library, Hugging Face | Setup, the Tools form, or when you pick a better model | Asks you first, every time |
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |

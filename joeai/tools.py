@@ -54,6 +54,7 @@ WHISPER_CODES = {"spanish": "es", "french": "fr", "german": "de", "italian": "it
                  "swahili": "sw", "english": "en"}
 HEAR_LANGUAGES = (("english", "English"), ("auto", "Find out by itself")) + tuple(
     (v, n) for v, n in LANGUAGES if v != "english")
+COMFY_PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")     # what ComfyUI's LoadImage reads
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
@@ -282,15 +283,72 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Sort my vacation photos", "Tag these pictures by what's in them"),
          extra_hint="optional, e.g. categories: family, garden, pets"),
     Tool("remove-bg", "Remove background and upscale", "Pictures",
-         "Clean, sharp product shots.", needs=("comfy",)),
+         "Clean, sharp product shots.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         options=(Option("background", "Background", choices=(
+                      ("transparent", "See-through (PNG)"), ("white", "White (JPG, for shops)")),
+                         value="transparent"),
+                  Option("upscale", "Make it bigger and sharper", hint="Real-ESRGAN: 2x is usually "
+                         "plenty; 4x makes big files.", choices=(("none", "No"), ("2x", "2x"),
+                                                                  ("4x", "4x")), value="none")),
+         help="Cuts the subject out with BiRefNet (MIT license, under 1 GB, offered once). Runs in "
+              "ComfyUI on the graphics card, a few seconds a photo. Your originals are never changed.",
+         plan_hint="Remove backgrounds: TYPE: remove-bg, INPUT: the photo file(s)/folder from the list "
+                   "below, OPTIONS: background transparent|white, upscale none|2x|4x. No CHUNKS.",
+         examples=("Remove the background from my product photos", "White background for my shop pictures")),
     Tool("edit-picture", "Edit a picture by asking", "Pictures",
-         "\"Swap the background\", \"remove the cup\".", needs=("comfy",)),
+         "\"Swap the background\", \"remove the cup\".", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
+         ready=True,
+         help="Say what to change in plain words; the same change is made to every picture. Uses "
+              "Qwen-Image-Edit 2511 (Apache-2.0, about 31 GB, offered once): best with a 12 GB+ "
+              "graphics card and 32 GB of memory, about 1-3 minutes a picture. Quality > High in "
+              "Setup is slower but finer. Your originals are never changed.",
+         plan_hint="Edit pictures by instruction: TYPE: edit-picture, INPUT: the picture file(s) from "
+                   "the list below, FORMAT: the change in their words (e.g. replace the background "
+                   "with a white marble counter). No CHUNKS, no OPTIONS.",
+         examples=("Swap the background of this photo for a beach", "Remove the cup from these pictures"),
+         extra_label="What should change?", extra_hint="e.g. replace the background with a white marble counter"),
     Tool("restore-photo", "Restore old photos", "Pictures",
-         "Fix scratches and faces, add color.", needs=("comfy",)),
+         "Fix scratches and faces, add color.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         options=(Option("colorize", "Add color", False, "Off keeps black and white or sepia."),
+                  Option("upscale", "Make it bigger and sharper", choices=(
+                      ("none", "No"), ("2x", "2x"), ("4x", "4x")), value="2x")),
+         help="Removes scratches, dust and stains, evens fading and sharpens faces, keeping everyone "
+              "and everything as it was. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
+              "offered once) plus Real-ESRGAN for sharpening. AI can change small details: compare "
+              "with the original before you share it. Your originals are never changed.",
+         plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
+                   "list below, OPTIONS: colorize (only if they want color), upscale none|2x|4x. "
+                   "No CHUNKS.",
+         examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),
+         extra_hint="optional, e.g. the dress was blue"),
     Tool("animate-photo", "Animate a photo", "Video",
-         "Turn one of your photos into a short clip.", needs=("comfy",)),
+         "Turn one of your photos into a short clip.", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
+         ready=True,
+         help="A 5-second clip that starts from your photo, made with the Wan 2.2 video model "
+              "(Apache-2.0, the same one Joe's videos use). Describe the motion, or leave it empty "
+              "for gentle natural movement. About 2 minutes a clip with the Turbo add-on, much longer "
+              "without. Your originals are never changed.",
+         plan_hint="Animate photos into clips: TYPE: animate-photo, INPUT: the photo file(s) from the "
+                   "list below, FORMAT: the motion they want (optional). No CHUNKS, no OPTIONS.",
+         examples=("Make this photo move", "Animate my product photo with a slow turn"),
+         extra_label="What should move? (optional)", extra_hint="e.g. steam rising from the mug, slow camera push-in"),
     Tool("music", "Music and sound effects", "Audio",
-         "Background music and short jingles.", needs=("comfy",)),
+         "Background music and short jingles.", needs=("comfy",), ready=True,
+         options=(Option("kind", "Make", choices=(("music", "Music (instrumental)"),
+                                                  ("sfx", "Sound effects")), value="music"),
+                  Option("length", "Length", hint="Sound effects stop at about 47 seconds.",
+                         choices=(("10", "10 seconds"), ("30", "30 seconds"), ("60", "1 minute"),
+                                  ("120", "2 minutes"), ("180", "3 minutes")), value="30")),
+         help="One piece per line you type, saved as MP3. Music: ACE-Step 1.5 (MIT, about 10 GB, "
+              "offered once), instrumental, any style. Sound effects: Stable Audio Open 1.0 (about "
+              "5 GB; Stability AI Community License: free under US$1 million revenue a year). Runs "
+              "in ComfyUI on the graphics card.",
+         plan_hint="Music or sound effects: TYPE: music, no INPUT, FORMAT: one description per line "
+                   "(style, mood, instruments, tempo), OPTIONS: kind music|sfx, length 10|30|60|120|180. "
+                   "No CHUNKS.",
+         examples=("Make 3 calm background tracks for my videos", "A door creak and a doorbell sound effect"),
+         extra_label="Describe each piece (one per line)",
+         extra_hint="e.g. calm acoustic guitar, warm, slow, for a pottery video"),
 )}
 GROUPS = ("Writing", "Pictures", "Video", "Audio", "Files")
 
@@ -461,6 +519,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
           "translate": run_translate, "tidy-sheet": run_tidy_sheet,
           "photo-listing": run_photo_listing, "read-scans": run_read_scans,
           "sort-photos": run_sort_photos, "ask-files": run_ask_files}.get(job.type)
+    from . import picturetools
+    if job.type in picturetools.COMFY_TOOLS:
+        fn = picturetools.run
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -2707,11 +2768,12 @@ def mission_for(tool_id: str, files: list[str], options: list[str], name: str = 
     """The mission a Tools-tab form runs (also shown under ADVANCED)."""
     tool = TOOLS[tool_id]
     task = (name or tool.name).replace("\n", " ").strip()[:80]
-    lines = [f"TASK: {task}  TYPE: {tool.id}", "INPUT: " + ", ".join(files)]
+    lines = [f"TASK: {task}  TYPE: {tool.id}"] + (["INPUT: " + ", ".join(files)] if files else [])
     if tool.options:
         lines.append("OPTIONS: " + (", ".join(options) if options else "none"))
     if extra.strip():
-        lines.append("FORMAT: " + extra.strip().replace("\n", " "))
+        sep = " | " if tool.id == "music" else " "             # music: one piece per line -> |
+        lines.append("FORMAT: " + sep.join(x.strip() for x in extra.strip().splitlines() if x.strip()))
     if mark.strip() and tool.mark:
         lines.append("WATERMARK: " + " ".join(mark.split())[:120])
     return "\n".join(lines) + "\n"
@@ -2785,12 +2847,37 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type == "proofread":
         for f in files:
             secs += max(1, -(-_guess_words(f) // PROOF_WORDS)) * speeds.get("part", 25.0)
+    elif job.type in COMFY_GUESS_S:
+        from .picturetools import pieces_from
+        n = len(pieces_from(job.format)) if job.type == "music" else len(files)
+        secs += n * speeds.get(job.type, COMFY_GUESS_S[job.type])
     return {"files": len(files), "seconds": secs, "problems": problems}
+
+
+COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 120.0, "restore-photo": 150.0,
+                 "animate-photo": 240.0, "music": 60.0}
 
 
 def needs_problem(settings, job: "Job") -> str:
     """Why this tool can't run on this PC yet ('' = fine)."""
     tool = TOOLS[job.type]
+    if "comfy" in tool.needs and tool.ready:
+        from . import picturetools
+        from .doctor import comfy_models_dir
+        try:
+            mdir = comfy_models_dir(settings)
+        except Exception:                               # noqa: BLE001 (finder trouble = not found)
+            mdir = None
+        kind = option_value(job, "kind") if job.type == "music" else ""
+        if not mdir:
+            return (f"Task '{job.name}': {tool.name.lower()} needs ComfyUI. Setup (F10) > "
+                    "System check installs it.")
+        missing = [p for p in picturetools.needed_packs(job.type, {kind} if kind else set())
+                   if not picturetools.pack_ready(mdir, p)]
+        if missing:
+            return (f"Task '{job.name}': {tool.name.lower()} needs "
+                    + " and ".join(picturetools.pack_offer(p) for p in missing)
+                    + ". Setup (F10) > System check > DOWNLOAD, or the button on the Tools form.")
     if "voice" in tool.needs:
         from .addons import voice_python
         if not Path(voice_python()).exists():

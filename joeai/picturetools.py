@@ -1,0 +1,553 @@
+"""The ComfyUI tools: remove background + upscale, edit a picture by asking, restore old photos,
+animate a photo, music and sound effects.
+
+Every graph here uses only ComfyUI's own built-in nodes (no custom nodes to install) and follows
+ComfyUI's official workflow templates. Each tool needs one model pack; System check and the
+Tools form offer it (ask first, license shown). Packs land in ComfyUI's own models folders.
+"""
+from __future__ import annotations
+
+import json
+import mimetypes
+import random
+import time
+import urllib.error
+import urllib.request
+import uuid
+from dataclasses import dataclass
+from datetime import datetime
+from pathlib import Path
+from typing import TYPE_CHECKING
+
+from . import comfy as comfy_mod
+from .fsutil import atomic_write_text
+from .http import HttpError
+
+if TYPE_CHECKING:                                    # pragma: no cover
+    from .engine import Engine, JobState
+    from .mission import Job, Mission
+
+HF = "https://huggingface.co/"
+
+
+@dataclass(frozen=True)
+class Pack:
+    id: str
+    label: str
+    license: str
+    size_gb: float                      # rough, for the offer; real sizes come from the download
+    files: tuple[tuple[str, str, str, float], ...]     # (models subfolder, file, url, GB)
+    note: str = ""
+
+
+PACKS: dict[str, Pack] = {p.id: p for p in (
+    Pack("bg", "BiRefNet background remover", "MIT", 0.9,
+         (("background_removal", "birefnet.safetensors",
+           HF + "Comfy-Org/BiRefNet/resolve/main/background_removal/birefnet.safetensors", 0.9),)),
+    Pack("upscale", "Real-ESRGAN x4 sharpener", "BSD-3-Clause", 0.07,
+         (("upscale_models", "RealESRGAN_x4plus.safetensors",
+           HF + "Comfy-Org/Real-ESRGAN_repackaged/resolve/main/RealESRGAN_x4plus.safetensors", 0.07),)),
+    Pack("edit", "Qwen-Image-Edit 2511 picture editor (+ 4-step Lightning add-on)", "Apache-2.0", 31.0,
+         (("diffusion_models", "qwen_image_edit_2511_fp8mixed.safetensors",
+           HF + "Comfy-Org/Qwen-Image-Edit_ComfyUI/resolve/main/split_files/diffusion_models/"
+                "qwen_image_edit_2511_fp8mixed.safetensors", 20.5),
+          ("text_encoders", "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+           HF + "Comfy-Org/HunyuanVideo_1.5_repackaged/resolve/main/split_files/text_encoders/"
+                "qwen_2.5_vl_7b_fp8_scaled.safetensors", 9.4),
+          ("vae", "qwen_image_vae.safetensors",
+           HF + "Comfy-Org/Qwen-Image_ComfyUI/resolve/main/split_files/vae/qwen_image_vae.safetensors", 0.25),
+          ("loras", "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors",
+           HF + "lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/"
+                "Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors", 0.85)),
+         note="Big: works best with a 12 GB+ graphics card and 32 GB of memory (the rest waits "
+              "in normal memory, which is slower)."),
+    Pack("video", "Wan 2.2 5B video model", "Apache-2.0", 17.5,
+         tuple((f, n, u, {"diffusion_models": 10.0, "text_encoders": 6.3, "vae": 1.3}[f])
+               for f, n, u in comfy_mod.WAN_VIDEO["files"])),
+    Pack("music", "ACE-Step 1.5 music model (Turbo, all-in-one)", "MIT", 10.0,
+         (("checkpoints", "ace_step_1.5_turbo_aio.safetensors",
+           HF + "Comfy-Org/ace_step_1.5_ComfyUI_files/resolve/main/checkpoints/ace_step_1.5_turbo_aio.safetensors",
+           10.0),)),
+    Pack("sfx", "Stable Audio Open 1.0 sound-effects model", "Stability AI Community License", 5.3,
+         (("checkpoints", "stable-audio-open-1.0.safetensors",
+           HF + "Comfy-Org/stable-audio-open-1.0_repackaged/resolve/main/stable-audio-open-1.0.safetensors", 4.85),
+          ("text_encoders", "t5-base.safetensors",
+           HF + "ComfyUI-Wiki/t5-base/resolve/main/t5-base.safetensors", 0.45)),
+         note="Free for people and businesses under US$1 million a year in revenue; bigger "
+              "businesses need Stability AI's paid license."),
+)}
+
+# Which packs each tool needs (all of them), and which it can use if they're there.
+TOOL_PACKS = {"remove-bg": ("bg",), "edit-picture": ("edit",), "restore-photo": ("edit",),
+              "animate-photo": ("video",), "music": ()}
+OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",)}
+COMFY_TOOLS = tuple(TOOL_PACKS)
+
+RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, stains and creases, "
+                  "fix faded and uneven areas, sharpen the details and faces naturally. Keep every "
+                  "person's face, expression, pose, clothing and the whole scene exactly the same.")
+COLORIZE = (" Then colorize it with natural, realistic colors that fit the time period, "
+            "with true-to-life skin tones.")
+KEEP_BW = " Keep it in its original black and white or sepia tones."
+
+
+# --------------------------------------------------------------------------- packs
+def pack_missing(models_dir: Path | None, pack_id: str) -> list[tuple[str, str, str, float]]:
+    p = PACKS[pack_id]
+    if not models_dir:
+        return list(p.files)
+    out = []
+    for f in p.files:
+        folder = models_dir / f[0]
+        if not (folder.is_dir() and any(folder.rglob(f[1]))):
+            out.append(f)
+    return out
+
+
+def pack_ready(models_dir: Path | None, pack_id: str) -> bool:
+    return bool(models_dir) and not pack_missing(models_dir, pack_id)
+
+
+def needed_packs(tool_id: str, options: set[str] | None = None) -> tuple[str, ...]:
+    if tool_id == "music":
+        kind = (options or set())
+        return ("sfx",) if "sfx" in kind else ("music",)
+    return TOOL_PACKS.get(tool_id, ())
+
+
+def pack_offer(pack_id: str) -> str:
+    p = PACKS[pack_id]
+    size = f"about {p.size_gb:.0f} GB" if p.size_gb >= 1 else f"about {round(p.size_gb * 1000)} MB"
+    return f"{p.label} ({size}, {p.license})" + (f". {p.note}" if p.note else "")
+
+
+def download_pack(settings, pack_id: str, log, approved: bool = False, progress=None) -> bool:
+    """Download a model pack into ComfyUI's models folders (asks first: approved must be True)."""
+    if not approved:
+        raise PermissionError("download needs the user's approval")
+    from .doctor import _download, comfy_models_dir
+    mdir = comfy_models_dir(settings)
+    if not mdir:
+        log("Can't find ComfyUI's models folder. Install ComfyUI first, or set its folder in Setup.")
+        return False
+    p = PACKS[pack_id]
+    missing = pack_missing(mdir, pack_id)
+    if not missing:
+        log(f"{p.label} is already installed.")
+        return True
+    log(f"Downloading {pack_offer(pack_id)}. From Hugging Face; nothing about you is sent.")
+    all_b = sum(f[3] for f in missing) * 2**30
+    done = 0.0
+    for folder, name, url, gb in missing:
+        log(f"  {name} -> models/{folder}")
+        if not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
+            return False
+        done += gb * 2**30
+    log(f"{p.label} is ready. Restart ComfyUI once so it sees the new files.")
+    return True
+
+
+# --------------------------------------------------------------------------- ComfyUI I/O
+def upload_image(base: str, path: Path, timeout: float = 120) -> str:
+    """Send a picture to ComfyUI's input folder; returns the name to use in LoadImage."""
+    boundary = uuid.uuid4().hex
+    name = f"joe_{uuid.uuid4().hex[:8]}_{path.name}"
+    ctype = mimetypes.guess_type(path.name)[0] or "application/octet-stream"
+    body = (f"--{boundary}\r\nContent-Disposition: form-data; name=\"image\"; filename=\"{name}\"\r\n"
+            f"Content-Type: {ctype}\r\n\r\n").encode() + path.read_bytes() + (
+        f"\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"overwrite\"\r\n\r\ntrue"
+        f"\r\n--{boundary}\r\nContent-Disposition: form-data; name=\"type\"\r\n\r\ninput"
+        f"\r\n--{boundary}--\r\n").encode()
+    req = urllib.request.Request(base.rstrip("/") + "/upload/image", data=body, method="POST",
+                                 headers={"Content-Type": f"multipart/form-data; boundary={boundary}"})
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            info = json.loads(r.read().decode("utf-8") or "{}")
+    except (urllib.error.URLError, OSError, ValueError) as e:
+        raise HttpError(f"couldn't send {path.name} to ComfyUI: {e}") from e
+    sub = info.get("subfolder") or ""
+    return f"{sub}/{info.get('name', name)}" if sub else info.get("name", name)
+
+
+def outputs_of(entry: dict) -> list[dict]:
+    """Saved files in a history entry, audio included."""
+    files = comfy_mod.output_files(entry)
+    for node_out in (entry.get("outputs") or {}).values():
+        for f in node_out.get("audio") or []:
+            if isinstance(f, dict) and f.get("filename") and f.get("type", "output") == "output":
+                files.append(f)
+    return files
+
+
+# --------------------------------------------------------------------------- graphs
+def _load(image: str) -> dict:
+    return {"class_type": "LoadImage", "inputs": {"image": image}}
+
+
+def _upscale_nodes(g: dict, src: list, factor: int) -> list:
+    """Real-ESRGAN x4, then scaled down to the asked factor (2 = cleaner, smaller files)."""
+    g["u1"] = {"class_type": "UpscaleModelLoader", "inputs": {"model_name": PACKS["upscale"].files[0][1]}}
+    g["u2"] = {"class_type": "ImageUpscaleWithModel", "inputs": {"upscale_model": ["u1", 0], "image": src}}
+    if factor >= 4:
+        return ["u2", 0]
+    g["u3"] = {"class_type": "ImageScaleBy", "inputs": {"image": ["u2", 0], "upscale_method": "lanczos",
+                                                        "scale_by": factor / 4}}
+    return ["u3", 0]
+
+
+def bg_graph(image: str, keep: str = "transparent", upscale: int = 0, prefix: str = "Joe/tool") -> dict:
+    """Background removal (BiRefNet), optional upscale first. keep: transparent | white."""
+    g: dict = {"1": _load(image)}
+    src = ["1", 0]
+    if upscale:
+        src = _upscale_nodes(g, src, upscale)
+    g["2"] = {"class_type": "LoadBackgroundRemovalModel", "inputs": {"bg_removal_name": PACKS["bg"].files[0][1]}}
+    g["3"] = {"class_type": "RemoveBackground", "inputs": {"bg_removal_model": ["2", 0], "image": src}}
+    g["4"] = {"class_type": "InvertMask", "inputs": {"mask": ["3", 0]}}
+    g["5"] = {"class_type": "JoinImageWithAlpha", "inputs": {"image": src, "alpha": ["4", 0]}}
+    g["9"] = {"class_type": "SaveImage", "inputs": {"images": ["5", 0], "filename_prefix": prefix}}
+    return g
+
+
+def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict:
+    g: dict = {"1": _load(image)}
+    out = _upscale_nodes(g, ["1", 0], factor)
+    g["9"] = {"class_type": "SaveImage", "inputs": {"images": out, "filename_prefix": prefix}}
+    return g
+
+
+def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
+               prefix: str = "Joe/tool") -> dict:
+    """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1."""
+    unet, clip, vae, lora = (f[1] for f in PACKS["edit"].files)
+    g: dict = {
+        "41": _load(image),
+        "160": {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}},
+        "161": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
+        "162": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "qwen_image", "device": "default"}},
+        "146": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
+        "145": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["161", 0], "shift": 3.1}},
+        "152": {"class_type": "CFGNorm", "inputs": {"model": ["145", 0], "strength": 1.0}},
+        "151": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": {
+            "clip": ["162", 0], "prompt": instruction, "vae": ["146", 0], "image1": ["160", 0]}},
+        "149": {"class_type": "TextEncodeQwenImageEditPlus", "inputs": {
+            "clip": ["162", 0], "prompt": "", "vae": ["146", 0], "image1": ["160", 0]}},
+        "148": {"class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": {
+            "conditioning": ["151", 0], "reference_latents_method": "index_timestep_zero"}},
+        "147": {"class_type": "FluxKontextMultiReferenceLatentMethod", "inputs": {
+            "conditioning": ["149", 0], "reference_latents_method": "index_timestep_zero"}},
+        "156": {"class_type": "VAEEncode", "inputs": {"pixels": ["160", 0], "vae": ["146", 0]}},
+        "169": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": 4 if fast else 40, "cfg": 1.0 if fast else 3.0,
+            "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+            "model": ["153", 0] if fast else ["152", 0], "positive": ["148", 0],
+            "negative": ["147", 0], "latent_image": ["156", 0]}},
+        "158": {"class_type": "VAEDecode", "inputs": {"samples": ["169", 0], "vae": ["146", 0]}},
+    }
+    if fast:
+        g["153"] = {"class_type": "LoraLoaderModelOnly", "inputs": {
+            "model": ["152", 0], "lora_name": lora, "strength_model": 1.0}}
+    out = ["158", 0]
+    if upscale:
+        out = _upscale_nodes(g, out, upscale)
+    g["9"] = {"class_type": "SaveImage", "inputs": {"images": out, "filename_prefix": prefix}}
+    return g
+
+
+def video_size(width: int, height: int) -> tuple[int, int]:
+    """Wan 2.2 5B's sizes, matched to the photo's shape."""
+    if not width or not height:
+        return 1280, 704
+    r = width / height
+    if r > 1.2:
+        return 1280, 704
+    if r < 0.83:
+        return 704, 1280
+    return 960, 960
+
+
+def animate_graph(image: str, prompt: str, negative: str, seed: int, width: int, height: int,
+                  frames: int = 0, steps: int = 20, cfg: float = 5.0, turbo: bool = False,
+                  prefix: str = "Joe/tool") -> dict:
+    g = comfy_mod.wan_video_graph(frames=frames, steps=steps, cfg=cfg, turbo=turbo)
+    g["56"] = _load(image)
+    g["55"]["inputs"].update(width=width, height=height, start_image=["56", 0])
+    g["6"]["inputs"]["text"] = prompt
+    g["7"]["inputs"]["text"] = negative
+    g["3"]["inputs"]["seed"] = seed
+    g["58"]["inputs"]["filename_prefix"] = prefix
+    return g
+
+
+def music_graph(tags: str, seconds: float, seed: int, bpm: int = 0, prefix: str = "Joe/tool") -> dict:
+    """ACE-Step 1.5 Turbo (ComfyUI's template), instrumental."""
+    ck = PACKS["music"].files[0][1]
+    return {
+        "97": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ck}},
+        "94": {"class_type": "TextEncodeAceStepAudio1.5", "inputs": {
+            "clip": ["97", 1], "tags": tags, "lyrics": "[Instrumental]", "seed": seed,
+            "bpm": bpm or 110, "duration": float(seconds), "timesignature": "4", "language": "en",
+            "keyscale": "C major", "generate_audio_codes": True, "cfg_scale": 2.0,
+            "temperature": 0.85, "top_p": 0.9, "top_k": 0, "min_p": 0.0}},
+        "78": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["97", 0], "shift": 3.0}},
+        "47": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["94", 0]}},
+        "98": {"class_type": "EmptyAceStep1.5LatentAudio", "inputs": {"seconds": float(seconds), "batch_size": 1}},
+        "3": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": 8, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple",
+            "denoise": 1.0, "model": ["78", 0], "positive": ["94", 0], "negative": ["47", 0],
+            "latent_image": ["98", 0]}},
+        "18": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["3", 0], "vae": ["97", 2]}},
+        "9": {"class_type": "SaveAudioMP3", "inputs": {"audio": ["18", 0], "filename_prefix": prefix,
+                                                       "quality": "V0"}},
+    }
+
+
+def sfx_graph(prompt: str, seconds: float, seed: int, prefix: str = "Joe/tool") -> dict:
+    """Stable Audio Open 1.0 (ComfyUI's template)."""
+    ck, t5 = (f[1] for f in PACKS["sfx"].files)
+    return {
+        "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ck}},
+        "10": {"class_type": "CLIPLoader", "inputs": {"clip_name": t5, "type": "stable_audio", "device": "default"}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["10", 0]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "low quality, noise, distorted", "clip": ["10", 0]}},
+        "11": {"class_type": "EmptyLatentAudio", "inputs": {"seconds": float(min(seconds, 47)), "batch_size": 1}},
+        "3": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": 50, "cfg": 5.0, "sampler_name": "dpmpp_3m_sde_gpu",
+            "scheduler": "exponential", "denoise": 1.0, "model": ["4", 0], "positive": ["6", 0],
+            "negative": ["7", 0], "latent_image": ["11", 0]}},
+        "12": {"class_type": "VAEDecodeAudio", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+        "9": {"class_type": "SaveAudioMP3", "inputs": {"audio": ["12", 0], "filename_prefix": prefix,
+                                                       "quality": "V0"}},
+    }
+
+
+# --------------------------------------------------------------------------- helpers
+def picture_size(p: Path) -> tuple[int, int]:
+    """Width and height of a JPG/PNG/WebP without extra packages (0, 0 if unknown)."""
+    try:
+        data = p.read_bytes()[:256 * 1024]
+    except OSError:
+        return 0, 0
+    if data[:8] == b"\x89PNG\r\n\x1a\n" and len(data) >= 24:
+        return int.from_bytes(data[16:20], "big"), int.from_bytes(data[20:24], "big")
+    if data[:4] == b"RIFF" and data[8:12] == b"WEBP":
+        if data[12:16] == b"VP8X":
+            return 1 + int.from_bytes(data[24:27], "little"), 1 + int.from_bytes(data[27:30], "little")
+        if data[12:16] == b"VP8 ":
+            return int.from_bytes(data[26:28], "little") & 0x3FFF, int.from_bytes(data[28:30], "little") & 0x3FFF
+    if data[:2] == b"\xff\xd8":
+        i = 2
+        while i + 9 < len(data):
+            if data[i] != 0xFF:
+                i += 1
+                continue
+            marker = data[i + 1]
+            seg = int.from_bytes(data[i + 2:i + 4], "big")
+            if marker in (0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF):
+                return int.from_bytes(data[i + 7:i + 9], "big"), int.from_bytes(data[i + 5:i + 7], "big")
+            i += 2 + seg
+    return 0, 0
+
+
+def pieces_from(text: str) -> list[str]:
+    """One piece of music / sound per non-empty line of the description."""
+    import re
+    return [ln.strip(" -•*\t") for ln in re.split(r"\n|\s\|\s", text or "") if ln.strip(" -•*\t")]
+
+
+def _seed(job: "Job", i: int) -> int:
+    return comfy_mod.new_seed(job.seed, i) if getattr(job, "seed", "") else random.randrange(1, 2**31)
+
+
+# --------------------------------------------------------------------------- runner
+def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    """One runner for all five tools: inputs -> ComfyUI graph per item -> files in the task folder."""
+    from .doctor import comfy_models_dir
+    from .engine import Stopped
+    from .mission import slug
+    from .tools import _finish, _key, chosen_options, option_value, resolve_inputs, tool_dir  # noqa: F401
+
+    tid = job.type
+    opts = chosen_options(job)
+    kind = option_value(job, "kind") if tid == "music" else ""
+    if tid == "music":
+        items = pieces_from(job.format)
+        if not items:
+            st.status, st.note = "failed", "say what music or sound you want (one per line)"
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        keys = [f"{i + 1:02d} {t[:60]}" for i, t in enumerate(items)]
+    else:
+        files, problems = resolve_inputs(engine, job)
+        for pr in problems:
+            engine.log(f"  INPUT: {pr}")
+        if not files:
+            st.status, st.note = "failed", "no pictures to use" + (f" ({problems[0]})" if problems else "")
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        items, keys = files, [_key(engine, f) for f in files]
+    if tid == "edit-picture" and not job.format.strip():
+        st.status, st.note = "failed", "say what to change (for example: swap the background for a white wall)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    mdir = comfy_models_dir(engine.s)
+    need = needed_packs(tid, {kind} if kind else set())
+    missing = [p for p in need if not pack_ready(mdir, p)]
+    if missing:
+        st.status = "failed"
+        st.note = ("needs " + " and ".join(pack_offer(p) for p in missing) +
+                   ": Setup (F10) > System check offers it")
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    upscale = 0
+    if tid in ("remove-bg", "restore-photo"):
+        up = option_value(job, "upscale") or "none"
+        upscale = int(up[0]) if up[:1] in ("2", "4") else 0
+        if upscale and not pack_ready(mdir, "upscale"):
+            engine.log("  Sharpening skipped: the Real-ESRGAN model isn't installed (System check offers it, 70 MB).")
+            upscale = 0
+    folder = tool_dir(engine, job, st)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    if not engine.services.handoff("image"):
+        st.status, st.note = "failed", "ComfyUI is not running and could not be started (F10 > System check)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        engine._save_state(job, st)
+        return st
+    limit = engine.s.comfy.timeout_s if tid != "animate-photo" else max(engine.s.comfy.timeout_s, 3600)
+    client = comfy_mod.ComfyClient(engine.services.comfy_base, limit)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(items)} item(s) -> {st.output}")
+    failed: list[str] = []
+    prefix = f"Joe/{slug(job.name) or tid}"
+    try:
+        for i, (item, key) in enumerate(zip(items, keys)):
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._cool_down()
+            label = item.name if isinstance(item, Path) else item[:50]
+            engine._progress(f"{job.name}: {i + 1}/{len(items)} {label}")
+            t0 = time.monotonic()
+            try:
+                graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client)
+                entry = client.wait(client.submit(graph), stop=engine.stop)
+                outs = outputs_of(entry)
+                if not outs:
+                    raise comfy_mod.WorkflowError("ComfyUI finished but saved nothing")
+                made = []
+                for n, f in enumerate(outs):
+                    data = client.download(f)
+                    suffix = Path(f["filename"]).suffix.lower() or ext
+                    name = f"{stem}{'' if n == 0 else f'-{n + 1}'}{suffix}"
+                    (folder / name).write_bytes(data)
+                    made.append(name)
+                if tid == "remove-bg" and option_value(job, "background") == "white":
+                    made = [_on_white(engine, folder, m) for m in made]
+                try:
+                    from .storage import delete_comfy_copies
+                    delete_comfy_copies(engine.s, outs)
+                except Exception:                       # noqa: BLE001 (tidying only)
+                    pass
+            except InterruptedError:
+                raise Stopped()
+            except (comfy_mod.WorkflowError, HttpError, TimeoutError, OSError) as e:
+                failed.append(f"{label}: {e}"[:200])
+                engine.log(f"  {label}: {e}")
+                engine._record(job=job.job_id, part=i + 1, kind=tid, model=tid, ok=False,
+                               seconds=round(time.monotonic() - t0, 1))
+                if isinstance(e, comfy_mod.WorkflowError) and not st.titles and i == 0 \
+                        and "rejected" in str(e):
+                    engine.log("  ComfyUI didn't accept the workflow. Update ComfyUI (it needs a "
+                               "recent version for this tool), then try again.")
+                    break
+                continue
+            took = round(time.monotonic() - t0, 1)
+            engine._record(job=job.job_id, part=i + 1, kind=tid, model=tid, ok=True, seconds=took)
+            st.titles.append(key)
+            st.media_files.extend(made)
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {label} -> {', '.join(made)} ({took:.0f} s)")
+        atomic_write_text(folder / "about.txt", _about(tid, job, opts, kind, upscale))
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(items)}"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, len(items), failed)
+
+
+def _on_white(engine, folder: Path, name: str) -> str:
+    """See-through PNG -> JPG on white, with FFmpeg (keeps the PNG if FFmpeg is missing)."""
+    import subprocess
+    from .doctor import ffmpeg_exe
+    from .system import no_window_flags
+    ff = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    src = folder / name
+    if not ff or src.suffix.lower() != ".png":
+        engine.log("  White background needs FFmpeg (System check installs it); kept the see-through PNG.")
+        return name
+    dest = src.with_suffix(".jpg")
+    cmd = [ff, "-y", "-v", "error", "-i", str(src), "-filter_complex",
+           "color=white[c];[c][0]scale2ref[c][i];[c][i]overlay=format=auto:shortest=1",
+           "-frames:v", "1", "-q:v", "2", str(dest)]
+    try:
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=300, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return name
+    if p.returncode == 0 and dest.exists():
+        src.unlink(missing_ok=True)
+        return dest.name
+    return name
+
+
+def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client):
+    """(graph, output stem, fallback extension) for one item."""
+    from .mission import slug
+    from .tools import option_value
+    seed = _seed(job, i)
+    extra = job.format.strip()
+    if tid == "music":
+        secs = float(option_value(job, "length") or 30)
+        stem = f"{i + 1:02d}-{slug(item)[:40] or 'sound'}"
+        if kind == "sfx":
+            return sfx_graph(item, secs, seed, prefix), stem, ".mp3"
+        return music_graph(item, secs, seed, prefix=prefix), stem, ".mp3"
+    src: Path = item
+    name = upload_image(client.base, src)
+    stem = slug(src.stem) or f"picture-{i + 1}"
+    from . import quality as quality_mod
+    fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
+    if tid == "remove-bg":
+        keep = option_value(job, "background") or "transparent"
+        return bg_graph(name, keep, upscale, prefix), stem + "-cutout", ".png"
+    if tid == "edit-picture":
+        return edit_graph(name, extra, seed, fast, 0, prefix), stem + "-edited", ".png"
+    if tid == "restore-photo":
+        prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
+        if extra:
+            prompt += " " + extra
+        return edit_graph(name, prompt, seed, fast, upscale, prefix), stem + "-restored", ".png"
+    if tid == "animate-photo":
+        w, h = video_size(*picture_size(src))
+        motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
+        prompt = (f"{motion}. Keep the people, objects and setting from the photo exactly as they are; "
+                  "smooth, natural movement.")
+        from .doctor import comfy_models_dir
+        turbo = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
+        steps, cfg = (4, 1.0) if turbo else (20, 5.0)
+        return (animate_graph(name, prompt, comfy_mod.WAN_VIDEO["negative"], seed, w, h,
+                              steps=steps, cfg=cfg, turbo=turbo, prefix=prefix), stem + "-moving", ".mp4")
+    raise comfy_mod.WorkflowError(f"unknown tool {tid}")
+
+
+def _about(tid, job, opts, kind, upscale) -> str:
+    packs = needed_packs(tid, {kind} if kind else set()) + (("upscale",) if upscale else ())
+    lines = [f"# {job.name}", "", f"Made by Joe with ComfyUI on {datetime.now():%Y-%m-%d %H:%M}.", ""]
+    for p in packs:
+        lines.append(f"- Model: {PACKS[p].label} ({PACKS[p].license})")
+    lines += ["", "Check each model's license before using these commercially.",
+              "AI pictures and sound can contain mistakes: look and listen before you publish."]
+    return "\n".join(lines) + "\n"

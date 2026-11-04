@@ -4,6 +4,6 @@ Copyright (C) 2026 Joe contributors.
 Licensed under the GNU General Public License v3.0 (see LICENSE).
 """
 
-__version__ = "2.0.0.dev71"
+__version__ = "2.0.0.dev72"
 APP_NAME = "Joe"
 REPO = "sirgijoe/joe-ai"            # where releases are published (update check)

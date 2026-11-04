@@ -24,6 +24,7 @@ class FakeComfy:
         self.graphs: list[dict] = []
         self.history: dict = {}
         self.freed = 0
+        self.uploads: list[str] = []
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -53,8 +54,8 @@ class FakeComfy:
                 if u.path == "/view":
                     q = parse_qs(u.query)
                     name = q["filename"][0]
-                    assert name.endswith((".png", ".mp4"))
-                    body = MP4 if name.endswith(".mp4") else PNG
+                    assert name.endswith((".png", ".mp4", ".mp3"))
+                    body = MP4 if name.endswith(".mp4") else (b"ID3fake-mp3" if name.endswith(".mp3") else PNG)
                     self.send_response(200)
                     self.send_header("Content-Type", "video/mp4" if name.endswith(".mp4") else "image/png")
                     self.send_header("Content-Length", str(len(body)))
@@ -65,7 +66,14 @@ class FakeComfy:
 
             def do_POST(self):
                 n = int(self.headers.get("Content-Length", 0))
-                req = json.loads(self.rfile.read(n) or b"{}")
+                raw = self.rfile.read(n)
+                if self.path == "/upload/image":           # multipart: keep the file name
+                    import re as _re
+                    m = _re.search(rb'filename="([^"]+)"', raw)
+                    name = m.group(1).decode() if m else "upload.png"
+                    fake.uploads.append(name)
+                    return self._json(200, {"name": name, "subfolder": "", "type": "input"})
+                req = json.loads(raw or b"{}")
                 if self.path == "/free":
                     fake.freed += 1
                     return self._json(200, {})
@@ -80,6 +88,13 @@ class FakeComfy:
                     imgs = [{"filename": f"NR_{len(fake.graphs):05d}_{i}.png", "subfolder": "Joe",
                              "type": "output"} for i in range(fake.frames)]
                     out = {"9": {"images": imgs}}
+                    kinds = {n.get("class_type") for n in g.values()}
+                    if "SaveAudioMP3" in kinds:
+                        out = {"9": {"audio": [{"filename": f"Joe_{len(fake.graphs):05d}_.mp3",
+                                                "subfolder": "Joe", "type": "output"}]}}
+                    elif "SaveVideo" in kinds and not fake.video:
+                        out = {"58": {"images": [{"filename": f"Joe_{len(fake.graphs):05d}_.mp4",
+                                                  "subfolder": "Joe", "type": "output"}], "animated": [True]}}
                     if fake.video:
                         out = {"58": {"images": [{"filename": f"Joe_{len(fake.graphs):05d}_.mp4",
                                                   "subfolder": "Joe/clip", "type": "output"}],

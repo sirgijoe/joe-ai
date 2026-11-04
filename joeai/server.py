@@ -188,7 +188,7 @@ class App:
             if problem:
                 return {"ok": False, "error": problem}
             info = tools_mod.plan_info(self.sb, j, sp)
-            if not info["files"]:
+            if not info["files"] and tools_mod.TOOLS[j.type].accepts:
                 return {"ok": False, "error": f"Task '{j.name}': no files to work on yet. Add them "
                         "on the Tools tab (F7), or put them in Joe's Inbox folder."
                         + (f" ({info['problems'][0]})" if info["problems"] else "")}
@@ -695,6 +695,12 @@ class App:
                     ok = addons_mod.install_clone(addons_mod.install_log(self.log), approved=True)
                 elif action == "install-pandoc":
                     ok = addons_mod.install_pandoc(addons_mod.install_log(self.log), approved=True)
+                elif action == "download-pack":
+                    from . import picturetools
+                    ok = picturetools.download_pack(self.settings, b.get("pack", ""), self.log,
+                                                    approved=True, progress=prog)
+                    if ok and self.services.comfy_up():
+                        self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
                 elif action == "update-joe":
                     from . import update as update_mod
                     info = update_mod.check()
@@ -715,7 +721,12 @@ class App:
                   "download-video-model": "downloading video model",
                   "download-video-turbo": "downloading the Turbo add-on",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
-                  "install-clone": "setting up voice copy", "update-joe": "updating Joe"}
+                  "install-clone": "setting up voice copy", "update-joe": "updating Joe",
+                  "download-pack": "downloading a picture/sound model"}
+        if action == "download-pack":
+            from . import picturetools
+            if b.get("pack") not in picturetools.PACKS:
+                return {"ok": False, "error": "unknown model"}
         if action == "update-joe" and self.running:
             return {"ok": False, "error": "Joe is working: update after the run finishes."}
         if action not in labels:
@@ -1077,9 +1088,18 @@ def make_handler(app: App):
                         from .attach import vision_model
                         from .doctor import ollama_models
                         vision = bool(vision_model(ollama_models(app.services)))
+                    from . import picturetools
+                    from .doctor import comfy_models_dir
+                    try:
+                        mdir = comfy_models_dir(app.settings)
+                    except Exception:                   # noqa: BLE001
+                        mdir = None
+                    packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p)}
+                             for p in picturetools.PACKS}
                     return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),
                                        "have": {"voice": voice, "vision": vision,
-                                                "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg))}})
+                                                "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
+                                                "comfy": bool(mdir), "packs": packs}})
                 if u.path == "/api/update":
                     from . import update as update_mod
                     if q.get("auto") and not app.settings.ui.check_updates:
@@ -1173,7 +1193,7 @@ def make_handler(app: App):
                 if tid not in tools_mod.TOOLS or not tools_mod.TOOLS[tid].ready:
                     return self._json({"ok": False, "error": "unknown tool"})
                 files = [str(x) for x in (b.get("files") or []) if str(x).strip()][:200]
-                if not files:
+                if not files and tools_mod.TOOLS[tid].accepts:
                     return self._json({"ok": False, "error": "Add at least one file first."})
                 text = tools_mod.mission_for(tid, files, [str(x) for x in b.get("options") or []],
                                              str(b.get("name") or ""), str(b.get("extra") or ""),

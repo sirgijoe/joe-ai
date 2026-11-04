@@ -49,6 +49,37 @@ Rules:
 - Use FORMAT and RULES to pass on every detail they gave (tone, audience, length, style).
 - Never invent prices, reviews, quotes or facts; tell Joe to mark unknowns [CHECK]."""
 
+_WANTS_VIDEO = re.compile(r"\b(videos?|clips?|animations?|animated|movie|footage|mp4|gifs?)\b", re.I)
+_WANTS_PICS = re.compile(r"\b(pictures?|images?|illustrations?|drawings?|artwork|renders?|mockups?|"
+                         r"posters?|wallpapers?)\b", re.I)
+_ABOUT_MEDIA = re.compile(r"\b(scripts?|captions?|descriptions?|titles?|ideas?|prompts?|transcri\w*|"
+                          r"subtitles?|storyboards?|outlines?|hashtags?|blurbs?|posts?)\b", re.I)
+
+
+def kind_mismatch(request: str, mission_text: str) -> str:
+    """The person asked for a video or pictures, but the plan only writes text about them.
+    Returns what to tell the planner ('' = fine). Requests for writing ABOUT videos or
+    pictures (scripts, captions, ideas...) are left alone, and so are tool tasks."""
+    types = set(re.findall(r"TYPE:\s*([\w-]+)", mission_text, re.I))
+    types = {t.lower() for t in types}
+    if _ABOUT_MEDIA.search(request):
+        return ""
+    if _WANTS_VIDEO.search(request) and not types & {"video", "animate-photo"}:
+        return ("the person asked for a video, but your mission has no TYPE: video task (it only "
+                "writes text). Make it a TYPE: video task: CHUNKS: 1 x clips (1 unless they asked "
+                "for more), FORMAT: what happens in the clip")
+    if _WANTS_PICS.search(request) and not _WANTS_VIDEO.search(request) and not types & {
+            "image", "remove-bg", "edit-picture", "restore-photo", "photo-batch", "photo-listing",
+            "sort-photos", "read-scans"}:
+        return ("the person asked for pictures, but your mission has no TYPE: image task (it only "
+                "writes text). Make it a TYPE: image task: CHUNKS: parts x pictures, FORMAT: subject and style")
+    return ""
+
+
+def wants_high(request: str) -> bool:
+    return bool(re.search(r"\b(high|best|top|max(imum)?)[ -]?(quality|detail)\b|\bhigh[ -]?res", request, re.I))
+
+
 def planner_text() -> str:
     from . import tools as tools_mod
     lines = tools_mod.planner_lines()
@@ -132,6 +163,26 @@ def plain_summary(chk: dict) -> list[str]:
                 what = {"text": "the text", "receipts": "receipts into a spreadsheet",
                         "table": "tables into spreadsheets"}[how]
                 out.append(f"Read {what} from {_n(n, 'picture', 'pictures')}: {name}")
+            elif t in ("remove-bg", "edit-picture", "restore-photo", "animate-photo", "music"):
+                o = j.get("options") or []
+                pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731
+                if t == "remove-bg":
+                    up = pick("upscale", "none")
+                    bg = "on white" if pick("background", "transparent") == "white" else "see-through"
+                    out.append(f"Remove the background from {_n(n, 'picture', 'pictures')} ({bg}"
+                               + (f", {up} bigger" if up != "none" else "") + f"): {name}")
+                elif t == "edit-picture":
+                    out.append(f"Edit {_n(n, 'picture', 'pictures')} as asked: {name}")
+                elif t == "restore-photo":
+                    out.append(f"Restore {_n(n, 'old photo', 'old photos')}"
+                               + (" and add color" if "colorize" in o else "") + f": {name}")
+                elif t == "animate-photo":
+                    out.append(f"Turn {_n(n, 'photo', 'photos')} into 5-second clips: {name}")
+                else:
+                    from .picturetools import pieces_from
+                    k = len(pieces_from(j.get("format", "")))
+                    what = ("sound effect", "sound effects") if pick("kind", "music") == "sfx" else ("music track", "music tracks")
+                    out.append(f"Make {_n(k, *what)} ({pick('length', '30')} s each): {name}")
             elif t == "sort-photos":
                 tail = " into folders" if not j.get("options") or "folders" in j["options"] else ""
                 out.append(f"Sort and tag {_n(n, 'photo', 'photos')}{tail}: {name}")
@@ -213,6 +264,19 @@ def draft(app, request: str) -> dict:
             try:
                 parse(block)
                 chk = app.check(block)
+                mismatch = kind_mismatch(request, block) if chk["ok"] else ""
+                if mismatch and attempt == 0:
+                    chk = {"ok": False, "error": mismatch}
+                if chk["ok"]:
+                    warns = list(chk.get("warnings", []))
+                    if mismatch:
+                        warns.append("Joe planned only writing, though you mentioned a video or "
+                                     "pictures. If you wanted those, try 'make a video of ...' or use "
+                                     "the Builder (F4).")
+                    if wants_high(request) and re.search(r"TYPE:\s*(video|image)", block, re.I):
+                        warns.append("For high quality, set Setup (F10) > Images & video > Quality to "
+                                     "High first (slower, finer).")
+                    chk["warnings"] = warns
                 if chk["ok"]:
                     return {"ok": True, "mission": block, "summary": plain_summary(chk),
                             "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),

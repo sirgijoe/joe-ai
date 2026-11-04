@@ -57,7 +57,7 @@ def test_catalog_has_ready_and_planned_tools():
     cat = tools.catalog()
     ready = [t["id"] for t in cat if t["ready"]]
     assert "transcribe" in ready
-    assert any(not t["ready"] for t in cat)                     # planned tools show as "coming soon"
+    assert all(t["ready"] for t in cat)                         # nothing left "coming soon"
     assert {t["group"] for t in cat} <= set(tools.GROUPS)
 
 
@@ -70,7 +70,6 @@ def test_tool_missions_parse_and_round_trip():
     for bad in ("TASK: x  TYPE: transcribe",                                  # no INPUT
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  OPTIONS: karaoke",
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  CHUNKS: 2 x 2",
-                "TASK: x  TYPE: remove-bg  INPUT: a.png",                       # planned, not built
                 "TASK: x  CHUNKS: 1 x 2  OPTIONS: notes"):                      # OPTIONS on a text task
         with pytest.raises(MissionError):
             parse(bad)

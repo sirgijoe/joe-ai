@@ -45,6 +45,12 @@ is, whether it ships inside Joe or Joe downloads it only after you say yes, and 
 | Stable Diffusion XL base 1.0 (Stability AI) | pictures | CreativeML Open RAIL++-M |
 | Wan 2.2 TI2V 5B (Wan team, Alibaba) | video | Apache-2.0 |
 | Wan 2.2 Turbo LoRA (Kijai) | faster video | Apache-2.0 |
+| BiRefNet (repackaged by Comfy-Org) | Remove background | MIT |
+| Real-ESRGAN x4plus (Xintao Wang et al.) | Upscale / sharpen | BSD-3-Clause |
+| Qwen-Image-Edit 2511 + Qwen2.5-VL 7B text encoder (Alibaba Qwen) | Edit a picture, Restore old photos | Apache-2.0 |
+| Qwen-Image-Edit 2511 Lightning 4-step LoRA (lightx2v) | faster picture edits | Apache-2.0 |
+| ACE-Step 1.5 Turbo (ACE Studio / StepFun) | music | MIT |
+| Stable Audio Open 1.0 + T5-base (Stability AI; Google) | sound effects | Stability AI Community License (free under US$1M annual revenue; paid license above that); T5: Apache-2.0 |
 
 Models you install yourself, ComfyUI workflows and custom nodes keep their own licenses; Joe
 doesn't check them. If you want to use what Joe makes commercially, read the license of the

@@ -102,3 +102,16 @@ def test_talk_model_setting(app):
     assert chat.talk_model(app) == "qwen3:14b"
     app.settings.voice.talk_model = "not-installed:1b"
     assert chat.talk_model(app) == "qwen3:14b"
+
+
+def test_video_request_planned_as_text_is_caught():
+    from joeai.describe import kind_mismatch, wants_high
+    req = "i want a sample video in high quality to show a hand made pottery mug being spun on a wheel"
+    text_plan = "TASK: Video sample\nCHUNKS: 1 x 1\nFORMAT: describe the video"
+    assert "TYPE: video" in kind_mismatch(req, text_plan)
+    assert kind_mismatch(req, "TASK: Mug clip  TYPE: video\nCHUNKS: 1 x 1\nFORMAT: a mug spinning") == ""
+    assert kind_mismatch("write 10 captions for my pottery videos", text_plan) == ""
+    assert kind_mismatch("write a script for a video about glazing", text_plan) == ""
+    assert "TYPE: image" in kind_mismatch("make 8 pictures of mugs on a shelf", "TASK: x\nCHUNKS: 1 x 8")
+    assert kind_mismatch("remove the background from my pictures", "TASK: x  TYPE: remove-bg\nINPUT: a.png") == ""
+    assert wants_high(req) and not wants_high("a quick video")

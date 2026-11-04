@@ -272,6 +272,16 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        "Used for Low and Medium video quality (Setup > Images & video); High keeps the full model.",
                        "action": "download-video-turbo", "optional": True,
                        "what": f"the {t['label']} (under 1 GB)"})
+    if (comfy_exe or comfy_up) and mdir:
+        from . import picturetools
+        for pid in ("bg", "upscale", "edit", "music", "sfx"):
+            if not picturetools.pack_ready(mdir, pid):
+                used = {"bg": "Remove background", "upscale": "sharper, bigger pictures",
+                        "edit": "Edit a picture and Restore old photos", "music": "music",
+                        "sfx": "sound effects"}[pid]
+                issues.append({"id": f"pack-{pid}", "text": f"For {used} (Tools tab): "
+                               f"{picturetools.pack_offer(pid)}.", "action": "download-pack",
+                               "pack": pid, "optional": True, "what": picturetools.PACKS[pid].label})
     from . import addons as addons_mod
     if oll_up and omodels:
         from .attach import vision_model

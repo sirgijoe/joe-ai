@@ -148,7 +148,8 @@ queues behind other work if Joe is busy). **SHOW THE PLAN** shows the plan and t
 without running. Files you add are copied into `Inbox\tools\<tool>\`; your originals aren't
 touched. Dropping a recording anywhere outside Talk opens Transcribe with it. Dropping a
 document on the Tools tab lights up the tools that can use it (Read aloud, Proofread); pick one.
-Tools not built yet show "Coming soon".
+All the tools are ready. The picture and sound tools need ComfyUI and their model once (see
+"Picture and sound tools" below).
 
 You can also just ask on the Queue screen ("turn the call I added into notes", "read my story
 aloud"): Joe sees the files waiting in Inbox and plans the right tool task. In a mission:
@@ -293,6 +294,42 @@ Markdown, names, numbers, prices and links; anything it can't translate well is 
 starts with a line saying it's a machine translation made on this computer, to be checked by
 someone who speaks the language before publishing. FORMAT passes on wishes like "formal" or
 "Latin American Spanish". Quality depends on the model; big languages work best.
+
+### Picture and sound tools
+
+These five run in ComfyUI on the graphics card, using only ComfyUI's own built-in nodes (nothing
+extra to install in ComfyUI, but it needs a recent version). Each needs a model pack once: the
+Tools form shows a **DOWNLOAD IT** button with the size and license, and System check lists them
+too. Packs come from Hugging Face into ComfyUI's models folders; restart ComfyUI afterwards.
+Your originals are never changed; results go in `Output\<task name>\` with an `about.txt` naming
+the models used.
+
+```
+TASK: Shop cutouts  TYPE: remove-bg        INPUT: tools/remove-bg     OPTIONS: background white, upscale 2x
+TASK: Marble        TYPE: edit-picture     INPUT: mug.jpg             FORMAT: put the mug on a white marble counter
+TASK: Old family    TYPE: restore-photo    INPUT: old-photos          OPTIONS: colorize, upscale 2x
+TASK: Steam         TYPE: animate-photo    INPUT: mug.jpg             FORMAT: steam rising, slow push-in
+TASK: Video music   TYPE: music            OPTIONS: kind music, length 60
+FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
+```
+
+- **Remove background** (BiRefNet, MIT, under 1 GB): `background transparent` (PNG) or `white`
+  (JPG, needs FFmpeg), `upscale none|2x|4x` (Real-ESRGAN x4, BSD-3, 70 MB; 2x is scaled down from
+  4x for cleaner, smaller files). A few seconds a photo.
+- **Edit a picture by asking** (Qwen-Image-Edit 2511, Apache-2.0, about 31 GB with the 4-step
+  Lightning add-on): FORMAT is the change, made to every picture. Medium/Low picture quality = 4
+  steps (about 1-3 minutes on a 12 GB card, the rest of the model waits in normal memory); High =
+  40 steps, much slower. Reads JPG, PNG and WebP.
+- **Restore old photos**: the same editor told to remove damage and keep every face and detail;
+  `colorize` adds natural color, otherwise black and white/sepia stays. `upscale` sharpens after.
+  AI can change small details: compare with the original.
+- **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
+  1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
+- **Music and sound effects**: no files needed; one piece per line (in a mission, separate them
+  with `|`). `kind music` = ACE-Step 1.5 Turbo (MIT, about 10 GB), instrumental, any style;
+  `kind sfx` = Stable Audio Open 1.0 (about 5 GB, Stability AI Community License: free for people
+  and businesses under US$1 million revenue a year), up to about 47 seconds. `length 10|30|60|120|180`.
+  Saved as MP3.
 
 ## Talking to Joe (F6)
 

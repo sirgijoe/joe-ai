@@ -258,9 +258,11 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     if options and jtype not in TOOLS:
         raise MissionError(f"Task '{name}': OPTIONS is for tools (like TYPE: transcribe).")
     if jtype in TOOLS:
-        if not inputs:
+        if not inputs and TOOLS[jtype].accepts:
             raise MissionError(f"Task '{name}': say which files to use with INPUT: (files or a "
                                "folder in Inbox).")
+        if jtype == "music" and not d.get("FORMAT", "").strip():
+            raise MissionError(f"Task '{name}': describe the music or sound with FORMAT: (one per line).")
         if "CHUNKS" in d or part_prompts:
             raise MissionError(f"Task '{name}': a {TOOLS[jtype].name} task doesn't use CHUNKS or PART.")
         from .tools import option_ok, options_help

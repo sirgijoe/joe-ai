@@ -2107,8 +2107,23 @@ function toolNeeds() {
   if (needs.includes("vision") && toolHave.vision === false) msgs.push("This needs a vision model (one that can look at pictures). Setup (F10) > System check offers a free one to download.");
   if (needs.includes("vision") && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only JPG, PNG and WebP photos under 6 MB can be used. Setup (F10) > System check installs it.");
   if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > System check installs it.");
-  $("#tf-need").innerHTML = msgs.map(esc).join("<br>");
-  $("#tf-need").hidden = !msgs.length;
+  let html = msgs.map(esc).join("<br>");
+  if (needs.includes("comfy")) {
+    if (!toolHave.comfy) html += (html ? "<br>" : "") + esc("This runs in ComfyUI, which isn't installed yet. Setup (F10) > System check installs it.");
+    else {
+      const kind = (document.querySelector('#tf-options [data-pick="kind"]') || {}).value || "";
+      const want = { "remove-bg": ["bg"], "edit-picture": ["edit"], "restore-photo": ["edit"],
+        "animate-photo": ["video"], music: [kind === "sfx" ? "sfx" : "music"] }[t.id] || [];
+      const packs = toolHave.packs || {};
+      want.filter((p) => packs[p] && !packs[p].ready).forEach((p) => {
+        html += (html ? "<br>" : "") + esc(`This needs ${packs[p].offer}, once. It comes from Hugging Face and goes into ComfyUI's models folder.`) +
+          (p === "video" ? esc(" Setup (F10) > System check offers it.") : ` <button type="button" data-pack="${esc(p)}">[ DOWNLOAD IT ]</button>`);
+      });
+    }
+  }
+  $("#tf-need").innerHTML = html;
+  $("#tf-need").hidden = !html;
+
 }
 function openTool(id) {
   const t = toolById(id); if (!t || !t.ready) return;
@@ -2116,6 +2131,7 @@ function openTool(id) {
   $("#tf-title").textContent = t.name;
   $("#tf-blurb").textContent = t.blurb;
   $("#tf-accepts").textContent = "Works with: " + t.accepts.join(" ");
+  $("#tf-drop").hidden = !t.accepts.length; $("#tf-files").hidden = !t.accepts.length;
   $("#tf-file").accept = t.accepts.join(",");
   $("#tf-help").textContent = t.help || "";
   $("#tf-options").innerHTML = t.options.map((o) => o.multi
@@ -2225,5 +2241,16 @@ document.addEventListener("click", (ev) => {
   else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));
   else if (b.dataset.act === "tool-plan") toolPlan(false).catch((e) => toast(e.message));
   else if (b.dataset.tfrm !== undefined) { toolFiles.splice(+b.dataset.tfrm, 1); renderToolFiles(); }
+  else if (b.dataset.pack) {
+    const p = b.dataset.pack, offer = ((toolHave.packs || {})[p] || {}).offer || "this model";
+    confirmBox(`Download ${offer}? It goes into ComfyUI's models folder; restart ComfyUI afterwards. Progress shows in Setup > System check.`, async () => {
+      const r = await api("/api/doctor/fix", { action: "download-pack", pack: p, approved: true });
+      toast(r.ok ? "Downloading… (Setup > System check shows progress)" : (r.error || "Couldn't start the download"));
+    });
+  }
 });
 api("/api/tools").then((r) => { toolCat = toolCat || r; toolHave = r.have || {}; }).catch(() => {});
+// Music form: switching between music and sound effects changes which model it needs.
+document.addEventListener("change", (ev) => {
+  if (toolOpen && ev.target && ev.target.matches && ev.target.matches('#tf-options [data-pick="kind"]')) toolNeeds();
+});
