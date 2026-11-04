@@ -171,6 +171,8 @@ body.nochats .chatside { display: none; }
 @media (max-width: 1360px) { .titlebar .bin { display: none; } }
 .chatside .hidechats { position: absolute; top: 4px; right: 6px; padding: 0 6px; min-width: 0; }
 .chatside { width: 250px; flex: 0 0 250px; gap: 6px; }
+.quality .qrow { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
+.quality .qhelp { padding-left: 2px; }
 .chatside .newchat { width: 100%; }
 .chatside input[type=search] { width: 100%; box-sizing: border-box; }
 .chatlist { flex: 1; overflow: auto; min-height: 0; }

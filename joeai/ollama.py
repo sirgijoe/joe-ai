@@ -51,12 +51,12 @@ class OllamaClient:
         return names
 
     def chat(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-             keep_alive: str | None = None) -> ChatResult:
+             keep_alive: str | None = None, think: bool | None = None) -> ChatResult:
         payload = {
             "model": model or self.cfg.text_model,
             "messages": messages,
             "stream": False,
-            "think": self.cfg.think,
+            "think": self.cfg.think if think is None else think,
             "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(), "temperature": self.cfg.temperature},
         }
         if max_tokens:

@@ -289,6 +289,32 @@ def test_builtin_video_wan(env, tmp_path):
     assert g["7"]["inputs"]["text"].startswith("static")                # video negative prompt
     mp4s = list((sb.output / "clips" / "kiln2").glob("*.mp4"))
     assert len(mp4s) == 1 and mp4s[0].read_bytes()[4:8] == b"ftyp"
+    # Setup > Quality: Turbo add-on installed + Low video = short, small, 4-step clip with the LoRA
+    folder, name, _ = comfy.WAN_TURBO["file"]
+    (mdir / folder).mkdir(parents=True, exist_ok=True)
+    (mdir / folder / name).write_bytes(b"x")
+    s.quality.video = "low"
+    st = Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Kiln clip 3  SAVE: clips/k3.mp4  CHUNKS: 1 x 1"))[0]
+    assert st.status == "done", st.note
+    g = fc.graphs[-1]
+    assert g["60"]["inputs"]["lora_name"] == name and g["3"]["inputs"]["steps"] == 4
+    assert g["55"]["inputs"]["width"] == 960 and g["55"]["inputs"]["length"] == 73
+    s.quality.video = "high"
+    Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Kiln clip 4  SAVE: clips/k4.mp4  CHUNKS: 1 x 1"))
+    g = fc.graphs[-1]
+    assert "60" not in g and g["3"]["inputs"]["steps"] == 30 and g["55"]["inputs"]["width"] == 1280
+
+
+def test_picture_quality_low_and_high(env):
+    s, sb, fo, fc = env
+    s.quality.pictures = "low"
+    Engine(s, sb, log=lambda x: None).run_mission(parse(IMG))
+    g = fc.graphs[-1]
+    assert g["3"]["inputs"]["steps"] == 14 and g["5"]["inputs"]["width"] == 768
+    s.quality.pictures = "high"
+    Engine(s, sb, log=lambda x: None).run_mission(parse(IMG.replace("art/mood", "art/mood2")))
+    g = fc.graphs[-1]
+    assert g["3"]["inputs"]["steps"] == 40 and g["5"]["inputs"]["width"] == 1024
 
 
 def test_doctor_offers_video_model(env, tmp_path, monkeypatch):

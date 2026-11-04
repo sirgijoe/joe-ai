@@ -227,6 +227,25 @@ FORMAT: ...
           <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
             <span id="busy" class="dim"></span></div>
         </fieldset>
+        <fieldset class="wide quality"><legend>QUALITY vs SPEED</legend>
+          <div class="dim small">Pick how Joe balances speed and quality for each kind of work. <b>Low</b> is fastest with rougher results,
+            <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people. A task's own SIZE or MODEL always wins.</div>
+          <div class="qrow">
+            <label>Writing
+              <select data-path="quality.writing"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+            <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
+          </div>
+          <div class="qrow">
+            <label>Pictures
+              <select data-path="quality.pictures"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+            <div class="dim small qhelp" data-q="pictures" data-low="About half the drawing steps and slightly smaller pictures. Roughly twice as fast; less fine detail." data-medium="The model's normal settings. Clean pictures at full size." data-high="More drawing steps and a finer sampler. Sharper detail; about half again as long per picture."></div>
+          </div>
+          <div class="qrow">
+            <label>Video
+              <select data-path="quality.video"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+            <div class="dim small qhelp" data-q="video" data-low="Shorter (about 3 s), smaller clips. With the Turbo add-on (System check) this is very quick." data-medium="Full 5-second clips at 1280x704. Uses the Turbo add-on when it's installed (several times faster), otherwise the full model." data-high="The full model with extra steps, never Turbo. Best motion and detail; can take 20 minutes or more per clip on a 12 GB card."></div>
+          </div>
+        </fieldset>
         <fieldset class="wide"><legend>WORKSPACE</legend>
           <label>Folder <input name="workspace" data-path="workspace"></label>
         </fieldset>

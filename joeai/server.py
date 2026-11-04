@@ -518,6 +518,8 @@ class App:
                     ok = doctor.download_image_model(self.settings, self.log, approved=True, progress=prog)
                 elif action == "download-video-model":
                     ok = doctor.download_video_model(self.settings, self.log, approved=True, progress=prog)
+                elif action == "download-video-turbo":
+                    ok = doctor.download_video_turbo(self.settings, self.log, approved=True, progress=prog)
                 elif action == "install-voice":
                     self.voice.close()
                     ok = addons_mod.install_voice(addons_mod.install_log(self.log), approved=True,

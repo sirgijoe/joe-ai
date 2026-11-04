@@ -548,6 +548,15 @@ function chatsShown(on) {
 (() => { let on = true; try { on = localStorage.getItem("joe-chats") !== "0"; } catch (e) {} chatsShown(on); loadChats(); })();
 $("#chat-find").addEventListener("input", () => { clearTimeout(chatFindTimer); chatFindTimer = setTimeout(loadChats, 250); });
 
+// --- quality vs speed: show what the chosen level means, right under it ----------------------
+function qualityHelp() {
+  document.querySelectorAll(".qhelp").forEach((d) => {
+    const sel = document.querySelector(`[data-path="quality.${d.dataset.q}"]`);
+    d.textContent = sel ? (d.dataset[sel.value] || "") : "";
+  });
+}
+document.addEventListener("change", (ev) => { if (ev.target.dataset && /^quality\./.test(ev.target.dataset.path || "")) qualityHelp(); });
+
 // --- permissions ------------------------------------------------------------------
 async function micPermission() {
   try { return (await navigator.permissions.query({ name: "microphone" })).state; }   // granted | prompt | denied
@@ -596,6 +605,7 @@ function askFix(it) {
   const what = { install: "Install it now (winget, Windows may ask for permission)?", start: "Start it now?",
     use: "Switch to this model?", pull: "Download it now?", "download-image-model": "Download it now?",
     "download-video-model": "Download it now? About 18 GB in 3 files; it can take an hour or more.",
+    "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Windows may ask for permission.",
     "install-pandoc": "Install it now (winget)?",
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];
@@ -632,6 +642,7 @@ async function loadSetup() {
     const v = getPath(s, el.dataset.path);
     if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
   });
+  qualityHelp();
   $("#setup-msg").textContent = "";
 }
 async function saveSetup(ev) {

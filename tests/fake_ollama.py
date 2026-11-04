@@ -13,6 +13,7 @@ class FakeOllama:
         self.dup_every = dup_every
         self.short_every = short_every
         self.calls = 0
+        self.requests: list[dict] = []     # every /api/chat body, newest last
         self.counter = 0
         self.prompts: list[str] = []
         self.systems: list[str] = []
@@ -95,6 +96,7 @@ class FakeOllama:
     def chat(self, req):
         with self.lock:
             self.calls += 1
+            self.requests.append(req)
             if self.calls <= self.fail_first:
                 return 500, {"error": "simulated crash"}
             user = req["messages"][-1]["content"]

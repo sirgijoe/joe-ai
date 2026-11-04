@@ -76,6 +76,25 @@ Joe opens fresh every time. If the last run didn't finish (stopped, crash, power
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).
 Pictures and video always run after the writing tasks, so the GPU switches over only once.
 
+## Quality vs speed (Setup > Quality)
+
+Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but
+careful pictures, or the other way round. The line under each choice says what it does.
+
+| | Low (fastest) | Medium (balanced, the default) | High (best, slowest) |
+|---|---|---|---|
+| **Writing** | a smaller, quicker model if you have one installed | the best model for your PC | the best model, thinking each part through first (often 2-3x slower) |
+| **Pictures** | about half the drawing steps, slightly smaller pictures (about 2x faster, less detail) | the model's normal settings | more steps and a finer sampler (sharper, about 1.5x as long) |
+| **Video** | about 3-second, smaller clips; very quick with the Turbo add-on | full 5-second 1280x704 clips, using Turbo when installed | the full model with extra steps, never Turbo (can take 20+ minutes a clip on a 12 GB card) |
+
+**Turbo add-on for video**: once the video model is installed, System check offers the
+Wan 2.2 5B Turbo add-on (under 1 GB, Apache 2.0). It makes a clip in 4 steps instead of 20,
+several times faster, with a little less detail. Low and Medium use it; High never does.
+Restart ComfyUI after downloading it.
+
+A task's own SIZE or MODEL always wins over these choices. Time estimates learn from your runs,
+so after changing a level the first estimate may be off.
+
 ## Comfort (Setup > Comfort)
 
 - **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).

@@ -34,6 +34,7 @@ from .mission import Job, Mission, slug
 from .ollama import ChatResult, OllamaClient
 from .power import keep_awake, when_finished
 from .sandbox import Sandbox, SandboxError
+from . import quality as quality_mod
 from .services import ServiceManager
 from .hardware import gpu_temperature_c, vram_total_gb
 
@@ -324,6 +325,15 @@ class Engine:
         if not getattr(self, "_model_checked", False):
             from .doctor import resolve_text_model
             self.text_model = resolve_text_model(self.s, self.services, self.log)
+            wp = quality_mod.writing(self.s)
+            if wp.smaller_model and not self.s.ollama.text_model:
+                from .doctor import smaller_text_model
+                small = smaller_text_model(self.services, self.text_model)
+                if small:
+                    self.text_model = small
+            if quality_mod.level(self.s, "writing") != "medium":
+                self.log(f"  Writing quality: {quality_mod.NAMES[quality_mod.level(self.s, 'writing')]} "
+                         f"({self.text_model}{', thinking first' if wp.think else ''})")
             self._model_checked = True
         return True
 
@@ -430,7 +440,8 @@ class Engine:
                 raise Stopped()
             try:
                 r = self.client.chat([{"role": "system", "content": system},
-                                      {"role": "user", "content": user}], model=model)
+                                      {"role": "user", "content": user}], model=model,
+                                     think=quality_mod.writing(self.s).think or None)
                 st.tokens_in += r.prompt_tokens
                 st.tokens_out += r.output_tokens
                 st.model_seconds += r.seconds
@@ -799,7 +810,11 @@ class Engine:
                     f"{comfy_mod.WAN_VIDEO['label']} (about {comfy_mod.WAN_VIDEO['size_gb']:.0f} GB), "
                     "or give the task a WORKFLOW.")
             fps = job.fps if job.fps != 16 else 0          # 16 is the mission default: use Wan's 24
-            return comfy_mod.wan_video_graph(fps=fps), "", "wan", f"built-in video ({comfy_mod.WAN_VIDEO['label']})"
+            vp = quality_mod.video(self.s, comfy_mod.wan_turbo_installed(comfy_models_dir(self.s)))
+            self._video_plan = vp
+            self.log(f"  Video quality: {quality_mod.NAMES[quality_mod.level(self.s, 'video')]} ({vp.describe()})")
+            return (comfy_mod.wan_video_graph(frames=vp.frames, fps=fps, steps=vp.steps, cfg=vp.cfg, turbo=vp.turbo),
+                    "", "wan", f"built-in video ({comfy_mod.WAN_VIDEO['label']}{' Turbo' if vp.turbo else ''})")
         basic = [m for m in models if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
         m = comfy_mod.best_image_model(basic, vram, "image", want=job.model)
         if not m and job.model:
@@ -808,7 +823,12 @@ class Engine:
         if not m:
             raise comfy_mod.WorkflowError("no SD1.5/SDXL checkpoint found. Add one (F10 > System check) "
                                           "or give the task a WORKFLOW.")
-        return comfy_mod.basic_graph(m.family), api_name(m), m.family, "built-in text-to-image"
+        pp = quality_mod.pictures(self.s)
+        lv = quality_mod.level(self.s, "pictures")
+        if lv != "medium":
+            self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({pp.steps(m.family)} steps)")
+        return (comfy_mod.basic_graph(m.family, pp.steps(m.family), pp.sampler), api_name(m), m.family,
+                "built-in text-to-image")
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
         """Phase 2: ComfyUI renders every prompt (VARIANTS images each)."""
@@ -835,8 +855,14 @@ class Engine:
             return st
         st.checkpoint = ckpt
         builtin = wf_label.startswith("built-in")
-        w, h = (job.width, job.height) if job.width else (
-            comfy_mod.default_size(family) if builtin else (None, None))
+        if job.width:
+            w, h = job.width, job.height
+        elif builtin and family == "wan" and getattr(self, "_video_plan", None):
+            w, h = self._video_plan.size
+        elif builtin:
+            w, h = quality_mod.pictures(self.s).size(*comfy_mod.default_size(family))
+        else:
+            w, h = None, None
         negative = job.negative or ((comfy_mod.WAN_VIDEO["negative"] if family == "wan" else
                                      self.s.comfy.negative) if builtin else "")
         total = len(st.prompts) * job.variants

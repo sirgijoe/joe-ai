@@ -279,8 +279,8 @@ def load_template(path: Path) -> dict:
     return g
 
 
-def basic_graph(family: str) -> dict:
-    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints."""
+def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m") -> dict:
+    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Quality)."""
     sdxl = family != "sd15"
     return {
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "{{CHECKPOINT}}"}},
@@ -289,8 +289,8 @@ def basic_graph(family: str) -> dict:
         "5": {"class_type": "EmptyLatentImage",
               "inputs": {"width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": 1}},
         "3": {"class_type": "KSampler", "inputs": {
-            "seed": "{{SEED}}", "steps": 28 if sdxl else 25, "cfg": 6.0 if sdxl else 7.0,
-            "sampler_name": "dpmpp_2m", "scheduler": "karras", "denoise": 1.0,
+            "seed": "{{SEED}}", "steps": steps or (28 if sdxl else 25), "cfg": 6.0 if sdxl else 7.0,
+            "sampler_name": sampler, "scheduler": "karras", "denoise": 1.0,
             "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0]}},
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
         "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "{{PREFIX}}", "images": ["8", 0]}},
@@ -318,6 +318,23 @@ WAN_VIDEO = {
 }
 
 
+# Optional "Turbo" add-on for the same model: a LoRA from the Wan2.2-TI2V-5B-Turbo finetune
+# (Apache 2.0), packaged for ComfyUI by Kijai. 4 steps and no CFG instead of 20 steps x 2.
+WAN_TURBO = {
+    "label": "Wan 2.2 5B Turbo add-on", "license": "Apache 2.0", "size_gb": 0.6,
+    "file": ("loras", "Wan22_TI2V_5B_Turbo_lora_rank_64_fp16.safetensors",
+             "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/LoRAs/Wan22-Turbo/"
+             "Wan22_TI2V_5B_Turbo_lora_rank_64_fp16.safetensors"),
+}
+
+
+def wan_turbo_installed(models_dir: Path | None) -> bool:
+    if not models_dir:
+        return False
+    folder, name, _ = WAN_TURBO["file"]
+    return any((models_dir / folder).rglob(name)) if (models_dir / folder).is_dir() else False
+
+
 def wan_missing(models_dir: Path | None) -> list[tuple[str, str, str]]:
     """The Wan 2.2 5B files that aren't in ComfyUI's models folder yet."""
     if not models_dir:
@@ -325,24 +342,27 @@ def wan_missing(models_dir: Path | None) -> list[tuple[str, str, str]]:
     return [f for f in WAN_VIDEO["files"] if not any((models_dir / f[0]).rglob(f[1]))]
 
 
-def wan_video_graph(frames: int = 0, fps: int = 0) -> dict:
-    """Built-in text-to-video graph (ComfyUI's Wan 2.2 5B template, API format)."""
+def wan_video_graph(frames: int = 0, fps: int = 0, steps: int = 20, cfg: float = 5.0,
+                    turbo: bool = False) -> dict:
+    """Built-in text-to-video graph (ComfyUI's Wan 2.2 5B template, API format).
+    turbo=True adds the Turbo LoRA (use steps=4, cfg=1)."""
     w = WAN_VIDEO
     unet, clip, vae = (f[1] for f in w["files"])
     frames = frames or w["frames"]
     frames = max(5, (frames - 1) // 4 * 4 + 1)          # Wan wants 4n+1 frames
-    return {
+    g = {
         "37": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
         "38": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "wan", "device": "default"}},
         "39": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
-        "48": {"class_type": "ModelSamplingSD3", "inputs": {"shift": 8.0, "model": ["37", 0]}},
+        "48": {"class_type": "ModelSamplingSD3", "inputs": {"shift": 8.0,
+                                                            "model": ["60", 0] if turbo else ["37", 0]}},
         "6": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{PROMPT}}", "clip": ["38", 0]}},
         "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{NEGATIVE}}", "clip": ["38", 0]}},
         "55": {"class_type": "Wan22ImageToVideoLatent", "inputs": {
             "width": "{{WIDTH}}", "height": "{{HEIGHT}}", "length": frames, "batch_size": 1,
             "vae": ["39", 0]}},
         "3": {"class_type": "KSampler", "inputs": {
-            "seed": "{{SEED}}", "steps": 20, "cfg": 5.0, "sampler_name": "uni_pc", "scheduler": "simple",
+            "seed": "{{SEED}}", "steps": steps, "cfg": cfg, "sampler_name": "uni_pc", "scheduler": "simple",
             "denoise": 1.0, "model": ["48", 0], "positive": ["6", 0], "negative": ["7", 0],
             "latent_image": ["55", 0]}},
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["39", 0]}},
@@ -350,6 +370,10 @@ def wan_video_graph(frames: int = 0, fps: int = 0) -> dict:
         "58": {"class_type": "SaveVideo", "inputs": {"video": ["57", 0], "filename_prefix": "{{PREFIX}}",
                                                      "format": "auto", "codec": "auto"}},
     }
+    if turbo:
+        g["60"] = {"class_type": "LoraLoaderModelOnly", "inputs": {
+            "lora_name": WAN_TURBO["file"][1], "strength_model": 1.0, "model": ["37", 0]}}
+    return g
 
 
 def default_size(family: str) -> tuple[int, int]:

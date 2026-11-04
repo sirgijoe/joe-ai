@@ -113,6 +113,14 @@ class StatsSettings:
 
 
 @dataclass
+class QualitySettings:
+    # Setup > Quality: low = fastest, rougher | medium = balanced | high = best, slowest
+    writing: str = "medium"
+    pictures: str = "medium"
+    video: str = "medium"
+
+
+@dataclass
 class Settings:
     workspace: str = ""
     ollama: OllamaSettings = field(default_factory=OllamaSettings)
@@ -122,6 +130,7 @@ class Settings:
     stats: StatsSettings = field(default_factory=StatsSettings)
     voice: VoiceSettings = field(default_factory=VoiceSettings)
     comfort: ComfortSettings = field(default_factory=ComfortSettings)
+    quality: QualitySettings = field(default_factory=QualitySettings)
     pandoc: str = ""                 # blank = auto-detect
 
     @property

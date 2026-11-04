@@ -95,6 +95,17 @@ def best_ollama_model(models: list[dict], vram_gb: float) -> str | None:
     return max(fits, key=lambda m: (_params_b(m["params"]), m["size_gb"]))["name"]
 
 
+def smaller_text_model(sm: ServiceManager, current: str) -> str | None:
+    """Writing quality Low: the next smaller installed writing model than `current`."""
+    models = [m for m in ollama_models(sm) if m["writer"]]
+    cur = next((m for m in models if m["name"] in (current, f"{current}:latest")), None)
+    if not cur:
+        return None
+    key = lambda m: (_params_b(m["params"]), m["size_gb"])   # noqa: E731
+    smaller = [m for m in models if key(m) < key(cur) and _params_b(m["params"]) >= 1]
+    return max(smaller, key=key)["name"] if smaller else None
+
+
 def recommended_download(vram_gb: float) -> dict:
     for need, name, gb in OLLAMA_PICKS:
         if (vram_gb or 0) >= need:
@@ -174,6 +185,13 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        f"(about {w['size_gb']:.0f} GB, {w['license']}). Makes TYPE: video tasks work "
                        "without a workflow file (about 5-second clips).",
                        "action": "download-video-model", "optional": True})
+    if (comfy_exe or comfy_up) and mdir and not comfy_mod.wan_missing(mdir) \
+            and not comfy_mod.wan_turbo_installed(mdir):
+        t = comfy_mod.WAN_TURBO
+        issues.append({"id": "get-video-turbo", "text": f"Faster video: the {t['label']} (under 1 GB, "
+                       f"{t['license']}) makes a video in 4 steps instead of 20, several times faster. "
+                       "Used for Low and Medium video quality (Setup > Quality); High keeps the full model.",
+                       "action": "download-video-turbo", "optional": True})
     from . import addons as addons_mod
     if oll_up and omodels:
         from .attach import vision_model
@@ -343,6 +361,27 @@ def download_video_model(settings: Settings, log: Log, approved: bool = False,
             return False
         done += sizes[folder] * 2**30
     log(f"{w['label']} is ready. Restart ComfyUI so it sees the new files, then TYPE: video tasks work.")
+    return True
+
+
+def download_video_turbo(settings: Settings, log: Log, approved: bool = False,
+                         progress: Callable[[float], None] | None = None) -> bool:
+    """The Turbo add-on (a LoRA) for Wan 2.2 5B, into ComfyUI's models\\loras."""
+    if not approved:
+        raise PermissionError("download needs the user's approval")
+    mdir = comfy_models_dir(settings)
+    if not mdir:
+        log("Can't find ComfyUI's models folder. Set it in Setup (F10).")
+        return False
+    t = comfy_mod.WAN_TURBO
+    if comfy_mod.wan_turbo_installed(mdir):
+        log(f"The {t['label']} is already installed.")
+        return True
+    folder, name, url = t["file"]
+    log(f"Downloading the {t['label']} ({t['license']}).")
+    if not _download(url, mdir / folder / name, log, progress, 0, int(t["size_gb"] * 2**30)):
+        return False
+    log(f"The {t['label']} is ready. Restart ComfyUI so it sees the new file.")
     return True
 
 
