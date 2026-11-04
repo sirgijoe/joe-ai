@@ -113,6 +113,13 @@ class StatsSettings:
 
 
 @dataclass
+class WebSettings:
+    enabled: bool = False            # Talk may look things up online (Setup > Permissions)
+    ollama_key: str = ""             # free key from ollama.com/settings/keys; blank = Wikipedia only
+    max_results: int = 5
+
+
+@dataclass
 class QualitySettings:
     # Setup > Quality: low = fastest, rougher | medium = balanced | high = best, slowest
     writing: str = "medium"
@@ -131,6 +138,7 @@ class Settings:
     voice: VoiceSettings = field(default_factory=VoiceSettings)
     comfort: ComfortSettings = field(default_factory=ComfortSettings)
     quality: QualitySettings = field(default_factory=QualitySettings)
+    web: WebSettings = field(default_factory=WebSettings)
     pandoc: str = ""                 # blank = auto-detect
 
     @property

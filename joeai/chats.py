@@ -25,7 +25,7 @@ class Chats:
         """Start fresh. Nothing is written until the first message, so empty chats leave no file."""
         self.current = None
 
-    def add(self, you: str, joe: str, mission: str = "") -> None:
+    def add(self, you: str, joe: str, mission: str = "", sources: list | None = None) -> None:
         now = datetime.now()
         if self.current is None:
             cid = now.strftime("%Y%m%d_%H%M%S")
@@ -40,6 +40,8 @@ class Chats:
         joe_msg = {"who": "joe", "text": joe, "ts": ts}
         if mission:
             joe_msg["mission"] = mission
+        if sources:
+            joe_msg["sources"] = sources
         self.current["messages"].append(joe_msg)
         self.current["updated"] = now.isoformat(timespec="milliseconds")   # fine enough to sort by
         self._write(self.current)

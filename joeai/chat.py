@@ -14,8 +14,9 @@ How to answer:
   No markdown, no lists, no emoji, unless you are writing a mission block.
 - Be honest about what you can do. You write drafts, lists, documents, spreadsheets (CSV),
   code drafts, and (with ComfyUI) pictures and short video clips, overnight, on this PC.
-  You cannot browse the web, send email, post online, spend money, or touch files outside
-  your own folder. Never pretend you did something you didn't.
+  You cannot send email, post online, spend money, or touch files outside your own folder.
+  You only look things up online when the newest message says lookups are ON; otherwise you
+  have no internet. Never pretend you did something you didn't.
 - Use the STATUS note at the end of the newest message to answer questions about progress. Don't invent numbers.
 - Answer questions, explain, summarize, give opinions, and read or rephrase text RIGHT HERE
   in your reply. That is not a mission. If they paste text and ask you to read it, your reply
@@ -125,8 +126,33 @@ _READ_FILE = re.compile(r"^\s*(please\s+)?(can you\s+|could you\s+)?(read|say)\b
 FILE_CHARS = 10_000          # how much of an attached file goes to the model
 
 
-def prepare(app, history: list[dict], text: str, files: list[dict] | None = None) -> dict:
-    """Either {"final": reply} (no model needed) or {"msgs": [...], "model": name}."""
+def web_on(app) -> bool:
+    w = getattr(app.settings, "web", None)
+    return bool(w and w.enabled)
+
+
+def look_up(app, query: str) -> list:
+    from . import websearch
+    w = app.settings.web
+    app.log(f"Looking it up online: {query[:80]}")
+    res = websearch.search(query, w.ollama_key.strip(), w.max_results)
+    app.log(f"  {len(res)} result(s)" + (f" from {res[0].source}" if res else ""))
+    return res
+
+
+_LOOKUP = re.compile(r"^\s*LOOKUP\s*:\s*(.+)", re.I)
+
+
+def lookup_request(raw: str) -> str:
+    """The model asked to search ('LOOKUP: words') instead of answering."""
+    m = _LOOKUP.match(raw or "")
+    return m.group(1).splitlines()[0].strip()[:200] if m else ""
+
+
+def prepare(app, history: list[dict], text: str, files: list[dict] | None = None,
+            web_results: list | None = None) -> dict:
+    """Either {"final": reply} (no model needed) or {"msgs": [...], "model": name, "sources": [...]}.
+    web_results: results already fetched (after the model asked to LOOKUP); None = decide here."""
     files = files or []
     text = (text or "").strip()[:8000]
     if not text and not files:
@@ -171,6 +197,22 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:4000]})
     content = text + "\n\n[STATUS right now, for reference:\n" + status_text(app) + "]"
+    sources: list[dict] = []
+    if web_on(app) and not pics:
+        from . import websearch
+        if web_results is None and websearch.needs_web(text):
+            web_results = look_up(app, text)
+        if web_results:
+            sources = websearch.sources(web_results)
+            content += ("\n\n" + websearch.as_context(web_results) + "\n\n[Answer from these results in "
+                        "plain spoken sentences. Don't read web addresses aloud; they're shown under your reply. "
+                        "If the results don't answer it, say so.]")
+        elif web_results is None:
+            content += ("\n\n[Online lookups are ON. If answering needs facts you don't have or that may "
+                        "have changed, reply with ONLY one line: LOOKUP: <a few search words>]")
+        else:
+            content += ("\n\n[You looked online but found nothing useful. Say so in a few words, then answer "
+                        "from what you know if you can, and say it may be out of date.]")
     for f in docs:
         body = f["text"][:FILE_CHARS]
         cut = len(f["text"]) > FILE_CHARS or f.get("truncated")
@@ -182,7 +224,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if images:
         user["images"] = images
     msgs.append(user)
-    return {"msgs": msgs, "model": model}
+    return {"msgs": msgs, "model": model, "sources": sources, "searched": web_results is not None}
 
 
 def talk_model(app) -> str:
@@ -199,7 +241,7 @@ def talk_model(app) -> str:
     return resolve_text_model(app.settings, app.services, app.log)
 
 
-def finish(raw: str) -> dict:
+def finish(raw: str, sources: list | None = None) -> dict:
     say, mission = split_reply(raw)
     if mission:
         from .mission import MissionError, parse
@@ -208,7 +250,7 @@ def finish(raw: str) -> dict:
         except MissionError as e:
             say += f" (The mission I wrote has a problem: {e}. Fix it in the Builder.)"
     return {"ok": True, "say": say or "Hmm, I lost my train of thought. Try again?",
-            "mission": mission, "raw": raw}
+            "mission": mission, "raw": raw, "sources": sources or []}
 
 
 def reply(app, history: list[dict], text: str) -> dict:
@@ -218,9 +260,15 @@ def reply(app, history: list[dict], text: str) -> dict:
     try:
         # Short spoken replies come back faster; keep the model loaded between questions.
         r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
+        q = lookup_request(r.text) if web_on(app) and not p.get("searched") else ""
+        if q:                                   # Joe asked to look it up: search, then answer
+            p = prepare(app, history, text, web_results=look_up(app, q) or [])
+            if "final" in p:
+                return p["final"]
+            r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
     except Exception as e:
         return {"ok": False, "error": f"Joe couldn't think: {e}"}
-    return finish(r.text)
+    return finish(r.text, p.get("sources"))
 
 
 def _spoken_status(app) -> str:

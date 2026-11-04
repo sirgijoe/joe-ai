@@ -54,6 +54,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   and Joe answers when you pause. Prefer push-to-talk? Pick any key in Setup. Joe hears you, answers out loud, and can draft
   the night's mission into the Builder for you to check. He never starts a run on his own.
 - He can read the morning report to you, or tell you his own backstory.
+- Ask him something current and, with online lookups on, he searches and shows his sources.
+  **STOP** (or Esc) cuts him off mid-answer.
 - Drop a file onto his window (text, Word, PDF, a web page or a picture) and ask about it,
   or just say "read it".
 - **Make Joe sound like you** (optional, NVIDIA card): read a short passage once and Joe talks
@@ -93,7 +95,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 ## What Joe won't do
 
 - Send your files anywhere. Everything stays on your PC.
-- Browse the web, send email, post online, or spend money.
+- Go online on his own. Talk can look things up (news, prices, how-tos) only if you switch that
+  on in Setup, and then only the search words leave your PC. Overnight work never goes online.
+- Send email, post online, or spend money.
 - Touch anything outside his own folder (`Documents\Joe-ai`).
 - Install or download anything without asking you first.
 - Collect data about you. There's no tracking, no analytics, no phoning home.

@@ -168,6 +168,7 @@ FORMAT: ...
         <textarea id="talk-in" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
         <div class="talkbtns">
           <button data-act="talk-send" title="Send what you typed (or just press Enter).">[ SEND ]</button>
+          <button id="talk-stop" data-act="talk-stop" class="stopbtn" title="Stop Joe's answer and his voice right now (or press Esc)." hidden>[ STOP ]</button>
           <button id="ptt" data-act="ptt" title="Turn the microphone on or off. With it on, just talk and pause.">[ MIC ON ]</button>
           <button data-act="talk-attach" title="Pick a file (text, Word, PDF, web page or picture) to ask Joe about.">[ ATTACH ]</button>
           <button data-act="talk-clear" title="Start a fresh chat. This one stays in the list on the left.">[ NEW CHAT ]</button>
@@ -311,8 +312,13 @@ FORMAT: ...
           <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
             <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
           <div class="dim small" id="perm-mic-help"></div>
+          <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight runs never go online.">Let Talk look things up online <input type="checkbox" data-path="web.enabled"></label>
+          <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
+          <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
+            For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
+          <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
           <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
-            He never sends your files anywhere, never browses the web, and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
+            He never sends your files anywhere, only searches online when you turn that on above (and only for Talk), and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
         </fieldset>
         <fieldset class="wide"><legend>CUSTOM THEME</legend>
           <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
@@ -444,7 +450,9 @@ FORMAT: ...
  No telemetry. No analytics. No phoning home. The only network calls
  are to Ollama and ComfyUI on your own computer, the display font
  from Google Fonts when you are online, the update check, and the
- phone ping if you turn it on (one short line, nothing from your files).
+ phone ping if you turn it on (one short line, nothing from your files),
+ and, only if you turn on online lookups, the search words for Talk
+ questions (to Ollama's web search with your key, or Wikipedia).
  Installs and model downloads (System check, F10) only happen after
  you say yes.
 </pre>

@@ -10,10 +10,11 @@ class HttpError(RuntimeError):
     pass
 
 
-def request_json(method: str, url: str, payload: dict | None = None, timeout: float = 10):
+def request_json(method: str, url: str, payload: dict | None = None, timeout: float = 10,
+                 headers: dict | None = None):
     data = json.dumps(payload).encode("utf-8") if payload is not None else None
     req = urllib.request.Request(url, data=data, method=method,
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", **(headers or {})})
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
             body = resp.read().decode("utf-8")

@@ -627,7 +627,7 @@ class App:
 
     def save_chat(self, you: str, r: dict) -> None:
         try:
-            self.chats.add(you, r.get("say", ""), r.get("mission", ""))
+            self.chats.add(you, r.get("say", ""), r.get("mission", ""), r.get("sources"))
         except OSError as e:
             self.log(f"Couldn't save this chat: {e}")
 
@@ -1007,6 +1007,16 @@ def make_handler(app: App):
                 if u.path == "/api/talk/clear":
                     app.new_chat()
                     return self._json({"ok": True})
+                if u.path == "/api/web/test":
+                    from . import websearch
+                    w = app.settings.web
+                    res = websearch.search("ceramic glaze", w.ollama_key.strip(), 3)
+                    if not res:
+                        return self._json({"ok": False, "error": "no results (check the internet connection"
+                                           + (" and the key)" if w.ollama_key else ")")})
+                    via = "Ollama web search" if res[0].source == "ollama" else "Wikipedia (no key, or the key didn't work)"
+                    return self._json({"ok": True, "text": f"Works: {len(res)} results from {via}."
+                                       + ("" if w.enabled else " Tick the box above to let Talk use it.")})
                 if u.path == "/api/chats/open":
                     d = app.open_chat(str(b.get("id", "")))
                     return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
@@ -1165,15 +1175,45 @@ def make_handler(app: App):
                 else:
                     raw, first = "", 0.0
                     try:
-                        for piece in app.services.ollama.chat_stream(p["msgs"], model=p["model"],
-                                                                      max_tokens=900, keep_alive="20m"):
-                            if not first and piece.strip():
-                                first = time.monotonic() - t0
-                            raw += piece
-                            send({"t": "delta", "text": piece})
-                        r = chat_mod.finish(raw)
+                        looked = not chat_mod.web_on(app) or bool(p.get("searched"))
+                        while True:
+                            raw, held, asked = "", "", ""
+                            stream = app.services.ollama.chat_stream(p["msgs"], model=p["model"],
+                                                                     max_tokens=900, keep_alive="20m")
+                            for piece in stream:
+                                if not first and piece.strip():
+                                    first = time.monotonic() - t0
+                                raw += piece
+                                if not looked and len(raw.lstrip()) < 8 and "\n" not in raw.strip():
+                                    held += piece                 # might be "LOOKUP: ..." - don't say it yet
+                                    continue
+                                if not looked and chat_mod.lookup_request(raw):
+                                    if "\n" in raw.strip():
+                                        asked = chat_mod.lookup_request(raw)
+                                        break
+                                    continue
+                                if held:
+                                    send({"t": "delta", "text": held})
+                                    held = ""
+                                send({"t": "delta", "text": piece})
+                            if not looked and not asked:
+                                asked = chat_mod.lookup_request(raw)
+                            if asked and not looked:
+                                looked = True
+                                send({"t": "status", "text": "Looking it up online…"})
+                                p = chat_mod.prepare(app, app.chat_history, text, files,
+                                                     web_results=chat_mod.look_up(app, asked) or [])
+                                if "final" in p:
+                                    break
+                                continue
+                            if held:
+                                send({"t": "delta", "text": held})
+                            break
+                        r = p["final"] if "final" in p else chat_mod.finish(raw, p.get("sources"))
                         app.log(f"Talk timing: setup {t_prep:.1f}s, first words {first:.1f}s, "
                                 f"whole reply {time.monotonic() - t0:.1f}s ({p['model']})")
+                    except ConnectionError:
+                        raise                                     # the window pressed STOP (or closed)
                     except Exception as e:
                         r = {"ok": False, "error": f"Joe couldn't think: {e}"}
                 if r.get("ok"):
@@ -1184,8 +1224,8 @@ def make_handler(app: App):
                     app.save_chat((text or "(file)") + "".join(f"  📎 {f['name']}" for f in files), r)
                 r.pop("raw", None)
                 send({"t": "done", **r})
-            except (BrokenPipeError, ConnectionResetError):
-                pass
+            except ConnectionError:                    # STOP pressed / window closed: drop it
+                app.log("Talk: stopped.")
             self.close_connection = True
 
         def _raw(self, p: Path):

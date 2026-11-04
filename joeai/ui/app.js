@@ -509,14 +509,16 @@ async function loadChats() {
 async function chatOpen(id) {
   if (current !== "talk") show("talk");
   if (id === chatCurrent) return;
+  talkStop();
   const r = await api("/api/chats/open", { id });
   if (!r.ok) { toast(r.error); return loadChats(); }
-  talkLog = r.chat.messages.map((m) => ({ who: m.who, text: m.text, mission: m.mission || "" }));
+  talkLog = r.chat.messages.map((m) => ({ who: m.who, text: m.text, mission: m.mission || "", sources: m.sources || [] }));
   renderTalk(); loadChats();
   $("#talk-in").focus();
 }
 function chatDelete(id) {
   confirmBox("Delete this chat? It can't be brought back.", async () => {
+    if (id === chatCurrent) talkStop();
     const r = await api("/api/chats/delete", { id });
     if (r.was_current) { talkLog = []; renderTalk(); }
     loadChats();
@@ -696,16 +698,18 @@ document.addEventListener("click", async (ev) => {
     if (act === "run") await runOrStop();
     if (act === "report") show("report");
     if (act === "talk-send") await talkSend();
-    if (act === "talk-clear") { if (current !== "talk") show("talk"); await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
+    if (act === "talk-clear") { talkStop(); if (current !== "talk") show("talk"); await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
     if (act === "chats-toggle") { chatsShown(document.body.classList.contains("nochats")); return; }
     if (act === "chats-delall") {
       confirmBox("Delete ALL saved chats, including this one? They can't be brought back.", async () => {
+        talkStop();
         const r = await api("/api/chats/delete", { all: true });
         talkLog = []; renderTalk(); toast(`Deleted ${r.deleted} chat(s)`); loadChats();
       });
       return;
     }
     if (act === "hush") hush();
+    if (act === "talk-stop") { talkStop(); return; }
     if (act === "read-report") await say($("#report").textContent.replace(/[|#*`-]{2,}/g, " ").slice(0, 5000), true);
     if (act === "hear-story") await say(storyText(), true);
     if (act === "set-ptt") { settingKey = true; $("#ptt-key").value = "press a key…"; return; }
@@ -769,6 +773,12 @@ document.addEventListener("click", async (ev) => {
     }
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
     if (act === "perm-mic") { await allowMic(); return; }
+    if (act === "web-test") {
+      await saveSetup(); $("#web-msg").textContent = "Searching…";
+      const r = await api("/api/web/test", {}).catch((e) => ({ ok: false, error: e.message }));
+      $("#web-msg").textContent = r.ok ? r.text : "Didn't work: " + r.error;
+      return;
+    }
     if (act === "test-hello") { await saveSetup(); startupSound(); return; }
     if (act === "make-theme") {
       const desc = $("#theme-desc").value.trim();
@@ -795,6 +805,7 @@ function handleKey(key) {
   if (key === "R") { show("report"); return true; }
   if (key === "F5") { runOrStop().catch((e) => toast(e.message)); return true; }
   if (key === "Escape") {
+    if (current === "talk" && talkBusy()) { talkStop(); return true; }     // Esc = stop Joe talking
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (current !== "queue") show("queue");
     return true;
@@ -1240,23 +1251,40 @@ async function voiceSettings() {
 }
 function renderTalk() {
   $("#talk-log").innerHTML = talkLog.length ? talkLog.map((m, i) => `<div class="msg ${m.who}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
-    (m.mission ? `<pre class="mission">${esc(m.mission)}</pre><button data-tmission="${i}">[ OPEN IN BUILDER ]</button> <button data-trun="${i}">[ RUN IT ]</button>` : "") + `</div>`).join("")
+    (m.mission ? `<pre class="mission">${esc(m.mission)}</pre><button data-tmission="${i}">[ OPEN IN BUILDER ]</button> <button data-trun="${i}">[ RUN IT ]</button>` : "") +
+    (m.sources && m.sources.length ? `<div class="sources">Sources: ${m.sources.map((s, k) =>
+      `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}">[${k + 1}] ${esc(s.title)}</a>`).join(" ")}</div>` : "") + `</div>`).join("")
     : '<div class="dim">Joe: "What can I help you with?"</div>';
   const lg = $("#talk-log"); lg.scrollTop = lg.scrollHeight;
 }
 // Joe's reply streams in a few words at a time; each finished sentence goes straight to his
 // voice, so he starts talking while he's still thinking up the rest.
 const cleanSpeech = (t) => t.replace(/```[\s\S]*?```/g, " ").replace(/[*_#`>|]+/g, "").replace(/^\s*[-•]\s+/gm, "").replace(/\s+/g, " ").trim();
+// STOP: cuts off Joe's reply mid-sentence (the model stops writing too) and his voice.
+let talkAbort = null, talkMsg = null;
+function talkBusy() { return !!talkAbort || speaking || (audioEl && !audioEl.paused); }
+function talkStop() {
+  const was = talkBusy();
+  if (talkAbort) { talkAbort.abort(); talkAbort = null; }
+  hush(); speechList = []; speechOpen = false;
+  if (talkMsg && was && !/\(stopped\)$/.test(talkMsg.text)) { talkMsg.text = (talkMsg.text === "…" ? "" : talkMsg.text + " ") + "(stopped)"; renderTalk(); }
+  talkStopBtn();
+  return was;
+}
+function talkStopBtn() { const b = $("#talk-stop"); if (b) b.hidden = !talkBusy(); }
+setInterval(talkStopBtn, 400);
 async function talkSend(textArg) {
   const text = (textArg ?? $("#talk-in").value).trim();
+  if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
   $("#talk-in").value = "";
   if (sent.length) { talkFiles = talkFiles.filter((f) => f.busy); renderFiles(); }
   talkLog.push({ who: "you", text: (text || "(file)") + sent.map((f) => `  📎 ${f.name}`).join("") });
   const msg = { who: "joe", text: "…" };
-  talkLog.push(msg);
+  talkLog.push(msg); talkMsg = msg;
   renderTalk();
+  const ctrl = new AbortController(); talkAbort = ctrl; talkStopBtn();
   const voice = voiceReady && speakReplies;
   if (voice) speechStart();
   let raw = "", spokenUpTo = 0, final = null, lastPaint = 0;
@@ -1271,7 +1299,7 @@ async function talkSend(textArg) {
     if (m > 0) { const piece = cleanSpeech(rest.slice(0, m)); spokenUpTo += m; if (piece) speechQueue(piece); }
   };
   try {
-    const res = await fetch("/api/talk/stream", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
+    const res = await fetch("/api/talk/stream", { method: "POST", signal: ctrl.signal, headers: { "X-NR-Token": TOKEN, "Content-Type": "application/json" }, body: JSON.stringify({ text }) });
     const reader = res.body.getReader(), dec = new TextDecoder();
     let buf = "";
     for (;;) {
@@ -1286,15 +1314,21 @@ async function talkSend(textArg) {
         if (ev.t === "delta") {
           raw += ev.text; feed(false);
           if (performance.now() - lastPaint > 120) { msg.text = cleanSpeech(speakable()) || "…"; renderTalk(); lastPaint = performance.now(); }
-        } else if (ev.t === "done") final = ev;
+        } else if (ev.t === "status") { msg.text = ev.text; renderTalk(); }
+        else if (ev.t === "done") final = ev;
       }
     }
-  } catch (e) { final = { ok: false, error: e.message }; }
+  } catch (e) {
+    if (ctrl.signal.aborted) { if (talkAbort === ctrl) talkAbort = null; talkStopBtn(); loadChats(); return; }   // STOP pressed
+    final = { ok: false, error: e.message };
+  }
+  if (talkAbort === ctrl) talkAbort = null;
+  talkStopBtn();
   if (!final) final = { ok: false, error: "Joe stopped talking unexpectedly" };
   if (final.ok) {
     if (!raw) raw = final.say;                  // read-aloud / status replies come in one piece
     feed(true);
-    msg.text = final.say; msg.mission = final.mission;
+    msg.text = final.say; msg.mission = final.mission; msg.sources = final.sources || [];
   } else msg.text = "(" + final.error + ")";
   renderTalk();
   loadChats();                                   // a new chat appears in the list after its first reply

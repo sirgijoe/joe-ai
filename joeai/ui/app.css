@@ -285,10 +285,14 @@ textarea#theme-desc { min-height: 2.4em; resize: vertical; width: 100%; }
 .msg { margin-bottom: 10px; white-space: pre-wrap; }
 .msg .who { color: var(--ph-dim); margin-right: 6px; }
 .msg.joe .who { color: var(--ph); }
+.msg .sources { font-size: .78em; margin-top: 4px; display: flex; flex-wrap: wrap; gap: 4px 10px; }
+.msg .sources a { color: var(--ph-dim); }
 .msg .mission { font-size: .8em; border: 1px dashed var(--ph-dim); padding: 4px 6px; margin: 4px 0; max-height: 14em; overflow: auto; }
 .talkin { display: flex; gap: 10px; align-items: stretch; }
 .talkin textarea { flex: 1; resize: none; }
 .talkbtns { display: flex; flex-direction: column; gap: 2px; }
+.talkbtns .stopbtn { background: var(--ph); color: var(--bg); }
+.talkbtns .stopbtn[hidden] { display: none; }
 #ptt.rec, .rec-badge { background: var(--ph); color: var(--bg); text-shadow: none; animation: blink 1.06s infinite steps(1); }
 .rec-badge { position: fixed; top: 10px; left: 50%; transform: translateX(-50%); padding: 2px 12px; z-index: 65; }
 

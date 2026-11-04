@@ -151,6 +151,26 @@ Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than F10 
 **Delete chats after (days)** are removed on their own (default 30; 0 keeps them). Nothing
 leaves the PC.
 
+### Stopping Joe
+
+While Joe is answering or talking, a **STOP** button shows next to SEND. It (or **Esc**) cuts
+off his answer and his voice right away; the model stops writing too. Starting a new chat,
+opening another one, or deleting the one he's answering in also stops him.
+
+### Looking things up online (off unless you turn it on)
+
+Setup > Permissions > **Let Talk look things up online**. When it's on and you ask about
+something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
+other questions he can decide to search when he isn't sure. He answers in his own words and lists
+his **Sources** under the reply (click one to open it). Only the search words go online, never
+your files or chats, and overnight runs never go online.
+
+- **With a free Ollama key** (make an account at ollama.com, then Settings > Keys, and paste it
+  into **Ollama web search key**): searches the whole web.
+- **Without a key**: Joe looks things up on Wikipedia only (encyclopedia facts, no news or prices).
+
+**TEST A SEARCH** checks it works and says which one answered.
+
 ### Microphone permission
 
 The window asks for the microphone once and remembers the answer. F10 > **Permissions** shows
