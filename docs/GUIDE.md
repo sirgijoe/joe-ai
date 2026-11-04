@@ -104,12 +104,15 @@ quick model (3-4B) answer in Talk while the big one keeps writing missions overn
 the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
 
-### Past chats
+### Chats
 
-Every time Joe opens, Talk starts a fresh chat; **NEW CHAT** starts another. Each chat is saved
-in Joe's own folder (`Output\.joe\chats`) and listed under **PAST CHATS**, where you can read one
-again, delete it, or delete them all. Chats older than F10 > Voice > **Delete chats after (days)**
-are removed on their own (default 30; 0 keeps them). Nothing leaves the PC.
+Talk has a list of your chats on the left, newest first (Today, Yesterday, Previous 7 days...).
+Every time Joe opens you get a fresh chat; **+ NEW CHAT** starts another. Click an old chat to
+read it and carry on where you left off (Joe remembers what was said in it). The **✕** next to a
+chat deletes it, **DELETE ALL** clears the list, and the search box finds a chat by its words.
+Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than F10 > Voice >
+**Delete chats after (days)** are removed on their own (default 30; 0 keeps them). Nothing
+leaves the PC.
 
 ### Microphone permission
 

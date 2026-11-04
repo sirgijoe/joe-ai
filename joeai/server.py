@@ -615,6 +615,19 @@ class App:
         except OSError as e:
             self.log(f"Couldn't save this chat: {e}")
 
+    def open_chat(self, cid: str) -> dict | None:
+        d = self.chats.open(cid)
+        if not d:
+            return None
+        hist = []
+        for m in d.get("messages", [])[-20:]:
+            text = m.get("text", "")
+            if m.get("mission"):
+                text += "\n" + m["mission"]
+            hist.append({"role": "assistant" if m.get("who") == "joe" else "user", "content": text})
+        self.chat_history = hist
+        return d
+
     def new_chat(self) -> None:
         self.chat_history = []
         self.chats.new()
@@ -819,7 +832,8 @@ def make_handler(app: App):
                 if u.path == "/api/stats":
                     return self._json(stats_mod.collect(app.settings, app.sb))
                 if u.path == "/api/chats":
-                    return self._json({"chats": app.chats.list(), "bytes": app.chats.size(),
+                    return self._json({"chats": app.chats.list((q.get("q") or [""])[0]), "bytes": app.chats.size(),
+                                       "current": (app.chats.current or {}).get("id", ""),
                                        "keep_days": app.settings.voice.chat_keep_days})
                 if u.path == "/api/history":
                     return self._json(app.history())
@@ -935,6 +949,9 @@ def make_handler(app: App):
                 if u.path == "/api/talk/clear":
                     app.new_chat()
                     return self._json({"ok": True})
+                if u.path == "/api/chats/open":
+                    d = app.open_chat(str(b.get("id", "")))
+                    return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
                 if u.path == "/api/chats/get":
                     d = app.chats.get(str(b.get("id", "")))
                     return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
@@ -944,8 +961,12 @@ def make_handler(app: App):
                         app.chat_history = []
                         app.log(f"Deleted {n} past chat(s).")
                         return self._json({"ok": True, "deleted": n})
-                    ok = app.chats.delete(str(b.get("id", "")))
-                    return self._json({"ok": ok, "deleted": int(ok)})
+                    cid = str(b.get("id", ""))
+                    was_current = bool(app.chats.current and app.chats.current["id"] == cid)
+                    ok = app.chats.delete(cid)
+                    if was_current:
+                        app.chat_history = []
+                    return self._json({"ok": ok, "deleted": int(ok), "was_current": was_current})
                 if u.path == "/api/export":
                     return self._json(app.export(b.get("path", ""), b.get("formats") or ["docx", "pdf"]))
                 if u.path == "/api/check":

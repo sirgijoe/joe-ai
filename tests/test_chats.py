@@ -69,9 +69,17 @@ def test_server_talk_saves_chat_and_new_chat_starts_fresh(env):  # noqa: F811
         assert app.chat_history == []
         call("/api/talk", {"text": "second"})
         assert len(call("/api/chats")["chats"]) == 2
+        assert [c["title"] for c in call("/api/chats?q=SECOND")["chats"]] == ["second"]   # search
+        opened = call("/api/chats/open", {"id": c1["id"]})                   # pick an old chat back up
+        assert opened["ok"] and app.chat_history[0]["content"] == "what can you do?"
+        call("/api/talk", {"text": "and one more"})
+        assert len(call("/api/chats")["chats"]) == 2                         # added to the old one
+        assert call("/api/chats/get", {"id": c1["id"]})["chat"]["messages"][-2]["text"] == "and one more"
+        assert call("/api/chats")["chats"][0]["id"] == c1["id"]              # newest activity first
         got = call("/api/chats/get", {"id": c1["id"]})
         assert got["ok"] and got["chat"]["messages"][0]["text"] == "what can you do?"
-        assert call("/api/chats/delete", {"id": c1["id"]})["deleted"] == 1
+        d = call("/api/chats/delete", {"id": c1["id"]})
+        assert d["deleted"] == 1 and d["was_current"] and app.chat_history == []
         assert call("/api/chats/delete", {"all": True})["deleted"] == 1
         assert call("/api/chats")["chats"] == []
         assert (sb.meta / "chats").is_dir()      # inside Joe's own folder

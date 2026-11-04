@@ -478,42 +478,66 @@ $("#cleanups").addEventListener("click", (ev) => {
 /* ---------------- setup ---------------- */
 const getPath = (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
 function setPath(o, p, v) { const ks = p.split("."); let cur = o; ks.slice(0, -1).forEach((k) => (cur = cur[k] = cur[k] || {})); cur[ks.at(-1)] = v; }
-// --- past chats -----------------------------------------------------------------------
-let chatView = "";
-const when = (iso) => { try { const d = new Date(iso); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); } catch (e) { return iso; } };
+// --- chats list (left of Talk) -----------------------------------------------------------
+let chatCurrent = "", chatFindTimer = null;
 const kb = (n) => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
-async function chatsOpen() {
-  chatView = "";
-  $("#chats").hidden = false;
-  $("#chats-title").textContent = "PAST CHATS";
-  $("#chats-back").hidden = $("#chats-del").hidden = true; $("#chats-delall").hidden = false;
+function chatGroup(iso) {
+  const d = new Date(iso), now = new Date();
+  const day = (x) => new Date(x.getFullYear(), x.getMonth(), x.getDate()).getTime();
+  const diff = Math.round((day(now) - day(d)) / 86400000);
+  if (isNaN(diff)) return "Older";
+  return diff <= 0 ? "Today" : diff === 1 ? "Yesterday" : diff < 7 ? "Previous 7 days" : diff < 30 ? "Previous 30 days" : "Older";
+}
+async function loadChats() {
+  const q = ($("#chat-find").value || "").trim();
   let d;
-  try { d = await api("/api/chats"); } catch (e) { $("#chats-body").textContent = e.message; return; }
-  $("#chats-delall").hidden = !d.chats.length;
-  $("#chats-body").innerHTML = d.chats.length ? d.chats.map((c) =>
-    `<div class="chatrow" tabindex="0" data-chat="${esc(c.id)}" title="Open this chat"><span class="when">${esc(when(c.started))}</span>` +
-    `<span class="t">${esc(c.title)}${c.current ? ' <span class="dim">(this chat)</span>' : ""}</span><span class="x">${Math.ceil(c.messages / 2)} msg</span></div>`).join("")
-    : '<div class="dim">No past chats yet. Each time Joe opens, or you press NEW CHAT, a fresh chat starts and is saved here.</div>';
-  $("#chats-note").textContent = `${d.chats.length} chat(s), ${kb(d.bytes)}. ` +
-    (d.keep_days > 0 ? `Chats older than ${d.keep_days} days are deleted on their own (Setup > Voice).` : "Chats are kept until you delete them (Setup > Voice).");
-  const first = $("#chats-body .chatrow"); if (first) first.focus();
+  try { d = await api("/api/chats" + (q ? "?q=" + encodeURIComponent(q) : "")); }
+  catch (e) { $("#chat-list").textContent = e.message; return; }
+  chatCurrent = d.current || "";
+  let last = "", html = "";
+  for (const c of d.chats) {
+    const g = chatGroup(c.updated || c.started);
+    if (g !== last) { html += `<div class="chatgroup">${g.toUpperCase()}</div>`; last = g; }
+    html += `<div class="chatrow${c.id === chatCurrent ? " on" : ""}" tabindex="0" data-chat="${esc(c.id)}" title="${esc(c.title)}">` +
+      `<span class="t">${esc(c.title)}</span><button type="button" class="x" data-chatdel="${esc(c.id)}" title="Delete this chat">✕</button></div>`;
+  }
+  $("#chat-list").innerHTML = html || `<div class="dim small">${q ? "No chats match." : "Your chats with Joe show up here. Each time Joe opens you get a fresh one."}</div>`;
+  $("#chat-foot").textContent = d.chats.length ? `${d.chats.length} chat(s), ${kb(d.bytes)}` +
+    (d.keep_days > 0 ? ` · older than ${d.keep_days} days are deleted` : " · kept until you delete them") : "";
+  document.querySelector('[data-act="chats-delall"]').hidden = !d.chats.length || !!q;
 }
-async function chatShow(id) {
-  const r = await api("/api/chats/get", { id });
-  if (!r.ok) { toast(r.error); return chatsOpen(); }
-  chatView = id;
-  $("#chats-title").textContent = `CHAT — ${when(r.chat.started)}`;
-  $("#chats-back").hidden = $("#chats-del").hidden = false; $("#chats-delall").hidden = true;
-  $("#chats-body").innerHTML = '<div class="talklog">' + r.chat.messages.map((m) =>
-    `<div class="msg ${m.who}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
-    (m.mission ? `<pre class="mission">${esc(m.mission)}</pre>` : "") + "</div>").join("") + "</div>";
-  $("#chats-note").textContent = "Read only. Missions shown here can be copied into the Builder.";
+async function chatOpen(id) {
+  if (id === chatCurrent) return;
+  const r = await api("/api/chats/open", { id });
+  if (!r.ok) { toast(r.error); return loadChats(); }
+  talkLog = r.chat.messages.map((m) => ({ who: m.who, text: m.text, mission: m.mission || "" }));
+  renderTalk(); loadChats();
+  $("#talk-in").focus();
 }
-function chatsClose() { $("#chats").hidden = true; chatView = ""; }
+function chatDelete(id) {
+  confirmBox("Delete this chat? It can't be brought back.", async () => {
+    const r = await api("/api/chats/delete", { id });
+    if (r.was_current) { talkLog = []; renderTalk(); }
+    loadChats();
+  });
+}
 document.addEventListener("click", (ev) => {
+  const x = ev.target.closest && ev.target.closest("[data-chatdel]");
+  if (x) { ev.stopPropagation(); chatDelete(x.dataset.chatdel); return; }
   const row = ev.target.closest && ev.target.closest(".chatrow");
-  if (row) chatShow(row.dataset.chat);
+  if (row) chatOpen(row.dataset.chat);
 });
+$("#chat-list").addEventListener("keydown", (ev) => {
+  const row = ev.target.closest(".chatrow"); if (!row) return;
+  if (ev.key === "Enter") { ev.preventDefault(); chatOpen(row.dataset.chat); }
+  if (ev.key === "Delete") { ev.preventDefault(); chatDelete(row.dataset.chat); }
+  if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+    ev.preventDefault();
+    const rows = [...document.querySelectorAll("#chat-list .chatrow")], i = rows.indexOf(row);
+    const n = rows[i + (ev.key === "ArrowDown" ? 1 : -1)]; if (n) n.focus();
+  }
+});
+$("#chat-find").addEventListener("input", () => { clearTimeout(chatFindTimer); chatFindTimer = setTimeout(loadChats, 250); });
 
 // --- permissions ------------------------------------------------------------------
 async function micPermission() {
@@ -632,21 +656,11 @@ document.addEventListener("click", async (ev) => {
     if (act === "run") await runOrStop();
     if (act === "report") show("report");
     if (act === "talk-send") await talkSend();
-    if (act === "talk-clear") { await api("/api/talk/clear", {}); talkLog = []; renderTalk(); }
-    if (act === "chats") { await chatsOpen(); return; }
-    if (act === "chats-close") { chatsClose(); return; }
-    if (act === "chats-back") { await chatsOpen(); return; }
-    if (act === "chats-del" && chatView) {
-      const id = chatView;
-      confirmBox("Delete this chat? It can't be brought back.", async () => {
-        await api("/api/chats/delete", { id }); toast("Chat deleted"); await chatsOpen();
-      });
-      return;
-    }
+    if (act === "talk-clear") { await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
     if (act === "chats-delall") {
-      confirmBox("Delete ALL past chats, including this one? They can't be brought back.", async () => {
+      confirmBox("Delete ALL saved chats, including this one? They can't be brought back.", async () => {
         const r = await api("/api/chats/delete", { all: true });
-        talkLog = []; renderTalk(); toast(`Deleted ${r.deleted} chat(s)`); await chatsOpen();
+        talkLog = []; renderTalk(); toast(`Deleted ${r.deleted} chat(s)`); loadChats();
       });
       return;
     }
@@ -751,11 +765,6 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
-    return;
-  }
-  if (!$("#chats").hidden) {
-    if (ev.key === "Escape") { ev.preventDefault(); chatView ? chatsOpen() : chatsClose(); }
-    else if (ev.key === "Enter" && ev.target.dataset && ev.target.dataset.chat) { ev.preventDefault(); chatShow(ev.target.dataset.chat); }
     return;
   }
   if (!$("#welcome").hidden) {                 // the setup helper is up: only Esc (close) works
@@ -1117,7 +1126,8 @@ document.addEventListener("keydown", (ev) => {
 let speakReplies = true;
 let voiceReady = false, talkLog = [], audioEl = null, rec = null, recStart = 0, f6Timer = null;
 async function loadTalk() {
-  api("/api/talk/warm", {}).catch(() => {});      // load the thinking + voice models now, not on the first question
+  api("/api/talk/warm", {}).catch(() => {});
+  loadChats();      // load the thinking + voice models now, not on the first question
   await voiceSettings();
   pttLabel();
   $("#talk-note").textContent = voiceReady ? (talkMode === "push" ? `Voice is on. Hold ${keyName(pttKey)} anywhere and speak; let go to send.`
@@ -1193,6 +1203,7 @@ async function talkSend(textArg) {
     msg.text = final.say; msg.mission = final.mission;
   } else msg.text = "(" + final.error + ")";
   renderTalk();
+  loadChats();                                   // a new chat appears in the list after its first reply
   if (voice) speechEnd();
 }
 $("#talk-in").addEventListener("keydown", (ev) => {

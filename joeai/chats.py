@@ -45,18 +45,32 @@ class Chats:
         self._write(self.current)
 
     # -- past chats ------------------------------------------------------------------
-    def list(self) -> list[dict]:
+    def list(self, q: str = "") -> list[dict]:
+        """Newest first (by last message). q = only chats containing all these words."""
+        words = [w for w in (q or "").lower().split() if w]
         out = []
-        for p in sorted(self.dir.glob("*.json"), reverse=True):
+        for p in self.dir.glob("*.json") if self.dir.is_dir() else []:
             try:
                 d = json.loads(p.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
+            if words:
+                hay = (d.get("title", "") + " " + " ".join(m.get("text", "") for m in d.get("messages", []))).lower()
+                if not all(w in hay for w in words):
+                    continue
             out.append({"id": d.get("id", p.stem), "title": d.get("title", ""),
                         "started": d.get("started", ""), "updated": d.get("updated", ""),
                         "messages": len(d.get("messages", [])), "bytes": p.stat().st_size,
                         "current": bool(self.current and self.current["id"] == p.stem)})
+        out.sort(key=lambda c: c["updated"] or c["started"], reverse=True)
         return out
+
+    def open(self, cid: str) -> dict | None:
+        """Pick an old chat back up: new messages are added to it."""
+        d = self.get(cid)
+        if d:
+            self.current = d
+        return d
 
     def get(self, cid: str) -> dict | None:
         p = self._path(cid)
