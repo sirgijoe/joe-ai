@@ -553,6 +553,7 @@ class App:
         labels = {"install": f"installing {tool}", "start": f"starting {tool}",
                   "pull": f"downloading {model}", "download-image-model": "downloading image model",
                   "download-video-model": "downloading video model",
+                  "download-video-turbo": "downloading the Turbo add-on",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
                   "install-clone": "setting up voice copy"}
         if action not in labels:

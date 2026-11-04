@@ -146,3 +146,19 @@ def test_plan_recommends_turbo_for_video(tmp_path, monkeypatch):
     s.quality.video = "high"
     r = app.check("TASK: Fern  SAVE: clips/fern.mp4  CHUNKS: 1 x 1")
     assert not any("Turbo" in w for w in r.get("warnings", []))
+
+
+def test_every_offer_has_a_working_fix(tmp_path, monkeypatch):
+    """Each System-check action must be accepted by the server (no 'unknown fix')."""
+    monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
+    from joeai import doctor
+    from joeai.server import App
+    s = Settings()
+    s.workspace = str(tmp_path / "ws")
+    app = App(s)
+    started = []
+    monkeypatch.setattr(doctor, "run_in_thread", lambda fn: started.append(fn))
+    for action in ("download-video-turbo", "download-video-model", "download-image-model", "pull"):
+        app.busy = ""
+        r = app.doctor_fix({"approved": True, "action": action, "model": "qwen3:4b"})
+        assert r.get("ok"), (action, r)
