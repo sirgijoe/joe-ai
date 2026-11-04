@@ -154,6 +154,16 @@ class App:
         if any(j.media for j in m.jobs) and not (self.services.comfy_up() or self.services.comfy_exe()
                                                  or self.settings.comfy.start_command):
             warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")
+        if any(j.type == "video" and not j.workflow for j in m.jobs):
+            from . import quality as quality_mod
+            from .comfy import WAN_TURBO, wan_missing, wan_turbo_installed
+            from .doctor import comfy_models_dir
+            mdir = comfy_models_dir(self.settings)
+            lv = quality_mod.level(self.settings, "video")
+            if lv != "high" and mdir and not wan_missing(mdir) and not wan_turbo_installed(mdir):
+                warnings.append(f"Based on your {lv.capitalize()} video setting, I'd recommend the "
+                                f"{WAN_TURBO['label']} (under 1 GB) for this: several times faster. "
+                                "Install it from Setup > System check, or run as is.")
         parts = sum(j.parts for j in m.jobs if not j.media)
         sp = stats_mod.speeds(self.sb)                # learned on this PC; rough defaults at first
         secs = parts * sp["part"]

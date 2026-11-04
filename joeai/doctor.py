@@ -73,9 +73,16 @@ def ollama_models(sm: ServiceManager) -> list[dict]:
     for m in r.get("models", []):
         d = m.get("details", {}) or {}
         out.append({"name": m["name"], "size_gb": round(m.get("size", 0) / 2**30, 1),
-                    "params": d.get("parameter_size", ""), "family": d.get("family", ""),
+                    "params": d.get("parameter_size", "") or _tag_params(m["name"]),
+                    "family": d.get("family", ""),
                     "writer": not NOT_WRITERS.search(m["name"])})
     return out
+
+
+def _tag_params(name: str) -> str:
+    """'qwen3:14b' -> '14B' when Ollama doesn't say the size."""
+    m = re.search(r":(\d+(?:\.\d+)?)([bm])\b", name, re.I)
+    return f"{m.group(1)}{m.group(2).upper()}" if m else ""
 
 
 def _params_b(p: str) -> float:
@@ -171,7 +178,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         rec = recommended_download(vram)
         issues.append({"id": "pull-model", "text": f"No text model installed. Best fit for this PC: "
                        f"{rec['name']} ({rec['size_gb']} GB download).",
-                       "action": "pull", "model": rec["name"]})
+                       "action": "pull", "model": rec["name"], "what": f"{rec['name']} ({rec['size_gb']} GB)"})
     elif not text_ok and best_text:
         issues.append({"id": "use-model", "text": f"Setup model '{settings.ollama.text_model}' isn't "
                        f"installed. Best installed fit: {best_text}.", "action": "use", "model": best_text})
@@ -185,7 +192,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         if writers and not have(rec["name"]) and best_b and rec_b > best_b * 1.2:
             issues.append({"id": "upgrade-model", "text": f"A better writing model fits this PC: {rec['name']} "
                            f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
-                           "better drafts.", "action": "pull", "model": rec["name"], "optional": True})
+                           "better drafts.", "action": "pull", "model": rec["name"], "optional": True,
+                           "what": f"{rec['name']} ({rec['size_gb']} GB)"})
         if addons_mod_voice_ready() and not settings.voice.talk_model and \
                 not any(1 <= _params_b(m["params"]) <= 4.5 for m in writers):
             issues.append({"id": "pull-talk-model", "text": "A small, quick model just for Talk (qwen3:4b, "
@@ -199,7 +207,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                 gb = next(g for _, n, g in OLLAMA_PICKS if n == small)
                 issues.append({"id": "pull-small-model", "text": f"Writing quality is Low, but there's no "
                                f"smaller model to switch to. {small} ({gb} GB) writes faster drafts.",
-                               "action": "pull", "model": small, "optional": True})
+                               "action": "pull", "model": small, "optional": True,
+                               "what": f"{small} ({gb} GB)"})
     if not comfy_exe and not comfy_up:
         issues.append({"id": "install-comfyui", "text": "ComfyUI is not installed (only needed for "
                        "image/video tasks).", "action": "install", "tool": "comfyui", "optional": True})
@@ -207,21 +216,23 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         issues.append({"id": "get-image-model", "text": f"No image model found. Offer: "
                        f"{STARTER_IMAGE_MODEL['name']} ({STARTER_IMAGE_MODEL['size_gb']} GB, "
                        f"{STARTER_IMAGE_MODEL['license']}).", "action": "download-image-model",
-                       "optional": True})
+                       "optional": True, "what": f"the SDXL picture model ({STARTER_IMAGE_MODEL['size_gb']} GB)"})
     mdir = comfy_models_dir(settings)
     if (comfy_exe or comfy_up) and mdir and g and vram >= 8 and comfy_mod.wan_missing(mdir):
         w = comfy_mod.WAN_VIDEO
         issues.append({"id": "get-video-model", "text": f"No built-in video model. Offer: {w['label']} "
                        f"(about {w['size_gb']:.0f} GB, {w['license']}). Makes TYPE: video tasks work "
                        "without a workflow file (about 5-second clips).",
-                       "action": "download-video-model", "optional": True})
+                       "action": "download-video-model", "optional": True,
+                       "what": f"the {w['label']} video model (about {w['size_gb']:.0f} GB)"})
     if (comfy_exe or comfy_up) and mdir and not comfy_mod.wan_missing(mdir) \
             and not comfy_mod.wan_turbo_installed(mdir):
         t = comfy_mod.WAN_TURBO
         issues.append({"id": "get-video-turbo", "text": f"Faster video: the {t['label']} (under 1 GB, "
                        f"{t['license']}) makes a video in 4 steps instead of 20, several times faster. "
                        "Used for Low and Medium video quality (Setup > Quality); High keeps the full model.",
-                       "action": "download-video-turbo", "optional": True})
+                       "action": "download-video-turbo", "optional": True,
+                       "what": f"the {t['label']} (under 1 GB)"})
     from . import addons as addons_mod
     if oll_up and omodels:
         from .attach import vision_model

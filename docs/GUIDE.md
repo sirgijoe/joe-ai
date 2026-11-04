@@ -97,6 +97,11 @@ Wan 2.2 5B Turbo add-on (under 1 GB, Apache 2.0). It makes a clip in 4 steps ins
 several times faster, with a little less detail. Low and Medium use it; High never does.
 Restart ComfyUI after downloading it.
 
+When a level works best with a model you don't have yet, Joe says so right under that choice,
+for example "Based on your Low setting, I'd recommend qwen3:8b (5.2 GB) for this. Should we install
+it?", with a **YES, INSTALL IT** button. The plan for a video task mentions the Turbo add-on the
+same way. Nothing downloads without your yes.
+
 A task's own SIZE or MODEL always wins over these choices. Time estimates learn from your runs,
 so after changing a level the first estimate may be off.
 

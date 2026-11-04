@@ -128,3 +128,21 @@ def test_doctor_offers_the_best_models(tmp_path, monkeypatch):
         assert "get-video-turbo" in ids
     finally:
         fake.close()
+
+
+def test_plan_recommends_turbo_for_video(tmp_path, monkeypatch):
+    monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
+    from joeai.server import App
+    s = Settings()
+    s.workspace = str(tmp_path / "ws")
+    s.comfy.url = "http://127.0.0.1:9"
+    s.comfy.models_dir = str(tmp_path / "models")
+    for folder, name, _ in comfy.WAN_VIDEO["files"]:
+        (tmp_path / "models" / folder).mkdir(parents=True, exist_ok=True)
+        (tmp_path / "models" / folder / name).write_bytes(b"x")
+    app = App(s)
+    r = app.check("TASK: Lotus  SAVE: clips/lotus.mp4  CHUNKS: 1 x 1")
+    assert any("Based on your Medium video setting, I'd recommend" in w for w in r.get("warnings", [])), r
+    s.quality.video = "high"
+    r = app.check("TASK: Lotus  SAVE: clips/lotus.mp4  CHUNKS: 1 x 1")
+    assert not any("Turbo" in w for w in r.get("warnings", []))

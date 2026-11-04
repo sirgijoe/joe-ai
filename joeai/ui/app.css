@@ -173,6 +173,7 @@ body.nochats .chatside { display: none; }
 .chatside { width: 250px; flex: 0 0 250px; gap: 6px; }
 .quality .qrow { display: flex; flex-direction: column; gap: 2px; margin-top: 6px; }
 .quality .qhelp { padding-left: 2px; }
+.quality .qadvice:not(:empty) { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; padding: 4px 6px; border-left: 3px solid var(--accent, var(--ph)); }
 .chatside .newchat { width: 100%; }
 .chatside input[type=search] { width: 100%; box-sizing: border-box; }
 .chatlist { flex: 1; overflow: auto; min-height: 0; }

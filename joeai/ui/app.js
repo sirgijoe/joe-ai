@@ -549,13 +549,32 @@ function chatsShown(on) {
 $("#chat-find").addEventListener("input", () => { clearTimeout(chatFindTimer); chatFindTimer = setTimeout(loadChats, 250); });
 
 // --- quality vs speed: show what the chosen level means, right under it ----------------------
+// Which System-check offer fits each kind of work at each level (first one found wins).
+const Q_ADVICE = {
+  writing: { low: ["pull-model", "pull-small-model"], medium: ["pull-model", "upgrade-model"], high: ["pull-model", "upgrade-model"] },
+  pictures: { low: ["get-image-model"], medium: ["get-image-model"], high: ["get-image-model"] },
+  video: { low: ["get-video-model", "get-video-turbo"], medium: ["get-video-model", "get-video-turbo"], high: ["get-video-model"] },
+};
+const Q_LEVEL = { low: "Low", medium: "Medium", high: "High" };
 function qualityHelp() {
   document.querySelectorAll(".qhelp").forEach((d) => {
     const sel = document.querySelector(`[data-path="quality.${d.dataset.q}"]`);
     d.textContent = sel ? (d.dataset[sel.value] || "") : "";
+    let adv = d.nextElementSibling;
+    if (!adv || !adv.classList.contains("qadvice")) { adv = document.createElement("div"); adv.className = "qadvice"; d.after(adv); }
+    const issues = (doctorData && doctorData.issues) || [];
+    const ids = sel ? Q_ADVICE[d.dataset.q][sel.value] : [];
+    const i = issues.findIndex((it) => ids.includes(it.id) && it.what);
+    adv.innerHTML = i < 0 ? "" : `<span>Based on your ${Q_LEVEL[sel.value]} setting, I'd recommend ${esc(issues[i].what)} for this. Should we install it?</span>` +
+      ` <button type="button" data-fix="${i}" title="Joe asks once more, then downloads it. You can keep using him meanwhile.">[ YES, INSTALL IT ]</button>`;
   });
 }
-document.addEventListener("change", (ev) => { if (ev.target.dataset && /^quality\./.test(ev.target.dataset.path || "")) qualityHelp(); });
+document.addEventListener("change", async (ev) => {
+  if (!(ev.target.dataset && /^quality\./.test(ev.target.dataset.path || ""))) return;
+  qualityHelp();
+  await saveSetup();                  // the advice depends on the saved level (e.g. Low writing)
+  await loadDoctor(); qualityHelp();
+});
 
 // --- permissions ------------------------------------------------------------------
 async function micPermission() {
@@ -596,6 +615,7 @@ async function loadDoctor() {
     `         models: ${c.models.length} (${[...new Set(c.models.map((m) => m.family))].join(", ") || "none"})  best image: ${c.best_image || "-"}  best video: ${c.best_video || "-"}\n` +
     `FFMPEG   ${d.ffmpeg || "not found"}\n` +
     `PANDOC   ${d.pandoc || "not found"}`;
+  if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   $("#issues").innerHTML = d.issues.length ? d.issues.map((it, i) =>
     `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
     : '<div class="dim">All good. Everything Joe needs is installed and running.</div>';
