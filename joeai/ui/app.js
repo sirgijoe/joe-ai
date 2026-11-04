@@ -507,6 +507,7 @@ async function loadChats() {
   document.querySelector('[data-act="chats-delall"]').hidden = !d.chats.length || !!q;
 }
 async function chatOpen(id) {
+  if (current !== "talk") show("talk");
   if (id === chatCurrent) return;
   const r = await api("/api/chats/open", { id });
   if (!r.ok) { toast(r.error); return loadChats(); }
@@ -537,6 +538,14 @@ $("#chat-list").addEventListener("keydown", (ev) => {
     const n = rows[i + (ev.key === "ArrowDown" ? 1 : -1)]; if (n) n.focus();
   }
 });
+// The chat list sits on the left of every screen (like a chat app); hide it with « or the
+// Chats button at the top. Remembered on this PC.
+function chatsShown(on) {
+  document.body.classList.toggle("nochats", !on);
+  $("#chats-btn").classList.toggle("on", on);
+  try { localStorage.setItem("joe-chats", on ? "1" : "0"); } catch (e) {}
+}
+(() => { let on = true; try { on = localStorage.getItem("joe-chats") !== "0"; } catch (e) {} chatsShown(on); loadChats(); })();
 $("#chat-find").addEventListener("input", () => { clearTimeout(chatFindTimer); chatFindTimer = setTimeout(loadChats, 250); });
 
 // --- permissions ------------------------------------------------------------------
@@ -656,7 +665,8 @@ document.addEventListener("click", async (ev) => {
     if (act === "run") await runOrStop();
     if (act === "report") show("report");
     if (act === "talk-send") await talkSend();
-    if (act === "talk-clear") { await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
+    if (act === "talk-clear") { if (current !== "talk") show("talk"); await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
+    if (act === "chats-toggle") { chatsShown(document.body.classList.contains("nochats")); return; }
     if (act === "chats-delall") {
       confirmBox("Delete ALL saved chats, including this one? They can't be brought back.", async () => {
         const r = await api("/api/chats/delete", { all: true });
@@ -1164,8 +1174,8 @@ document.addEventListener("keydown", (ev) => {
 let speakReplies = true;
 let voiceReady = false, talkLog = [], audioEl = null, rec = null, recStart = 0, f6Timer = null;
 async function loadTalk() {
-  api("/api/talk/warm", {}).catch(() => {});
-  loadChats();      // load the thinking + voice models now, not on the first question
+  api("/api/talk/warm", {}).catch(() => {});      // load the thinking + voice models now, not on the first question
+  loadChats();
   await voiceSettings();
   pttLabel();
   $("#talk-note").textContent = voiceReady ? (talkMode === "push" ? `Voice is on. Hold ${keyName(pttKey)} anywhere and speak; let go to send.`

@@ -111,7 +111,9 @@ READ IT TO ME; the About page has HEAR JOE TELL IT.
 
 ### Chats
 
-Talk has a list of your chats on the left, newest first (Today, Yesterday, Previous 7 days...).
+Your chats are listed on the left of every screen, newest first (Today, Yesterday, Previous
+7 days...). Hide the list with **«** or the **☰** button at the top left; Joe remembers your choice.
+Clicking a chat (or **+ NEW CHAT**) takes you to Talk.
 Every time Joe opens you get a fresh chat; **+ NEW CHAT** starts another. Click an old chat to
 read it and carry on where you left off (Joe remembers what was said in it). The **✕** next to a
 chat deletes it, **DELETE ALL** clears the list, and the search box finds a chat by its words.

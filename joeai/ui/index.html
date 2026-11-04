@@ -13,6 +13,7 @@
 <div id="screen">
 
   <header class="titlebar">
+    <button type="button" id="chats-btn" class="chatsbtn" data-act="chats-toggle" title="Show or hide your chats with Joe.">☰</button>
     <span class="inv brand">&nbsp;JOE&nbsp;</span>
     <span class="dim bin">01000001 01001001</span>
     <nav class="tabs" aria-label="Screens">
@@ -31,6 +32,18 @@
     <span id="ver" class="dim"></span>
     <span id="clock">--:--</span>
   </header>
+
+  <div id="workarea" class="workarea">
+  <aside id="chatside" class="panel chatside">
+    <h2>CHATS</h2>
+    <button type="button" class="hidechats" data-act="chats-toggle" title="Hide the chat list (the CHATS button at the top brings it back).">«</button>
+    <button type="button" class="newchat" data-act="talk-clear" title="Start a fresh chat. This one stays in the list.">[ + NEW CHAT ]</button>
+    <input id="chat-find" type="search" placeholder="Search chats" title="Find a chat by its words." autocomplete="off">
+    <div id="chat-list" class="chatlist"></div>
+    <div id="chat-foot" class="dim small"></div>
+    <button type="button" class="delall" data-act="chats-delall" title="Delete every saved chat.">[ DELETE ALL ]</button>
+  </aside>
+  <div class="views">
 
   <!-- ============ QUEUE (F2) ============ -->
   <main id="s-queue" class="view active">
@@ -143,14 +156,6 @@ FORMAT: ...
 
   <!-- ============ TALK (F6) ============ -->
   <main id="s-talk" class="view">
-    <aside class="panel chatside">
-      <h2>CHATS</h2>
-      <button type="button" class="newchat" data-act="talk-clear" title="Start a fresh chat. This one stays in the list.">[ + NEW CHAT ]</button>
-      <input id="chat-find" type="search" placeholder="Search chats" title="Find a chat by its words." autocomplete="off">
-      <div id="chat-list" class="chatlist"></div>
-      <div id="chat-foot" class="dim small"></div>
-      <button type="button" class="delall" data-act="chats-delall" title="Delete every saved chat.">[ DELETE ALL ]</button>
-    </aside>
     <section class="panel full talk">
       <h2>TALK TO JOE <span class="dim">— just talk, or type · drop files here · Joe never starts a run without you</span></h2>
       <div class="row"><span id="talk-note" class="dim small"></span><span class="grow"></span>
@@ -500,6 +505,7 @@ FORMAT: ...
 </pre>
     </section>
   </main>
+  </div></div>
 
   <footer>
     <div id="status" class="statusbar inv"></div>
