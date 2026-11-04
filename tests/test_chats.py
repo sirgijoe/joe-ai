@@ -85,3 +85,22 @@ def test_server_talk_saves_chat_and_new_chat_starts_fresh(env):  # noqa: F811
         assert (sb.meta / "chats").is_dir()      # inside Joe's own folder
     finally:
         httpd.shutdown()
+
+
+def test_hello_voice_is_made_once_and_kept(env, tmp_path, monkeypatch):  # noqa: F811
+    from joeai import server as srv
+    from joeai.server import App
+    s, sb, _ = env
+    monkeypatch.setattr(srv, "config_dir", lambda: tmp_path / "cfg")
+    app = App(s)
+    calls = []
+    monkeypatch.setattr(app, "speak", lambda text: (calls.append(text) or b"RIFFwav", ""))
+    monkeypatch.setattr(app, "quiet", lambda: False)
+    assert app.hello_audio() == (b"RIFFwav", "")
+    assert app.hello_audio() == (b"RIFFwav", "")
+    assert calls == ["Hello! Joe here, reporting for duty."]          # second time from the saved copy
+    s.ui.hello_text = "Morning, boss."
+    app.hello_audio()
+    assert calls[-1] == "Morning, boss." and len(list((tmp_path / "cfg" / "hello").glob("*.wav"))) == 1
+    monkeypatch.setattr(app, "quiet", lambda: True)
+    assert app.hello_audio()[0] == b""                                 # silent in quiet hours

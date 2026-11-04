@@ -77,6 +77,8 @@ def open_window(url: str) -> None:
         profile = config_dir() / "window"
         subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={profile}",
                           "--no-first-run", "--no-default-browser-check",
+                          # Joe's own window may play his hello and chimes without a click first
+                          "--autoplay-policy=no-user-gesture-required",
                           "--window-size=1280,860"])
     else:
         webbrowser.open(url)

@@ -266,6 +266,11 @@ FORMAT: ...
         </fieldset>
         <fieldset class="wide comfort"><legend>COMFORT</legend>
           <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
+          <label title="What you hear when Joe's window opens. Joe's spoken hello needs his voice set up (F10 > System check). Silent during quiet hours.">When Joe opens
+            <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
+              <option value="voice">Joe says hello</option><option value="off">Nothing</option></select></label>
+          <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
+          <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
           <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
           <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
           <div class="dim small">PHONE PING WHEN JOE IS DONE (optional). Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>

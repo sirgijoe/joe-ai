@@ -41,7 +41,7 @@ class Chats:
         if mission:
             joe_msg["mission"] = mission
         self.current["messages"].append(joe_msg)
-        self.current["updated"] = ts
+        self.current["updated"] = now.isoformat(timespec="milliseconds")   # fine enough to sort by
         self._write(self.current)
 
     # -- past chats ------------------------------------------------------------------

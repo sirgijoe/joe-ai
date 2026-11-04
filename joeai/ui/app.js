@@ -728,6 +728,7 @@ document.addEventListener("click", async (ev) => {
     }
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
     if (act === "perm-mic") { await allowMic(); return; }
+    if (act === "test-hello") { await saveSetup(); startupSound(); return; }
     if (act === "make-theme") {
       const desc = $("#theme-desc").value.trim();
       if (!desc) { $("#theme-msg").textContent = "Describe the look first."; return; }
@@ -828,15 +829,52 @@ function boot() {
   if (shown || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.remove(); return; }
   el.addEventListener("click", done);
   document.addEventListener("keydown", done, { once: true });
+  startupSound();
   let i = 0;
   const t = setInterval(() => {
     $("#boot-bin").textContent = bin.slice(0, ++i) + (i < bin.length ? "█" : "");
     if (i >= bin.length) {
       clearInterval(t);
       setTimeout(() => $("#boot-name").classList.add("on"), 250);
-      setTimeout(done, 1900);
+      setTimeout(done, 2900);                       // long enough to read (click or any key skips it)
     }
   }, 55);
+}
+// When Joe opens: a short rising jingle, then (with his voice set up) "Hello! Joe here, reporting
+// for duty." Setup > Comfort > "When Joe opens" picks jingle, voice, both or off. Quiet hours = silent.
+let bootCtx = null;
+function jingle(retro) {
+  try {
+    const actx = bootCtx = bootCtx || new AudioContext();
+    const notes = [392, 523.25, 659.25, 783.99, 1046.5];             // G C E G C, a little "power on"
+    notes.forEach((f, i) => {
+      const o = actx.createOscillator(), g = actx.createGain();
+      const t = actx.currentTime + 0.05 + i * 0.11, last = i === notes.length - 1, len = last ? 0.9 : 0.22;
+      o.type = retro ? "square" : "triangle"; o.frequency.value = f;
+      const vol = (retro ? 0.045 : 0.11) * (last ? 1.1 : 1);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol, t + 0.015); g.gain.exponentialRampToValueAtTime(0.001, t + len);
+      o.connect(g).connect(actx.destination); o.start(t); o.stop(t + len + 0.05);
+    });
+  } catch (e) {}
+  return 0.05 + 4 * 0.11 + 0.5;                    // seconds until the jingle has mostly rung out
+}
+async function startupSound() {
+  let s;
+  try { s = await api("/api/settings"); } catch (e) { return; }
+  const mode = (s.ui && s.ui.startup_sound) || "both";
+  if (mode === "off") return;
+  let quiet = false;
+  try { quiet = (await api("/api/state")).quiet; } catch (e) {}
+  if (quiet) return;
+  const retro = ["green", "amber", "white"].includes(s.ui.phosphor);
+  const wait = (mode === "jingle" || mode === "both") ? jingle(retro) * 1000 : 0;
+  if (mode !== "voice" && mode !== "both") return;
+  const hello = fetch("/api/voice/hello", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" })
+    .then((r) => (r.headers.get("content-type") || "").startsWith("audio/") ? r.blob() : null).catch(() => null);
+  const [blob] = await Promise.all([hello, new Promise((r) => setTimeout(r, wait))]);
+  if (!blob) return;                               // voice not set up yet: the jingle is enough
+  const a = new Audio(URL.createObjectURL(blob));
+  a.play().catch(() => {});
 }
 boot();
 

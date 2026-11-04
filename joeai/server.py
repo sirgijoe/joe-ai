@@ -27,7 +27,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
-from .config import Settings, _merge
+from .config import Settings, _merge, config_dir
 from .engine import Engine
 from .fsutil import atomic_write_text
 from .mission import MissionError, parse
@@ -708,6 +708,34 @@ class App:
             except OSError:
                 pass
 
+    def hello_audio(self) -> tuple[bytes, str]:
+        """Joe's spoken hello when he opens. Made once per voice/speed/words and kept, so it
+        plays straight away instead of waiting for the voice to warm up."""
+        if self.quiet():
+            return b"", "quiet hours"
+        text = (self.settings.ui.hello_text or "").strip()[:200]
+        if not text:
+            return b"", "no hello text"
+        v = self.settings.voice
+        import hashlib
+        key = hashlib.sha1(f"{v.voice}|{v.speed}|{text}".encode()).hexdigest()[:16]
+        cache = config_dir() / "hello" / f"{key}.wav"
+        try:
+            if cache.exists():
+                return cache.read_bytes(), ""
+        except OSError:
+            pass
+        audio, err = self.speak(text)
+        if audio:
+            try:
+                cache.parent.mkdir(parents=True, exist_ok=True)
+                for old in cache.parent.glob("*.wav"):        # only keep the current one
+                    old.unlink()
+                cache.write_bytes(audio)
+            except OSError:
+                pass
+        return audio, err
+
     def export(self, rel: str, formats: list[str]) -> dict:
         p = self.rel_path(rel)
         if not p.is_file() or p.suffix.lower() not in (".md", ".txt"):
@@ -924,6 +952,11 @@ def make_handler(app: App):
                 return self._json(app.listen(self.rfile.read(n), ext))
             b = self._body()
             try:
+                if u.path == "/api/voice/hello":
+                    audio, err = app.hello_audio()
+                    if err:
+                        return self._json({"ok": False, "error": err}, 200)
+                    return self._send(200, audio, "audio/wav")
                 if u.path == "/api/voice/speak":
                     audio, err = app.speak(str(b.get("text", "")))
                     if err:
