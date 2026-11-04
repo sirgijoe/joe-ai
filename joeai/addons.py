@@ -113,17 +113,8 @@ def get_uv(log: Log) -> str | None:
 
 
 def pandoc_exe(configured: str = "") -> str | None:
-    if configured and Path(configured).exists():
-        return configured
-    found = shutil.which("pandoc")
-    if found:
-        return found
-    if sys.platform == "win32":
-        for p in (Path(os.environ.get("LOCALAPPDATA", "")) / "Pandoc" / "pandoc.exe",
-                  Path(os.environ.get("ProgramFiles", "")) / "Pandoc" / "pandoc.exe"):
-            if p.exists():
-                return str(p)
-    return None
+    from .finder import pandoc_exe as _p
+    return _p(configured)
 
 
 def voice_ready() -> bool:

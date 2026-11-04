@@ -58,6 +58,12 @@ The first time Joe opens, a setup helper walks through it one step at a time: yo
 in plain words, the writing model (the only must-have), pictures, talking, extras, and a look.
 Each **YES** installs just that one thing. Reopen it any time: Setup (F10) > **SETUP HELPER**.
 
+Joe finds the programs he works with on his own: ComfyUI Desktop (old and new program names),
+a portable ComfyUI (`run_nvidia_gpu.bat`) or your own install with a `venv`, ComfyUI's models
+folder (from its own settings), and Ollama, FFmpeg and Pandoc from the usual install folders
+(winget, Scoop, Chocolatey, Program Files, Homebrew). F10 > System check shows what he found.
+Anything you type in Setup wins; if that path stops existing, Joe looks again.
+
 Every screen has a tab along the top (the F-keys still work). Hover over any button and the
 bottom line says what it does.
 
@@ -97,6 +103,19 @@ F10 > Voice picks his voice, speed, and how carefully he listens. **Talk model**
 quick model (3-4B) answer in Talk while the big one keeps writing missions overnight; blank uses
 the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
+
+### Past chats
+
+Every time Joe opens, Talk starts a fresh chat; **NEW CHAT** starts another. Each chat is saved
+in Joe's own folder (`Output\.joe\chats`) and listed under **PAST CHATS**, where you can read one
+again, delete it, or delete them all. Chats older than F10 > Voice > **Delete chats after (days)**
+are removed on their own (default 30; 0 keeps them). Nothing leaves the PC.
+
+### Microphone permission
+
+The window asks for the microphone once and remembers the answer. F10 > **Permissions** shows
+whether it's allowed, and **ALLOW MICROPHONE** asks again if you said no. (Joe keeps the same
+local address every time he opens so the answer sticks.)
 
 ### Make Joe sound like me (optional)
 

@@ -156,7 +156,8 @@ FORMAT: ...
           <button data-act="talk-send" title="Send what you typed (or just press Enter).">[ SEND ]</button>
           <button id="ptt" data-act="ptt" title="Turn the microphone on or off. With it on, just talk and pause.">[ MIC ON ]</button>
           <button data-act="talk-attach" title="Pick a file (text, Word, PDF, web page or picture) to ask Joe about.">[ ATTACH ]</button>
-          <button data-act="talk-clear" title="Forget this conversation and start a new one.">[ NEW CHAT ]</button>
+          <button data-act="talk-clear" title="Start a new chat. This one is saved under PAST CHATS.">[ NEW CHAT ]</button>
+          <button data-act="chats" title="Read or delete earlier chats with Joe.">[ PAST CHATS ]</button>
           <input type="file" id="talk-file" multiple hidden>
         </div>
       </div>
@@ -265,6 +266,13 @@ FORMAT: ...
           <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
           <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
         </fieldset>
+        <fieldset class="wide perms"><legend>PERMISSIONS</legend>
+          <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
+            <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
+          <div class="dim small" id="perm-mic-help"></div>
+          <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
+            He never sends your files anywhere, never browses the web, and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
+        </fieldset>
         <fieldset class="wide"><legend>CUSTOM THEME</legend>
           <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
           <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights"></textarea>
@@ -279,6 +287,7 @@ FORMAT: ...
           <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
           <datalist id="dl-talkmodels"></datalist>
           <label>Speak replies in Talk (F6) <input type="checkbox" data-path="voice.speak_replies"></label>
+          <label title="Every chat with Joe is saved in his folder so you can read it again (Talk > PAST CHATS). Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
           <label>How to talk
             <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
           <label>Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
@@ -500,6 +509,13 @@ FORMAT: ...
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
+<div id="chats" class="modal chats" hidden><div class="panel"><h2 id="chats-title">PAST CHATS</h2>
+  <div id="chats-body" class="chatsbody"></div>
+  <p class="row"><button type="button" data-act="chats-back" id="chats-back" hidden>[ BACK ]</button>
+    <button type="button" data-act="chats-del" id="chats-del" hidden>[ DELETE THIS CHAT ]</button>
+    <button type="button" data-act="chats-delall" id="chats-delall">[ DELETE ALL ]</button>
+    <span class="grow"></span><button type="button" data-act="chats-close">[ CLOSE <span class="k">Esc</span> ]</button></p>
+  <div id="chats-note" class="dim small"></div></div></div>
 <div id="confirm" class="modal" hidden><div class="panel"><h2>CONFIRM</h2><p id="confirm-text"></p>
   <p class="row"><button id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>
 <script src="/app.js"></script>

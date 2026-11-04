@@ -7,9 +7,7 @@ already has, and never with hidden windows tricks or registry edits.
 """
 from __future__ import annotations
 
-import os
 import re
-import shutil
 import subprocess
 import sys
 import time
@@ -21,6 +19,7 @@ from .http import HttpError, request_json
 from .ollama import OllamaClient
 
 Log = Callable[[str], None]
+COMFY_START_WAIT_S = 300      # ComfyUI Desktop can be slow to open after an update or big download
 
 
 def _popen(cmd: list[str] | str, cwd: str | None = None) -> subprocess.Popen:
@@ -36,16 +35,8 @@ def _popen(cmd: list[str] | str, cwd: str | None = None) -> subprocess.Popen:
 
 
 def find_ollama_exe(configured: str = "") -> str | None:
-    if configured and Path(configured).exists():
-        return configured
-    found = shutil.which("ollama")
-    if found:
-        return found
-    if sys.platform == "win32":
-        guess = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "Ollama" / "ollama.exe"
-        if guess.exists():
-            return str(guess)
-    return None
+    from .finder import ollama_exe
+    return ollama_exe(configured)
 
 
 class ServiceManager:
@@ -68,9 +59,9 @@ class ServiceManager:
         if not exe:
             self.log("Ollama not found. Install it from ollama.com or set its path in Setup.")
             return False
-        self.log("Starting Ollama...")
+        self.log(f"Starting Ollama: {exe}")
         _popen([exe, "serve"])
-        return self._wait(self.ollama_up, 60)
+        return self._wait(self.ollama_up, 60, "Ollama to start")
 
     def ensure_ollama(self) -> bool:
         return self.ollama_up() or self.start_ollama()
@@ -96,23 +87,38 @@ class ServiceManager:
                 return True
         return False
 
+    def comfy_install(self):
+        from .finder import find_comfy
+        c = self.s.comfy
+        return find_comfy(c.start_command, c.start_dir, c.models_dir)
+
     def comfy_exe(self) -> Path | None:
-        from .comfy import desktop_exe
-        return desktop_exe()
+        """Something that starts ComfyUI (Desktop program, portable .bat, or own install)."""
+        inst = self.comfy_install()
+        if not inst or not inst.command:
+            return None
+        first = inst.command if isinstance(inst.command, str) else inst.command[0]
+        return Path(first.strip().strip('"').split('" ')[0])
 
     def start_comfy(self) -> bool:
-        cmd = self.s.comfy.start_command.strip()
-        if cmd:
-            self.log("Starting ComfyUI...")
-            _popen(cmd, cwd=self.s.comfy.start_dir or str(Path(cmd).parent))
-        else:
-            exe = self.comfy_exe()
-            if not exe:
-                self.log("ComfyUI not found. Install it from F10 > System check, or set its start command.")
-                return False
-            self.log("Starting ComfyUI Desktop...")
-            _popen([str(exe)], cwd=str(exe.parent))
-        return self._wait(self.comfy_up, 240)
+        inst = self.comfy_install()
+        if not inst or not inst.command:
+            self.log("ComfyUI not found on this PC. Install it from F10 > System check, or put its "
+                     "start command in Setup > Pictures.")
+            return False
+        shown = inst.command if isinstance(inst.command, str) else inst.command[0]
+        self.log(f"Starting {inst.label}: {shown}")
+        try:
+            _popen(inst.command, cwd=inst.cwd or None)
+        except OSError as e:
+            self.log(f"Couldn't start ComfyUI: {e}")
+            return False
+        if self._wait(self.comfy_up, COMFY_START_WAIT_S, "ComfyUI to open"):
+            self.log(f"ComfyUI is ready at {self.comfy_base}.")
+            return True
+        self.log(f"ComfyUI didn't answer within {COMFY_START_WAIT_S // 60} minutes. If its window is "
+                 "showing a question or an update, answer it and press F5 again.")
+        return False
 
     def ensure_comfy(self) -> bool:
         return self.comfy_up() or self.start_comfy()
@@ -153,12 +159,19 @@ class ServiceManager:
                 pass
         return st
 
-    @staticmethod
-    def _wait(check: Callable[[], bool], seconds: float) -> bool:
-        end = time.monotonic() + seconds
-        while time.monotonic() < end:
+    def _wait(self, check: Callable[[], bool], seconds: float, what: str = "",
+              every: float = 30) -> bool:
+        start = time.monotonic()
+        next_note = start + every
+        while time.monotonic() - start < seconds:
             if check():
                 return True
+            now = time.monotonic()
+            if what and now >= next_note:
+                m, s = divmod(int(now - start), 60)
+                tm, ts = divmod(int(seconds), 60)
+                self.log(f"  still waiting for {what} ({m}:{s:02d} of {tm}:{ts:02d})")
+                next_note = now + every
             time.sleep(1)
         return False
 

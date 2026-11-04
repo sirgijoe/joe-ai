@@ -478,6 +478,65 @@ $("#cleanups").addEventListener("click", (ev) => {
 /* ---------------- setup ---------------- */
 const getPath = (o, p) => p.split(".").reduce((a, k) => (a == null ? a : a[k]), o);
 function setPath(o, p, v) { const ks = p.split("."); let cur = o; ks.slice(0, -1).forEach((k) => (cur = cur[k] = cur[k] || {})); cur[ks.at(-1)] = v; }
+// --- past chats -----------------------------------------------------------------------
+let chatView = "";
+const when = (iso) => { try { const d = new Date(iso); return d.toLocaleDateString(undefined, { month: "short", day: "numeric" }) + " " + d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" }); } catch (e) { return iso; } };
+const kb = (n) => n < 1024 ? `${n} B` : n < 1048576 ? `${(n / 1024).toFixed(0)} KB` : `${(n / 1048576).toFixed(1)} MB`;
+async function chatsOpen() {
+  chatView = "";
+  $("#chats").hidden = false;
+  $("#chats-title").textContent = "PAST CHATS";
+  $("#chats-back").hidden = $("#chats-del").hidden = true; $("#chats-delall").hidden = false;
+  let d;
+  try { d = await api("/api/chats"); } catch (e) { $("#chats-body").textContent = e.message; return; }
+  $("#chats-delall").hidden = !d.chats.length;
+  $("#chats-body").innerHTML = d.chats.length ? d.chats.map((c) =>
+    `<div class="chatrow" tabindex="0" data-chat="${esc(c.id)}" title="Open this chat"><span class="when">${esc(when(c.started))}</span>` +
+    `<span class="t">${esc(c.title)}${c.current ? ' <span class="dim">(this chat)</span>' : ""}</span><span class="x">${Math.ceil(c.messages / 2)} msg</span></div>`).join("")
+    : '<div class="dim">No past chats yet. Each time Joe opens, or you press NEW CHAT, a fresh chat starts and is saved here.</div>';
+  $("#chats-note").textContent = `${d.chats.length} chat(s), ${kb(d.bytes)}. ` +
+    (d.keep_days > 0 ? `Chats older than ${d.keep_days} days are deleted on their own (Setup > Voice).` : "Chats are kept until you delete them (Setup > Voice).");
+  const first = $("#chats-body .chatrow"); if (first) first.focus();
+}
+async function chatShow(id) {
+  const r = await api("/api/chats/get", { id });
+  if (!r.ok) { toast(r.error); return chatsOpen(); }
+  chatView = id;
+  $("#chats-title").textContent = `CHAT — ${when(r.chat.started)}`;
+  $("#chats-back").hidden = $("#chats-del").hidden = false; $("#chats-delall").hidden = true;
+  $("#chats-body").innerHTML = '<div class="talklog">' + r.chat.messages.map((m) =>
+    `<div class="msg ${m.who}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
+    (m.mission ? `<pre class="mission">${esc(m.mission)}</pre>` : "") + "</div>").join("") + "</div>";
+  $("#chats-note").textContent = "Read only. Missions shown here can be copied into the Builder.";
+}
+function chatsClose() { $("#chats").hidden = true; chatView = ""; }
+document.addEventListener("click", (ev) => {
+  const row = ev.target.closest && ev.target.closest(".chatrow");
+  if (row) chatShow(row.dataset.chat);
+});
+
+// --- permissions ------------------------------------------------------------------
+async function micPermission() {
+  try { return (await navigator.permissions.query({ name: "microphone" })).state; }   // granted | prompt | denied
+  catch (e) { return "unknown"; }
+}
+async function showPerms() {
+  const el = $("#perm-mic"); if (!el) return;
+  const st = await micPermission();
+  el.textContent = { granted: "allowed", prompt: "not asked yet", denied: "blocked", unknown: "unknown" }[st];
+  $("#perm-mic-help").textContent = st === "denied"
+    ? "It's blocked. Click the lock or microphone icon at the top of this window, set Microphone to Allow, then press ALLOW MICROPHONE again. If it's still blocked, check Windows Settings > Privacy & security > Microphone."
+    : st === "granted" ? "Joe remembers this. You won't be asked again." : "";
+}
+async function allowMic() {
+  try {
+    const s = await navigator.mediaDevices.getUserMedia({ audio: true });
+    s.getTracks().forEach((t) => t.stop());
+    toast("Microphone allowed. Joe will remember.");
+  } catch (e) { toast("The microphone wasn't allowed."); }
+  showPerms();
+}
+
 let doctorData = null;
 async function loadDoctor() {
   let d;
@@ -491,8 +550,10 @@ async function loadDoctor() {
     `OLLAMA   installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
     `         best fit installed: ${o.best || "-"}   in use: ${o.configured}\n` +
     `COMFYUI  installed ${yes(c.installed)} running ${yes(c.running)}  ${c.url}\n` +
+    (c.found ? `         found: ${c.found.label}  ${c.found.command}\n         models folder: ${c.found.models_dir || "not found"}\n` : "") +
     `         models: ${c.models.length} (${[...new Set(c.models.map((m) => m.family))].join(", ") || "none"})  best image: ${c.best_image || "-"}  best video: ${c.best_video || "-"}\n` +
-    `FFMPEG   ${d.ffmpeg || "not found"}`;
+    `FFMPEG   ${d.ffmpeg || "not found"}\n` +
+    `PANDOC   ${d.pandoc || "not found"}`;
   $("#issues").innerHTML = d.issues.length ? d.issues.map((it, i) =>
     `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
     : '<div class="dim">All good. Everything Joe needs is installed and running.</div>';
@@ -525,7 +586,7 @@ async function loadThemes() {
   return r.themes;
 }
 async function loadSetup() {
-  loadDoctor();
+  loadDoctor(); showPerms();
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = v.settings.ptt_key || "F6";
@@ -572,6 +633,23 @@ document.addEventListener("click", async (ev) => {
     if (act === "report") show("report");
     if (act === "talk-send") await talkSend();
     if (act === "talk-clear") { await api("/api/talk/clear", {}); talkLog = []; renderTalk(); }
+    if (act === "chats") { await chatsOpen(); return; }
+    if (act === "chats-close") { chatsClose(); return; }
+    if (act === "chats-back") { await chatsOpen(); return; }
+    if (act === "chats-del" && chatView) {
+      const id = chatView;
+      confirmBox("Delete this chat? It can't be brought back.", async () => {
+        await api("/api/chats/delete", { id }); toast("Chat deleted"); await chatsOpen();
+      });
+      return;
+    }
+    if (act === "chats-delall") {
+      confirmBox("Delete ALL past chats, including this one? They can't be brought back.", async () => {
+        const r = await api("/api/chats/delete", { all: true });
+        talkLog = []; renderTalk(); toast(`Deleted ${r.deleted} chat(s)`); await chatsOpen();
+      });
+      return;
+    }
     if (act === "hush") hush();
     if (act === "read-report") await say($("#report").textContent.replace(/[|#*`-]{2,}/g, " ").slice(0, 5000), true);
     if (act === "hear-story") await say(storyText(), true);
@@ -635,6 +713,7 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
+    if (act === "perm-mic") { await allowMic(); return; }
     if (act === "make-theme") {
       const desc = $("#theme-desc").value.trim();
       if (!desc) { $("#theme-msg").textContent = "Describe the look first."; return; }
@@ -672,6 +751,11 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
+    return;
+  }
+  if (!$("#chats").hidden) {
+    if (ev.key === "Escape") { ev.preventDefault(); chatView ? chatsOpen() : chatsClose(); }
+    else if (ev.key === "Enter" && ev.target.dataset && ev.target.dataset.chat) { ev.preventDefault(); chatShow(ev.target.dataset.chat); }
     return;
   }
   if (!$("#welcome").hidden) {                 // the setup helper is up: only Esc (close) works

@@ -184,6 +184,7 @@ class Engine:
         cap_logs(self.sb)
         states: list[JobState] = []
         self.live = [self._load_state(mission, j) for j in mission.jobs]
+        self.services.log = self.log           # "Starting ComfyUI..." etc. land in _log.txt too
         self.log(f"=== Mission start: {mission.project or '(no project)'}, {len(mission.jobs)} task(s)")
         jobs = list(zip(mission.jobs, self.live))
         text_jobs = [(j, st) for j, st in jobs if not j.media]

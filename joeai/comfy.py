@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import random
 import re
 import sys
@@ -126,22 +125,15 @@ def family_of(path: str, size_gb: float = 0, file: Path | None = None) -> str:
 
 
 def desktop_base_path() -> Path | None:
-    """ComfyUI desktop app keeps its data folder path in %APPDATA%\\ComfyUI\\config.json."""
-    if sys.platform != "win32":
-        return None
-    cfg = Path(os.environ.get("APPDATA", "")) / "ComfyUI" / "config.json"
-    try:
-        base = json.loads(cfg.read_text(encoding="utf-8")).get("basePath")
-        return Path(base) if base and Path(base).exists() else None
-    except (OSError, ValueError):
-        return None
+    """ComfyUI Desktop's data folder (see finder.py)."""
+    from .finder import desktop_base_path as _b
+    return _b()
 
 
 def desktop_exe() -> Path | None:
-    if sys.platform != "win32":
-        return None
-    p = Path(os.environ.get("LOCALAPPDATA", "")) / "Programs" / "@comfyorgcomfyui-electron" / "ComfyUI.exe"
-    return p if p.exists() else None
+    """ComfyUI Desktop's program, newest name first (see finder.py)."""
+    from .finder import desktop_exe as _e
+    return _e()
 
 
 def scan_models(models_dir: Path | None) -> list[ImageModel]:

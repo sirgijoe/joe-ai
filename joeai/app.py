@@ -18,6 +18,21 @@ from pathlib import Path
 from .config import config_dir
 
 
+# The window remembers permissions (like the microphone) per address, and the address includes
+# the port. A random port each start made Edge ask for the mic every time, so Joe keeps one port.
+STABLE_PORTS = (47317, 47318, 47319, 47320)
+
+
+def _serve_stable(app):
+    from .server import serve
+    for port in STABLE_PORTS:
+        try:
+            return serve(app, port)
+        except OSError:                   # taken by another program: try the next one
+            continue
+    return serve(app, 0)
+
+
 def _lock_path() -> Path:
     return config_dir() / "app.json"
 
@@ -73,9 +88,9 @@ def main() -> int:
     if url:                                  # already running (maybe mid-run): just reopen
         open_window(url)
         return 0
-    from .server import App, serve
+    from .server import App
     app = App()
-    httpd = serve(app)
+    httpd = _serve_stable(app)
     port = httpd.server_address[1]
     _lock_path().write_text(json.dumps({"port": port, "token": app.token, "pid": os.getpid()}),
                             encoding="utf-8")

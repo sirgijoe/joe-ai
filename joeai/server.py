@@ -40,6 +40,7 @@ from . import storage as storage_mod
 from . import themes as themes_mod
 from . import addons as addons_mod
 from . import chat as chat_mod
+from .chats import Chats
 from . import notify as notify_mod
 
 UI_DIR = Path(__file__).parent / "ui"
@@ -81,6 +82,11 @@ class App:
         self.clone = addons_mod.VoiceWorker(self.log, python=str(addons_mod.clone_python()),
                                             script=Path(addons_mod.__file__).with_name("clone_worker.py"))
         self.chat_history: list[dict] = []   # this session only (fresh start every launch)
+        self._chats: Chats | None = None     # saved copies of each chat (Talk > PAST CHATS)
+        try:
+            self.chats.prune(self.settings.voice.chat_keep_days)
+        except OSError:
+            pass
         self.talk_files: list[dict] = []     # files dropped into Talk, waiting for the next message
         self.queue: list = []                # (text, mission, entry) waiting to run
         self.run_log: list[dict] = []        # missions in the current/last queue run
@@ -596,12 +602,34 @@ class App:
                         f"So 100 items takes about {per100} minute{'s' if per100 != 1 else ''} on this PC."}
 
     # -- talking to Joe ------------------------------------------------------------
+    @property
+    def chats(self) -> Chats:
+        d = self.sb.meta / "chats"
+        if self._chats is None or self._chats.dir != d:     # workspace moved: follow it
+            self._chats = Chats(d)
+        return self._chats
+
+    def save_chat(self, you: str, r: dict) -> None:
+        try:
+            self.chats.add(you, r.get("say", ""), r.get("mission", ""))
+        except OSError as e:
+            self.log(f"Couldn't save this chat: {e}")
+
+    def new_chat(self) -> None:
+        self.chat_history = []
+        self.chats.new()
+        try:
+            self.chats.prune(self.settings.voice.chat_keep_days)
+        except OSError:
+            pass
+
     def talk(self, text: str) -> dict:
         r = chat_mod.reply(self, self.chat_history, text)
         if r.get("ok"):
             self.chat_history += [{"role": "user", "content": text},
                                   {"role": "assistant", "content": r.pop("raw", r["say"])}]
             self.chat_history = self.chat_history[-20:]
+            self.save_chat(text, r)
         return r
 
     def warm_talk(self) -> None:
@@ -790,6 +818,9 @@ def make_handler(app: App):
                     return self._json(storage_mod.usage(app.settings, app.sb))
                 if u.path == "/api/stats":
                     return self._json(stats_mod.collect(app.settings, app.sb))
+                if u.path == "/api/chats":
+                    return self._json({"chats": app.chats.list(), "bytes": app.chats.size(),
+                                       "keep_days": app.settings.voice.chat_keep_days})
                 if u.path == "/api/history":
                     return self._json(app.history())
                 if u.path == "/api/lists":
@@ -902,8 +933,19 @@ def make_handler(app: App):
                     app.talk_files = [f for f in app.talk_files if f["id"] != b.get("id")]
                     return self._json({"ok": True})
                 if u.path == "/api/talk/clear":
-                    app.chat_history = []
+                    app.new_chat()
                     return self._json({"ok": True})
+                if u.path == "/api/chats/get":
+                    d = app.chats.get(str(b.get("id", "")))
+                    return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
+                if u.path == "/api/chats/delete":
+                    if b.get("all"):
+                        n = app.chats.delete_all()
+                        app.chat_history = []
+                        app.log(f"Deleted {n} past chat(s).")
+                        return self._json({"ok": True, "deleted": n})
+                    ok = app.chats.delete(str(b.get("id", "")))
+                    return self._json({"ok": ok, "deleted": int(ok)})
                 if u.path == "/api/export":
                     return self._json(app.export(b.get("path", ""), b.get("formats") or ["docx", "pdf"]))
                 if u.path == "/api/check":
@@ -1060,6 +1102,7 @@ def make_handler(app: App):
                     app.chat_history += [{"role": "user", "content": said},
                                          {"role": "assistant", "content": r.get("raw", r["say"])}]
                     app.chat_history = app.chat_history[-20:]
+                    app.save_chat((text or "(file)") + "".join(f"  📎 {f['name']}" for f in files), r)
                 r.pop("raw", None)
                 send({"t": "done", **r})
             except (BrokenPipeError, ConnectionResetError):

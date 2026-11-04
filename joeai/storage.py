@@ -107,10 +107,10 @@ def comfy_output_dir(settings: Settings) -> Path | None:
     cands: list[Path] = []
     if c.output_dir:
         cands.append(Path(c.output_dir))
-    from .comfy import desktop_base_path
-    base = desktop_base_path()
-    if base:
-        cands.append(base / "output")
+    from .finder import find_comfy
+    inst = find_comfy(c.start_command, c.start_dir, c.models_dir)
+    if inst and inst.output_dir:
+        cands.append(inst.output_dir)
     if c.models_dir:
         cands.append(Path(c.models_dir).parent / "output")
     if c.start_dir:

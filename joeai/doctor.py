@@ -59,17 +59,8 @@ def winget() -> str | None:
 
 
 def ffmpeg_exe(configured: str = "") -> str | None:
-    if configured and Path(configured).exists():
-        return configured
-    found = shutil.which("ffmpeg")
-    if found:
-        return found
-    if sys.platform == "win32":                       # winget's Gyan.FFmpeg links land here
-        import os
-        links = Path(os.environ.get("LOCALAPPDATA", "")) / "Microsoft" / "WinGet" / "Links" / "ffmpeg.exe"
-        if links.exists():
-            return str(links)
-    return None
+    from .finder import ffmpeg_exe as _f
+    return _f(configured)
 
 
 # --------------------------------------------------------------------------- ollama models
@@ -128,11 +119,11 @@ def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
 
 # --------------------------------------------------------------------------- comfy models
 def comfy_models_dir(settings: Settings) -> Path | None:
-    if settings.comfy.models_dir:
-        p = Path(settings.comfy.models_dir)
-        return p if p.is_dir() else None
-    base = comfy_mod.desktop_base_path()
-    return base / "models" if base else None
+    """Setup's Models folder if it exists, else the models folder of whatever ComfyUI is found."""
+    from .finder import find_comfy
+    c = settings.comfy
+    inst = find_comfy(c.start_command, c.start_dir, c.models_dir)
+    return inst.models_dir if inst else None
 
 
 def image_models(settings: Settings) -> list[comfy_mod.ImageModel]:
@@ -168,7 +159,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     elif not text_ok and best_text:
         issues.append({"id": "use-model", "text": f"Setup model '{settings.ollama.text_model}' isn't "
                        f"installed. Best installed fit: {best_text}.", "action": "use", "model": best_text})
-    if not comfy_exe and not comfy_up and not settings.comfy.start_command:
+    if not comfy_exe and not comfy_up:
         issues.append({"id": "install-comfyui", "text": "ComfyUI is not installed (only needed for "
                        "image/video tasks).", "action": "install", "tool": "comfyui", "optional": True})
     elif (comfy_exe or comfy_up) and not imodels and comfy_models_dir(settings):
@@ -211,8 +202,9 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                    "models": omodels, "best": best_text,
                    "configured": settings.ollama.text_model or f"auto ({best_text or 'none yet'})",
                    "recommended": recommended_download(vram)},
-        "comfyui": {"installed": bool(comfy_exe) or comfy_up or bool(settings.comfy.start_command),
+        "comfyui": {"installed": bool(comfy_exe) or comfy_up,
                     "running": comfy_up, "url": sm.comfy_base, "exe": str(comfy_exe or ""),
+                    "found": (sm.comfy_install().as_dict() if sm.comfy_install() else None),
                     "models_dir": str(comfy_models_dir(settings) or ""),
                     "models": [{"name": m.name, "family": m.family, "size_gb": m.size_gb,
                                 "kind": m.kind} for m in imodels],
