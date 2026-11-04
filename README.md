@@ -16,6 +16,9 @@ video clips — and in the morning the drafts are waiting, along with a short re
 needs a human (or a bigger AI) to look at.
 
 He's free, open source, and runs on your PC. No account, no subscription, no tokens to buy.
+Setting him up needs the internet (to download the programs and AI models he uses); after
+that, the overnight work itself runs on your PC and doesn't send anything out. See
+[When Joe uses the internet](#when-joe-uses-the-internet).
 
 ## Joe's story
 
@@ -94,14 +97,33 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 
 ## What Joe won't do
 
-- Send your files anywhere. Everything stays on your PC.
-- Go online on his own. Talk can look things up (news, prices, how-tos) only if you switch that
-  on in Setup, and then only the search words leave your PC. Overnight work never goes online.
+- Send your files, chats or recordings anywhere. They stay on your PC.
+- Do the overnight work online. Writing, pictures and video are made on your PC.
 - Send email, post online, or spend money.
 - Touch anything outside his own folder (`Documents\Joe-ai`).
 - Install or download anything without asking you first.
-- Collect data about you. There's no tracking, no analytics, no phoning home.
+- Collect data about you. There's no tracking and no analytics. (The update check below asks
+  GitHub for the newest version number and nothing else.)
 - Listen unless the Talk screen is open with the mic on (or you're holding the talk key).
+
+## When Joe uses the internet
+
+Joe is **not** an offline-only app. The work happens on your PC, but these things need the
+internet. None of them send your files, chats or recordings.
+
+| What | Goes to | When | Your choice |
+|---|---|---|---|
+| Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
+| Downloading AI models (writing, pictures, video, Turbo) | Ollama's model library, Hugging Face | Setup, or when you pick a better model | Asks you first, every time |
+| Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
+| Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
+| Display font (retro looks) | Google Fonts | Each time Joe opens | Without internet Joe uses a built-in font |
+| Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
+| Talk looks things up | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current | Off until you turn it on |
+
+Ollama and ComfyUI are separate programs with their own update checks and settings; Joe
+doesn't control those. Once everything is installed, you can unplug the internet and the
+overnight work still runs.
 
 ## What you need
 

@@ -1837,7 +1837,7 @@ function wRender() {
   let h = "";
   if (st.id === "hello") {
     h = `<p>01000001 01001001, if you're fancy. Humans can't say that, so just call me Joe.</p>
-      <p>I do the grunt work on your own computer while you sleep: lists, descriptions, documents, spreadsheets, pictures and short videos. Free, private, nothing leaves this PC.</p>
+      <p>I do the grunt work on your own computer while you sleep: lists, descriptions, documents, spreadsheets, pictures and short videos. Free and private: your files never leave this PC. Setting me up needs the internet to download programs and models, and I ask before each one.</p>
       <p>Let's get me set up. It's a few short steps, and I ask before installing anything.</p>`;
   } else if (st.id === "pc") {
     h = `<pre class="out">${esc(wGpuLine(d))}</pre>`;

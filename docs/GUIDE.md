@@ -163,7 +163,8 @@ Setup > Voice & Talk > **Let Talk look things up online**. When it's on and you 
 something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
 other questions he can decide to search when he isn't sure. He answers in his own words and lists
 his **Sources** under the reply (click one to open it). Only the search words go online, never
-your files or chats, and overnight runs never go online.
+your files or chats, and overnight runs never go online. (Everything Joe uses the internet
+for is listed in the README under "When Joe uses the internet" and in Setup > Privacy.)
 
 - **With a free Ollama key** (make an account at ollama.com, then Settings > Keys, and paste it
   into **Ollama web search key**): searches the whole web.

@@ -455,6 +455,9 @@ body:not(.modern) button.primary:hover, body:not(.modern) button.primary:focus-v
 #saver-box { position: absolute; transition: left 3s ease, top 3s ease; text-align: center; color: var(--ph-dim); }
 .saver-name { font-size: 3em; letter-spacing: .2em; opacity: .5; color: var(--accent); }
 
+.netlist { margin: 2px 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 3px; color: var(--ph-dim); }
+.netlist b { color: var(--ph); font-weight: normal; }
+body.modern .netlist b { font-weight: 600; }
 /* ---------------- setup: side menu + one section at a time ---------------- */
 .panel.full > form.setup { display: grid; grid-template-columns: minmax(10em, 13em) minmax(0, 1fr); gap: 18px; overflow: hidden; min-height: 0; }
 .setnav { display: flex; flex-direction: column; gap: 2px; overflow: auto; min-height: 0; padding-right: 10px; border-right: 1px dashed var(--ph-dim); }
