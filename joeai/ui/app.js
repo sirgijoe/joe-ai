@@ -106,8 +106,10 @@ function watchVideoErrors(root) {
     v.replaceWith(box);
   }, { once: true }));
 }
+const EMPTY_JOBS = '<div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F4.</div>';
+const EMPTY_GALLERY = '<div class="dim">Pictures and videos Joe makes show up here as soon as each one is done.</div>';
 function renderGallery(m) {
-  if (!m.length) return;
+  if (!m.length) { $("#gallery").innerHTML = EMPTY_GALLERY; return; }
   const big = isVid(viewing)
     ? `<video class="gbig" src="${rawSrc(viewing)}" data-src-path="${esc(viewing)}" controls muted loop autoplay playsinline></video>`
     : `<img class="gbig" src="${rawSrc(viewing)}" alt="" data-open="${esc(viewing)}">`;
@@ -128,6 +130,7 @@ document.addEventListener("click", (ev) => {
   const t = ev.target.closest("[data-view]");
   if (t) { viewing = t.dataset.view; renderGallery((state && state.media) || []); }
 });
+let lastRunKey = "";
 async function poll() {
   try {
     state = await api("/api/state");
@@ -145,7 +148,9 @@ async function poll() {
 
   // jobs
   const jl = $("#joblist");
-  if (state.jobs.length) {
+  if (!state.jobs.length) { if (jl.dataset.empty !== "1") { jl.innerHTML = EMPTY_JOBS; jl.dataset.empty = "1"; } }
+  else {
+    jl.dataset.empty = "";
     jl.innerHTML = state.jobs.map((j) => {
       const mark = j.current && state.running ? '<span class="blink">►</span>' : j.status === "done" ? "√" : "·";
       const st = j.status.toUpperCase();
@@ -169,6 +174,7 @@ async function poll() {
     renderGallery(m);
   }
   // log
+  if (!state.log.length && lastLogLen) { $("#log").innerHTML = ""; lastLogLen = 0; }
   if (state.log.length !== lastLogLen || state.running) {
     const lg = $("#log");
     const atBottom = lg.scrollTop + lg.clientHeight >= lg.scrollHeight - 30;
@@ -207,6 +213,8 @@ async function poll() {
   } else if (lastFix === -1) lastFix = fr.n || 0;
   $("#busy") && ($("#busy").textContent = state.busy ? state.busy + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") + "…" : "");
   $("#f5label").textContent = state.running ? "Stop" : "Run";
+  const runKey = `${state.running}:${(state.finished || {}).n}:${state.chain}`;
+  if (runKey !== lastRunKey) { if (lastRunKey) loadChats(); lastRunKey = runKey; }   // runs show up in the chat list
   welcomeTick();
   comfortTick();
   $("#btn-run").innerHTML = state.running ? '[ STOP <span class="k">F5</span> ]' : '[ RUN <span class="k">F5</span> ]';
@@ -241,6 +249,7 @@ async function describeIt() {
     $("#plan").textContent = "";
     showPlan(r);
     $("#describe-msg").textContent = "Here's the plan. Change it, or press RUN IT.";
+    loadChats();
   } catch (e) { $("#describe-msg").textContent = e.message; }
   finally { describing = false; $("#btn-describe").disabled = false; }
 }
@@ -514,7 +523,7 @@ async function chatOpen(id) {
   talkStop();
   const r = await api("/api/chats/open", { id });
   if (!r.ok) { toast(r.error); return loadChats(); }
-  talkLog = r.chat.messages.map((m) => ({ who: m.who, text: m.text, mission: m.mission || "", sources: m.sources || [] }));
+  talkLog = r.chat.messages.map((m) => ({ ...m, mission: m.mission || "", sources: m.sources || [] }));
   renderTalk(); loadChats();
   $("#talk-in").focus();
 }
@@ -768,7 +777,11 @@ document.addEventListener("click", async (ev) => {
     if (act === "run") await runOrStop();
     if (act === "report") show("report");
     if (act === "talk-send") await talkSend();
-    if (act === "talk-clear") { talkStop(); if (current !== "talk") show("talk"); await api("/api/talk/clear", {}); talkLog = []; renderTalk(); loadChats(); $("#talk-in").focus(); }
+    if (act === "talk-clear") {
+      await freshStart();
+      toast("New chat: a fresh start. The last one is saved on the left.");
+      if (current === "talk") $("#talk-in").focus(); else if (current === "queue") $("#describe").focus();
+    }
     if (act === "chats-toggle") { chatsShown(document.body.classList.contains("nochats")); return; }
     if (act === "chats-delall") {
       confirmBox("Delete ALL saved chats, including this one? They can't be brought back.", async () => {
@@ -784,6 +797,7 @@ document.addEventListener("click", async (ev) => {
     if (act === "hear-story") await say(storyText(), true);
     if (act === "set-ptt") { settingKey = true; $("#ptt-key").value = "press a key…"; return; }
     if (act === "test-voice") { await saveSetup(); await say("Hi, I'm Joe. Humans can't say my real name, so Joe is fine.", true); }
+    if (b.dataset.topen !== undefined) { dirPath = b.dataset.topen; pendingSelect = ""; show("files"); return; }
     if (b.dataset.tmission !== undefined) { await importToBuilder(talkLog[+b.dataset.tmission].mission); show("builder"); return; }
     if (b.dataset.trun !== undefined) {
       const m = talkLog[+b.dataset.trun].mission;
@@ -1022,7 +1036,8 @@ function tick() {
 }
 (async () => {
   tick(); setInterval(tick, 10000);
-  try { const m = await api("/api/mission"); $("#mission").value = m.text || ""; if (m.text) refreshPlan(); } catch (e) {}
+  await new Promise((r) => setTimeout(r, 0));   // let the rest of this file load first
+  await freshStart();                          // every time Joe opens: a new chat, a clean screen
   await poll();
   setInterval(poll, 1000);
   // First thing on launch: make sure the tools are there. Ask before fixing anything.
@@ -1319,9 +1334,40 @@ async function voiceSettings() {
     talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = v.settings.ptt_key || "F6";
   } catch (e) {}
 }
+async function freshStart() {
+  talkStop();
+  let r = {};
+  try { r = await api("/api/session/new", {}); } catch (e) {}
+  talkLog = []; renderTalk();
+  $("#mission").value = ""; $("#plan").textContent = ""; $("#describe").value = ""; $("#describe-msg").textContent = "";
+  hidePlan();
+  if (!r.running) { $("#log").innerHTML = ""; lastLogLen = 0; lastMedia = ""; viewing = ""; $("#gallery").innerHTML = EMPTY_GALLERY; }
+  try { if (toolOpen) { toolOpen = null; toolFiles = []; if (toolCat) renderToolGrid(); } } catch (e) {}   // not loaded yet at start
+  loadChats();
+  return r;
+}
+function talkExtra(m, i) {            // plans, runs and results saved in the chat
+  if (m.kind === "plan" || m.kind === "run") {
+    const list = (m.summary || []).length ? `<ul class="tsum">${m.summary.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>` : "";
+    return list + `<details class="tmore"><summary>Mission</summary><pre class="mission">${esc(m.mission)}</pre></details>` +
+      `<button data-tmission="${i}">[ OPEN IN BUILDER ]</button> <button data-trun="${i}">[ ${m.kind === "run" ? "RUN AGAIN" : "RUN IT"} ]</button>`;
+  }
+  if (m.kind === "result") {
+    const rows = (m.tasks || []).map((t) => `<div class="trow ${esc(t.status)}"><span>${t.status === "done" ? "√" : "!"} ${esc(t.name)}</span>` +
+      `<span class="dim">${esc(t.status)} ${t.done}/${t.total}${t.flags ? " · " + t.flags + " to check" : ""}${t.note ? " · " + esc(t.note) : ""}</span>` +
+      (t.output ? `<button data-topen="${esc(t.output)}" title="${esc(t.output)}">[ OPEN ]</button>` : "") + `</div>`).join("");
+    const media = (m.media || []).map((p) => isVid(p)
+      ? `<video class="tth" src="${rawSrc(p)}#t=0.5" muted preload="metadata" data-open="${esc(p)}" title="${esc(p)}"></video>`
+      : `<img class="tth" src="${rawSrc(p)}" alt="" loading="lazy" data-open="${esc(p)}" title="${esc(p)}">`).join("");
+    return `<div class="tresult">${rows}</div>` + (media ? `<div class="tmedia">${media}</div>` : "") +
+      (m.report ? `<details class="tmore"><summary>Report</summary><pre class="mission">${esc(m.report)}</pre></details>` : "") +
+      ((m.log || []).length ? `<details class="tmore"><summary>Log (${m.log.length} lines)</summary><pre class="mission">${esc(m.log.join("\n"))}</pre></details>` : "");
+  }
+  return m.mission ? `<pre class="mission">${esc(m.mission)}</pre><button data-tmission="${i}">[ OPEN IN BUILDER ]</button> <button data-trun="${i}">[ RUN IT ]</button>` : "";
+}
 function renderTalk() {
-  $("#talk-log").innerHTML = talkLog.length ? talkLog.map((m, i) => `<div class="msg ${m.who}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
-    (m.mission ? `<pre class="mission">${esc(m.mission)}</pre><button data-tmission="${i}">[ OPEN IN BUILDER ]</button> <button data-trun="${i}">[ RUN IT ]</button>` : "") +
+  $("#talk-log").innerHTML = talkLog.length ? talkLog.map((m, i) => `<div class="msg ${m.who}${m.kind ? " k-" + m.kind : ""}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
+    talkExtra(m, i) +
     (m.sources && m.sources.length ? `<div class="sources">Sources: ${m.sources.map((s, k) =>
       `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}">[${k + 1}] ${esc(s.title)}</a>`).join(" ")}</div>` : "") + `</div>`).join("")
     : '<div class="dim">Joe: "What can I help you with?"</div>';

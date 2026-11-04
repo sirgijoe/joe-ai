@@ -1,5 +1,7 @@
-"""Past Talk chats: every time Joe opens (or NEW CHAT is pressed) a fresh chat starts, and
-each one is saved in Joe's own folder (Output/.joe/chats/) so it can be read again later.
+"""Chats: every time Joe opens (or NEW CHAT is pressed) a fresh chat starts, and each one is
+saved in Joe's own folder (Output/.joe/chats/) so it can be read again later. A chat holds
+the whole session: what was said in Talk, what was asked for on the Queue screen, the plan,
+each run that started, and its results (tasks, output folders, report and log).
 
 Chats can be deleted one at a time or all at once, and old ones are removed automatically
 after Setup > Voice & Talk > "Delete chats after (days)" (0 = keep them). Nothing leaves the PC.
@@ -25,16 +27,46 @@ class Chats:
         """Start fresh. Nothing is written until the first message, so empty chats leave no file."""
         self.current = None
 
-    def add(self, you: str, joe: str, mission: str = "", sources: list | None = None) -> None:
-        now = datetime.now()
+    def _ensure(self, title: str) -> dict:
+        """The chat being had right now, started (with this title) if there isn't one yet."""
         if self.current is None:
+            now = datetime.now()
             cid = now.strftime("%Y%m%d_%H%M%S")
             n = 2
             while (self.dir / f"{cid}.json").exists():
                 cid = now.strftime("%Y%m%d_%H%M%S") + f"_{n}"
                 n += 1
             self.current = {"id": cid, "started": now.isoformat(timespec="seconds"),
-                            "title": _title(you), "messages": []}
+                            "title": _title(title), "messages": []}
+        return self.current
+
+    def note(self, msg: dict, title: str = "") -> str:
+        """Add one entry (a request, a plan, a run, its results) to the chat being had now.
+        Returns the chat's id, so a run can report back to the chat it started in."""
+        now = datetime.now()
+        cur = self._ensure(title or msg.get("text", ""))
+        cur["messages"].append({**msg, "ts": now.isoformat(timespec="seconds")})
+        cur["updated"] = now.isoformat(timespec="milliseconds")
+        self._write(cur)
+        return cur["id"]
+
+    def note_to(self, cid: str, msg: dict) -> bool:
+        """Add an entry to a given chat (a run that finished after a NEW CHAT goes home)."""
+        if self.current and self.current["id"] == cid:
+            self.note(msg)
+            return True
+        d = self.get(cid)
+        if not d:
+            return False
+        now = datetime.now()
+        d["messages"].append({**msg, "ts": now.isoformat(timespec="seconds")})
+        d["updated"] = now.isoformat(timespec="milliseconds")
+        self._write(d)
+        return True
+
+    def add(self, you: str, joe: str, mission: str = "", sources: list | None = None) -> None:
+        now = datetime.now()
+        self._ensure(you)
         ts = now.isoformat(timespec="seconds")
         self.current["messages"].append({"who": "you", "text": you, "ts": ts})
         joe_msg = {"who": "joe", "text": joe, "ts": ts}

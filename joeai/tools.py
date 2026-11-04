@@ -457,7 +457,7 @@ def _finish(engine: "Engine", job: "Job", st: "JobState", total: int, failed: li
         st.note = "; ".join(failed)[:400]
     st.finished = datetime.now().isoformat(timespec="seconds")
     engine._save_state(job, st)
-    engine.log(f"Finished '{job.name}': {done} of {total} file(s)" + (f" ({st.note})" if failed else ""))
+    engine.log(f"Finished '{job.name}': {done} of {total} done" + (f" ({st.note})" if failed else ""))
     return st
 
 
@@ -696,7 +696,10 @@ def document_text(src: Path, log) -> str:
             raise ValueError("that file isn't plain text")
         return raw.decode("utf-8-sig", "replace").replace("\r\n", "\n")
     from .attach import extract
-    return extract(src, log, limit=DOC_LIMIT)["text"]
+    text = extract(src, log, limit=DOC_LIMIT)["text"]
+    if src.suffix.lower() == ".docx":                 # one Word paragraph per line -> a blank
+        text = re.sub(r"\n+", "\n\n", text)          # line between, so copies keep paragraphs
+    return text
 
 
 def _guess_words(f: Path) -> int:
@@ -2012,9 +2015,10 @@ weights, prices, brands or care instructions; if the writer would need one, writ
 Plain, warm, honest words. Reply with ONLY a JSON object, nothing else."""
 LISTING_ASK = """{wish}Write a listing for the product in this photo (file: {name}).
 JSON keys:
- "title": up to 70 characters,
+ "title": up to 70 characters, what the item is (no shop or maker names unless given above),
  "description": 2-4 sentences,
- "tags": up to 13 short search tags (a list),
+ "tags": up to 13 short tags a shopper would type to find it (the item, color, style, use;
+         not tone words like "warm" or "friendly"), as a list,
  "alt_text": one sentence describing the photo for people who can't see it."""
 LISTING_COLS = ["File", "Title", "Description", "Tags", "Alt text"]
 
@@ -2266,7 +2270,7 @@ def run_sort_photos(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
         engine.log(f"'{job.name}' {st.note}")
         return st
     st.media_files = ["photo-list.csv"]
-    st.note = (st.note + "; " if st.note else "") + f"{len(used)} categories: {', '.join(used[:12])}"
+    engine.log(f"  {len(used)} categories: {', '.join(used[:12])}")
     return _finish(engine, job, st, len(files), failed)
 
 
@@ -2276,12 +2280,15 @@ _EMBED_HINT = re.compile(r"embed|bge-|minilm|arctic-embed|e5-", re.I)
 ASK_CHUNK_WORDS = 220                 # words per searchable piece
 ASK_TOP = 8                           # pieces shown to the writing model per question
 ANSWER_SYSTEM = """You answer questions using ONLY the numbered excerpts from the person's own
-documents. Say which excerpts you used, like [2] or [1][4], right after the sentence. If the
+documents. Say which excerpts you used with their EXCERPT numbers, like [2] or [1][4], right
+after the sentence (never a section or page number from inside the text). If the
 excerpts don't answer the question, say plainly that the documents don't seem to say, and what
 they do say that comes closest. Never use outside knowledge, never guess numbers, dates or names.
 Plain, friendly English."""
-SUMMARY_SYSTEM = """You summarize one of the person's documents using only what it says. Never add
-outside facts. Plain, friendly English, Markdown bullet points where they help."""
+SUMMARY_SYSTEM = """You summarize one of the person's documents using only what it says. Every
+bullet must be something the document actually states. Never add outside facts, typical
+terms, or anything "usually" true. A short document gets only a few bullets. Plain, friendly
+English, Markdown bullet points."""
 _WORD = re.compile(r"[^\W_]+", re.U)
 _STOP = set("""a an and are as at be but by for from has have i if in into is it its of on or our
 so that the their them then there these they this to was we were what when where which who why
@@ -2421,6 +2428,52 @@ def _embed_all(engine: "Engine", model: str, texts: list[str]) -> list[list[floa
     return [cache[k] for k in keys]
 
 
+def tidy_citations(answer: str, n: int) -> tuple[str, list[int]]:
+    """Drop citations to excerpts that don't exist (like a section number), and say which
+    excerpts to list under the answer: the ones it cited, else the top three."""
+    cited: list[int] = []
+
+    def keep(m):
+        k = int(m.group(1))
+        if 1 <= k <= n:
+            if k - 1 not in cited:
+                cited.append(k - 1)
+            return m.group(0)
+        return ""
+    answer = re.sub(r"\[(\d+)\]", keep, answer)
+    answer = re.sub(r"[ \t]+([.,;:!?])", r"\1", answer)
+    answer = re.sub(r"[ \t]{2,}", " ", answer)
+    return answer.strip(), sorted(cited) or list(range(min(3, n)))
+
+
+def best_line(text: str, question: str, words: int = 45) -> str:
+    """The sentence in an excerpt that best fits the question, for the person to check."""
+    q = set(_terms(question))
+    sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+|\n+", text) if x.strip()]
+    if not sents:
+        return ""
+    best = max(sents, key=lambda x: len(q & set(_terms(x))))
+    ws = best.split()
+    return " ".join(ws[:words]) + ("\u2026" if len(ws) > words else "")
+
+
+def grounded(summary: str, source: str, need: float = 0.6) -> tuple[str, list[str]]:
+    """Keep the bullet points the document backs up. A bullet is dropped when most of its
+    words aren't in the document, or it has a number the document doesn't have."""
+    have = set(_terms(source))
+    nums = set(re.findall(r"\d+(?:[.,]\d+)?", source))
+    kept, dropped = [], []
+    for line in summary.splitlines():
+        if re.match(r"\s*[-*\u2022]\s+", line):
+            t = [w for w in _terms(line) if len(w) > 3]
+            bad_num = any(n not in nums for n in re.findall(r"\d+(?:[.,]\d+)?", line))
+            if bad_num or (len(t) >= 2 and sum(w in have for w in t) / len(t) < need):
+                dropped.append(re.sub(r"^\s*[-*\u2022]\s+", "", line).strip())
+                continue
+        kept.append(line)
+    return "\n".join(kept).strip(), dropped
+
+
 def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import PartFailed, Stopped
     from .mission import slug
@@ -2497,7 +2550,7 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 if not pick:
                     answer = "Joe couldn't find anything about this in your documents."
                 else:
-                    ex = "\n\n".join(f"[{k + 1}] ({chunks[i]['file']}, part {chunks[i]['n']})\n{chunks[i]['text']}"
+                    ex = "\n\n".join(f"EXCERPT [{k + 1}] ({chunks[i]['file']}, part {chunks[i]['n']})\n{chunks[i]['text']}"
                                      for k, i in enumerate(pick))
                     try:
                         r = engine._chat(job, qi, "ask-files", ANSWER_SYSTEM + (("\n" + job.rules.strip())
@@ -2507,9 +2560,10 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                     except PartFailed as e:
                         failed.append(f"question {qi + 1}: {e}"[:200])
                         continue
+                answer, shown = tidy_citations(answer, len(pick))
                 src_lines = "\n".join(
-                    f"- [{k + 1}] {chunks[i]['file']}, part {chunks[i]['n']}: “"
-                    + " ".join(chunks[i]["text"].split()[:30]) + "…”" for k, i in enumerate(pick))
+                    f"- [{k + 1}] {chunks[pick[k]]['file']}, part {chunks[pick[k]]['n']}: \u201c"
+                    + best_line(chunks[pick[k]]["text"], q) + "\u201d" for k in shown)
                 done_md += f"\n## {q}\n\n{answer}\n\n" + (f"**Excerpts used:**\n{src_lines}\n" if pick else "")
                 atomic_write_text(answers_p, done_md)
                 st.titles.append(f"Q: {q}")
@@ -2533,7 +2587,7 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 try:
                     if len(pieces) == 1:
                         body = engine._chat(job, di, "ask-summary", SUMMARY_SYSTEM,
-                                            f"Document: {name}\nWrite a short summary (3-8 bullet points), "
+                                            f"Document: {name}\nWrite a short summary: one bullet per fact it states, at most 8, "
                                             f"then one line: 'Worth knowing:' anything like dates, amounts or "
                                             f"deadlines.\n\nDOCUMENT:\n{pieces[0]}", st).text.strip()
                     else:
@@ -2543,11 +2597,16 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                                  for k, p in enumerate(pieces)]
                         body = engine._chat(job, di, "ask-summary", SUMMARY_SYSTEM,
                                             f"Document: {name}. These are notes on each piece, in order. Write "
-                                            "one short summary (3-8 bullet points), then 'Worth knowing:'.\n\n"
+                                            "one short summary (one bullet per fact, at most 8), then 'Worth knowing:'.\n\n"
                                             + "\n\n".join(notes), st).text.strip()
                 except PartFailed as e:
                     failed.append(f"{name}: summary skipped ({e})"[:200])
                     continue
+                body, dropped = grounded(body, text)
+                if dropped:
+                    engine.log(f"  {name}: left out {len(dropped)} line(s) the document doesn't say")
+                    body += ("\n\n*Joe left these out because the document doesn't say them "
+                             "(the model added them):*\n" + "\n".join(f"- ~~{d}~~" for d in dropped))
                 md += f"\n## {name}\n\n{body}\n"
                 atomic_write_text(sum_p, md)
                 st.titles.append(f"S: {name}")

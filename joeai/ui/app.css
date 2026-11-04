@@ -528,3 +528,14 @@ body.modern .tfdrop { border-color: var(--line); border-radius: var(--radius); b
 body.modern .tfdrop:hover, body.modern .tfdrop:focus-visible { border-color: var(--accent); }
 body.modern #tf-plan { border-top: 1px solid var(--line); }
 body:not(.modern) .tcard.soon:hover { background: none; color: var(--ph); }
+
+/* past chats: plans, runs and their results */
+.msg .tsum { margin: 4px 0 4px 1.2em; padding: 0; }
+.msg .tmore { margin: 4px 0; }
+.msg .tmore summary { cursor: pointer; color: var(--ph-dim); }
+.msg .tresult { margin: 6px 0; display: grid; gap: 3px; }
+.msg .trow { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; }
+.msg .trow > span:first-child { min-width: 14em; }
+.msg .trow.failed > span:first-child, .msg .trow.partial > span:first-child { color: var(--warn, #e0a030); }
+.msg .tmedia { display: flex; flex-wrap: wrap; gap: 6px; margin: 6px 0; }
+.msg .tth { width: 120px; height: 90px; object-fit: cover; cursor: pointer; border: 1px solid var(--ph-dim); border-radius: 4px; background: #000; }

@@ -62,6 +62,9 @@ class App:
         self.token = secrets.token_urlsafe(24)
         self.lock = threading.RLock()
         self.logs: collections.deque[str] = collections.deque(maxlen=400)
+        self.log_count = 0                   # lines logged since Joe started (never goes down)
+        self.log_from = 0                    # the Queue screen shows lines from here (this chat)
+        self.capture: list[str] | None = None   # the running mission's log, saved into its chat
         self.engine: Engine | None = None
         self.thread: threading.Thread | None = None
         self.stop = threading.Event()
@@ -100,6 +103,10 @@ class App:
     # -- helpers ---------------------------------------------------------------
     def log(self, line: str) -> None:
         self.logs.append(line)
+        self.log_count += 1
+        cap = self.capture
+        if cap is not None and len(cap) < 5000:
+            cap.append(line)
 
     @property
     def running(self) -> bool:
@@ -290,6 +297,11 @@ class App:
         with self.lock:
             entry = {"file": self._save_mission_file(text), "label": self._label(mission),
                      "tasks": [j.name for j in mission.jobs], "unfinished": [j.name for j in mission.jobs]}
+            from . import describe as describe_mod
+            entry["chat"] = self.note_chat(
+                {"who": "joe", "kind": "run", "mission": text,
+                 "text": ("Queued: " if self.running else "Started: ") + entry["label"],
+                 "summary": describe_mod.plain_summary(chk)}, title=entry["label"])
             (self.sb.missions / "_last_mission.txt").write_text(text, encoding="utf-8")
             if self.running:
                 self.queue.append((text, mission, entry))
@@ -328,11 +340,16 @@ class App:
                 self.engine = Engine(self.settings, self.sb, services=self.services,
                                      log=self.log, stop=self.stop, voice=self.tool_voice)
                 last = not self.queue
+            self.capture = []
             try:
                 states = self.engine.run_mission(mission, earlier=self.chain, finish=False)
             except Exception as e:
                 self.log(f"!! Run crashed: {e!r}")
+                self.run_result(entry, list(self.engine.live), self.capture or [])
+                self.capture = None
                 break
+            lines, self.capture = self.capture or [], None
+            self.run_result(entry, states, lines)
             self.chain.append((mission, states))
             entry["unfinished"] = [s.name for s in states if s.status != "done"]
             self._write_last_run()
@@ -464,6 +481,68 @@ class App:
                 "inbox": names(self.sb.inbox, (".txt", ".md", ".csv", ".json")),
                 "image_models": imgs}
 
+    def session_log(self, n: int = 120) -> list[str]:
+        """The Queue screen's log: only what happened in this chat (a fresh chat starts empty)."""
+        mine = max(0, min(len(self.logs), self.log_count - self.log_from))
+        return list(self.logs)[len(self.logs) - mine:][-n:] if mine else []
+
+    def new_session(self) -> dict:
+        """A complete fresh start (Joe opening, or NEW CHAT): a new chat, an empty Queue screen.
+        Work that's still running stays on screen; it reports back to the chat it started in."""
+        with self.lock:
+            self.new_chat()
+            self.mission_text = ""
+            if self.running:
+                return {"ok": True, "running": True}
+            self.engine = None
+            self.chain = []
+            self.run_log = []
+            self.log_from = self.log_count
+        return {"ok": True, "running": False}
+
+    def note_chat(self, msg: dict, title: str = "") -> str:
+        try:
+            return self.chats.note(msg, title)
+        except OSError as e:
+            self.log(f"Couldn't save this to the chat: {e}")
+            return ""
+
+    MEDIA_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".mp4", ".webm", ".mov")
+
+    def media_of(self, states: list) -> list[str]:
+        """Pictures and videos a run made, as Output/... paths. Media tasks list files from
+        Output; tools list names inside their own folder."""
+        out = []
+        for st in states:
+            for m in st.media_files:
+                if not m.lower().endswith(self.MEDIA_EXT):
+                    continue
+                p = f"Output/{m}" if (self.sb.output / m).exists() or not st.output else f"Output/{st.output}/{m}"
+                if p not in out:
+                    out.append(p)
+        return out
+
+    def run_result(self, entry: dict, states: list, lines: list[str]) -> None:
+        """When a mission ends: what happened, where the files are, the report and the log,
+        saved into the chat the run started in."""
+        if not entry.get("chat"):
+            return
+        tasks = [{"name": s.name, "status": s.status, "done": s.parts_done, "total": s.parts_total,
+                  "output": ("Output/" + s.output) if s.output else "", "note": s.note,
+                  "flags": len(s.flags)} for s in states]
+        ok = sum(1 for t in tasks if t["status"] == "done")
+        try:
+            report = (self.sb.output / "_REPORT.md").read_text(encoding="utf-8")[:20000]
+        except OSError:
+            report = ""
+        msg = {"who": "joe", "kind": "result",
+               "text": f"Finished {entry['label']}: {ok} of {len(tasks)} task(s) done.",
+               "tasks": tasks, "media": self.media_of(states)[:200], "report": report, "log": lines[-2000:]}
+        try:
+            self.chats.note_to(entry["chat"], msg)
+        except OSError as e:
+            self.log(f"Couldn't save the results to the chat: {e}")
+
     def state(self) -> dict:
         eng = self.engine
         jobs = []
@@ -478,11 +557,9 @@ class App:
                              "images_done": s.images_done})
         media = []                                   # newest pictures/videos from this run
         if eng:
-            for st in eng.live:
-                media += [f"Output/{m}" for m in st.media_files]
+            media += self.media_of(eng.live)
         for _, states in self.chain:
-            for st in states:
-                media += [f"Output/{m}" for m in st.media_files if f"Output/{m}" not in media]
+            media += [m for m in self.media_of(states) if m not in media]
         eta = None
         if self.running and eng:
             done = sum(j["parts_done"] for j in jobs) - self.parts_at_start
@@ -494,7 +571,7 @@ class App:
         s = self.settings
         return {"version": __version__, "running": self.running,
                 "stopping": self.running and self.stop.is_set(),
-                "jobs": jobs, "eta_s": eta, "log": list(self.logs)[-120:],
+                "jobs": jobs, "eta_s": eta, "log": self.session_log(),
                 "services": self.services_status, "workspace": str(self.sb.root),
                 "model": (getattr(eng, "text_model", "") if eng else "") or s.ollama.text_model or "auto",
                 "ui": asdict(s.ui),
@@ -1210,7 +1287,15 @@ def make_handler(app: App):
                     return self._json(app.speed_test())
                 if u.path == "/api/describe":          # plain words in, a mission + summary out
                     from . import describe as describe_mod
-                    return self._json(describe_mod.draft(app, b.get("text", "")))
+                    r = describe_mod.draft(app, b.get("text", ""))
+                    if r.get("ok"):                  # the request and the plan go in this chat
+                        ask = str(b.get("text", "")).strip()[:4000]
+                        app.note_chat({"who": "you", "text": ask})
+                        app.note_chat({"who": "joe", "kind": "plan", "text": "Here's the plan (" + r["time"] + "):",
+                                       "summary": r["summary"], "mission": r["mission"]})
+                    return self._json(r)
+                if u.path == "/api/session/new":       # Joe opened, or NEW CHAT: a fresh start
+                    return self._json(app.new_session())
                 if u.path == "/api/summary":           # plain-English summary of any mission
                     from . import describe as describe_mod
                     chk = app.check(b.get("text", ""))

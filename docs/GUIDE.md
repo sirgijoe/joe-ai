@@ -292,9 +292,13 @@ READ IT TO ME; the About page has HEAR JOE TELL IT.
 
 Your chats are listed on the left of every screen, newest first (Today, Yesterday, Previous
 7 days...). Hide the list with **«** or the **☰** button at the top left; Joe remembers your choice.
-Clicking a chat (or **+ NEW CHAT**) takes you to Talk.
-Every time Joe opens you get a fresh chat; **+ NEW CHAT** starts another. Click an old chat to
-read it and carry on where you left off (Joe remembers what was said in it). The **✕** next to a
+A chat is a whole session, not just Talk: what you asked for on the Queue screen, Joe's plan,
+each run that started (with its mission), and when it ends the results (every task, an
+**OPEN** button for its folder, the pictures and videos it made, the report and the log).
+Every time Joe opens you get a fresh chat and a clean screen; **+ NEW CHAT** does the same at
+any time. A run that's still going stays on screen, and its results go into the chat it
+started in. Click an old chat to read it (it opens on Talk), carry on where you left off (Joe
+remembers what was said in it), or **RUN AGAIN** / **OPEN IN BUILDER** a mission from it. The **✕** next to a
 chat deletes it, **DELETE ALL** clears the list, and the search box finds a chat by its words.
 Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than Setup > Voice & Talk >
 **Delete chats after (days)** are removed on their own (default 30; 0 keeps them). Nothing

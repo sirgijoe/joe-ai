@@ -147,8 +147,8 @@ class FakeOllama:
             if sysmsg.startswith("You answer questions using ONLY the numbered excerpts"):
                 ex = user.split("EXCERPTS:", 1)[1]
                 q = user.split("QUESTION:", 1)[1].split("\n", 1)[0].lower()
-                for block in re.split(r"\n\n(?=\[\d+\] \()", ex.strip()):
-                    n = re.match(r"\[(\d+)\]", block).group(1)
+                for block in re.split(r"\n\n(?=EXCERPT \[\d+\] \()", ex.strip()):
+                    n = re.match(r"EXCERPT \[(\d+)\]", block).group(1)
                     hit = re.search(r"(refunds[^.]*\.)", block, re.I) if "refund" in q else None
                     if hit:
                         return 200, self._reply(f"The documents say: {hit.group(1)} [{n}]")

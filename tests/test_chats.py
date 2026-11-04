@@ -135,3 +135,50 @@ def test_intro_screen_can_be_turned_off(env):  # noqa: F811
             assert r.headers["Content-Type"] == "audio/wav" and body[:4] == b"RIFF" and len(body) < 400_000
     finally:
         httpd.shutdown()
+
+
+def test_a_chat_holds_the_whole_session(env):  # noqa: F811
+    """Plans, runs, results and the run's log go in the chat; a new chat is a fresh start,
+    and a run that finishes after NEW CHAT still reports to the chat it started in."""
+    from joeai.server import App
+    s, sb, _ = env
+    app = App(s)
+    app.log("old line from before")
+    assert app.new_session() == {"ok": True, "running": False}
+    assert app.state()["log"] == [] and app.state()["jobs"] == []          # a clean screen
+    from joeai import describe
+    r = describe.draft(app, "write 5 tips about glazing")
+    assert r["ok"], r
+    app.note_chat({"who": "you", "text": "write 5 tips about glazing"})
+    app.note_chat({"who": "joe", "kind": "plan", "text": "Here's the plan:", "summary": r["summary"],
+                   "mission": r["mission"]})
+    q = app.enqueue("TASK: Tips  CHUNKS: 1 x 2")
+    assert q["ok"]
+    first = app.chats.current["id"]
+    app.new_session()                                                     # NEW CHAT while it runs
+    app.thread.join(60)
+    d = app.chats.get(first)
+    kinds = [m.get("kind", "") for m in d["messages"]]
+    assert kinds == ["", "plan", "run", "result"], kinds
+    res = d["messages"][-1]
+    assert res["tasks"][0]["status"] == "done" and res["tasks"][0]["output"].startswith("Output/")
+    assert any("Finished" in ln for ln in res["log"]) and res["report"].startswith("# Joe report")
+    assert d["title"].startswith("write 5 tips")
+    app.new_session()                                                     # after it finished
+    assert app.state()["log"] == [] and app.state()["jobs"] == [] and app.state()["media"] == []
+    assert len(app.chats.list()) == 1                                     # empty chats leave no file
+
+
+def test_session_pictures_go_in_the_chat(env, tmp_path):  # noqa: F811
+    """Pictures a tool made (inside its own folder) are listed in the run's chat with full paths."""
+    from types import SimpleNamespace
+    from joeai.server import App
+    s, sb, _ = env
+    app = App(s)
+    (sb.output / "shop" ).mkdir(parents=True)
+    (sb.output / "shop" / "mug.webp").write_bytes(b"x")
+    (sb.output / "pics").mkdir()
+    (sb.output / "pics" / "001_a.png").write_bytes(b"x")
+    tool = SimpleNamespace(media_files=["mug.webp", "listings.csv"], output="shop")
+    media = SimpleNamespace(media_files=["pics/001_a.png"], output="pics")
+    assert app.media_of([tool, media]) == ["Output/shop/mug.webp", "Output/pics/001_a.png"]
