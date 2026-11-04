@@ -35,7 +35,7 @@ Time estimates learn from your own runs; until then they're marked as a rough gu
 SPEED (in the setup helper or Setup > System check) times one small batch to get them right at once. The mission text itself is under
 **ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
 
-## Building it step by step (F4)
+## Building it step by step (F6)
 
 The Builder makes the mission for you with simple forms:
 
@@ -59,8 +59,19 @@ The Builder makes the mission for you with simple forms:
 ## First start, tabs and looks
 
 The first time Joe opens, a setup helper walks through it one step at a time: your graphics card
-in plain words, the writing model (the only must-have), pictures, talking, extras, and a look.
-Each **YES** installs just that one thing. Reopen it any time: Setup (F10) > System check > **SETUP HELPER**.
+in plain words, then **Pick**: a checklist of everything Joe could install, grouped (Writing,
+Pictures, Talking, Extras), each with its size, and a running total. Small and needed things start
+ticked; big downloads (the picture editor, video, music) start unticked, and picture programs are
+pre-ticked only on a strong graphics card. **INSTALL WHAT'S TICKED** installs them one after
+another; more choices appear once Ollama and ComfyUI are in. The later steps (writing, pictures,
+talking, extras) still explain each piece with its own **YES**, and the last one picks a look.
+Reopen it any time: Setup (F10) > System check > **SETUP HELPER**.
+
+**The top bar**, left to right: making things (Queue F2, Tools F3, Talk F4, Builder F6), seeing
+results (Files F7, Report F8, Stats F9), then Setup F10 and Help F1 (ABOUT JOE is at the bottom of
+Help). On the right: **RUN/STOP** (F5) and the **TOOLS n/15** badge. Hover the badge to see every
+tool with √ (ready) or × and what it still needs; click it for System check. Ollama and ComfyUI
+keep their up/down lights in the status bar.
 
 Joe finds the programs he works with on his own: ComfyUI Desktop (old and new program names),
 a portable ComfyUI (`run_nvidia_gpu.bat`) or your own install with a `venv`, ComfyUI's models
@@ -140,7 +151,7 @@ so after changing a level the first estimate may be off.
   line when a run is done ("Joe is done: 3 of 3 tasks done, 48 items."), nothing from your files.
   It's the only thing Joe ever sends off your PC, and only when you turn it on.
 
-## Tools (F7)
+## Tools (F3)
 
 Ready-made jobs for your own files. Each card opens a short form: drop your files on it (or click
 to pick them), tick the extras you want, give it a name if you like, and press **RUN IT** (it
@@ -331,9 +342,9 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   and businesses under US$1 million revenue a year), up to about 47 seconds. `length 10|30|60|120|180`.
   Saved as MP3.
 
-## Talking to Joe (F6)
+## Talking to Joe (F4)
 
-Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
+Press **F4** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
 just talk, and when you pause Joe hears it and answers. He doesn't listen while he's speaking,
 and the mic closes when you leave Talk. Prefer push-to-talk? Setup > Voice & Talk > How to talk >
 Push-to-talk, then SET KEY and press any key; hold it anywhere in Joe to talk. Typing works without any setup. For voice, run F10 > System check > "Joe's voice"
@@ -412,7 +423,7 @@ System check offers one that fits your graphics card.
 ## Finished documents (EXPORT)
 
 `EXPORT: docx, pdf, epub` on a writing task makes finished copies next to the .md when it's
-done (also `odt`, `html`). In F3, P makes Word + PDF copies of any .md file. Needs Pandoc
+done (also `odt`, `html`). In F7, P makes Word + PDF copies of any .md file. Needs Pandoc
 (System check installs it); PDFs are printed by Microsoft Edge, so no LaTeX is needed.
 
 
@@ -481,9 +492,9 @@ turned into MP4 with FFmpeg (`FPS: 16`).
 Each folder gets `_prompts.md` and `_media.json` (prompt, seed, model, review marks).
 These are AI pictures: never present them as photos of real products.
 
-## Storage (F8)
+## Storage (F9)
 
-F8 shows how much room each folder takes, the disk's free space, and four CLEAN buttons
+F9 shows how much room each folder takes, the disk's free space, and four CLEAN buttons
 (each asks first and moves files to the Recycle Bin): pictures you marked X, old `_v2`/`_v3`
 versions (the newest is kept, and picture folders with a K or S mark are never touched),
 reports older than 30 days, and leftover ComfyUI copies. Logs trim themselves at 2 MB.
@@ -505,10 +516,14 @@ Double-click again to check on it. F1 shows all keys.
 |---|---|
 | F1 | Help |
 | F2 | Queue: mission box, progress, log (R = morning report, C there copies it) |
-| F3 | Files: arrows, Enter, Backspace; O = Explorer, E = Notepad, C = copy path; T = thumbnails, K/X/S = keep/reject/star, M = make MP4 |
+| F3 | Tools: ready-made jobs for your own files, pictures, sound and video |
+| F4 | Talk: talk or type to Joe, drop a file to ask about it |
+| F6 | Builder: make a plan with simple forms |
+| F7 | Files: arrows, Enter, Backspace; O = Explorer, E = Notepad, C = copy path; T = thumbnails, K/X/S = keep/reject/star, M = make MP4 |
 | F5 | Run / stop |
-| F8 | Stats and storage: space used, clean-up buttons |
-| F9 | About Joe and the license |
+| F8 | Report: what finished and what needs a look |
+| F9 | Stats and storage: space used, clean-up buttons |
+| (Help) | ABOUT JOE: the story, privacy and license |
 | F10 | Setup: a side menu with System check, General, Writing, Images & video, Voice & Talk, Display & sound, Privacy, Stats & costs, plus a find box |
 
 The status bar shows the GPU live: temperature, load, memory, power and fan. It flashes

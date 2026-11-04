@@ -18,14 +18,15 @@ async function api(path, body) {
 }
 
 /* ---------------- screens ---------------- */
-const SCREENS = { F1: "help", F2: "queue", F3: "files", F4: "builder", F6: "talk", F7: "tools", F8: "stats", F9: "about", F10: "setup" };
+// Left to right on the tab bar: make (F2-F4, F6), see results (F7-F9), set up (F10), help (F1).
+const SCREENS = { F1: "help", F2: "queue", F3: "tools", F4: "talk", F6: "builder", F7: "files", F8: "report", F9: "stats", F10: "setup" };
 let current = "queue";
 function show(name, page) {
   current = name;
   if (name === "setup" && page && typeof setupPage === "function") setupPage(page);
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "s-" + name));
   $("#title-screen").textContent = name.toUpperCase();
-  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (SCREENS[b.dataset.key] || (b.dataset.key === "R" && "report")) === name));
+  document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (SCREENS[b.dataset.key] || "") === name || (name === "about" && b.dataset.key === "F1")));
   if (name === "files") loadDir(dirPath, true);
   if (name === "stats") { loadStats(); loadStorage(); }
   if (name === "setup") loadSetup();
@@ -98,7 +99,7 @@ const playerUrl = (p) => "/player?t=" + encodeURIComponent(TOKEN) + "&path=" + e
 function mediaButtons(p) {
   return `<div class="gbtns"><button type="button" data-window="${esc(p)}" title="Open it big in its own window.">[ BIG WINDOW ]</button>` +
     `<button type="button" data-system="${esc(p)}" title="Open it in your usual picture or video program.">[ OPEN IN PLAYER ]</button>` +
-    `<button type="button" data-open="${esc(p)}" title="Find it in Files (F3) to see how it was made, keep or reject it.">[ DETAILS F3 ]</button></div>`;
+    `<button type="button" data-open="${esc(p)}" title="Find it in Files (F7) to see how it was made, keep or reject it.">[ DETAILS F7 ]</button></div>`;
 }
 // When the browser can't play a format (e.g. HEVC .mp4, .mkv), say so and offer the PC's player.
 function watchVideoErrors(root) {
@@ -109,7 +110,7 @@ function watchVideoErrors(root) {
     v.replaceWith(box);
   }, { once: true }));
 }
-const EMPTY_JOBS = '<div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F4.</div>';
+const EMPTY_JOBS = '<div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F6.</div>';
 const EMPTY_GALLERY = '<div class="dim">Pictures and videos Joe makes show up here as soon as each one is done.</div>';
 function renderGallery(m) {
   if (!m.length) { $("#gallery").innerHTML = EMPTY_GALLERY; return; }
@@ -142,6 +143,8 @@ async function poll() {
     if (++fails === 3) $("#status").innerHTML = "&nbsp;CONNECTION LOST — close this window and start Joe again";
     return;
   }
+  const rb = $("#runbtn");
+  if (rb) { rb.firstChild.textContent = state.running ? "STOP" : "RUN"; rb.classList.toggle("going", !!state.running); }
   const uiKey = JSON.stringify([state.ui, state.theme]);
   if (uiKey !== lastUI) {
     applyUI(state.ui, state.theme); lastUI = uiKey;
@@ -305,7 +308,7 @@ $("#mission").addEventListener("input", () => {
 
 /* ---------------- files ---------------- */
 let dirPath = "", entries = [], sel = 0, grid = false, dirAI = false, pendingSelect = "";
-function openInFiles(p) {                     // jump to a file in F3 and select it
+function openInFiles(p) {                     // jump to a file in F7 and select it
   const parts = p.split("/");
   pendingSelect = parts.pop();
   dirPath = parts.join("/");
@@ -459,7 +462,7 @@ async function loadStats() {
     (Object.keys(s.models).length ? `<div class="stat"><div class="l">models used</div><pre class="out">${esc(Object.entries(s.models).map(([m, c]) => `${m}  ${c} calls`).join("\n"))}</pre></div>` : "");
 }
 
-/* ---------------- storage (F8) ---------------- */
+/* ---------------- storage (F9) ---------------- */
 function fmtBytes(b) {
   const u = ["B", "KB", "MB", "GB", "TB"]; let i = 0; b = Number(b) || 0;
   while (b >= 1024 && i < u.length - 1) { b /= 1024; i++; }
@@ -671,7 +674,7 @@ async function loadSetup() {
   loadDoctor(); showPerms();
   try {
     const v = await api("/api/voice/status");
-    voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = v.settings.ptt_key || "F6";
+    voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
     $("#voice-select").innerHTML = Object.entries(v.voices).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
   } catch (e) {}
   setTimeout(loadMyVoice, 0);
@@ -844,6 +847,7 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (act === "welcome") { await loadThemes().catch(() => {}); welcomeOpen(); return; }
+    if (act === "about") { show("about"); return; }
     if (act === "help-file") {
       $("#setup-msg").textContent = "Making the help file…";
       try { const r = await api("/api/help-file", {}); $("#setup-msg").textContent = `Saved ${r.path} in Output (the folder opens). Look inside before you send it.`; }
@@ -907,7 +911,7 @@ function handleKey(key) {
   return false;
 }
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "F6") { ev.preventDefault(); if (!ev.repeat && $("#welcome").hidden) f6Down(); return; }
+  if (ev.key === "F4") { ev.preventDefault(); if (!ev.repeat && $("#welcome").hidden) f6Down(); return; }
   if (!$("#confirm").hidden) {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
@@ -1067,14 +1071,14 @@ function tick() {
     if (o.offer) {
       confirmBox(`The last run didn't finish: ${o.tasks} task(s) left` +
         (o.names.length ? `\n  ${o.names.join("\n  ")}` : "") +
-        `\n\nY = resume where it stopped    N = start fresh (it stays in F4 > History)`,
+        `\n\nY = resume where it stopped    N = start fresh (it stays in F6 > History)`,
         async () => { const r = await api("/api/resume", { action: "resume" }); toast(r.ok ? "Resuming" : r.error); },
         async () => { await api("/api/resume", { action: "fresh" }); });
     }
   } catch (e) {}
 })();
 
-/* ---------------- builder (F4): missions without typing keys ---------------- */
+/* ---------------- builder (F6): missions without typing keys ---------------- */
 const KINDS = { list: "A list of things (posts, descriptions, emails…)", doc: "A document, section by section",
   sheet: "A spreadsheet (a table)", image: "Pictures", video: "Short video clips" };
 const KIND_SHORT = { list: "list", doc: "document", sheet: "spreadsheet", image: "pictures", video: "video" };
@@ -1322,7 +1326,7 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "ArrowUp" && B.sel > 0) { B.sel--; renderTasks(); renderForm(); ev.preventDefault(); }
 });
 
-/* ---------------- talk + voice (F6) ---------------- */
+/* ---------------- talk + voice (F4) ---------------- */
 let speakReplies = true;
 let voiceReady = false, talkLog = [], audioEl = null, rec = null, recStart = 0, f6Timer = null;
 async function loadTalk() {
@@ -1341,7 +1345,7 @@ async function voiceSettings() {
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; speakReplies = v.settings.speak_replies;
-    talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = v.settings.ptt_key || "F6";
+    talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
   } catch (e) {}
 }
 async function freshStart() {
@@ -1559,7 +1563,7 @@ function storyText() {
 // Talking. "open" (default): while the Talk screen is up the mic listens; each time you
 // speak and pause, Joe hears it. He doesn't listen while he's talking or thinking, and the
 // mic closes when you leave Talk or press MIC OFF. "push": hold your chosen key anywhere.
-let talkMode = "open", pttKey = "F6", micMuted = false, micStream = null, micCtx = null, micLoop = null;
+let talkMode = "open", pttKey = "F4", micMuted = false, micStream = null, micCtx = null, micLoop = null;
 let busyTalking = false, settingKey = false, micGen = 0;
 const keyName = (k) => (k || "").replace(/^Key|^Digit/, "");
 function pttLabel() {
@@ -1679,7 +1683,7 @@ window.addEventListener("keydown", (ev) => {
   }
 }, true);
 window.addEventListener("keyup", (ev) => { if (isPtt(ev)) { ev.preventDefault(); recStopFn(); } }, true);
-function f6Down() { show("talk"); }                 // F6 opens Talk (open mic starts there)
+function f6Down() { show("talk"); }                 // F4 opens Talk (open mic starts there)
 $("#ptt").addEventListener("mousedown", (ev) => {
   ev.preventDefault();
   if (!voiceReady) { show("setup", "system"); toast("Press SET UP next to \"Joe's voice\" in the System check"); return; }
@@ -1844,10 +1848,11 @@ setTimeout(() => checkUpdate(false), 8000);
 const W_STEPS = [
   { id: "hello", name: "Hello" },
   { id: "pc", name: "Your PC" },
+  { id: "pick", name: "Pick" },
   { id: "writing", name: "Writing", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"], need: true },
-  { id: "pictures", name: "Pictures", ids: ["install-comfyui", "get-image-model", "get-video-model", "get-video-turbo"] },
+  { id: "pictures", name: "Pictures", ids: ["install-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg", "pull-embed"] },
+  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg", "pull-embed", "pack-music", "pack-sfx"] },
   { id: "look", name: "Look" },
   { id: "done", name: "Ready" },
 ];
@@ -1869,7 +1874,62 @@ const W_TEXT = {
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
 };
-let W = { open: false, i: 0, d: null, busyWas: "", asked: {} };
+let W = { open: false, i: 0, d: null, busyWas: "", asked: {}, pick: null, queue: [] };
+// The checklist: everything Joe could install, grouped, with sizes. Small and needed things
+// start ticked; big downloads (picture editor, video, music) start unticked. Nothing is
+// installed until the person presses INSTALL WHAT'S TICKED.
+const W_SMALL = ["install-voice", "install-ffmpeg", "install-pandoc", "pull-vision", "pull-embed",
+  "pull-talk-model", "pack-bg", "pack-upscale", "get-video-turbo"];
+function wSizeGB(it) {
+  const m = /(?:about |under )?(\d+(?:\.\d+)?)\s*(GB|MB)/i.exec((it.what || "") + " " + it.text);
+  return m ? (m[2].toUpperCase() === "MB" ? +m[1] / 1024 : +m[1]) : 0;
+}
+function wDefaultTick(it, d) {
+  if (!it.optional) return true;
+  const strongCard = d && d.gpu && d.vendor === "nvidia" && d.vram_gb >= 8;
+  if (W_SMALL.includes(it.id)) return true;
+  if (["install-comfyui", "get-image-model"].includes(it.id)) return !!strongCard;
+  return false;
+}
+function wPickList() {
+  const d = W.d; if (!d) return '<div class="blink">Checking…</div>';
+  W.pick = W.pick || {};
+  d.issues.forEach((it) => { if (!(it.id in W.pick)) W.pick[it.id] = wDefaultTick(it, d); });   // new choices appear after installs
+  const groups = W_STEPS.filter((s) => s.ids);
+  const seen = new Set();
+  let h = "<p>Tick what you want. Nothing downloads until you press the button, and you can add or remove things later in Setup (F10) > System check.</p>";
+  if (d.issues.some((it) => it.id === "install-ollama" || it.id === "install-comfyui"))
+    h += '<p class="dim small">More choices (writing, picture, music models) show up here once Ollama and ComfyUI are installed.</p>';
+  groups.forEach((g) => {
+    const its = d.issues.filter((it) => g.ids.includes(it.id));
+    its.forEach((it) => seen.add(it.id));
+    if (!its.length) return;
+    h += `<div class="wgroup"><b>${esc(g.name)}</b>` + its.map((it) => {
+      const gb = wSizeGB(it), size = gb ? (gb >= 1 ? `${gb.toFixed(gb < 10 ? 1 : 0)} GB` : `${Math.round(gb * 1024)} MB`) : "";
+      return `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}${!it.optional ? " disabled" : ""}> ${esc(it.text)}${size ? ` <span class="dim">(${size})</span>` : ""}</label>`;
+    }).join("") + "</div>";
+  });
+  const rest = d.issues.filter((it) => !seen.has(it.id));
+  if (rest.length) h += `<div class="wgroup"><b>Other</b>` + rest.map((it) => `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}> ${esc(it.text)}</label>`).join("") + "</div>";
+  const picked = d.issues.filter((it) => W.pick[it.id]);
+  const total = picked.reduce((a, it) => a + wSizeGB(it), 0);
+  h += `<p class="bright">You picked ${picked.length} thing(s), about ${total >= 1 ? total.toFixed(0) + " GB" : Math.round(total * 1024) + " MB"} to download.</p>`;
+  if (W.queue.length || (state && state.busy)) h += `<div class="blink">Installing${state && state.busy ? ": " + esc(state.busy) + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") : "…"} (${W.queue.length} more after this)</div>`;
+  else h += picked.length ? `<button data-wpickgo="1">[ INSTALL WHAT'S TICKED ]</button>` : "";
+  return h;
+}
+async function wPickNext() {
+  if (!W.queue.length || (state && state.busy)) return;
+  const id = W.queue.shift();
+  const it = W.d && W.d.issues.find((x) => x.id === id);
+  if (!it) { wPickNext(); return; }
+  try {
+    const r = await api("/api/doctor/fix", { ...it, approved: true });
+    if (!r.ok) toast(r.error);
+    if (!r.started) { await wCheck(); wPickNext(); }
+  } catch (e) { toast(e.message); }
+  wRender();
+}
 function welcomeOpen(at = 0) {
   W.open = true; W.i = at; W.asked = {};
   $("#welcome").hidden = false;
@@ -1930,12 +1990,14 @@ function wRender() {
     else if (!left.length) {
       const ok = { writing: `√ Ready. Joe writes with ${d.ollama.best || d.ollama.configured}.`,
         pictures: d.comfyui.installed ? `√ Ready. Pictures: ${d.comfyui.best_image || "ComfyUI found"}${d.comfyui.best_video ? "; video: " + d.comfyui.best_video : ""}.` : "√ Nothing to do here.",
-        talk: d.voice ? "√ Ready. Press F6 any time to talk to Joe." : "√ Nothing to do here.",
+        talk: d.voice ? "√ Ready. Press F4 any time to talk to Joe." : "√ Nothing to do here.",
         extras: "√ All set." }[st.id];
       h += `<div class="bright">${esc(ok)}</div>`;
       if (st.id === "writing") h += `<div class="witem"><div>How fast is this PC? One quick test (about half a minute) makes Joe's time estimates fit your computer.</div>` +
         (W.speed ? `<div class="bright">${esc(W.speed)}</div>` : `<button data-wspeed="1"${W.speeding ? " disabled" : ""}>[ ${W.speeding ? "TESTING…" : "TEST MY SPEED"} ]</button>`) + `</div>`;
     } else h += left.map(wItem).join("");
+  } else if (st.id === "pick") {
+    h = wPickList();
   } else if (st.id === "look") {
     const opts = [...$("#theme-select").options].map((o) => [o.value, o.textContent]);
     const cur = state ? state.ui.phosphor : "";
@@ -1943,7 +2005,7 @@ function wRender() {
       opts.map(([v, n]) => `<button data-wlook="${esc(v)}" class="${v === cur ? "on" : ""}">[ ${esc(n)} ]</button>`).join("") + "</div>";
   } else if (st.id === "done") {
     const need = W.d && W.d.issues.find((it) => !it.optional);
-    h = need ? `<p>Almost: Joe still needs his writing setup (step 3) before he can work.</p>`
+    h = need ? `<p>Almost: Joe still needs his writing setup (the Writing step) before he can work.</p>`
       : `<p>All set. Here's how it works:</p><ol class="planlist"><li>On the Queue screen, tell Joe what you need in your own words.</li>
         <li>He shows you a plan. Press RUN IT.</li><li>Go to bed. In the morning, press R for the report.</li></ol>
         <p class="dim small">Hover over any button to see what it does. F1 is help.</p>`;
@@ -1957,7 +2019,7 @@ function welcomeTick() {                          // called by poll(): show prog
   if (state.busy !== W.busyWas) {
     const ended = W.busyWas && !state.busy;
     W.busyWas = state.busy;
-    if (ended) wCheck(); else wRender();
+    if (ended) wCheck().then(() => wPickNext()); else wRender();
   } else if (state.busy) wRender();
 }
 $("#welcome").addEventListener("click", async (ev) => {
@@ -1976,6 +2038,10 @@ $("#welcome").addEventListener("click", async (ev) => {
       else if (!r.started) await wCheck();
     } catch (e) { toast(e.message); }
     wRender();
+  }
+  if (b.dataset.wpickgo) {
+    W.queue = (W.d ? W.d.issues : []).filter((it) => W.pick[it.id]).map((it) => it.id);
+    wPickNext();
   }
   if (b.dataset.wspeed) {
     W.speeding = true; wRender();
@@ -2064,14 +2130,14 @@ function comfortTick() {
 }
 
 
-/* ---------------- Tools tab (F7): one card per tool, a short form, same engine ---------------- */
+/* ---------------- Tools tab (F3): one card per tool, a short form, same engine ---------------- */
 let toolCat = null, toolHave = {}, toolOpen = null, toolFiles = [];
 async function loadTools() {
   if (!toolCat) {
     try { const r = await api("/api/tools"); toolCat = r; toolHave = r.have || {}; }
     catch (e) { $("#toolgrid").textContent = e.message; return; }
   } else {
-    api("/api/tools").then((r) => { toolHave = r.have || {}; if (toolOpen) toolNeeds(); }).catch(() => {});
+    api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); }).catch(() => {});
   }
   if (!toolOpen) renderToolGrid();
 }
@@ -2249,8 +2315,28 @@ document.addEventListener("click", (ev) => {
     });
   }
 });
-api("/api/tools").then((r) => { toolCat = toolCat || r; toolHave = r.have || {}; }).catch(() => {});
+api("/api/tools").then((r) => { toolCat = toolCat || r; toolHave = r.have || {}; toolBadge(r.status); }).catch(() => {});
+
+/* TOOLS n/m badge: what's ready, hover for what's missing, click for System check. */
+function toolBadge(status) {
+  const b = $("#toolsbadge"); if (!b || !status) return;
+  const ok = status.filter((t) => t.ok).length;
+  b.textContent = `TOOLS ${ok}/${status.length}`;
+  b.classList.toggle("allok", ok === status.length);
+  b.classList.toggle("some", ok < status.length);
+  b.title = status.map((t) => (t.ok ? "√ " : "× ") + t.name + (t.ok ? "" : " — " + t.why)).join("\n") +
+    "\n\nClick: Setup > System check, to install what's missing.";
+}
+function refreshBadge() { api("/api/tools").then((r) => { toolHave = r.have || toolHave; toolBadge(r.status); }).catch(() => {}); }
+setInterval(refreshBadge, 120000);
+document.addEventListener("click", (ev) => { if (ev.target.closest && ev.target.closest("#toolsbadge")) show("setup", "system"); });
 // Music form: switching between music and sound effects changes which model it needs.
 document.addEventListener("change", (ev) => {
   if (toolOpen && ev.target && ev.target.matches && ev.target.matches('#tf-options [data-pick="kind"]')) toolNeeds();
+});
+
+// Checklist ticks in the setup helper.
+document.addEventListener("change", (ev) => {
+  const c = ev.target; if (!c || !c.dataset || !c.dataset.wpick || !W.pick) return;
+  W.pick[c.dataset.wpick] = c.checked; wRender();
 });

@@ -104,7 +104,7 @@ class App:
         self.pending_ping = ""               # phone ping held back by quiet hours
         self.finished = {"n": 0, "ok": True, "text": ""}   # last finished queue run (UI chime)
         # The mission box always opens empty ("What can I help you with?"). Past missions
-        # stay in Missions/ (F3, L loads one); _last_mission.txt is kept only as a backup.
+        # stay in Missions/ (F7, L loads one); _last_mission.txt is kept only as a backup.
 
     # -- helpers ---------------------------------------------------------------
     def log(self, line: str) -> None:
@@ -190,7 +190,7 @@ class App:
             info = tools_mod.plan_info(self.sb, j, sp)
             if not info["files"] and tools_mod.TOOLS[j.type].accepts:
                 return {"ok": False, "error": f"Task '{j.name}': no files to work on yet. Add them "
-                        "on the Tools tab (F7), or put them in Joe's Inbox folder."
+                        "on the Tools tab (F3), or put them in Joe's Inbox folder."
                         + (f" ({info['problems'][0]})" if info["problems"] else "")}
             warnings += [f"Task '{j.name}': {p}" for p in info["problems"]]
             if j.type == "transcribe" and any(not str(x).lower().endswith(".wav") for x in j.inputs):
@@ -1094,12 +1094,15 @@ def make_handler(app: App):
                         mdir = comfy_models_dir(app.settings)
                     except Exception:                   # noqa: BLE001
                         mdir = None
-                    packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p)}
-                             for p in picturetools.PACKS}
+                    packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p),
+                                 "short": picturetools.pack_short(p)} for p in picturetools.PACKS}
+                    from .doctor import find_ollama_exe
+                    have = {"voice": voice, "vision": vision,
+                            "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
+                            "ollama": app.services.ollama_up() or bool(find_ollama_exe(app.settings.ollama.exe)),
+                            "comfy": bool(mdir), "packs": packs}
                     return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),
-                                       "have": {"voice": voice, "vision": vision,
-                                                "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
-                                                "comfy": bool(mdir), "packs": packs}})
+                                       "have": have, "status": tools_mod.tool_status(have)})
                 if u.path == "/api/update":
                     from . import update as update_mod
                     if q.get("auto") and not app.settings.ui.check_updates:

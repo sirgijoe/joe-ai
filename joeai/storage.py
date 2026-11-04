@@ -1,4 +1,4 @@
-"""Storage housekeeping (F8): how much space Joe uses, capped logs, and cleanups.
+"""Storage housekeeping (F9): how much space Joe uses, capped logs, and cleanups.
 
 Rules:
 - Logs are trimmed automatically (they keep their newest lines).

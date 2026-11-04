@@ -121,6 +121,13 @@ def pack_offer(pack_id: str) -> str:
     return f"{p.label} ({size}, {p.license})" + (f". {p.note}" if p.note else "")
 
 
+def pack_short(pack_id: str) -> str:
+    """'the Qwen-Image-Edit picture editor, about 31 GB' style, for one-line hints."""
+    p = PACKS[pack_id]
+    size = f"about {p.size_gb:.0f} GB" if p.size_gb >= 1 else f"about {round(p.size_gb * 1000)} MB"
+    return f"{p.label.split(' (')[0]} ({size})"
+
+
 def download_pack(settings, pack_id: str, log, approved: bool = False, progress=None) -> bool:
     """Download a model pack into ComfyUI's models folders (asks first: approved must be True)."""
     if not approved:

@@ -364,7 +364,7 @@ def install_voice(log: Log, approved: bool = False, stt_model: str = "base.en", 
         log(f"  voice test failed: {r.get('error')}")
         return False
     (vd / ".ready").write_text(time.strftime("%Y-%m-%d %H:%M"), encoding="utf-8")
-    log("Joe's voice is ready. Press F6 and just talk to him.")
+    log("Joe's voice is ready. Press F4 and just talk to him.")
     return True
 
 

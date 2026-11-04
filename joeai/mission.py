@@ -328,7 +328,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
 
 
 # --------------------------------------------------------------------------- builder support
-# The F4 Builder edits tasks as plain dicts and turns them back into a mission block,
+# The F6 Builder edits tasks as plain dicts and turns them back into a mission block,
 # so nobody has to hand-edit a file. parse(to_text(...)) round-trips.
 TASK_FIELDS = ("name", "save", "type", "project", "parts", "part_size", "part_prompts", "format",
                "rules", "min_words", "header", "inputs", "model", "notes", "workflow",

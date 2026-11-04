@@ -86,9 +86,9 @@ class VoiceSettings:
     voice: str = "am_adam"        # Kokoro voice (Setup > Voice & Talk)
     speed: float = 1.0
     stt_model: str = "base.en"       # tiny.en (fastest) | base.en | small.en (most accurate)
-    speak_replies: bool = True       # Joe answers out loud in Talk (F6)
-    talk_mode: str = "open"          # open: mic listens while Talk (F6) is open | push: hold a key
-    ptt_key: str = "F6"              # push-to-talk key (any key; set in Setup > Voice & Talk)
+    speak_replies: bool = True       # Joe answers out loud in Talk (F4)
+    talk_mode: str = "open"          # open: mic listens while Talk (F4) is open | push: hold a key
+    ptt_key: str = "F4"              # push-to-talk key (any key; set in Setup > Voice & Talk)
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
 

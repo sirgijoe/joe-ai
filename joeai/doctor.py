@@ -297,7 +297,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                            f"well). Best fit: {EMBED_MODEL} (about 270 MB).", "action": "pull",
                            "model": EMBED_MODEL, "optional": True})
     if not addons_mod.voice_ready():
-        issues.append({"id": "install-voice", "text": "Joe's voice isn't set up (talk with F6, hear replies "
+        issues.append({"id": "install-voice", "text": "Joe's voice isn't set up (talk with F4, hear replies "
                        "and reports). About 500 MB: uv, a private Python 3.12, faster-whisper and Kokoro, "
                        "all running on the CPU.", "action": "install-voice", "optional": True})
     elif not addons_mod.clone_ready() and g and g.get("vendor") == "nvidia" \

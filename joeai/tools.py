@@ -3,7 +3,7 @@ documents) instead of writing from scratch.
 
 Every tool is reached three ways, all running the same code here:
   1. Just ask: the "What do you need?" box writes `TYPE: <tool id>` tasks (describe.py).
-  2. The Tools tab (F7): a card per tool opens a short form (drop files, pick options, RUN).
+  2. The Tools tab (F3): a card per tool opens a short form (drop files, pick options, RUN).
   3. Missions: `TASK: Meeting notes  TYPE: transcribe  INPUT: tools/meeting.mp3`.
 
 A tool task reads its files from Inbox (INPUT: files or folders), saves into a folder under
@@ -2884,3 +2884,34 @@ def needs_problem(settings, job: "Job") -> str:
             return (f"Task '{job.name}': {tool.name.lower()} needs Joe's voice add-on first. "
                     "Setup (F10) > System check > \"Joe's voice\" > SET UP.")
     return ""
+
+
+# --------------------------------------------------------------------------- readiness
+def tool_status(have: dict) -> list[dict]:
+    """For the TOOLS badge: each tool, whether it can run on this PC now, and what's missing.
+    have: voice, vision (None = Ollama off), ollama, ffmpeg, comfy, packs {id: {ready, offer}}."""
+    from .picturetools import needed_packs
+    out = []
+    packs = have.get("packs") or {}
+    for t in TOOLS.values():
+        if not t.ready:
+            continue
+        why = ""
+        if "voice" in t.needs and not have.get("voice"):
+            why = "needs Joe's voice add-on (about 500 MB)"
+        elif "ollama" in t.needs and not have.get("ollama"):
+            why = "needs Ollama and a writing model"
+        elif "vision" in t.needs and not have.get("vision"):
+            why = ("needs a vision model" if have.get("vision") is False
+                   else "needs Ollama running with a vision model")
+        elif t.needs == ("ffmpeg",) and not have.get("ffmpeg"):
+            why = "needs FFmpeg"
+        elif "comfy" in t.needs:
+            if not have.get("comfy"):
+                why = "needs ComfyUI"
+            else:
+                missing = [p for p in needed_packs(t.id) if not (packs.get(p) or {}).get("ready")]
+                if missing:
+                    why = "needs " + " and ".join((packs.get(p) or {}).get("short", p) for p in missing)
+        out.append({"id": t.id, "name": t.name, "ok": not why, "why": why})
+    return out

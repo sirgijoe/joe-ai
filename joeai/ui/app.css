@@ -545,3 +545,22 @@ body:not(.modern) .tcard.soon:hover { background: none; color: var(--ph); }
    more letter spacing; code-like boxes (logs, missions) keep their fixed-width font. */
 body.easyread { letter-spacing: .01em; }
 body.easyread.ph-green, body.easyread.ph-amber, body.easyread.ph-white, body.easyread.ph-custom { font-size: .9em; }
+
+
+/* Tab bar groups (make | see results | set up) and the RUN button + TOOLS badge. */
+.tabs .tabsep { display: inline-block; width: 1px; height: 1.1em; margin: 0 6px; background: var(--ph-dim); vertical-align: middle; }
+.runbtn { padding: 0 10px; border: 1px solid var(--ph); font-weight: bold; margin-right: 8px; }
+.runbtn b { font-weight: normal; font-size: .7em; margin-left: 6px; color: var(--ph-dim); }
+.runbtn.going { background: var(--ph); color: var(--bg); }
+.toolsbadge { padding: 0 8px; border: 1px dashed var(--ph-dim); margin-right: 8px; cursor: pointer; white-space: nowrap; }
+.toolsbadge.allok { border-style: solid; }
+.toolsbadge.some { border-color: var(--warn, #d9a400); }
+body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
+
+.wgroup { margin: 8px 0; }
+.wgroup > b { display: block; margin-bottom: 2px; }
+.wpick { display: block; margin: 2px 0 2px 8px; }
+
+.titlebar { flex-wrap: nowrap; white-space: nowrap; }
+@media (max-width: 1750px) { .titlebar .bin { display: none; } }
+@media (max-width: 1350px) { .tabs button b, .runbtn b { display: none; } }

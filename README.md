@@ -53,7 +53,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   mockups, not fake photos of real products, places or people.
 
 **Talks, and listens** (optional, one-time setup)
-- Open Talk (**F6**) and just say what you need: the mic stays open while that screen is up,
+- Open Talk (**F4**) and just say what you need: the mic stays open while that screen is up,
   and Joe answers when you pause. Prefer push-to-talk? Pick any key in Setup. Joe hears you, answers out loud, and can draft
   the night's mission into the Builder for you to check. He never starts a run on his own.
 - He can read the morning report to you, or tell you his own backstory.
@@ -66,7 +66,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**Tools for your own files** (Tools tab, **F7**)
+**Tools for your own files** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -117,7 +117,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".
 
 **Finished documents**
-- Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses
+- Add Word, PDF or EPUB copies to any writing task, or press P on a file in F7. Uses
   Pandoc (free) and the PDF printer built into Microsoft Edge.
 
 **Looks after himself**

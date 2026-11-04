@@ -1,4 +1,4 @@
-"""Files dropped into Talk (F6): copied into Inbox\\dropped\\, then turned into text Joe can
+"""Files dropped into Talk (F4): copied into Inbox\\dropped\\, then turned into text Joe can
 read aloud or think about. Pictures go to a vision model if one is installed in Ollama.
 
 Text extraction uses only the standard library (txt, md, csv, json, html, docx). PDFs use the
