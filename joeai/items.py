@@ -44,8 +44,14 @@ def split_items(text: str) -> list[Item]:
     return items
 
 
+# Model control words that sometimes leak into a heading ("Stoneware Bowl /no_think", or
+# misspelled "/no_thing"). They'd end up in file names, so they're removed.
+_LEAK = re.compile(r"\s*/(?:no_?think\w*|no_?thing\w*|think\w*|nothink\w*)\b", re.I)
+
+
 def _strip_md(t: str) -> str:
     t = re.sub(r"^\s*(?:item\s*)?\d+[.):-]\s*", "", t, flags=re.I)  # "3. Title" -> "Title"
+    t = _LEAK.sub("", t)
     return t.strip(" *_`").strip()
 
 

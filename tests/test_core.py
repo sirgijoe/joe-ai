@@ -80,6 +80,11 @@ def test_parse_errors(bad):
         parse(bad)
 
 
+def test_titles_drop_leaked_model_switches():
+    items = split_items("## 001. Handcrafted Vase /no_thing\nA vase.\n## Bowl /no_think\nA bowl.\n## A/B test\nok")
+    assert [i.title for i in items] == ["Handcrafted Vase", "Bowl", "A/B test"]
+
+
 def test_split_items_strips_numbers_and_preamble():
     items = split_items("Here you go\n## 1. First\nbody one\n### Second\nbody two")
     assert [i.title for i in items] == ["First", "Second"]
