@@ -196,6 +196,18 @@ Phone photos are turned the right way up, and hidden details (camera, GPS locati
 aren't copied. Needs FFmpeg (Setup > System check). On the Tools tab the picks are drop-down
 lists, and the Watermark box (or **USE A LOGO**) is empty unless you fill it in.
 
+**Translate** (`TYPE: translate`, `OPTIONS: to spanish, to french`: one `to` per language,
+at least one) reads the same documents as Proofread and makes `<name>-<language>.md` (or
+`.txt` for text files; Word files also get a `.docx` with Pandoc). Languages: Spanish, French,
+German, Italian, Portuguese, Dutch, Polish, Russian, Ukrainian, Greek, Turkish, Arabic, Hebrew,
+Hindi, Bengali, Chinese (Simplified), Japanese, Korean, Vietnamese, Thai, Indonesian, Tagalog,
+Swahili, English. The writing model translates about 400 words at a time, keeping paragraphs,
+Markdown, names, numbers, prices and links; anything it can't translate well is marked
+[CHECK] (listed in the report). A reply that's far too short is asked for again. Each copy
+starts with a line saying it's a machine translation made on this computer, to be checked by
+someone who speaks the language before publishing. FORMAT passes on wishes like "formal" or
+"Latin American Spanish". Quality depends on the model; big languages work best.
+
 ## Talking to Joe (F6)
 
 Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):

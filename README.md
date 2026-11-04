@@ -80,11 +80,14 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   WebP or PNG, rename them in order, and (only if you ask) add a faint watermark with your
   text or logo. Phone photos come out the right way up; hidden details like GPS location are
   left out of the copies. Uses FFmpeg.
-- More are on the way, shown as "Coming soon" on the Tools tab: translating, tidying
-  spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
+- **Translate**: finished writing into one or more of 24 languages, on your own computer.
+  Formatting, names, prices and links stay as they are; anything Joe isn't sure about is
+  marked [CHECK], and each copy says plainly it's a machine translation to be checked by
+  someone who speaks the language.
+- More are on the way, shown as "Coming soon" on the Tools tab: tidying spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
   and more.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
-  "read my story aloud", "proofread my cover letter", "shrink my product photos for the website".
+  "read my story aloud", "proofread my cover letter", "shrink my product photos for the website", "translate my menu into Spanish".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses

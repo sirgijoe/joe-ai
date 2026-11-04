@@ -502,6 +502,8 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 .tcard:hover .tcb { color: var(--bg); }
 .tcard.soon { opacity: .55; cursor: default; }
 .tfpick select { margin-left: 6px; }
+.tfmulti { display: flex; flex-wrap: wrap; gap: 4px 14px; align-items: center; }
+.tfmulti > span { flex-basis: 100%; }
 .tfrow.tfmark { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 .tfrow.tfmark label { flex: 1 1 18em; }
 .tcard.lit { border-color: var(--ph); box-shadow: 0 0 0 2px var(--ph); }

@@ -106,6 +106,14 @@ class FakeOllama:
                 return 200, self._reply("## Summary\nThe team planned the mug launch.\n## Key points\n"
                                         "- Ship on Friday\n## Decisions\n- Price list update [CHECK]\n"
                                         "## To-dos\n- Sam: update the price list")
+            if req["messages"][0]["content"].startswith("You are a careful translator"):
+                lang = re.search(r"into (\w+)", req["messages"][0]["content"]).group(1)
+                body = re.search(r"<<<\n(.*)\n>>>", user, re.S).group(1)
+                if "SHORTFIRST" in body and "ONLY the translated" not in user:
+                    return 200, self._reply("Hola.")                          # far too short: retried
+                out = "\n".join(f"[{lang[:2].upper()}] {ln}" if ln.strip() else ln for ln in body.split("\n"))
+                out = out.replace("idiom", "idiom [CHECK]")
+                return 200, self._reply(f"Here is the translation:\n```\n{out}\n```")
             if req["messages"][0]["content"].startswith("You are a careful proofreader"):
                 fixes = [{"find": w, "replace": r, "why": "spelling"}
                          for w, r in (("teh cat", "the cat"), ("recieve", "receive")) if w in user]
@@ -117,6 +125,11 @@ class FakeOllama:
                     return 200, self._reply("Sure, here are my thoughts on your lovely text!")
                 return 200, self._reply("```json\n" + json.dumps(fixes) + "\n```")
             first = req["messages"][1]["content"].lower().split("\n\n")[0] if len(req["messages"]) > 1 else ""
+            if req["messages"][0]["content"].startswith("You turn a plain request") and "translate" in first:
+                m = re.search(r"^- (\S+\.(?:txt|md|docx|pdf))$", req["messages"][1]["content"], re.M)
+                return 200, self._reply("=== JOE MISSION ===\nTASK: Menu translations\nTYPE: translate\n"
+                                        f"INPUT: {m.group(1) if m else 'x.txt'}\nOPTIONS: to spanish, to french\n"
+                                        "=== END ===")
             if req["messages"][0]["content"].startswith("You turn a plain request") and \
                     ("aloud" in first or "proofread" in first):
                 m = re.search(r"^- (\S+\.(?:txt|md|docx|pdf))$", req["messages"][1]["content"], re.M)

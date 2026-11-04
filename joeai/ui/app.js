@@ -2042,7 +2042,11 @@ function openTool(id) {
   $("#tf-accepts").textContent = "Works with: " + t.accepts.join(" ");
   $("#tf-file").accept = t.accepts.join(",");
   $("#tf-help").textContent = t.help || "";
-  $("#tf-options").innerHTML = t.options.map((o) => o.choices && o.choices.length
+  $("#tf-options").innerHTML = t.options.map((o) => o.multi
+    ? `<div class="tfmulti" title="${esc(o.hint)}"><span>${esc(o.label)}</span>` +
+      o.choices.map(([v, l]) => `<label class="tfopt"><input type="checkbox" data-multi="${o.key}" value="${esc(v)}"> ${esc(l)}</label>`).join("") +
+      `</div>`
+    : o.choices && o.choices.length
     ? `<label class="tfopt tfpick" title="${esc(o.hint)}">${esc(o.label)} <select data-pick="${o.key}">` +
       o.choices.map(([v, l]) => `<option value="${esc(v)}"${v === o.value ? " selected" : ""}>${esc(l)}</option>`).join("") +
       `</select></label>`
@@ -2098,7 +2102,8 @@ async function toolsDrop(files) {
 function toolRequest() {
   return { tool: toolOpen.id, files: toolFiles.filter((f) => f.input).map((f) => f.input),
     options: [...document.querySelectorAll("#tf-options [data-opt]")].filter((c) => c.checked).map((c) => c.dataset.opt)
-      .concat([...document.querySelectorAll("#tf-options [data-pick]")].map((x) => x.dataset.pick + " " + x.value)),
+      .concat([...document.querySelectorAll("#tf-options [data-pick]")].map((x) => x.dataset.pick + " " + x.value))
+      .concat([...document.querySelectorAll("#tf-options [data-multi]")].filter((c) => c.checked).map((c) => c.dataset.multi + " " + c.value)),
     name: $("#tf-name").value.trim(), extra: $("#tf-extra").value.trim(),
     mark: toolOpen.mark ? $("#tf-mark").value.trim() : "" };
 }

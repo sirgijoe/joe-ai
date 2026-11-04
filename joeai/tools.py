@@ -32,6 +32,14 @@ AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", "
 VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
 DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
+LANGUAGES = (("spanish", "Spanish"), ("french", "French"), ("german", "German"),
+             ("italian", "Italian"), ("portuguese", "Portuguese"), ("dutch", "Dutch"),
+             ("polish", "Polish"), ("russian", "Russian"), ("ukrainian", "Ukrainian"),
+             ("greek", "Greek"), ("turkish", "Turkish"), ("arabic", "Arabic"), ("hebrew", "Hebrew"),
+             ("hindi", "Hindi"), ("bengali", "Bengali"), ("chinese", "Chinese (Simplified)"),
+             ("japanese", "Japanese"), ("korean", "Korean"), ("vietnamese", "Vietnamese"),
+             ("thai", "Thai"), ("indonesian", "Indonesian"), ("tagalog", "Tagalog"),
+             ("swahili", "Swahili"), ("english", "English"))
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
@@ -45,6 +53,8 @@ class Option:
     hint: str = ""
     choices: tuple[tuple[str, str], ...] = ()       # (value, plain label)
     value: str = ""
+    multi: bool = False                              # several picks allowed ("to spanish, to french")
+    required: bool = False                           # at least one pick needed (no default)
 
 
 @dataclass(frozen=True)
@@ -113,7 +123,20 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Proofread my cover letter", "Check the grammar in my newsletter"),
          extra_hint="optional, e.g. British spelling, keep the casual tone"),
     Tool("translate", "Translate", "Writing",
-         "Make a copy of finished text in another language.", needs=("ollama",)),
+         "Make a copy of finished text in another language.",
+         accepts=DOC_EXT,
+         options=(Option("to", "Into", hint="Pick one or more. Each language gets its own copy.",
+                         choices=LANGUAGES, multi=True, required=True),),
+         needs=("ollama",), ready=True,
+         help="Translated by the writing model on this PC, so nothing leaves it. Quality depends "
+              "on the model: big languages work best. Anything Joe isn't sure about is marked "
+              "[CHECK]. Have someone who speaks the language read it before you publish it. Your "
+              "original is never changed. Word files come back as text (plus Word with Pandoc).",
+         plan_hint="Translate finished writing: TYPE: translate, INPUT: the document file(s) from "
+                   "the list below, OPTIONS: to <language> for each language (e.g. to spanish, to "
+                   "french). Languages: " + ", ".join(v for v, _ in LANGUAGES) + ". No CHUNKS.",
+         examples=("Translate my menu into Spanish", "Make French and German copies of this flyer"),
+         extra_hint="optional, e.g. formal tone, Latin American Spanish"),
     Tool("ask-files", "Ask my files", "Writing",
          "Answers and summaries from a folder of your documents.", needs=("ollama",)),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
@@ -182,7 +205,7 @@ def catalog() -> list[dict]:
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
              "needs": list(t.needs), "extra_hint": t.extra_hint, "mark": t.mark,
              "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint,
-                          "choices": [list(c) for c in o.choices], "value": o.value}
+                          "choices": [list(c) for c in o.choices], "value": o.value, "multi": o.multi}
                          for o in t.options]}
             for t in TOOLS.values()]
 
@@ -202,6 +225,16 @@ def option_ok(tool: Tool, token: str) -> bool:
     return False
 
 
+def missing_required(tool: Tool, tokens: list[str]) -> str:
+    """A plain problem when a must-pick option (like the language) wasn't given ('' = fine)."""
+    for o in tool.options:
+        if o.required and not any(t.partition(" ")[0] == o.key and t.partition(" ")[2] for t in tokens):
+            if tool.id == "translate":
+                return "say which language to translate into, e.g. OPTIONS: to spanish (on the Tools tab, tick a language)"
+            return f"pick a {o.label.lower()} (OPTIONS: {o.key} ...)"
+    return ""
+
+
 def options_help(tool: Tool) -> str:
     out = []
     for o in tool.options:
@@ -216,6 +249,16 @@ def chosen_options(job: "Job") -> set[str]:
     if job.options:
         return {t for t in job.options if any(t == o.key for o in boxes)}
     return {o.key for o in boxes if o.default}
+
+
+def option_values(job: "Job", key: str) -> list[str]:
+    """Every pick for a several-picks option ('to' -> ['spanish', 'french']), in order."""
+    out = []
+    for t in job.options:
+        k, _, v = t.partition(" ")
+        if k == key and v and v not in out:
+            out.append(v)
+    return out
 
 
 def option_value(job: "Job", key: str) -> str:
@@ -298,7 +341,8 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
 # --------------------------------------------------------------------------- run
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     fn = {"transcribe": run_transcribe, "read-aloud": run_read_aloud,
-          "proofread": run_proofread, "photo-batch": run_photo_batch}.get(job.type)
+          "proofread": run_proofread, "photo-batch": run_photo_batch,
+          "translate": run_translate}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -1303,6 +1347,153 @@ def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     return _finish(engine, job, st, len(files), failed)
 
 
+# --------------------------------------------------------------------------- translate
+TRANSLATE_SYSTEM = """You are a careful translator. Translate the writer's text into {lang}.
+Keep the meaning, tone and formatting exactly: the same paragraphs, Markdown headings, lists,
+bold and tables. Keep names, brands, numbers, prices, dates, email addresses and links as they
+are. Never add, explain or leave anything out. If a phrase can't be translated well (a joke,
+an idiom, a word you don't know), translate it as well as you can and put [CHECK] right after it.
+Reply with ONLY the translation."""
+TRANSLATE_ASK = "Translate the text between <<< and >>> into {lang}.\n\n<<<\n{text}\n>>>"
+TRANSLATE_WORDS = 400                 # words per model call (translations run long)
+_PREAMBLE = re.compile(r"^\s*(?:sure|here(?:'s| is)|translation|okay|ok)\b[^\n]{0,80}:\s*\n", re.I)
+
+
+def clean_translation(raw: str) -> str:
+    """The model's reply without thinking, fences, a 'Here is the translation:' line or
+    the <<< >>> marks it was shown."""
+    t = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
+    t = _PREAMBLE.sub("", t.strip(), count=1)
+    t = re.sub(r"^\s*```[\w-]*\n|\n```\s*$", "", t.strip())
+    t = re.sub(r"^\s*<<<\s*\n?|\n?\s*>>>\s*$", "", t)
+    return t.strip()
+
+
+def language_name(v: str) -> str:
+    return dict(LANGUAGES).get(v, v.capitalize())
+
+
+def translation_note(lang: str, model: str) -> str:
+    return (f"> Translated into {lang} by Joe on this computer ({model or 'the writing model'}). "
+            "Machine translations make mistakes: have someone who speaks the language check it "
+            "before you publish it. Unsure bits are marked [CHECK].\n\n")
+
+
+def run_translate(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .addons import export_document, pandoc_exe
+    from .engine import PartFailed, Stopped
+    from .mission import slug
+
+    if (bad := _no_files(engine, job, st, "documents to translate")) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    langs = option_values(job, "to")
+    if not langs:
+        st.status, st.note = "failed", "no language picked (OPTIONS: to spanish)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    if not engine._text_ready(st):
+        engine._save_state(job, st)
+        return st
+    folder = tool_dir(engine, job, st)
+    wish = f"The writer asked: {job.format.strip()}\n" if job.format.strip() else ""
+    total = len(files) * len(langs)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} document(s) into "
+               f"{', '.join(language_name(x) for x in langs)} -> {st.output}")
+    failed: list[str] = []
+    model = getattr(engine, "text_model", "") or engine.s.ollama.text_model
+    try:
+        for i, src in enumerate(files):
+            rel = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            todo = [x for x in langs if f"{rel} -> {x}" not in st.titles]
+            if not todo:
+                continue
+            try:
+                text = document_text(src, engine.log)
+            except (ValueError, OSError) as e:
+                failed += [f"{src.name}: {e}"[:200]]
+                engine.log(f"  {src.name}: {e}")
+                continue
+            if not text.strip():
+                failed.append(f"{src.name}: no words to translate")
+                continue
+            chunks = proof_chunks(text, TRANSLATE_WORDS)
+            words = count_words(text)
+            stem = slug(src.stem) or f"document-{i + 1}"
+            ext = src.suffix.lower() if src.suffix.lower() in RAW_TEXT_EXT else ".md"
+            for lang in todo:
+                if engine.stop.is_set():
+                    raise Stopped()
+                name = language_name(lang)
+                system = TRANSLATE_SYSTEM.replace("{lang}", name)
+                if job.rules.strip():
+                    system += "\n" + job.rules.strip()
+                engine.log(f"  {src.name} -> {name}: {words} words in {len(chunks)} part(s)")
+                out: list[str] = []
+                broke = ""
+                for ci, chunk in enumerate(chunks):
+                    if engine.stop.is_set():
+                        raise Stopped()
+                    body = chunk.strip()
+                    if not body:
+                        out.append(chunk)
+                        continue
+                    lead = chunk[:len(chunk) - len(chunk.lstrip())]
+                    trail = chunk[len(chunk.rstrip()):]
+                    engine._progress(f"{job.name}: {src.name} -> {name}, part {ci + 1}/{len(chunks)}")
+                    got = ""
+                    try:
+                        for attempt in range(2):
+                            ask = wish + TRANSLATE_ASK.format(lang=name, text=body)
+                            if attempt:
+                                ask += "\n\nReply with ONLY the translated text, nothing else."
+                            r = engine._chat(job, ci, "translate", system, ask, st)
+                            got = clean_translation(r.text)
+                            # far shorter than the text = something left out (by letters, not
+                            # words: Chinese and Japanese don't put spaces between words)
+                            if got and len(got) >= len(body) * 0.2:
+                                break
+                            st.retries += 1
+                    except PartFailed as e:
+                        broke = str(e)
+                        break
+                    if not got:
+                        broke = f"part {ci + 1} came back empty"
+                        break
+                    out.append(lead + got + trail)
+                if broke:
+                    failed.append(f"{src.name} -> {name}: {broke}"[:200])
+                    engine.log(f"  {src.name} -> {name}: {broke}")
+                    continue
+                done = "".join(out)
+                fname = f"{stem}-{slug(lang)}{ext}"
+                atomic_write_text(folder / fname, translation_note(name, model) + done
+                                  + ("" if done.endswith("\n") else "\n"))
+                made = [fname]
+                if src.suffix.lower() == ".docx":
+                    pandoc = pandoc_exe(engine.s.pandoc)
+                    if pandoc:
+                        made += [p.name for p in export_document(folder / fname, ["docx"], pandoc, engine.log)]
+                flags = find_flags(done)
+                st.flags.extend({"item": f"{src.stem} ({name})", "flag": f} for f in flags[:30])
+                st.titles.append(f"{rel} -> {lang}")
+                st.media_files.extend(made)
+                st.items += 1
+                st.words += count_words(done)
+                engine._save_state(job, st)
+                engine.log(f"  {src.name} -> {name}: {', '.join(made)}"
+                           + (f" ({len(flags)} [CHECK] mark(s) to look at)" if flags else ""))
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {total} translation(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, total, failed)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -1374,6 +1565,10 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type == "read-aloud":
         for f in files:
             secs += _guess_words(f) / LISTEN_WPM * 60 * speeds.get("read-aloud", 0.5)
+    elif job.type == "translate":
+        n_lang = max(1, len(option_values(job, "to")))
+        for f in files:
+            secs += max(1, -(-_guess_words(f) // TRANSLATE_WORDS)) * n_lang * speeds.get("part", 25.0) * 1.3
     elif job.type == "photo-batch":
         mark = job.watermark.strip().lower()
         files = [f for f in files if not (mark.endswith(".png") and

@@ -268,6 +268,10 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
         if bad:
             raise MissionError(f"Task '{name}': OPTIONS can be {options_help(TOOLS[jtype])} "
                                f"(got {', '.join(bad)}).")
+        from .tools import missing_required
+        need = missing_required(TOOLS[jtype], options)
+        if need:
+            raise MissionError(f"Task '{name}': {need}.")
         if d["SAVE"].strip().lower().endswith((".md", ".csv", ".txt")):
             raise MissionError(f"Task '{name}': a tool saves into a folder; give SAVE a folder name.")
         parts, size = 1, 1

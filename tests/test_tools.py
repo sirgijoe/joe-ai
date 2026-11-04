@@ -69,7 +69,7 @@ def test_tool_missions_parse_and_round_trip():
     for bad in ("TASK: x  TYPE: transcribe",                                  # no INPUT
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  OPTIONS: karaoke",
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  CHUNKS: 2 x 2",
-                "TASK: x  TYPE: translate  INPUT: a.txt",                       # planned, not built
+                "TASK: x  TYPE: tidy-sheet  INPUT: a.csv",                      # planned, not built
                 "TASK: x  CHUNKS: 1 x 2  OPTIONS: notes"):                      # OPTIONS on a text task
         with pytest.raises(MissionError):
             parse(bad)
@@ -445,3 +445,53 @@ def test_photo_batch_needs_ffmpeg(app):
     st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
         parse("TASK: P  TYPE: photo-batch\nINPUT: a.jpg"))[0]
     assert st.status == "failed" and "FFmpeg" in st.note
+
+
+# --------------------------------------------------------------------------- translate
+MENU = "# Menu\n\nFresh bread daily.\n\nA real idiom here.\n\n- Soup: $5\n"
+
+
+def test_clean_translation():
+    assert tools.clean_translation("<think>hmm</think>Sure, here is the translation:\n```\nHola\n```") == "Hola"
+    assert tools.clean_translation("<<<\nBonjour\n>>>") == "Bonjour"
+    assert tools.clean_translation("Hola: amigos\nmore") == "Hola: amigos\nmore"      # not a preamble
+
+
+def test_translate_needs_a_language(app):
+    (app.sb.inbox / "m.md").write_text(MENU, encoding="utf-8")
+    with pytest.raises(MissionError, match="which language"):
+        parse("TASK: T  TYPE: translate\nINPUT: m.md")
+    with pytest.raises(MissionError):
+        parse("TASK: T  TYPE: translate\nINPUT: m.md\nOPTIONS: to klingon")
+
+
+def test_translate_end_to_end(app):
+    (app.sb.inbox / "Menu.md").write_text(MENU, encoding="utf-8")
+    text = "TASK: Menus  TYPE: translate\nINPUT: Menu.md\nOPTIONS: to spanish, to french, to japanese"
+    chk = app.check(text)
+    assert chk["ok"], chk
+    assert describe.plain_summary(chk) == ["Translate 1 document into Spanish, French and Japanese: Menus"]
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done" and st.items == 3, st.note
+    out = app.sb.output / st.output
+    assert sorted(p.name for p in out.iterdir()) == ["menu-french.md", "menu-japanese.md", "menu-spanish.md"]
+    es = (out / "menu-spanish.md").read_text(encoding="utf-8")
+    assert es.startswith("> Translated into Spanish by Joe")
+    assert "[SP] # Menu\n\n[SP] Fresh bread daily." in es and "$5" in es
+    assert any("[CHECK]" in f["flag"] for f in st.flags)
+    assert (app.sb.inbox / "Menu.md").read_text(encoding="utf-8") == MENU
+
+
+def test_translate_retries_a_short_reply(app):
+    (app.sb.inbox / "s.txt").write_text("SHORTFIRST " + "word " * 40, encoding="utf-8")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: S  TYPE: translate\nINPUT: s.txt\nOPTIONS: to german"))[0]
+    assert st.status == "done" and st.retries >= 1, st.note
+    assert "[GE] SHORTFIRST" in (app.sb.output / st.output / "s-german.txt").read_text(encoding="utf-8")
+
+
+def test_describe_routes_translate(app):
+    (app.sb.inbox / "menu.md").write_text(MENU, encoding="utf-8")
+    r = describe.draft(app, "translate my menu into spanish and french")
+    assert r["ok"] and "TYPE: translate" in r["mission"], r
+    assert r["summary"] == ["Translate 1 document into Spanish and French: Menu translations"]

@@ -106,6 +106,12 @@ def plain_summary(chk: dict) -> list[str]:
                 if j.get("watermark"):
                     bits.append("watermark " + vals["corner"].replace("-", " "))
                 out.append(f"Resize {_n(n, 'photo', 'photos')} ({', '.join(bits)}): {name}")
+            elif t == "translate":
+                from .tools import language_name
+                langs = [o.split(" ", 1)[1] for o in (j.get("options") or []) if o.startswith("to ")]
+                names = [language_name(x) for x in langs]
+                into = " and ".join(names) if len(names) < 3 else ", ".join(names[:-1]) + " and " + names[-1]
+                out.append(f"Translate {_n(n, 'document', 'documents')} into {into}: {name}")
             elif t == "proofread":
                 opts = j.get("options") or ["copy"]
                 tail = " and a corrected copy" if "copy" in opts else ""
