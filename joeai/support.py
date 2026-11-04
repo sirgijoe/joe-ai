@@ -21,7 +21,7 @@ from pathlib import Path
 from . import __version__
 
 LOG_TAIL = 300_000                  # bytes kept from the end of each log
-SECRET = re.compile(r"key|token|topic|password|secret", re.I)
+SECRET = re.compile(r"(?<!ptt_)key$|token|topic|password|secret", re.I)   # not the push-to-talk key
 
 README = """JOE HELP FILE
 =============
