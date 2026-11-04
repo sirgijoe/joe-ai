@@ -718,7 +718,13 @@ class App:
             return b"", "no hello text"
         v = self.settings.voice
         import hashlib
-        key = hashlib.sha1(f"{v.voice}|{v.speed}|{text}".encode()).hexdigest()[:16]
+        mine = ""                     # "my voice": a new recording means a new hello
+        if v.voice == "mine":
+            try:
+                mine = str(addons_mod.my_voice_path().stat().st_mtime)
+            except OSError:
+                pass
+        key = hashlib.sha1(f"{v.voice}|{v.speed}|{mine}|{text}".encode()).hexdigest()[:16]
         cache = config_dir() / "hello" / f"{key}.wav"
         try:
             if cache.exists():

@@ -98,12 +98,24 @@ def test_hello_voice_is_made_once_and_kept(env, tmp_path, monkeypatch):  # noqa:
     monkeypatch.setattr(app, "quiet", lambda: False)
     assert app.hello_audio() == (b"RIFFwav", "")
     assert app.hello_audio() == (b"RIFFwav", "")
-    assert calls == ["Hello! Joe here, reporting for duty."]          # second time from the saved copy
+    assert calls == ["Joe is now reporting for duty."]          # second time from the saved copy
     s.ui.hello_text = "Morning, boss."
     app.hello_audio()
     assert calls[-1] == "Morning, boss." and len(list((tmp_path / "cfg" / "hello").glob("*.wav"))) == 1
+    s.voice.voice = "bf_emma"                                          # a new voice = a new hello
+    app.hello_audio()
+    assert len(calls) == 3
     monkeypatch.setattr(app, "quiet", lambda: True)
     assert app.hello_audio()[0] == b""                                 # silent in quiet hours
+
+
+def test_old_hello_words_are_updated(tmp_path):
+    from joeai.config import Settings
+    p = tmp_path / "settings.json"
+    p.write_text(json.dumps({"ui": {"hello_text": "Hello! Joe here, reporting for duty."}}))
+    assert Settings.load(p).ui.hello_text == "Joe is now reporting for duty."
+    p.write_text(json.dumps({"ui": {"hello_text": "Morning, boss."}}))      # your own words stay
+    assert Settings.load(p).ui.hello_text == "Morning, boss."
 
 
 def test_intro_screen_can_be_turned_off(env):  # noqa: F811

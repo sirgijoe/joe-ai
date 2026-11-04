@@ -79,7 +79,7 @@ class UISettings:
     intro: bool = True               # show the opening "01000001 01001001 / JOE" screen
     startup_sound: str = "both"      # when Joe opens: off | jingle | voice (Joe says hello) | both
     jingle: str = "theme"            # theme = Joe's 8-bit intro (ui/sounds/intro.wav) | chime = short tones
-    hello_text: str = "Hello! Joe here, reporting for duty."
+    hello_text: str = "Joe is now reporting for duty."
 
 
 @dataclass
@@ -139,6 +139,8 @@ class Settings:
             except (OSError, json.JSONDecodeError):
                 data = {}
             _merge(s, data)
+        if s.ui.hello_text == "Hello! Joe here, reporting for duty.":   # old default ran together when spoken
+            s.ui.hello_text = UISettings.hello_text
         return s
 
     def save(self, path: Path | None = None) -> Path:

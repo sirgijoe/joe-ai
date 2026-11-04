@@ -851,7 +851,7 @@ function boot() {
     }
   }, 55);
 }
-// When Joe opens: a short rising jingle, then (with his voice set up) "Hello! Joe here, reporting
+// When Joe opens: his 8-bit theme, then (with his voice set up) "Joe is now reporting
 // for duty." Setup > Comfort > "When Joe opens" picks jingle, voice, both or off. Quiet hours = silent.
 let bootCtx = null;
 // Joe's 8-bit intro theme. Resolves with its length (seconds) once it starts, so his spoken
