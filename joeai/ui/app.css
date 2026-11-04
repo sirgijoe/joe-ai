@@ -441,7 +441,7 @@ body.modern ::-webkit-scrollbar-track { background: transparent; }
 body.modern .rec-badge, body.modern #ptt.rec { background: #e5484d; color: #fff; border-radius: 999px; }
 .tabs button { font-size: .9em; padding: 0 6px; }
 @media (max-width: 1650px) { body:not(.modern) .titlebar .bin { display: none; } }
-@media (max-width: 1250px) { .titlebar .bin { display: none; } .tabs button b { display: none; } }
+@media (max-width: 1250px) { .titlebar .bin { display: none; } }
 .bf .checks label.inline { display: inline-flex; gap: 6px; align-items: center; }
 body.modern .dosp { display: none; }
 body.modern button.primary { background: var(--accent); border-color: var(--accent); color: var(--on-accent); font-weight: 600; }
@@ -563,4 +563,9 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 
 .titlebar { flex-wrap: nowrap; white-space: nowrap; }
 @media (max-width: 1750px) { .titlebar .bin { display: none; } }
-@media (max-width: 1350px) { .tabs button b, .runbtn b { display: none; } }
+/* Narrow windows: keep the F-key labels, give up the extras first. */
+@media (max-width: 1450px) { #ver { display: none; } .tabs button { padding: 0 5px; } .tabs .tabsep { margin: 0 3px; } }
+@media (max-width: 1250px) { #clock { display: none; } .tabs button, .runbtn, .toolsbadge { font-size: .9em; } }
+@media (max-width: 1050px) { .titlebar .brand { display: none; } .tabs button b { margin-left: 3px; } }
+.tabs { flex-wrap: nowrap; white-space: nowrap; }
+@media (max-width: 1250px) { .tabs { gap: 3px; } .tabs button { padding: 0 4px; font-size: .85em; } .tabs button b { margin-left: 3px; } }
