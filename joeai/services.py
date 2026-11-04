@@ -35,6 +35,7 @@ class ServiceManager:
     def __init__(self, settings: Settings, log: Log = print):
         self.s = settings
         self.log = log
+        self.attention = ""          # a plain hint for the window when ComfyUI needs the person
         self.ollama = OllamaClient(settings.ollama)
         self.comfy_base = settings.comfy.url.rstrip("/")
 
@@ -53,10 +54,21 @@ class ServiceManager:
             return False
         self.log(f"Starting Ollama: {exe}")
         _popen([exe, "serve"])
-        return self._wait(self.ollama_up, 60, "Ollama to start")
+        hint = ("Ollama is taking a while to start. It may be updating, or showing a message in its "
+                "own window or its icon by the clock. Have a look; Joe keeps waiting.")
+        if self._wait(self.ollama_up, 90, "Ollama to start", hint_after=25, hint=hint):
+            self.attention = ""
+            return True
+        self.attention = ("Ollama didn't start. If its window or the icon by the clock shows an update "
+                          "or a question, finish that, then try again.")
+        return False
 
     def ensure_ollama(self) -> bool:
-        return self.ollama_up() or self.start_ollama()
+        if self.ollama_up():
+            if "Ollama" in self.attention:
+                self.attention = ""
+            return True
+        return self.start_ollama()
 
     # -- ComfyUI ------------------------------------------------------------
     def _probe(self, base: str) -> bool:
@@ -105,15 +117,25 @@ class ServiceManager:
         except OSError as e:
             self.log(f"Couldn't start ComfyUI: {e}")
             return False
-        if self._wait(self.comfy_up, COMFY_START_WAIT_S, "ComfyUI to open"):
+        hint = ("ComfyUI is taking a while to open. It may be updating, or waiting for you to click "
+                "something in its own window (an Update, Restart or Install button). Have a look; Joe "
+                "keeps waiting.")
+        if self._wait(self.comfy_up, COMFY_START_WAIT_S, "ComfyUI to open", hint_after=45, hint=hint):
+            self.attention = ""
             self.log(f"ComfyUI is ready at {self.comfy_base}.")
             return True
+        self.attention = ("ComfyUI didn't open. If its window shows an update or a question, finish "
+                          "that, then press RUN (F5) again: Joe carries on where he stopped.")
         self.log(f"ComfyUI didn't answer within {COMFY_START_WAIT_S // 60} minutes. If its window is "
                  "showing a question or an update, answer it and press F5 again.")
         return False
 
     def ensure_comfy(self) -> bool:
-        return self.comfy_up() or self.start_comfy()
+        if self.comfy_up():
+            if "ComfyUI" in self.attention:
+                self.attention = ""
+            return True
+        return self.start_comfy()
 
     def comfy_free(self) -> None:
         request_json("POST", f"{self.comfy_base}/free",
@@ -152,13 +174,18 @@ class ServiceManager:
         return st
 
     def _wait(self, check: Callable[[], bool], seconds: float, what: str = "",
-              every: float = 30) -> bool:
+              every: float = 30, hint_after: float = 0, hint: str = "") -> bool:
         start = time.monotonic()
         next_note = start + every
+        hinted = False
         while time.monotonic() - start < seconds:
             if check():
                 return True
             now = time.monotonic()
+            if hint and not hinted and now - start >= hint_after:
+                hinted = True
+                self.attention = hint
+                self.log("  " + hint)
             if what and now >= next_note:
                 m, s = divmod(int(now - start), 60)
                 tm, ts = divmod(int(seconds), 60)

@@ -166,6 +166,10 @@ class App:
         if any(j.media for j in m.jobs) and not (self.services.comfy_up() or self.services.comfy_exe()
                                                  or self.settings.comfy.start_command):
             warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")
+        from .picturetools import COMFY_TOOLS
+        if any(j.media or j.type in COMFY_TOOLS for j in m.jobs) and not self.services.comfy_up():
+            warnings.append("Joe will start ComfyUI for this. ComfyUI updates itself often and can stop "
+                            "to wait for a click in its own window; if it seems stuck, look at its window.")
         if any(j.type == "video" and not j.workflow for j in m.jobs):
             from . import quality as quality_mod
             from .comfy import WAN_TURBO, wan_missing, wan_turbo_installed
@@ -584,6 +588,7 @@ class App:
                 "report": (self.sb.output / "_REPORT.md").exists(),
                 "theme": self.theme_vars(), "hw": hardware.gpu(), "pause_c": s.engine.gpu_temp_pause_c,
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
+                "attention": self.services.attention,
                 "queued": [e["label"] for _, _, e in self.queue],
                 "media": media[-12:][::-1],
                 "chain": len(self.chain),

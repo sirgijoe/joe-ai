@@ -37,12 +37,12 @@ function show(name, page) {
 }
 
 let toastTimer;
-function toast(msg) {
+function toast(msg, ms = 2600) {
   const t = $("#toast");
   t.textContent = " " + msg + " ";
   t.hidden = false;
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => (t.hidden = true), 2600);
+  toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
 
 let confirmCb = null, confirmNo = null;
@@ -142,6 +142,10 @@ async function poll() {
   } catch (e) {
     if (++fails === 3) $("#status").innerHTML = "&nbsp;CONNECTION LOST — close this window and start Joe again";
     return;
+  }
+  if ((state.attention || "") !== (window._lastAttention || "")) {      // ComfyUI needs the person
+    window._lastAttention = state.attention || "";
+    if (state.attention) toast(state.attention, 15000);
   }
   const rb = $("#runbtn");
   if (rb) { rb.firstChild.textContent = state.running ? "STOP" : "RUN"; rb.classList.toggle("going", !!state.running); }

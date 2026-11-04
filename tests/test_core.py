@@ -306,3 +306,15 @@ def test_font_is_bundled_and_served_locally():
     for f in __import__("re").findall(r'url\("/fonts/([^"]+)"\)', css):
         assert (UI_DIR / "fonts" / f).is_file(), f
     assert (UI_DIR / "fonts" / "OFL-AtkinsonHyperlegible.txt").is_file()
+
+
+def test_slow_comfyui_gets_a_plain_hint(env, monkeypatch):
+    from joeai import services as services_mod
+    s, _, _ = env
+    sm = services_mod.ServiceManager(s, log=lambda x: None)
+    import itertools, types
+    ticks = itertools.count(0, 20)                      # a private clock: other threads keep the real one
+    monkeypatch.setattr(services_mod, "time", types.SimpleNamespace(monotonic=lambda: next(ticks),
+                                                                    sleep=lambda x: None))
+    ok = sm._wait(lambda: False, 120, "ComfyUI to open", hint_after=45, hint="look at its window")
+    assert not ok and sm.attention == "look at its window"
