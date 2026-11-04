@@ -243,7 +243,7 @@ FORMAT: ...
           <label>Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
           <label>Negative <input data-path="comfy.negative"></label>
           <label>FFmpeg <input data-path="comfy.ffmpeg" placeholder="blank = automatic"></label>
-          <label>Timeout (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
+          <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
           <label>Output folder <input data-path="comfy.output_dir" placeholder="blank = automatic"></label>
           <label>Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
         </fieldset>

@@ -68,6 +68,7 @@ Rules that always apply:
 VIDEO_EXTRA = "- This is for a short video clip: also describe the motion and the camera movement."
 IMAGE_FORMAT = "## <short title>, then ONE paragraph that is the image prompt itself."
 
+VIDEO_TIMEOUT_S = 3600     # minimum wait for one video clip
 TITLE_MEMORY = 80          # how many previous titles to show the model
 REF_WORDS_EACH = 1200      # cap per Inbox reference file
 REF_FILE_TYPES = {".txt", ".md", ".csv", ".json"}
@@ -821,7 +822,10 @@ class Engine:
             self.log(st.note)
             self._save_state(job, st)
             return st
-        client = comfy_mod.ComfyClient(self.services.comfy_base, self.s.comfy.timeout_s)
+        # A 5-second video can take far longer than a picture on a 12 GB card (part of the model
+        # waits in normal memory), so videos get at least an hour before Joe gives up on one.
+        limit = self.s.comfy.timeout_s if job.type != "video" else max(self.s.comfy.timeout_s, VIDEO_TIMEOUT_S)
+        client = comfy_mod.ComfyClient(self.services.comfy_base, limit)
         try:
             graph, ckpt, family, wf_label = self._pick_graph(job, client, st)
         except (comfy_mod.WorkflowError, SandboxError, HttpError) as e:
