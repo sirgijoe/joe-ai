@@ -510,8 +510,12 @@ class App:
                     (self.services.ensure_ollama if tool == "ollama" else self.services.ensure_comfy)()
                 elif action == "pull":
                     if doctor.pull_ollama_model(self.services, model, self.log, approved=True, progress=prog):
-                        if (not self.running and self.settings.ollama.text_model
-                                and not b.get("id") == "pull-vision"):
+                        if b.get("set") == "talk":                    # the quick Talk model
+                            self.settings.voice.talk_model = model
+                            self.settings.save()
+                            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice).")
+                        elif (not self.running and self.settings.ollama.text_model
+                                and b.get("id") not in ("pull-vision", "pull-small-model")):
                             self.settings.ollama.text_model = model
                             self.settings.save()
                 elif action == "download-image-model":

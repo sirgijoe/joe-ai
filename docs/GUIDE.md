@@ -64,6 +64,11 @@ folder (from its own settings), and Ollama, FFmpeg and Pandoc from the usual ins
 (winget, Scoop, Chocolatey, Program Files, Homebrew). F10 > System check shows what he found.
 Anything you type in Setup wins; if that path stops existing, Joe looks again.
 
+If the model that suits your PC best isn't installed, System check (and the setup helper) offers
+to download it: a bigger writing model when your graphics card has room for one, a small quick
+model just for Talk, a smaller one when Writing quality is Low, a picture model, the video model
+and its Turbo add-on. Every download asks first.
+
 Every screen has a tab along the top (the F-keys still work). Hover over any button and the
 bottom line says what it does.
 

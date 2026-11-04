@@ -91,3 +91,40 @@ def test_think_override_reaches_ollama():
         assert fake.requests[-1]["think"] is False
     finally:
         fake.close()
+
+
+def test_doctor_offers_the_best_models(tmp_path, monkeypatch):
+    """If the model that suits this PC isn't installed, System check offers it."""
+    from joeai import doctor, hardware
+    from joeai.services import ServiceManager
+    from fake_ollama import FakeOllama
+    fake = FakeOllama()
+    try:
+        s = Settings()
+        s.ollama.url = fake.url
+        s.comfy.url = "http://127.0.0.1:9"
+        s.comfy.models_dir = str(tmp_path / "models")
+        monkeypatch.setattr(hardware, "gpu", lambda: {"name": "Test GPU"})
+        monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
+        monkeypatch.setattr(doctor, "addons_mod_voice_ready", lambda: True)
+        models = [{"name": "qwen3:4b", "writer": True, "params": "4.0B", "size_gb": 2.6, "family": "qwen3"}]
+        monkeypatch.setattr(doctor, "ollama_models", lambda sm: models)
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert ids["upgrade-model"]["model"] == "qwen3:14b"          # 12 GB card: 14B fits
+        assert "pull-talk-model" not in ids                           # a 4B model is already quick
+        models[:] = [{"name": "qwen3:14b", "writer": True, "params": "14.8B", "size_gb": 9.3, "family": "qwen3"}]
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert "upgrade-model" not in ids
+        assert ids["pull-talk-model"]["set"] == "talk"
+        s.quality.writing = "low"
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert ids["pull-small-model"]["model"] == "qwen3:8b"
+        # Turbo add-on is offered once the video model is there
+        for folder, name, _ in comfy.WAN_VIDEO["files"]:
+            (tmp_path / "models" / folder).mkdir(parents=True, exist_ok=True)
+            (tmp_path / "models" / folder / name).write_bytes(b"x")
+        monkeypatch.setattr(ServiceManager, "comfy_up", lambda self: True)
+        ids = {i["id"] for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert "get-video-turbo" in ids
+    finally:
+        fake.close()

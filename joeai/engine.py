@@ -66,7 +66,11 @@ Rules that always apply:
   a different subject. Vary only the details: angle, framing, time of day, small props.
 - Never repeat or lightly reword a title or prompt you have already used.
 - Output only the requested content. No introductions, no closing remarks."""
-VIDEO_EXTRA = "- This is for a short video clip: also describe the motion and the camera movement."
+VIDEO_EXTRA = """- This is for a short VIDEO clip, so something must clearly MOVE the whole time.
+  Start the prompt with the motion: what moves, how, and how the camera moves (slow push-in,
+  orbit, pan, rising crane). Use moving verbs: drifting, swaying, rippling, turning, opening.
+- Avoid words that make the clip freeze: still, static, calm, motionless, frozen, painting,
+  illustration, watercolor, photo, portrait. Ask for a cinematic, realistic look instead."""
 IMAGE_FORMAT = "## <short title>, then ONE paragraph that is the image prompt itself."
 
 VIDEO_TIMEOUT_S = 3600     # minimum wait for one video clip

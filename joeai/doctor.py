@@ -141,6 +141,11 @@ def image_models(settings: Settings) -> list[comfy_mod.ImageModel]:
     return comfy_mod.scan_models(comfy_models_dir(settings))
 
 
+def addons_mod_voice_ready() -> bool:
+    from . import addons
+    return addons.voice_ready()
+
+
 # --------------------------------------------------------------------------- report
 def check(settings: Settings, sm: ServiceManager) -> dict:
     g = hardware.gpu()
@@ -170,6 +175,31 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     elif not text_ok and best_text:
         issues.append({"id": "use-model", "text": f"Setup model '{settings.ollama.text_model}' isn't "
                        f"installed. Best installed fit: {best_text}.", "action": "use", "model": best_text})
+    if oll_up and omodels:
+        names = {m["name"] for m in omodels}
+        writers = [m for m in omodels if m["writer"]]
+        rec = recommended_download(vram)
+        have = lambda n: n in names or f"{n}:latest" in names                  # noqa: E731
+        best_b = max((_params_b(m["params"]) for m in writers), default=0)
+        rec_b = _params_b(rec["name"].split(":")[-1].upper())
+        if writers and not have(rec["name"]) and best_b and rec_b > best_b * 1.2:
+            issues.append({"id": "upgrade-model", "text": f"A better writing model fits this PC: {rec['name']} "
+                           f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
+                           "better drafts.", "action": "pull", "model": rec["name"], "optional": True})
+        if addons_mod_voice_ready() and not settings.voice.talk_model and \
+                not any(1 <= _params_b(m["params"]) <= 4.5 for m in writers):
+            issues.append({"id": "pull-talk-model", "text": "A small, quick model just for Talk (qwen3:4b, "
+                           "2.6 GB) makes Joe answer much faster when you talk to him.",
+                           "action": "pull", "model": "qwen3:4b", "set": "talk", "optional": True})
+        if settings.quality.writing == "low" and best_text and not smaller_text_model(sm, best_text):
+            cur_b = next((_params_b(m["params"]) for m in writers if m["name"] == best_text), 0)
+            tag_b = lambda n: _params_b(n.split(":")[-1].upper())               # noqa: E731
+            small = next((n for _, n, _ in OLLAMA_PICKS if 1 <= tag_b(n) < cur_b * 0.8), None)
+            if small and not have(small):
+                gb = next(g for _, n, g in OLLAMA_PICKS if n == small)
+                issues.append({"id": "pull-small-model", "text": f"Writing quality is Low, but there's no "
+                               f"smaller model to switch to. {small} ({gb} GB) writes faster drafts.",
+                               "action": "pull", "model": small, "optional": True})
     if not comfy_exe and not comfy_up:
         issues.append({"id": "install-comfyui", "text": "ComfyUI is not installed (only needed for "
                        "image/video tasks).", "action": "install", "tool": "comfyui", "optional": True})
