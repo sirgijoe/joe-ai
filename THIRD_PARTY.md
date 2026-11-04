@@ -1,0 +1,51 @@
+# Third-party software, models and fonts
+
+Joe himself is free software (GPL-3.0-or-later, see LICENSE). He works together with other
+people's programs, AI models and fonts. Each keeps its own license. This list says what each one
+is, whether it ships inside Joe or Joe downloads it only after you say yes, and its license.
+
+**Ships inside Joe**
+
+| What | Used for | License |
+|---|---|---|
+| VT323 font (The VT323 Project Authors) | retro looks | SIL Open Font License 1.1 (`joeai/ui/fonts/OFL.txt`) |
+| Atkinson Hyperlegible font (Braille Institute) | easy-to-read font | SIL Open Font License 1.1 (`joeai/ui/fonts/OFL-AtkinsonHyperlegible.txt`) |
+| Joe's intro jingle | the intro screen | made for Joe, same license as Joe |
+
+**Separate programs Joe can install for you (asks first)**
+
+| What | Used for | License |
+|---|---|---|
+| Ollama | runs the writing, vision and search models | MIT |
+| ComfyUI / ComfyUI Desktop | runs picture and video models | GPL-3.0 |
+| FFmpeg | sound, video and photo conversion | LGPL-2.1+ / GPL-2.0+ (depends on the build) |
+| Pandoc | Word, PDF and EPUB copies | GPL-2.0-or-later |
+| uv (Astral) | sets up the private Python for the voice add-ons | MIT or Apache-2.0 |
+| Python (a private copy made by uv) | runs the voice add-ons | Python Software Foundation License |
+
+**Voice add-ons (asks first)**
+
+| What | Used for | License |
+|---|---|---|
+| faster-whisper | speech to text (Talk, Transcribe) | MIT |
+| Whisper models (OpenAI) | speech to text | MIT |
+| kokoro-onnx | text to speech | MIT |
+| Kokoro-82M voice model | Joe's voice, Read aloud | Apache-2.0 |
+| soundfile, NumPy | reading and writing sound | BSD-3-Clause |
+| Chatterbox (Resemble AI) | "Sound like me", optional | MIT |
+| PyTorch | used by Chatterbox | BSD-3-Clause |
+
+**AI models Joe may offer (asks first; each has its own license)**
+
+| What | Used for | License |
+|---|---|---|
+| Qwen3 (Alibaba Qwen) | writing | Apache-2.0 |
+| Qwen2.5-VL (Alibaba Qwen) | looking at pictures | Apache-2.0 for 7B; the 3B model has its own Qwen license, read it before commercial use |
+| nomic-embed-text (Nomic AI) | Ask my files search | Apache-2.0 |
+| Stable Diffusion XL base 1.0 (Stability AI) | pictures | CreativeML Open RAIL++-M |
+| Wan 2.2 TI2V 5B (Wan team, Alibaba) | video | Apache-2.0 |
+| Wan 2.2 Turbo LoRA (Kijai) | faster video | Apache-2.0 |
+
+Models you install yourself, ComfyUI workflows and custom nodes keep their own licenses; Joe
+doesn't check them. If you want to use what Joe makes commercially, read the license of the
+model that made it. Licenses change: the model's own page is the final word.

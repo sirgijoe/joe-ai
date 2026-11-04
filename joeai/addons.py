@@ -54,7 +54,49 @@ def voice_python() -> Path:
     return env / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
 
 
-UV_ZIP = "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip"
+UV_RELEASE = "https://github.com/astral-sh/uv/releases/latest/download/"
+UV_ZIP = UV_RELEASE + "uv-x86_64-pc-windows-msvc.zip"          # kept for older imports
+
+
+def uv_asset(plat: str | None = None, machine: str | None = None) -> str | None:
+    """The official uv download for this computer, or None if uv doesn't make one."""
+    import platform as _pf
+    plat = plat or sys.platform
+    m = (machine or _pf.machine()).lower()
+    arch = "aarch64" if m in ("arm64", "aarch64", "armv8", "armv8l") else \
+        "x86_64" if m in ("x86_64", "amd64", "x64") else None
+    if not arch:
+        return None
+    if plat == "win32":
+        return f"uv-{arch}-pc-windows-msvc.zip"
+    if plat == "darwin":
+        return f"uv-{arch}-apple-darwin.tar.gz"
+    if plat.startswith("linux"):
+        return f"uv-{arch}-unknown-linux-gnu.tar.gz"
+    return None
+
+
+def _unpack_uv(data: bytes, name: str, dest: Path) -> None:
+    """Copy uv (and uvx) out of the official zip / tar.gz into dest."""
+    import io
+    want = ("uv.exe", "uvx.exe", "uv", "uvx")
+    dest.mkdir(parents=True, exist_ok=True)
+    if name.endswith(".zip"):
+        import zipfile
+        with zipfile.ZipFile(io.BytesIO(data)) as z:
+            for n in z.namelist():
+                if Path(n).name.lower() in want:
+                    (dest / Path(n).name).write_bytes(z.read(n))
+        return
+    import tarfile
+    with tarfile.open(fileobj=io.BytesIO(data), mode="r:gz") as t:
+        for member in t.getmembers():
+            if member.isfile() and Path(member.name).name in want:
+                f = t.extractfile(member)
+                if f:
+                    out = dest / Path(member.name).name
+                    out.write_bytes(f.read())
+                    out.chmod(0o755)
 
 
 def uv_exe() -> str | None:
@@ -72,9 +114,13 @@ def uv_exe() -> str | None:
                  Path.home() / ".cargo" / "bin" / exe, Path(sys.executable).parent / "Scripts" / exe]
         cands += sorted((la / "Microsoft" / "WinGet" / "Packages").glob(f"astral-sh.uv*/{exe}"))
         cands += sorted((la / "Programs" / "Python").glob(f"Python3*/Scripts/{exe}"))
-        for p in cands:
-            if p.exists():
-                return str(p)
+    else:
+        cands = [Path.home() / ".local" / "bin" / exe, Path.home() / ".cargo" / "bin" / exe,
+                 Path("/opt/homebrew/bin") / exe, Path("/usr/local/bin") / exe,
+                 Path("/home/linuxbrew/.linuxbrew/bin") / exe]
+    for p in cands:
+        if p.exists():
+            return str(p)
     return None
 
 
@@ -83,20 +129,17 @@ def get_uv(log: Log) -> str | None:
     uv = uv_exe()
     if uv:
         return uv
-    if sys.platform == "win32":
-        import io
+    asset = uv_asset()
+    if asset:
+        import tarfile
         import zipfile
-        log("Getting uv (it sets up a private Python just for Joe's voice)...")
-        dest = addons_dir() / "bin"
-        dest.mkdir(parents=True, exist_ok=True)
+        log("Getting uv from its official GitHub release (it sets up a private Python just "
+            "for Joe's voice; no admin needed)...")
         try:
-            with urllib.request.urlopen(UV_ZIP, timeout=120) as r:
+            with urllib.request.urlopen(UV_RELEASE + asset, timeout=120) as r:
                 data = r.read()
-            with zipfile.ZipFile(io.BytesIO(data)) as z:
-                for name in z.namelist():
-                    if name.lower().endswith(("uv.exe", "uvx.exe")):
-                        (dest / Path(name).name).write_bytes(z.read(name))
-        except (OSError, zipfile.BadZipFile) as e:
+            _unpack_uv(data, asset, addons_dir() / "bin")
+        except (OSError, zipfile.BadZipFile, tarfile.TarError) as e:
             log(f"  couldn't download uv: {e}")
         if uv_exe():
             return uv_exe()

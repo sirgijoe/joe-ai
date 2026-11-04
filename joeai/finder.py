@@ -17,8 +17,7 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-WINDOWS = sys.platform == "win32"
-MAC = sys.platform == "darwin"
+from .system import LINUX, MAC, WINDOWS  # noqa: F401  (one place decides the OS)
 
 
 def _env(name: str) -> Path | None:
@@ -138,7 +137,8 @@ def _tool_dirs(tool: str, program_dirs: tuple[str, ...]) -> list[Path]:
                 dirs += [drive / d / "bin", drive / d]
     else:
         dirs += [Path("/opt/homebrew/bin"), Path("/usr/local/bin"), Path("/usr/bin"),
-                 _home() / ".local" / "bin"]
+                 _home() / ".local" / "bin", Path("/home/linuxbrew/.linuxbrew/bin"),
+                 _home() / ".linuxbrew" / "bin", Path("/snap/bin"), Path("/opt/local/bin")]
     return dirs
 
 
@@ -319,13 +319,17 @@ def _search_roots() -> list[Path]:
     for d in (h / "Desktop", h / "Documents", h / "Downloads", h / "AI"):
         roots += [c for c in _children(d) if _is_dir(c) and re.search(r"\bai\b|stable|diffusion|tools",
                                                                       c.name, re.I)]
+    roots += [h / "comfy", h / "pinokio" / "api", h / "StabilityMatrix" / "Data" / "Packages"]
     if WINDOWS:
         ad = _env("APPDATA")
         if ad:
             roots.append(ad / "StabilityMatrix" / "Packages")
         roots += [d / "StabilityMatrix" / "Data" / "Packages" for d in _drives()]
-        pin = h / "pinokio" / "api"
-        roots.append(pin)
+    elif MAC:
+        roots.append(h / "Library" / "Application Support" / "StabilityMatrix" / "Packages")
+    else:
+        roots += [h / ".local" / "share" / "StabilityMatrix" / "Packages", h / "src", h / "opt",
+                  Path("/opt")]
     return roots
 
 

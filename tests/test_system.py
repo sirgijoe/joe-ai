@@ -145,3 +145,35 @@ def test_when_finished_nothing(monkeypatch):
 
 def test_ram_is_a_number():
     assert system.ram_total_gb() >= 0
+
+
+def test_uv_download_name_per_computer():
+    from joeai.addons import uv_asset
+    assert uv_asset("win32", "AMD64") == "uv-x86_64-pc-windows-msvc.zip"
+    assert uv_asset("win32", "ARM64") == "uv-aarch64-pc-windows-msvc.zip"
+    assert uv_asset("darwin", "arm64") == "uv-aarch64-apple-darwin.tar.gz"
+    assert uv_asset("darwin", "x86_64") == "uv-x86_64-apple-darwin.tar.gz"
+    assert uv_asset("linux", "x86_64") == "uv-x86_64-unknown-linux-gnu.tar.gz"
+    assert uv_asset("linux", "riscv64") is None
+
+
+def test_uv_unpacks_from_tar_and_zip(tmp_path):
+    import io, tarfile, zipfile
+    from joeai.addons import _unpack_uv
+    buf = io.BytesIO()
+    with tarfile.open(fileobj=buf, mode="w:gz") as t:
+        for n in ("uv-x86_64-unknown-linux-gnu/uv", "uv-x86_64-unknown-linux-gnu/uvx",
+                  "uv-x86_64-unknown-linux-gnu/README"):
+            data = b"#!/bin/sh\n"
+            info = tarfile.TarInfo(n)
+            info.size = len(data)
+            t.addfile(info, io.BytesIO(data))
+    _unpack_uv(buf.getvalue(), "x.tar.gz", tmp_path / "a")
+    assert sorted(p.name for p in (tmp_path / "a").iterdir()) == ["uv", "uvx"]
+    assert (tmp_path / "a" / "uv").stat().st_mode & 0o100
+    zb = io.BytesIO()
+    with zipfile.ZipFile(zb, "w") as z:
+        z.writestr("uv.exe", b"MZ")
+        z.writestr("other.txt", b"x")
+    _unpack_uv(zb.getvalue(), "x.zip", tmp_path / "b")
+    assert [p.name for p in (tmp_path / "b").iterdir()] == ["uv.exe"]

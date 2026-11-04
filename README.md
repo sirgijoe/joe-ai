@@ -161,6 +161,7 @@ internet. None of them send your files, chats or recordings.
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
+| Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
 | Talk looks things up | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current | Off until you turn it on |
 
@@ -222,7 +223,11 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 - **AI makes mistakes.** Joe flags what he's unsure of, but always read before you publish,
   sell, or rely on anything he writes.
 - **Check model licenses** before using pictures or text commercially. Each AI model has its
-  own license.
+  own license. [THIRD_PARTY.md](THIRD_PARTY.md) lists every program, model and font Joe ships
+  or can fetch, with its license.
+- **Need help?** Setup > General > **MAKE A HELP FILE** saves one zip with Joe's version, System
+  check and the end of the logs (keys hidden, never your files, chats or recordings) to send to
+  whoever is helping you.
 - **Joe is free; what you plug into him might not be.** Joe works with programs, AI models,
   ComfyUI workflows and custom nodes, add-ons and plugins made by other people and companies.
   Joe's makers don't make, own, control or vouch for any of them. Each has its own license,

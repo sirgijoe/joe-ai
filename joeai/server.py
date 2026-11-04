@@ -695,6 +695,14 @@ class App:
                     ok = addons_mod.install_clone(addons_mod.install_log(self.log), approved=True)
                 elif action == "install-pandoc":
                     ok = addons_mod.install_pandoc(addons_mod.install_log(self.log), approved=True)
+                elif action == "update-joe":
+                    from . import update as update_mod
+                    info = update_mod.check()
+                    f = update_mod.download(info, self.log, progress=prog) if info.get("newer") else None
+                    ok = bool(f) and update_mod.launch(f, info.get("kind", "source"), self.log)
+                    if ok and info.get("kind") in ("windows-installer", "linux-appimage"):
+                        self.last_seen = 0.0                 # step aside so the new Joe can start
+                        self.quit_now = True
                 self.refresh_services()
             except Exception as e:      # report, never crash the server
                 ok = False
@@ -707,7 +715,9 @@ class App:
                   "download-video-model": "downloading video model",
                   "download-video-turbo": "downloading the Turbo add-on",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
-                  "install-clone": "setting up voice copy"}
+                  "install-clone": "setting up voice copy", "update-joe": "updating Joe"}
+        if action == "update-joe" and self.running:
+            return {"ok": False, "error": "Joe is working: update after the run finishes."}
         if action not in labels:
             return {"ok": False, "error": "unknown fix"}
         self.busy = labels[action]
@@ -1279,6 +1289,20 @@ def make_handler(app: App):
                     return self._json({"ok": True})
                 if u.path == "/api/doctor/fix":
                     return self._json(app.doctor_fix(b))
+                if u.path == "/api/help-file":                  # a zip to send when asking for help
+                    from . import support
+                    try:
+                        chk = doctor.check(app.settings, app.services)
+                    except Exception as e:                      # noqa: BLE001 (still make the file)
+                        chk = {"error": repr(e)}
+                    f = support.make_help_file(app.settings, app.sb, chk)
+                    if b.get("show", True):
+                        try:
+                            from .system import reveal
+                            reveal(f)
+                        except OSError:
+                            pass
+                    return self._json({"ok": True, "path": f.name})
                 if u.path == "/api/queue/add":
                     return self._json(app.enqueue(b.get("text", "")))
                 if u.path == "/api/queue/remove":

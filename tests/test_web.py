@@ -56,3 +56,40 @@ def test_talk_with_web(env, monkeypatch):  # noqa: F811
     monkeypatch.setattr(app.services.ollama, "chat", lambda *a, **k: R(next(answers)))
     r = chat.reply(app, [], "how hot does a kiln get for cone 6")
     assert r["say"].startswith("About 2232") and r["sources"][0]["title"] == "Weather"
+
+
+def test_update_picks_the_right_installer_and_checks_it(tmp_path, monkeypatch):
+    import hashlib, io, json
+    from joeai import update
+    assets = [{"name": n, "browser_download_url": "https://x/" + n, "size": 9} for n in (
+        "Joe-Setup-2.0.0b1-windows-x64.exe", "Joe-2.0.0b1-macos-arm64.dmg",
+        "Joe-2.0.0b1-macos-x64.dmg", "Joe-2.0.0b1-linux-x86_64.AppImage", "SHA256SUMS.txt")]
+    assert update.pick_asset(assets, "windows-installer")["name"].endswith(".exe")
+    assert update.pick_asset(assets, "mac-app", "arm64")["name"].endswith("arm64.dmg")
+    assert update.pick_asset(assets, "mac-app", "x86_64")["name"].endswith("x64.dmg")
+    assert update.pick_asset(assets, "linux-appimage", "x86_64")["name"].endswith(".AppImage")
+    assert update.pick_asset(assets, "source") is None
+    f = tmp_path / "_install.json"
+    assert update.install_kind(f) == "source"
+    f.write_text(json.dumps({"kind": "mac-app"}))
+    assert update.install_kind(f) == "mac-app"
+    f.write_text(json.dumps({"kind": "weird"}))
+    assert update.install_kind(f) == "source"
+
+    monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
+    good = b"installer bytes"
+    sums = f"{hashlib.sha256(good).hexdigest()}  Joe-Setup-2.0.0b1-windows-x64.exe\n".encode()
+
+    class R(io.BytesIO):
+        headers = {}
+        def __enter__(self): return self
+        def __exit__(self, *a): return False
+    def opener(body):
+        return lambda url, timeout=0: R(sums if url.endswith("SHA256SUMS.txt") else body)
+    info = {"asset": update.pick_asset(assets, "windows-installer"), "sums": "https://x/SHA256SUMS.txt"}
+    logs = []
+    got = update.download(info, logs.append, opener=opener(good))
+    assert got and got.read_bytes() == good
+    assert update.download(info, logs.append, opener=opener(b"tampered")) is None
+    assert "checksum" in logs[-1] and not (tmp_path / (info["asset"]["name"] + ".part")).exists()
+    assert update.download({**info, "sums": ""}, logs.append, opener=opener(good)) is None

@@ -844,6 +844,12 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (act === "welcome") { await loadThemes().catch(() => {}); welcomeOpen(); return; }
+    if (act === "help-file") {
+      $("#setup-msg").textContent = "Making the help file…";
+      try { const r = await api("/api/help-file", {}); $("#setup-msg").textContent = `Saved ${r.path} in Output (the folder opens). Look inside before you send it.`; }
+      catch (e) { $("#setup-msg").textContent = e.message; }
+      return;
+    }
     if (act === "check-update") { $("#setup-msg").textContent = "Checking GitHub…"; await checkUpdate(true); return; }
     if (act === "clear") {
       $("#mission").value = ""; $("#plan").textContent = ""; $("#describe").value = ""; $("#describe-msg").textContent = "";
@@ -1814,7 +1820,20 @@ async function checkUpdate(manual) {
   if (!r.ok) { if (manual) $("#setup-msg").textContent = `You have ${r.current || "?"}. ${r.error}`; return; }
   if (!r.newer) { if (manual) $("#setup-msg").textContent = `You have the newest version (${r.current}).`; return; }
   if (manual) $("#setup-msg").textContent = `Joe ${r.latest} is out (you have ${r.current}).`;
-  confirmBox(`Joe ${r.latest} is out. You have ${r.current}.\n\n${r.notes ? r.notes.slice(0, 600) + "\n\n" : ""}Open the download page?`,
+  const notes = r.notes ? r.notes.slice(0, 600) + "\n\n" : "";
+  if (r.asset) {
+    const mb = r.asset.size ? ` (${Math.round(r.asset.size / 1048576)} MB)` : "";
+    const how = { "windows-installer": "Joe closes while it installs and opens again by himself.",
+      "mac-app": "When it's downloaded, drag the new Joe onto Applications.",
+      "linux-appimage": "Joe swaps in the new version and restarts." }[r.kind] || "";
+    confirmBox(`Joe ${r.latest} is out. You have ${r.current}.\n\n${notes}Download and install it now${mb}? It's checked against the release's checksum first. ${how} Your files and settings are kept.`,
+      async () => {
+        const x = await api("/api/doctor/fix", { action: "update-joe", approved: true });
+        $("#setup-msg").textContent = x.ok ? "Downloading the update…" : x.error;
+      });
+    return;
+  }
+  confirmBox(`Joe ${r.latest} is out. You have ${r.current}.\n\n${notes}Open the download page?`,
     () => window.open(r.url, "_blank", "noopener"));
 }
 setTimeout(() => checkUpdate(false), 8000);
