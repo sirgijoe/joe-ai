@@ -2,8 +2,10 @@
 
 Nothing is installed or downloaded without the user saying yes: the UI asks first and
 only then calls install()/pull_ollama_model()/download_image_model() with approved=True.
-Installs use winget (built into Windows 10/11) with the publishers' official packages;
-without winget we open the official download page instead.
+Installs use the system's package manager with the publishers' official packages: winget on
+Windows, Homebrew on Mac. On Linux (apt/dnf/pacman need an admin password, which Joe never asks
+for) Joe shows the one command to paste in a terminal. Otherwise he opens the official download
+page. See system.install_plan.
 """
 from __future__ import annotations
 
@@ -20,6 +22,7 @@ from typing import Callable
 
 from . import comfy as comfy_mod
 from . import hardware
+from . import system as _system
 from .config import Settings
 from .http import HttpError, request_json
 from .services import ServiceManager, find_ollama_exe
@@ -56,6 +59,40 @@ STARTER_IMAGE_MODEL = {
 
 def winget() -> str | None:
     return shutil.which("winget") if sys.platform == "win32" else None
+
+
+PAGES = {"uv": "https://docs.astral.sh/uv/getting-started/installation/",
+         "pandoc": "https://pandoc.org/installing.html"}
+
+
+def run_install(tool: str, label: str, page: str, log: Log) -> bool:
+    """Install one program the way this system does it (see system.install_plan)."""
+    from . import system
+    plan = system.install_plan(tool)
+    page = page or TOOLS.get(tool, {}).get("page") or PAGES.get(tool, "")
+    mgr = system.manager_label(plan.get("manager"))
+    if plan["kind"] == "page":
+        log(f"There's no automatic install for {label} on {system.pretty_name()} here; "
+            "opening the official download page instead.")
+        if page:
+            webbrowser.open(page)
+        return False
+    if plan["kind"] == "command":
+        log(f"Installing {label} needs your admin password, and Joe never asks for passwords. "
+            "Open a terminal, run this, then press CHECK AGAIN:")
+        log("  " + " ".join(plan["cmd"]))
+        return False
+    log(f"Installing {label} with {mgr} (your system may ask for permission)...")
+    try:
+        p = subprocess.run(plan["cmd"], capture_output=True, text=True, timeout=1800,
+                           creationflags=system.no_window_flags())
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"{mgr} failed to run: {e}")
+        return False
+    for ln in (p.stdout or p.stderr or "").strip().splitlines()[-3:]:
+        log(f"  {mgr}: " + ln.strip()[:160])
+    out = (p.stdout or "").lower()
+    return p.returncode == 0 or "already installed" in out
 
 
 def ffmpeg_exe(configured: str = "") -> str | None:
@@ -257,6 +294,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        "frames/GIFs into MP4).", "action": "install", "tool": "ffmpeg", "optional": True})
     return {
         "gpu": g, "vram_gb": vram, "ram_gb": hardware.ram_total_gb(), "winget": bool(winget()),
+        "os": _system.pretty_name(), "pkg": _system.manager_label(_system.package_manager())
+        if _system.package_manager() else "",
         "ollama": {"installed": bool(oll_exe) or oll_up, "running": oll_up, "exe": oll_exe or "",
                    "models": omodels, "best": best_text,
                    "configured": settings.ollama.text_model or f"auto ({best_text or 'none yet'})",
@@ -277,32 +316,15 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
 
 # --------------------------------------------------------------------------- actions
 def install(tool: str, log: Log, approved: bool = False) -> bool:
-    """Install a tool with winget (the user already said yes in the UI)."""
+    """Install a tool the way this system does it (the user already said yes in the UI)."""
     if not approved:
         raise PermissionError("install needs the user's approval")
     t = TOOLS.get(tool)
     if not t:
         log(f"Unknown tool: {tool}")
         return False
-    wg = winget()
-    if not wg:
-        log(f"winget not available; opening the {tool} download page instead.")
-        webbrowser.open(t["page"])
-        return False
-    log(f"Installing {t['label']} with winget (Windows may ask for permission)...")
-    cmd = [wg, "install", "-e", "--id", t["winget"], "--accept-package-agreements",
-           "--accept-source-agreements", "--disable-interactivity"]
-    try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=1800,
-                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
-    except (OSError, subprocess.SubprocessError) as e:
-        log(f"winget failed to run: {e}")
-        return False
-    tail = (p.stdout or p.stderr or "").strip().splitlines()[-3:]
-    for ln in tail:
-        log("  winget: " + ln.strip()[:160])
-    ok = p.returncode == 0 or "already installed" in (p.stdout or "").lower()
-    log(f"{t['label']}: {'installed' if ok else 'install failed (code ' + str(p.returncode) + ')'}")
+    ok = run_install(tool, t["label"], t["page"], log)
+    log(f"{t['label']}: {'installed' if ok else 'not installed yet'}")
     if ok and tool == "comfyui":
         log("ComfyUI Desktop runs a one-time setup the first time it opens. Finish that, then "
             "Joe can start it by itself.")

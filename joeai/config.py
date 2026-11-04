@@ -1,14 +1,14 @@
 """Settings: stored per-user (never inside the repo or the .exe).
 
 Windows: %APPDATA%\\joe-ai\\settings.json
-Other:   ~/.config/joe-ai/settings.json
+Mac:     ~/Library/Application Support/joe-ai/settings.json
+Linux:   ~/.config/joe-ai/settings.json
 Override with the JOE_CONFIG environment variable (used by tests).
 """
 from __future__ import annotations
 
 import json
 import os
-import sys
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
@@ -16,10 +16,8 @@ from .fsutil import atomic_write_text
 
 
 def config_dir() -> Path:
-    if sys.platform == "win32":
-        base = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
-        return base / "joe-ai"
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "joe-ai"
+    from .system import config_dir as _cd
+    return _cd()
 
 
 def config_path() -> Path:
@@ -28,8 +26,8 @@ def config_path() -> Path:
 
 
 def default_workspace() -> Path:
-    docs = Path.home() / "Documents"
-    return (docs if docs.exists() else Path.home()) / "Joe-ai"
+    from .system import default_workspace as _dw
+    return _dw()
 
 
 @dataclass

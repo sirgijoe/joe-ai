@@ -610,7 +610,7 @@ async function loadDoctor() {
   const tl = $("#dl-talkmodels"); if (tl) tl.innerHTML = o.models.map((m) => `<option value="${esc(m.name)}">`).join("");
   const yes = (b) => (b ? "YES" : "no ");
   $("#doctor").textContent =
-    `GPU      ${g ? `${g.name}  ${d.vram_gb} GB VRAM` : "no NVIDIA GPU found"}   RAM ${d.ram_gb} GB   winget ${d.winget ? "yes" : "no"}\n` +
+    `GPU      ${g ? `${g.name}  ${d.vram_gb} GB VRAM` : "no NVIDIA GPU found"}   RAM ${d.ram_gb} GB   ${d.os || ""}  installs: ${d.pkg || "by hand"}\n` +
     `OLLAMA   installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
     `         best fit installed: ${o.best || "-"}   in use: ${o.configured}\n` +
     `COMFYUI  installed ${yes(c.installed)} running ${yes(c.running)}  ${c.url}\n` +
@@ -625,12 +625,14 @@ async function loadDoctor() {
   return d;
 }
 function askFix(it) {
-  const what = { install: "Install it now (winget, Windows may ask for permission)?", start: "Start it now?",
+  const pkg = (doctorData && doctorData.pkg) || "";
+  const viaPkg = pkg ? `Install it now with ${pkg}? Your system may ask for permission.` : "Open the official download page?";
+  const what = { install: viaPkg, start: "Start it now?",
     use: "Switch to this model?", pull: "Download it now?", "download-image-model": "Download it now?",
     "download-video-model": "Download it now? About 18 GB in 3 files; it can take an hour or more.",
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
-    "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Windows may ask for permission.",
-    "install-pandoc": "Install it now (winget)?",
+    "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Your system may ask for permission.",
+    "install-pandoc": viaPkg,
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];
   confirmBox(`${it.text}\n\n${what}`, async () => {
     const r = await api("/api/doctor/fix", { ...it, approved: true });

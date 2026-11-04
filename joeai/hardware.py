@@ -4,11 +4,8 @@ gpu() is cheap to call often: results are cached for a couple of seconds.
 """
 from __future__ import annotations
 
-import ctypes
-import os
 import shutil
 import subprocess
-import sys
 import threading
 import time
 
@@ -64,19 +61,5 @@ def vram_total_gb() -> float:
 
 
 def ram_total_gb() -> float:
-    if sys.platform == "win32":
-        class MS(ctypes.Structure):
-            _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
-                        ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
-                        ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
-                        ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
-                        ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
-        m = MS()
-        m.dwLength = ctypes.sizeof(MS)
-        if ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m)):  # type: ignore[attr-defined]
-            return round(m.ullTotalPhys / 2**30, 1)
-        return 0.0
-    try:
-        return round(os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 2**30, 1)
-    except (ValueError, OSError, AttributeError):
-        return 0.0
+    from .system import ram_total_gb as _ram
+    return _ram()

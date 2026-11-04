@@ -38,15 +38,11 @@ VOICES = {  # Kokoro voice ids (American/British English) -> friendly names
     "bf_emma": "Emma (UK)",
 }
 STT_MODELS = ("tiny.en", "base.en", "small.en")
-WINGET_IDS = {"uv": "astral-sh.uv", "pandoc": "JohnMacFarlane.Pandoc"}
 
 
 def addons_dir() -> Path:
-    if sys.platform == "win32":
-        base = Path(os.environ.get("LOCALAPPDATA", Path.home() / "AppData" / "Local"))
-    else:
-        base = Path(os.environ.get("XDG_DATA_HOME", Path.home() / ".local" / "share"))
-    return Path(os.environ.get("JOE_ADDONS") or base / "joe-ai" / "addons")
+    from .system import data_dir
+    return Path(os.environ.get("JOE_ADDONS") or data_dir() / "addons")
 
 
 def voice_dir() -> Path:
@@ -104,7 +100,7 @@ def get_uv(log: Log) -> str | None:
             log(f"  couldn't download uv: {e}")
         if uv_exe():
             return uv_exe()
-    log("Trying winget for uv...")
+    log("Trying the system's package manager for uv...")
     _winget("uv", log)
     uv = uv_exe()
     if not uv:
@@ -249,13 +245,9 @@ def _run(cmd: list[str], log: Log, timeout: int = 3600) -> bool:
 
 
 def _winget(tool: str, log: Log) -> bool:
-    from .doctor import winget
-    wg = winget()
-    if not wg:
-        log(f"winget isn't available, so {tool} can't be installed automatically.")
-        return False
-    ok = _run([wg, "install", "-e", "--id", WINGET_IDS[tool], "--accept-package-agreements",
-               "--accept-source-agreements", "--disable-interactivity"], log, 1800)
+    """Install uv or Pandoc with this system's package manager (winget, Homebrew, apt, ...)."""
+    from .doctor import run_install
+    ok = run_install(tool, tool, "", log)
     return ok or bool(uv_exe() if tool == "uv" else pandoc_exe())   # "already installed" counts
 
 

@@ -196,7 +196,7 @@ class Engine:
         text_jobs = [(j, st) for j, st in jobs if not j.media]
         media_jobs = [(j, st) for j, st in jobs if j.media]
         done: dict[str, JobState] = {}
-        with keep_awake(self.s.engine.keep_awake):
+        with keep_awake(self.s.engine.keep_awake, self.log):
             # Text first, then every image prompt while Ollama is loaded, then all the
             # rendering: the GPU only switches from Ollama to ComfyUI once.
             for job, st in text_jobs:

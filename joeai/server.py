@@ -14,10 +14,7 @@ import collections
 import re
 import json
 import mimetypes
-import os
 import secrets
-import subprocess
-import sys
 import threading
 import time
 from dataclasses import asdict
@@ -477,18 +474,17 @@ class App:
         return {**info, "kind": "binary"}
 
     def open_path(self, rel: str, how: str) -> dict:
+        from . import system
         p = self.rel_path(rel)
-        if sys.platform != "win32":
-            return {"ok": False, "error": "Opening files is only wired up on Windows."}
-        if how == "folder":
-            if p.is_dir():
-                subprocess.Popen(["explorer", str(p)])
-            else:
-                subprocess.Popen(["explorer", f"/select,{p}"])
-        elif how == "editor" and p.is_file():
-            subprocess.Popen(["notepad.exe", str(p)])
-        elif p.exists():
-            os.startfile(str(p))  # type: ignore[attr-defined]
+        try:
+            if how == "folder":
+                system.reveal(p)
+            elif how == "editor" and p.is_file():
+                system.open_in_editor(p)
+            elif p.exists():
+                system.open_path(p)
+        except OSError as e:
+            return {"ok": False, "error": f"Couldn't open it: {e}"}
         return {"ok": True}
 
     def doctor_fix(self, b: dict) -> dict:

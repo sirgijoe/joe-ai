@@ -1,18 +1,16 @@
 """Double-click launcher: start (or reuse) the local server and open the app window.
 
-The window is Microsoft Edge in "app mode" (no tabs or address bar), which ships
-with every Windows 10/11 PC, so there is nothing extra to install.
+The window is a Chromium browser in "app mode" (no tabs or address bar): Edge, which ships
+with every Windows 10/11 PC, or Edge/Chrome/Chromium/Brave on Mac and Linux (system.py).
+Without one, Joe opens in the default browser.
 """
 from __future__ import annotations
 
 import json
 import os
-import shutil
-import subprocess
 import sys
 import traceback
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 from .config import config_dir
@@ -61,27 +59,9 @@ def _existing_url() -> str | None:
     return None
 
 
-def _edge() -> str | None:
-    for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles"),
-                 os.environ.get("LOCALAPPDATA")):
-        if base:
-            p = Path(base) / "Microsoft" / "Edge" / "Application" / "msedge.exe"
-            if p.exists():
-                return str(p)
-    return shutil.which("msedge")
-
-
 def open_window(url: str) -> None:
-    edge = _edge()
-    if edge:
-        profile = config_dir() / "window"
-        subprocess.Popen([edge, f"--app={url}", f"--user-data-dir={profile}",
-                          "--no-first-run", "--no-default-browser-check",
-                          # Joe's own window may play his hello and chimes without a click first
-                          "--autoplay-policy=no-user-gesture-required",
-                          "--window-size=1280,860"])
-    else:
-        webbrowser.open(url)
+    from .system import open_window as _ow
+    _ow(url, config_dir() / "window")
 
 
 def main() -> int:

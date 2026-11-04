@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import re
 import subprocess
-import sys
 import time
 from pathlib import Path
 from typing import Callable
@@ -23,15 +22,8 @@ COMFY_START_WAIT_S = 300      # ComfyUI Desktop can be slow to open after an upd
 
 
 def _popen(cmd: list[str] | str, cwd: str | None = None) -> subprocess.Popen:
-    kwargs: dict = {"cwd": cwd or None, "stdout": subprocess.DEVNULL,
-                    "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
-    if sys.platform == "win32":
-        # No console window; own process group so it outlives Joe.
-        kwargs["creationflags"] = (subprocess.CREATE_NO_WINDOW
-                                   | subprocess.CREATE_NEW_PROCESS_GROUP)
-    else:
-        kwargs["start_new_session"] = True
-    return subprocess.Popen(cmd, shell=isinstance(cmd, str), **kwargs)
+    from .system import popen_detached
+    return popen_detached(cmd, cwd)
 
 
 def find_ollama_exe(configured: str = "") -> str | None:

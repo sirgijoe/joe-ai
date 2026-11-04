@@ -325,3 +325,11 @@ python -m pytest
 ```
 
 Tests use fake Ollama and ComfyUI servers, so no GPU is needed.
+
+**Windows, Mac and Linux.** Everything that differs between systems lives in `joeai/system.py`:
+folders, opening Joe's window (Edge/Chrome/Chromium/Brave app mode, else the default browser),
+opening files and folders, keeping the computer awake, sleep/shutdown after a run, memory
+size, and installing programs (winget on Windows, Homebrew on Mac; on Linux Joe shows the
+`sudo apt/dnf/pacman` command to paste, because he never asks for passwords). New code asks
+`system` instead of checking `sys.platform` itself. Tests in `tests/test_system.py` pretend to
+be each system, and CI runs the suite on Windows, macOS and Ubuntu.
