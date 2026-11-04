@@ -13,6 +13,7 @@ class FakeOllama:
         self.dup_every = dup_every
         self.short_every = short_every
         self.calls = 0
+        self.embeds = 0
         self.requests: list[dict] = []     # every /api/chat body, newest last
         self.counter = 0
         self.prompts: list[str] = []
@@ -45,6 +46,17 @@ class FakeOllama:
             def do_POST(self):
                 n = int(self.headers.get("Content-Length", 0))
                 req = json.loads(self.rfile.read(n) or b"{}")
+                if self.path == "/api/embed":                 # word-hash vectors: same words, close vectors
+                    vecs = []
+                    for t in req["input"]:
+                        v = [0.0] * 64
+                        for w in re.findall(r"\w+", t.lower()):
+                            if len(w) > 3:
+                                v[sum(map(ord, w)) % 64] += 1.0
+                        vecs.append(v)
+                    fake.embeds += len(req["input"])
+                    self._send(200, {"embeddings": vecs})
+                    return
                 if self.path == "/api/generate":
                     self._send(200, {"done": True})
                 elif self.path == "/api/chat":
@@ -132,6 +144,17 @@ class FakeOllama:
                     cat = "Snacks"                                        # not on the list: flagged
                 return 200, self._reply(json.dumps({"category": cat, "tags": [cat.lower(), "photo"],
                                                     "caption": f"A photo of {cat.lower()}."}))
+            if sysmsg.startswith("You answer questions using ONLY the numbered excerpts"):
+                ex = user.split("EXCERPTS:", 1)[1]
+                q = user.split("QUESTION:", 1)[1].split("\n", 1)[0].lower()
+                for block in re.split(r"\n\n(?=\[\d+\] \()", ex.strip()):
+                    n = re.match(r"\[(\d+)\]", block).group(1)
+                    hit = re.search(r"(refunds[^.]*\.)", block, re.I) if "refund" in q else None
+                    if hit:
+                        return 200, self._reply(f"The documents say: {hit.group(1)} [{n}]")
+                return 200, self._reply("The documents don't seem to say.")
+            if sysmsg.startswith("You summarize one of the person's documents"):
+                return 200, self._reply("- A short summary.\n\nWorth knowing: nothing urgent.")
             if sysmsg.startswith("You fix spelling mistakes in spreadsheet cells"):
                 rows = json.loads(re.search(r"^(\[.*\])$", user, re.M).group(1))
                 fixes = [{"row": r["row"], "column": k, "find": "Bwol", "replace": "Bowl"}

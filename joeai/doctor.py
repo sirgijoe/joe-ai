@@ -276,8 +276,14 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         if not vision_model(omodels):
             vm = "qwen2.5vl:7b" if vram >= 10 else "qwen2.5vl:3b"
             issues.append({"id": "pull-vision", "text": f"No vision model (only needed so Joe can look at pictures "
-                           f"you drop into Talk). Best fit: {vm}.", "action": "pull", "model": vm,
-                           "optional": True})
+                           f"you drop into Talk and for the picture tools). Best fit: {vm}.", "action": "pull",
+                           "model": vm, "optional": True})
+        from .tools import EMBED_MODEL, embed_model_in
+        if not embed_model_in(omodels):
+            issues.append({"id": "pull-embed", "text": f"No search model (only for the Ask my files tool, so "
+                           f"it finds the right parts of your documents; it works without one, just less "
+                           f"well). Best fit: {EMBED_MODEL} (about 270 MB).", "action": "pull",
+                           "model": EMBED_MODEL, "optional": True})
     if not addons_mod.voice_ready():
         issues.append({"id": "install-voice", "text": "Joe's voice isn't set up (talk with F6, hear replies "
                        "and reports). About 500 MB: uv, a private Python 3.12, faster-whisper and Kokoro, "

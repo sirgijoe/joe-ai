@@ -77,6 +77,7 @@ class Tool:
     examples: tuple[str, ...] = field(default_factory=tuple)
     extra_hint: str = ""                 # placeholder for the form's "Anything else?" box
     mark: bool = False                   # takes WATERMARK: (text or a logo .png), only if asked
+    extra_label: str = ""                # the form's "Anything else?" box, named for this tool
 
 
 TOOLS: dict[str, Tool] = {t.id: t for t in (
@@ -143,7 +144,23 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Translate my menu into Spanish", "Make French and German copies of this flyer"),
          extra_hint="optional, e.g. formal tone, Latin American Spanish"),
     Tool("ask-files", "Ask my files", "Writing",
-         "Answers and summaries from a folder of your documents.", needs=("ollama",)),
+         "Answers and summaries from a folder of your documents.",
+         accepts=DOC_EXT,
+         options=(Option("summaries", "A short summary of each document", False,
+                         "On its own (no question) Joe just makes the summaries."),),
+         needs=("ollama",), ready=True,
+         help="Type your question(s) in the box below (one per line, or end each with ?). Joe finds "
+              "the parts of your documents that fit and answers only from them, showing which "
+              "excerpts he used; if the documents don't say, he says so. Works straight away; a small "
+              "search model (Setup > System check, about 270 MB) helps him find the right parts in "
+              "big folders. Everything stays on this computer.",
+         plan_hint="Questions about / summaries of the person's documents: TYPE: ask-files, INPUT: the "
+                   "document file(s) or folder from the list below, FORMAT: their question(s), one "
+                   "per line, word for word, OPTIONS: summaries (only if they want summaries), else "
+                   "none. No CHUNKS.",
+         examples=("What do my contracts say about cancelling?", "Summarize every document in this folder"),
+         extra_hint="e.g. What do these say about refunds? When is each one due?",
+         extra_label="Your question(s)"),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
          "Fix duplicates, spelling and categories in a CSV.",
          accepts=SHEET_EXT,
@@ -270,6 +287,7 @@ def catalog() -> list[dict]:
     return [{"id": t.id, "name": t.name, "group": t.group, "blurb": t.blurb, "ready": t.ready,
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
              "needs": list(t.needs), "extra_hint": t.extra_hint, "mark": t.mark,
+             "extra_label": t.extra_label,
              "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint,
                           "choices": [list(c) for c in o.choices], "value": o.value, "multi": o.multi}
                          for o in t.options]}
@@ -410,7 +428,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
           "proofread": run_proofread, "photo-batch": run_photo_batch,
           "translate": run_translate, "tidy-sheet": run_tidy_sheet,
           "photo-listing": run_photo_listing, "read-scans": run_read_scans,
-          "sort-photos": run_sort_photos}.get(job.type)
+          "sort-photos": run_sort_photos, "ask-files": run_ask_files}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -2241,6 +2259,299 @@ def run_sort_photos(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     return _finish(engine, job, st, len(files), failed)
 
 
+# --------------------------------------------------------------------------- B10 ask my files
+EMBED_MODEL = "nomic-embed-text"      # small (about 270 MB), good at finding the right passage
+_EMBED_HINT = re.compile(r"embed|bge-|minilm|arctic-embed|e5-", re.I)
+ASK_CHUNK_WORDS = 220                 # words per searchable piece
+ASK_TOP = 8                           # pieces shown to the writing model per question
+ANSWER_SYSTEM = """You answer questions using ONLY the numbered excerpts from the person's own
+documents. Say which excerpts you used, like [2] or [1][4], right after the sentence. If the
+excerpts don't answer the question, say plainly that the documents don't seem to say, and what
+they do say that comes closest. Never use outside knowledge, never guess numbers, dates or names.
+Plain, friendly English."""
+SUMMARY_SYSTEM = """You summarize one of the person's documents using only what it says. Never add
+outside facts. Plain, friendly English, Markdown bullet points where they help."""
+_WORD = re.compile(r"[^\W_]+", re.U)
+_STOP = set("""a an and are as at be but by for from has have i if in into is it its of on or our
+so that the their them then there these they this to was we were what when where which who why
+will with you your do does did can how about""".split())
+
+
+def embed_model_in(models: list[dict]) -> str | None:
+    for m in models:
+        if _EMBED_HINT.search(m["name"]):
+            return m["name"]
+    return None
+
+
+def find_embed_model(engine: "Engine") -> str | None:
+    from .doctor import ollama_models
+    return embed_model_in(ollama_models(engine.services))
+
+
+def questions_from(fmt: str) -> list[str]:
+    """One question per line (or per '?'), from the form's box / FORMAT."""
+    out = []
+    for line in re.split(r"\n|(?<=\?)\s+", fmt or ""):
+        q = line.strip(" -*•\t")
+        if len(q) >= 3:
+            out.append(q[:500])
+    return out[:20]
+
+
+def ask_chunks(name: str, text: str, words: int = ASK_CHUNK_WORDS) -> list[dict]:
+    """Searchable pieces of a document: paragraphs grouped to about `words` words."""
+    out, cur, n = [], [], 0
+    for p in (x.strip() for x in re.split(r"\n\s*\n", text)):
+        if not p:
+            continue
+        ws = p.split()
+        if len(ws) > words * 2:                          # a giant paragraph: cut by words
+            if cur:
+                out.append("\n\n".join(cur))
+                cur, n = [], 0
+            out += [" ".join(ws[a:a + words]) for a in range(0, len(ws), words)]
+            continue
+        if cur and n + len(ws) > words:
+            out.append("\n\n".join(cur))
+            cur, n = [], 0
+        cur.append(p)
+        n += len(ws)
+    if cur:
+        out.append("\n\n".join(cur))
+    return [{"file": name, "n": i + 1, "text": t} for i, t in enumerate(out)]
+
+
+def _stem(w: str) -> str:
+    """A rough word root, so 'refunds' finds 'refund' and 'cancelling' finds 'cancel'."""
+    for end in ("ing", "ed", "es", "s"):
+        if len(w) > len(end) + 3 and w.endswith(end) and not w.endswith("ss"):
+            w = w[:-len(end)]
+            break
+    return w[:-1] if len(w) > 4 and w[-1] == w[-2] else w
+
+
+def _terms(text: str) -> list[str]:
+    return [_stem(w) for w in (x.casefold() for x in _WORD.findall(text)) if w not in _STOP and len(w) > 1]
+
+
+def keyword_scores(question: str, chunks: list[dict]) -> list[float]:
+    """BM25: how well each piece matches the question's words (no model needed)."""
+    import math
+    q = set(_terms(question))
+    docs = [_terms(c["text"]) for c in chunks]
+    if not q or not docs:
+        return [0.0] * len(chunks)
+    avg = sum(len(d) for d in docs) / len(docs) or 1
+    df = {t: sum(1 for d in docs if t in set(d)) for t in q}
+    out = []
+    for d in docs:
+        tf = {}
+        for w in d:
+            if w in q:
+                tf[w] = tf.get(w, 0) + 1
+        s = 0.0
+        for t, f in tf.items():
+            idf = math.log(1 + (len(docs) - df[t] + 0.5) / (df[t] + 0.5))
+            s += idf * f * 2.2 / (f + 1.2 * (0.25 + 0.75 * len(d) / avg))
+        out.append(s)
+    return out
+
+
+def _cos(a: list[float], b: list[float]) -> float:
+    import math
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a)) or 1.0
+    nb = math.sqrt(sum(y * y for y in b)) or 1.0
+    return dot / (na * nb)
+
+
+def best_chunks(question: str, chunks: list[dict], vectors: list[list[float]] | None,
+                qvec: list[float] | None, top: int = ASK_TOP) -> list[int]:
+    """The pieces most likely to answer the question: meaning (search model) and words (BM25)."""
+    kw = keyword_scores(question, chunks)
+    top_kw = max(kw) or 1.0
+    score = []
+    for i in range(len(chunks)):
+        s = kw[i] / top_kw
+        if vectors and qvec:
+            s = 0.35 * s + _cos(vectors[i], qvec)
+        score.append(s)
+    order = sorted(range(len(chunks)), key=lambda i: -score[i])
+    return [i for i in order[:top] if score[i] > 0]
+
+
+def _embed_all(engine: "Engine", model: str, texts: list[str]) -> list[list[float]]:
+    """Search vectors, cached on disk so asking again (or more questions) is quick."""
+    import hashlib
+    import json
+    cache_p = engine.meta / "search" / f"{re.sub(r'[^a-z0-9]+', '-', model.lower())}.jsonl"
+    cache: dict[str, list[float]] = {}
+    try:
+        for line in cache_p.read_text(encoding="utf-8").splitlines():
+            k, _, v = line.partition("\t")
+            cache[k] = json.loads(v)
+    except (OSError, ValueError):
+        pass
+    keys = [hashlib.sha1(t.encode("utf-8", "replace")).hexdigest() for t in texts]
+    todo = [i for i, k in enumerate(keys) if k not in cache]
+    new = []
+    for a in range(0, len(todo), 32):
+        batch = todo[a:a + 32]
+        engine._progress(f"Getting {len(todo)} piece(s) ready to search: {a + len(batch)}/{len(todo)}")
+        vecs = engine.client.embed([texts[i] for i in batch], model)
+        for i, v in zip(batch, vecs):
+            cache[keys[i]] = v
+            new.append(f"{keys[i]}\t{json.dumps(v)}")
+    if new:
+        cache_p.parent.mkdir(parents=True, exist_ok=True)
+        with open(cache_p, "a", encoding="utf-8") as f:
+            f.write("\n".join(new) + "\n")
+    return [cache[k] for k in keys]
+
+
+def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .engine import PartFailed, Stopped
+    from .mission import slug
+
+    if (bad := _no_files(engine, job, st, "documents to read")) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    opts = chosen_options(job)
+    questions = questions_from(job.format)
+    if not questions:
+        opts = opts | {"summaries"}
+    if not engine._text_ready(st):
+        engine._save_state(job, st)
+        return st
+    folder = tool_dir(engine, job, st)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} document(s), "
+               f"{len(questions)} question(s)" + (", summaries" if "summaries" in opts else "")
+               + f" -> {st.output}")
+    failed: list[str] = []
+    texts: dict[str, str] = {}
+    chunks: list[dict] = []
+    for src in files:
+        name = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+        try:
+            t = document_text(src, engine.log)
+        except (ValueError, OSError) as e:
+            failed.append(f"{src.name}: {e}"[:200])
+            engine.log(f"  {src.name}: {e}")
+            continue
+        if t.strip():
+            texts[name] = t
+            chunks += ask_chunks(name, t)
+    if not texts:
+        st.status, st.note = "failed", "none of the documents could be read" + (f" ({failed[0]})" if failed else "")
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    words = sum(count_words(t) for t in texts.values())
+    engine.log(f"  Read {len(texts)} document(s): {words} words in {len(chunks)} searchable piece(s)")
+    total = len(questions) + (len(texts) if "summaries" in opts else 0)
+    try:
+        if questions:
+            emodel = find_embed_model(engine)
+            vectors = None
+            how = "words only"
+            if emodel and len(chunks) > ASK_TOP:
+                try:
+                    vectors = _embed_all(engine, emodel, [c["text"] for c in chunks])
+                    how = f"meaning and words ({emodel})"
+                except Exception as e:                   # noqa: BLE001 (keyword search still works)
+                    engine.log(f"  The search model didn't work ({e}); searching by words only.")
+            elif not emodel and len(chunks) > ASK_TOP:
+                engine.log("  No search model installed, so Joe searches by words only (Setup > System "
+                           f"check offers {EMBED_MODEL}, about 270 MB, for better answers).")
+            answers_p = folder / "answers.md"
+            done_md = answers_p.read_text(encoding="utf-8") if answers_p.exists() and st.titles else \
+                f"# Answers from your files\n\nFrom {len(texts)} document(s), searched by {how}. Every answer " \
+                "comes only from your documents; check the excerpts before you rely on it.\n"
+            for qi, q in enumerate(questions):
+                if f"Q: {q}" in st.titles:
+                    continue
+                if engine.stop.is_set():
+                    raise Stopped()
+                engine._progress(f"{job.name}: question {qi + 1}/{len(questions)}")
+                qvec = None
+                if vectors is not None:
+                    try:
+                        qvec = engine.client.embed([q], emodel)[0]
+                    except Exception:                    # noqa: BLE001
+                        qvec = None
+                pick = best_chunks(q, chunks, vectors, qvec) if len(chunks) > ASK_TOP else list(range(len(chunks)))
+                if not pick:
+                    answer = "Joe couldn't find anything about this in your documents."
+                else:
+                    ex = "\n\n".join(f"[{k + 1}] ({chunks[i]['file']}, part {chunks[i]['n']})\n{chunks[i]['text']}"
+                                     for k, i in enumerate(pick))
+                    try:
+                        r = engine._chat(job, qi, "ask-files", ANSWER_SYSTEM + (("\n" + job.rules.strip())
+                                         if job.rules.strip() else ""),
+                                         f"QUESTION: {q}\n\nEXCERPTS:\n{ex}", st)
+                        answer = r.text.strip()
+                    except PartFailed as e:
+                        failed.append(f"question {qi + 1}: {e}"[:200])
+                        continue
+                src_lines = "\n".join(
+                    f"- [{k + 1}] {chunks[i]['file']}, part {chunks[i]['n']}: “"
+                    + " ".join(chunks[i]["text"].split()[:30]) + "…”" for k, i in enumerate(pick))
+                done_md += f"\n## {q}\n\n{answer}\n\n" + (f"**Excerpts used:**\n{src_lines}\n" if pick else "")
+                atomic_write_text(answers_p, done_md)
+                st.titles.append(f"Q: {q}")
+                st.items += 1
+                st.words += count_words(answer)
+                engine._save_state(job, st)
+                engine.log(f"  Answered: {q[:80]}")
+            if questions:
+                st.media_files = sorted(set(st.media_files) | {"answers.md"})
+        if "summaries" in opts:
+            sum_p = folder / "summaries.md"
+            md = sum_p.read_text(encoding="utf-8") if sum_p.exists() and st.titles else "# Summaries\n"
+            for di, (name, text) in enumerate(texts.items()):
+                if f"S: {name}" in st.titles:
+                    continue
+                if engine.stop.is_set():
+                    raise Stopped()
+                engine._progress(f"{job.name}: summary {di + 1}/{len(texts)}")
+                ws = text.split()
+                pieces = [" ".join(ws[a:a + 2500]) for a in range(0, len(ws), 2500)] or [""]
+                try:
+                    if len(pieces) == 1:
+                        body = engine._chat(job, di, "ask-summary", SUMMARY_SYSTEM,
+                                            f"Document: {name}\nWrite a short summary (3-8 bullet points), "
+                                            f"then one line: 'Worth knowing:' anything like dates, amounts or "
+                                            f"deadlines.\n\nDOCUMENT:\n{pieces[0]}", st).text.strip()
+                    else:
+                        notes = [engine._chat(job, di, "ask-summary", SUMMARY_SYSTEM,
+                                              f"Document: {name} (piece {k + 1} of {len(pieces)}). Bullet points "
+                                              f"of everything important.\n\nTEXT:\n{p}", st).text.strip()
+                                 for k, p in enumerate(pieces)]
+                        body = engine._chat(job, di, "ask-summary", SUMMARY_SYSTEM,
+                                            f"Document: {name}. These are notes on each piece, in order. Write "
+                                            "one short summary (3-8 bullet points), then 'Worth knowing:'.\n\n"
+                                            + "\n\n".join(notes), st).text.strip()
+                except PartFailed as e:
+                    failed.append(f"{name}: summary skipped ({e})"[:200])
+                    continue
+                md += f"\n## {name}\n\n{body}\n"
+                atomic_write_text(sum_p, md)
+                st.titles.append(f"S: {name}")
+                st.items += 1
+                st.words += count_words(body)
+                engine._save_state(job, st)
+            st.media_files = sorted(set(st.media_files) | {"summaries.md"})
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {total} answer(s)/summaries"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, total, failed)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -2324,6 +2635,12 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
             secs += 1 + calls * (("spelling" in opts) + ("categorize" in opts) + ("split" in opts))                 * speeds.get("part", 25.0)
     elif job.type in ("photo-listing", "read-scans", "sort-photos"):
         secs += len(files) * speeds.get("vision", 20.0) * (1.5 if job.type == "read-scans" else 1)
+    elif job.type == "ask-files":
+        qs = len(questions_from(job.format))
+        words = sum(_guess_words(f) for f in files)
+        secs += qs * speeds.get("part", 25.0) + words / 4000 * 3
+        if "summaries" in chosen_options(job) or not qs:
+            secs += sum(max(1, _guess_words(f) // 2500) for f in files) * speeds.get("part", 25.0)
     elif job.type == "translate":
         n_lang = max(1, len(option_values(job, "to")))
         for f in files:

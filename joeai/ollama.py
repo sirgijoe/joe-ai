@@ -110,6 +110,15 @@ class OllamaClient:
                 if ev.get("done"):
                     return
 
+    def embed(self, texts: list[str], model: str) -> list[list[float]]:
+        """Search vectors for each text (Ollama's /api/embed), in order."""
+        r = request_json("POST", f"{self.base}/api/embed", {"model": model, "input": texts, "keep_alive": "10m"},
+                         timeout=self.cfg.request_timeout_s)
+        out = r.get("embeddings") or []
+        if len(out) != len(texts):
+            raise ValueError("the search model gave back the wrong number of results")
+        return out
+
     def warm(self, model: str, keep_alive: str = "20m") -> None:
         """Load a model into memory now, so the first real question doesn't wait for it."""
         request_json("POST", f"{self.base}/api/generate", {"model": model, "keep_alive": keep_alive},

@@ -1778,7 +1778,7 @@ const W_STEPS = [
   { id: "writing", name: "Writing", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"], need: true },
   { id: "pictures", name: "Pictures", ids: ["install-comfyui", "get-image-model", "get-video-model", "get-video-turbo"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg"] },
+  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg", "pull-embed"] },
   { id: "look", name: "Look" },
   { id: "done", name: "Ready" },
 ];
@@ -1795,6 +1795,7 @@ const W_TEXT = {
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "install-voice": ["So you can talk to Joe and hear him answer. About 500 MB.", "YES, SET UP HIS VOICE", "Runs on the regular processor, so it never slows the night's work."],
   "pull-vision": ["So Joe can look at pictures you show him.", "YES, DOWNLOAD IT", ""],
+  "pull-embed": ["A small search model (about 270 MB) so Ask my files finds the right parts of your documents.", "YES, DOWNLOAD IT", ""],
   "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice & Talk."],
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
@@ -2056,6 +2057,7 @@ function openTool(id) {
   $("#tf-markrow").hidden = !t.mark; $("#tf-mark").value = ""; $("#tf-logoname").textContent = "";
   $("#tf-name").value = ""; $("#tf-extra").value = ""; $("#tf-plan").textContent = "";
   $("#tf-extra").placeholder = t.extra_hint || "optional, e.g. focus on dates and to-dos";
+  $("#tf-extra-label").textContent = t.extra_label || "Anything else?";
   renderToolFiles(); toolNeeds();
   $("#toolgrid").hidden = true; $("#toolform").hidden = false;
 }

@@ -709,3 +709,62 @@ def test_vision_tools_explain_a_missing_model(app, monkeypatch):
     st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
         parse("TASK: L  TYPE: photo-listing\nINPUT: a.png"))[0]
     assert st.status == "failed" and "vision model" in st.note
+
+
+# --------------------------------------------------------------------------- ask my files
+def _contracts(folder: Path) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    filler = "\n\n".join(f"Section {i}. The kiln schedule and glaze orders are handled weekly by the "
+                           "studio team, who also clean the shelves and check the clay stock." for i in range(160))
+    (folder / "terms.md").write_text(f"# Terms\n\n{filler}\n\nRefunds are given within 30 days of purchase.\n",
+                                     encoding="utf-8")
+    (folder / "studio.txt").write_text("Opening hours are 9 to 5.\n\nThe studio closes on holidays.\n",
+                                       encoding="utf-8")
+    return folder
+
+
+def test_questions_and_search_helpers():
+    assert tools.questions_from("What about refunds? When is it due?\n- Who signs") == \
+        ["What about refunds?", "When is it due?", "Who signs"]
+    chunks = tools.ask_chunks("a.md", "one two\n\nthree four\n\n" + "word " * 600, words=50)
+    assert chunks[0]["text"] == "one two\n\nthree four" and all(len(c["text"].split()) <= 50 for c in chunks)
+    cs = [{"text": "glaze orders weekly"}, {"text": "refunds within 30 days"}, {"text": "kiln schedule"}]
+    assert tools.best_chunks("how do refunds work", cs, None, None, top=2) == [1]
+
+
+def test_ask_files_words_only(app, monkeypatch):
+    monkeypatch.setattr(tools, "find_embed_model", lambda engine: None)
+    _contracts(app.sb.inbox / "docs")
+    text = "TASK: Refunds  TYPE: ask-files\nINPUT: docs\nFORMAT: What is the refund policy?\nOPTIONS: summaries"
+    chk = app.check(text)
+    assert chk["ok"] and describe.plain_summary(chk) == ["Read 2 documents for 1 question and summaries: Refunds"]
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done" and st.items == 3, st.note
+    out = app.sb.output / st.output
+    ans = (out / "answers.md").read_text(encoding="utf-8")
+    assert "searched by words only" in ans and "## What is the refund policy?" in ans
+    assert "Refunds are given within 30 days of purchase." in ans and "docs/terms.md, part" in ans
+    summ = (out / "summaries.md").read_text(encoding="utf-8")
+    assert "## docs/studio.txt" in summ and "## docs/terms.md" in summ
+
+
+def test_ask_files_with_a_search_model(app, monkeypatch):
+    monkeypatch.setattr(tools, "find_embed_model", lambda engine: "nomic-embed-text")
+    _contracts(app.sb.inbox / "docs")
+    text = "TASK: Ask  TYPE: ask-files\nINPUT: docs\nFORMAT: How do refunds work?\nWhen does the studio open?"
+    eng = Engine(app.settings, app.sb, log=lambda x: None)
+    st = eng.run_mission(parse(text))[0]
+    assert st.status == "done" and st.items == 2, st.note
+    ans = (app.sb.output / st.output / "answers.md").read_text(encoding="utf-8")
+    assert "meaning and words (nomic-embed-text)" in ans and "within 30 days" in ans
+    assert "don't seem to say" in ans                                       # the hours question
+    cache = list((eng.meta / "search").glob("*.jsonl"))
+    assert cache and cache[0].read_text(encoding="utf-8").count("\n") > 5   # cached for next time
+
+
+def test_ask_files_no_question_means_summaries(app, monkeypatch):
+    _contracts(app.sb.inbox / "docs")
+    chk = app.check("TASK: Sum  TYPE: ask-files\nINPUT: docs")
+    assert describe.plain_summary(chk) == ["Read 2 documents for summaries: Sum"]
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse("TASK: Sum  TYPE: ask-files\nINPUT: docs"))[0]
+    assert st.status == "done" and [p.name for p in (app.sb.output / st.output).iterdir()] == ["summaries.md"]

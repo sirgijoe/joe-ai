@@ -238,6 +238,27 @@ run carries on at the next picture.
   `<task>\<Category>\`. FORMAT `categories: family, garden, pets` gives the list (anything
   else goes to Other, or is flagged); without it Joe picks short categories and reuses them.
 
+**Ask my files** (`TYPE: ask-files`) reads the same documents as Proofread (files or whole
+folders). FORMAT holds the questions, one per line (or each ending with ?):
+
+```
+TASK: Lease questions  TYPE: ask-files
+INPUT: tools/ask-files
+FORMAT: Are pets allowed?
+        When is rent due, and what's the late fee?
+OPTIONS: summaries                      (optional: a summary of each document too)
+```
+
+Joe cuts the documents into pieces of about 220 words, finds the pieces that best fit each
+question, and asks the writing model to answer only from those, naming the excerpts it used
+([1], [2]...). If they don't answer it, he says so. `answers.md` has each question, the answer
+and the excerpts (file, part, first words) so you can check. With no question, or with
+**summaries**, `summaries.md` has a short summary of each document plus anything worth
+knowing (dates, amounts, deadlines). Finding the pieces works by words straight away; with a
+search model installed (Setup > System check offers nomic-embed-text, about 270 MB) it also
+matches by meaning, which helps a lot in big folders. The search model's results are kept in
+`Output\.joe\search\` so asking again is quick. Nothing leaves your computer.
+
 **Translate** (`TYPE: translate`, `OPTIONS: to spanish, to french`: one `to` per language,
 at least one) reads the same documents as Proofread and makes `<name>-<language>.md` (or
 `.txt` for text files; Word files also get a `.docx` with Pandoc). Languages: Spanish, French,

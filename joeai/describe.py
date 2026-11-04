@@ -130,6 +130,13 @@ def plain_summary(chk: dict) -> list[str]:
             elif t == "sort-photos":
                 tail = " into folders" if not j.get("options") or "folders" in j["options"] else ""
                 out.append(f"Sort and tag {_n(n, 'photo', 'photos')}{tail}: {name}")
+            elif t == "ask-files":
+                from .tools import questions_from
+                q = len(questions_from(j.get("format", "")))
+                bits = [_n(q, "question", "questions")] if q else []
+                if not q or "summaries" in (j.get("options") or []):
+                    bits.append("summaries")
+                out.append(f"Read {_n(n, 'document', 'documents')} for " + " and ".join(bits) + f": {name}")
             elif t == "proofread":
                 opts = j.get("options") or ["copy"]
                 tail = " and a corrected copy" if "copy" in opts else ""

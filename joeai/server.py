@@ -209,6 +209,7 @@ class App:
                           "min_words": j.min_words, "save": j.save, "variants": j.variants,
                           "prompts": len(j.part_prompts) or j.parts * j.part_size,
                           "workflow": j.workflow, "options": j.options, "watermark": j.watermark,
+                          "format": j.format if j.tool else "",
                           "files": tool_info.get(j.job_id, {}).get("files", 0),
                           "project": j.project or m.project}
                          for j in m.jobs]}
@@ -593,7 +594,7 @@ class App:
                             self.settings.save()
                             self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
                         elif (not self.running and self.settings.ollama.text_model
-                                and b.get("id") not in ("pull-vision", "pull-small-model")):
+                                and b.get("id") not in ("pull-vision", "pull-small-model", "pull-embed")):
                             self.settings.ollama.text_model = model
                             self.settings.save()
                 elif action == "download-image-model":

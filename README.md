@@ -97,11 +97,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   a folder per category (your own categories, or Joe picks short ones). Faces are never named.
 - These three use a free vision model on your computer (Setup > System check offers one); your
   pictures never leave it.
-- More are on the way, shown as "Coming soon" on the Tools tab: asking questions of your
-  documents, removing backgrounds, restoring old photos, and more.
+- **Ask my files**: type questions about a folder of documents ("what do these contracts say
+  about cancelling?") and Joe answers only from them, showing the excerpts he used, or says
+  the documents don't say. It can also summarize each document. A small optional search model
+  (about 270 MB) helps with big folders.
+- More are on the way, shown as "Coming soon" on the Tools tab: removing backgrounds, editing
+  pictures by asking, restoring old photos, animating a photo, and music.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
-  website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet".
+  website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses
@@ -151,7 +155,7 @@ internet. None of them send your files, chats or recordings.
 | What | Goes to | When | Your choice |
 |---|---|---|---|
 | Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
-| Downloading AI models (writing, pictures, video, Turbo) | Ollama's model library, Hugging Face | Setup, or when you pick a better model | Asks you first, every time |
+| Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files) | Ollama's model library, Hugging Face | Setup, or when you pick a better model | Asks you first, every time |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
 | Display font (retro looks) | Google Fonts | Each time Joe opens | Without internet Joe uses a built-in font |
