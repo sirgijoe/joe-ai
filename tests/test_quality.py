@@ -141,8 +141,8 @@ def test_plan_recommends_turbo_for_video(tmp_path, monkeypatch):
         (tmp_path / "models" / folder).mkdir(parents=True, exist_ok=True)
         (tmp_path / "models" / folder / name).write_bytes(b"x")
     app = App(s)
-    r = app.check("TASK: Lotus  SAVE: clips/lotus.mp4  CHUNKS: 1 x 1")
+    r = app.check("TASK: Fern  SAVE: clips/fern.mp4  CHUNKS: 1 x 1")
     assert any("Based on your Medium video setting, I'd recommend" in w for w in r.get("warnings", [])), r
     s.quality.video = "high"
-    r = app.check("TASK: Lotus  SAVE: clips/lotus.mp4  CHUNKS: 1 x 1")
+    r = app.check("TASK: Fern  SAVE: clips/fern.mp4  CHUNKS: 1 x 1")
     assert not any("Turbo" in w for w in r.get("warnings", []))
