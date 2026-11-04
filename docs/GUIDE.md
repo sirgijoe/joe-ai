@@ -143,6 +143,7 @@ aloud"): Joe sees the files waiting in Inbox and plans the right tool task. In a
 TASK: Tuesday meeting  TYPE: transcribe
 INPUT: tools/transcribe/meeting.mp3        (files or folders in Inbox, comma-separated)
 OPTIONS: subtitles, notes                  (or none; leave it out for both)
+                                           (+ language spanish | language auto, notes-in english)
 FORMAT: focus on dates and to-dos           (optional, for the notes)
 ```
 
@@ -152,8 +153,16 @@ FORMAT: focus on dates and to-dos           (optional, for the notes)
 writing model from the transcript; anything unclear is marked [CHECK]). Long recordings are
 noted in pieces, then combined. It needs Joe's voice add-on (Setup > System check) and FFmpeg
 for anything but .wav. It uses the Hearing setting (Setup > Voice & Talk; Most accurate is
-slower), English only for now, and runs on the processor, so it can work while pictures draw.
-A stopped run picks up at the next recording.
+slower) and runs on the processor, so it can work while pictures draw. A stopped run picks up at
+the next recording.
+
+**Languages.** `language <name>` (Spoken in, on the form) is English by default; the others are
+the same 23 as Translate, or `language auto` to let Joe find out (slower and less sure: pick it
+if you know it). Anything but English uses Whisper's all-languages model (Fastest/Balanced/Most
+accurate become tiny/base/small instead of tiny.en/base.en/small.en). The first time, Joe
+downloads it once from Hugging Face (about 75-480 MB, only the model, never your recording).
+The transcript says which language it is. Notes are written in the recording's language unless
+you pick `notes-in english`. Big languages are heard best; check names and numbers.
 
 **Read a document aloud** (`TYPE: read-aloud`, `OPTIONS: chapters` or none) reads .txt, .md,
 .docx, .pdf and web pages and makes `<name>.mp3` in `Output\<task name>\`. With **chapters**

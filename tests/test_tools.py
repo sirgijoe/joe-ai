@@ -779,3 +779,44 @@ def test_tools_can_use_files_in_output(app):
         parse("TASK: Again  TYPE: proofread\nINPUT: Output/earlier/draft.txt"))[0]
     assert st.status == "done", st.note
     assert st.titles == ["Output/earlier/draft.txt"]
+
+
+def test_hearing_model_picks_the_all_languages_twin():
+    assert tools.hearing_model("base.en", "english") == "base.en"
+    assert tools.hearing_model("small.en", "spanish") == "small"
+    assert tools.hearing_model("tiny.en", "auto") == "tiny"
+    assert tools.hearing_model("", "japanese") == "base"
+    assert tools.whisper_language("japanese") == "ja" and tools.whisper_language("auto") == ""
+    assert tools.code_language("es") == "Spanish" and tools.code_language("xx") == ""
+    assert set(tools.WHISPER_CODES) == {v for v, _ in tools.LANGUAGES}
+
+
+def test_transcribe_in_another_language(app):
+    wav(app.sb.inbox / "llamada.wav")
+    text = "TASK: Llamada  TYPE: transcribe\nINPUT: llamada.wav\nOPTIONS: notes, language spanish"
+    chk = app.check(text)
+    assert chk["ok"], chk
+    assert describe.plain_summary(chk) == ["Transcribe 1 recording (Spanish) with notes: Llamada"]
+    logs = []
+    st = Engine(app.settings, app.sb, log=logs.append, voice=app.voice).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    body = (app.sb.output / st.output / "llamada.txt").read_text(encoding="utf-8")
+    assert "Language: Spanish" in body and "horno" in body
+    assert any("hearing: base, Spanish" in x for x in logs)
+    assert any("Hugging Face" in x for x in logs)
+
+
+def test_transcribe_finds_the_language_and_english_notes(app):
+    wav(app.sb.inbox / "x.wav")
+    text = "TASK: X  TYPE: transcribe\nINPUT: x.wav\nOPTIONS: language auto, notes-in english, notes"
+    assert app.check(text)["ok"]
+    logs = []
+    st = Engine(app.settings, app.sb, log=logs.append, voice=app.voice).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    assert any("sounds like Spanish" in x for x in logs)
+    assert "Language: Spanish" in (app.sb.output / st.output / "x.txt").read_text(encoding="utf-8")
+
+
+def test_transcribe_rejects_an_unknown_language(app):
+    wav(app.sb.inbox / "y.wav")
+    assert not app.check("TASK: Y  TYPE: transcribe\nINPUT: y.wav\nOPTIONS: language klingon")["ok"]

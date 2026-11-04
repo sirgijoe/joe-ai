@@ -17,6 +17,12 @@ for line in sys.stdin:
         if head[:4] != b"RIFF":
             out = {"ok": False, "error": "expected a WAV recording"}
         else:
+            if not req.get("stt_model", ".en").endswith(".en"):     # all-languages model
+                out = {"ok": True, "seconds": 3.0, "language": req.get("language") or "es",
+                       "model": req.get("stt_model"), "segments": [
+                           {"s": 0.0, "e": 3.0, "t": "Hola, el horno llega el jueves."}]}
+                print("@@JOE@@" + json.dumps(out), flush=True)
+                continue
             out = {"ok": True, "seconds": 9.0, "segments": [
                 {"s": 0.0, "e": 2.0, "t": "Welcome to the planning meeting."},
                 {"s": 2.1, "e": 4.0, "t": "We will ship the new mugs on Friday."},

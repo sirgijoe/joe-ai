@@ -4,8 +4,9 @@ Reads one JSON request per line on stdin, writes one JSON reply per line on stdo
   {"cmd": "warmup", "stt_model": "base.en"}
   {"cmd": "stt", "audio": "C:/.../clip.webm", "stt_model": "base.en"}  -> {"ok": true, "text": "..."}
   {"cmd": "tts", "text": "...", "out": "C:/.../reply.wav", "voice": "am_adam", "speed": 1.0}
-  {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base.en"}
-      -> {"ok": true, "segments": [{"s": 0.0, "e": 2.5, "t": "..."}], "seconds": 63.2}
+  {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base", "language": "es"}
+      -> {"ok": true, "segments": [{"s": 0.0, "e": 2.5, "t": "..."}], "seconds": 63.2,
+          "language": "es"}   (language "" = Whisper finds out; *.en models hear English only)
 Everything runs on the CPU so it never fights the night's work for the graphics card.
 """
 import json
@@ -96,12 +97,12 @@ def handle(req):
         return {"ok": True, "text": " ".join(s.text.strip() for s in segs).strip()}
     if cmd == "transcribe":
         # A whole recording (Joe converts it to 16 kHz mono WAV first). Timed segments, for
-        # transcripts and subtitles. English models (*.en) are told the language.
+        # transcripts and subtitles. English models (*.en) are told the language; the
+        # all-languages models get the picked language, or find out by themselves.
         name = req.get("stt_model", "base.en")
         audio = read_wav16k(req["audio"])
-        segs, info = stt_model(name).transcribe(
-            audio, beam_size=5, vad_filter=True,
-            language="en" if name.endswith(".en") else None)
+        lang = "en" if name.endswith(".en") else (req.get("language") or None)
+        segs, info = stt_model(name).transcribe(audio, beam_size=5, vad_filter=True, language=lang)
         out = [{"s": round(s.start, 2), "e": round(s.end, 2), "t": s.text.strip()} for s in segs]
         return {"ok": True, "segments": out, "seconds": round(len(audio) / 16000, 1),
                 "language": getattr(info, "language", "")}

@@ -87,7 +87,12 @@ def plain_summary(chk: dict) -> list[str]:
             if t == "transcribe":
                 extras = [x for x in ("subtitles", "notes") if not j.get("options") or x in j["options"]]
                 tail = (" with " + " and ".join(extras)) if extras else ""
-                out.append(f"Transcribe {_n(n, 'recording', 'recordings')}{tail}: {name}")
+                lang = next((o.split(" ", 1)[1] for o in (j.get("options") or [])
+                             if o.startswith("language ")), "english")
+                from .tools import language_name
+                spoken = ("" if lang == "english" else
+                          " (finding the language)" if lang == "auto" else f" ({language_name(lang)})")
+                out.append(f"Transcribe {_n(n, 'recording', 'recordings')}{spoken}{tail}: {name}")
             elif t == "read-aloud":
                 ch = " (one track per chapter)" if "chapters" in (j.get("options") or []) else ""
                 out.append(f"Read {_n(n, 'document', 'documents')} aloud as MP3{ch}: {name}")

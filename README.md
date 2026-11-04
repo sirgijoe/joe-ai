@@ -68,8 +68,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 
 **Tools for your own files** (Tools tab, **F7**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
-  file (.srt) and short notes (summary, key points, decisions, to-dos). English for now; uses
-  the voice add-on and runs on the processor.
+  file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
+  languages (or let Joe find out); notes in the recording's language or in English. Uses the
+  voice add-on and runs on the processor.
 - **Read a document aloud**: text, Word, PDF or a web page in, an MP3 out (one track per
   chapter if you like), in Joe's voice from Setup. Runs on the processor; a stopped run
   carries on where it left off.
@@ -156,6 +157,7 @@ internet. None of them send your files, chats or recordings.
 |---|---|---|---|
 | Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
 | Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files) | Ollama's model library, Hugging Face | Setup, or when you pick a better model | Asks you first, every time |
+| Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
 | Display font (retro looks) | Google Fonts | Each time Joe opens | Without internet Joe uses a built-in font |

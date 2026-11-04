@@ -464,6 +464,7 @@ FORMAT: ...
                 <ul class="netlist small">
                   <li><b>Installing programs and downloading models</b> (System check, setup helper): only after you say yes.</li>
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
+                  <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
                   <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. Turn it off in General &gt; Updates.</li>
                   <li><b>Display font</b> for the retro looks, from Google Fonts. Without internet Joe uses a built-in font.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
@@ -593,6 +594,7 @@ FORMAT: ...
 
  Joe is not offline-only. He uses the internet to:
   - install programs and download AI models (only after you say yes)
+  - get the hearing model for other languages, once (Transcribe)
   - check GitHub for a newer Joe (Setup > General > Updates)
   - load the retro display font from Google Fonts
   - send a phone ping, if you set one up (one short line)
@@ -636,7 +638,8 @@ FORMAT: ...
        (Voice needs a one-time setup: F10 > System check.)
  F7    Tools: ready-made jobs for your own files. Pick a card, drop
        your files on it (or click to pick), choose the extras, RUN IT.
-       Ready now: Transcribe a recording, Read a document aloud
+       Ready now: Transcribe a recording (24 languages, or let
+       Joe find out), Read a document aloud
        (MP3), Proofread my writing (a list of every change; your
        original is never touched), Resize and convert photos
        (watermark only if you type one), Translate (tick the

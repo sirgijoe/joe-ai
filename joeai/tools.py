@@ -45,6 +45,15 @@ LANGUAGES = (("spanish", "Spanish"), ("french", "French"), ("german", "German"),
              ("japanese", "Japanese"), ("korean", "Korean"), ("vietnamese", "Vietnamese"),
              ("thai", "Thai"), ("indonesian", "Indonesian"), ("tagalog", "Tagalog"),
              ("swahili", "Swahili"), ("english", "English"))
+# Whisper's code for each language Joe lists (Transcribe can hear all of these).
+WHISPER_CODES = {"spanish": "es", "french": "fr", "german": "de", "italian": "it",
+                 "portuguese": "pt", "dutch": "nl", "polish": "pl", "russian": "ru",
+                 "ukrainian": "uk", "greek": "el", "turkish": "tr", "arabic": "ar", "hebrew": "he",
+                 "hindi": "hi", "bengali": "bn", "chinese": "zh", "japanese": "ja", "korean": "ko",
+                 "vietnamese": "vi", "thai": "th", "indonesian": "id", "tagalog": "tl",
+                 "swahili": "sw", "english": "en"}
+HEAR_LANGUAGES = (("english", "English"), ("auto", "Find out by itself")) + tuple(
+    (v, n) for v, n in LANGUAGES if v != "english")
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
@@ -87,13 +96,25 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          options=(Option("subtitles", "Subtitles file (.srt)", True,
                          "For video players and YouTube."),
                   Option("notes", "Notes: summary, key points, to-dos", True,
-                         "Written by the writing model from the transcript.")),
+                         "Written by the writing model from the transcript."),
+                  Option("language", "Spoken in", hint="Pick the language if you know it: that's "
+                         "faster and more accurate than letting Joe find out.",
+                         choices=HEAR_LANGUAGES, value="english"),
+                  Option("notes-in", "Write the notes in",
+                         choices=(("same", "The recording's language"), ("english", "English")),
+                         value="same")),
          needs=("voice", "ffmpeg"), ready=True,
-         help="English recordings for now. Uses the Hearing setting (Setup > Voice & Talk): "
-              "Most accurate is slower but makes fewer mistakes. Runs on the processor, so it "
-              "can work while pictures are drawing. Roughly real time on Balanced.",
+         help="Uses the Hearing setting (Setup > Voice & Talk): Most accurate is slower but makes "
+              "fewer mistakes. Runs on the processor, so it can work while pictures are drawing. "
+              "Roughly real time on Balanced. Other languages use Whisper's all-languages "
+              "model: the first time, Joe downloads it once from Hugging Face (about 75-480 MB, "
+              "only the model, never your recording). Big languages are heard best; check "
+              "names and numbers.",
          plan_hint="Transcribe: TYPE: transcribe, INPUT: the recording file(s) from the list "
-                   "below, OPTIONS: subtitles, notes (leave out what they don't want). No CHUNKS.",
+                   "below, OPTIONS: subtitles, notes (leave out what they don't want), plus "
+                   "language <name> when it isn't English (language auto if they don't know; "
+                   "names: " + ", ".join(v for v, _ in HEAR_LANGUAGES[2:]) + ") and notes-in "
+                   "english if they want English notes from another language. No CHUNKS.",
          examples=("Turn my meeting recording into notes", "Make subtitles for this video")),
     Tool("read-aloud", "Read a document aloud", "Audio",
          "Turn writing into an MP3 you can listen to.",
@@ -464,7 +485,7 @@ def _finish(engine: "Engine", job: "Job", st: "JobState", total: int, failed: li
 # --------------------------------------------------------------------------- transcribe
 NOTES_SYSTEM = """You write clear notes from a transcript of a recording. Use only what is said in
 the transcript. Never invent names, numbers, dates or decisions; if something is unclear, write
-[CHECK]. Plain, friendly English. Markdown headings and bullet points."""
+[CHECK]. Plain, friendly words. Markdown headings and bullet points."""
 NOTES_FORMAT = """Write:
 ## Summary
 3-6 sentences.
@@ -488,10 +509,32 @@ def _ts(seconds: float, srt: bool = False) -> str:
     return f"{h:d}:{m:02d}:{s:02d}" if h else f"{m:02d}:{s:02d}"
 
 
-def transcript_text(segments: list[dict], title: str) -> str:
+def hearing_model(stt_model: str, language: str) -> str:
+    """The Whisper model for a recording: English-only models (*.en) for English, their
+    all-languages twin (base.en -> base) for anything else or 'find out by itself'."""
+    name = stt_model or "base.en"
+    if language != "english" and name.endswith(".en"):
+        return name[:-3]
+    return name
+
+
+def whisper_language(language: str) -> str:
+    """Whisper's language code for a pick ('' = let Whisper find out)."""
+    return WHISPER_CODES.get(language, "")
+
+
+def code_language(code: str) -> str:
+    """A plain language name from Whisper's code ('es' -> 'Spanish'); '' if unknown."""
+    for v, c in WHISPER_CODES.items():
+        if c == code:
+            return language_name(v)
+    return ""
+
+
+def transcript_text(segments: list[dict], title: str, language: str = "") -> str:
     """Readable transcript: a [mm:ss] stamp at the start of each paragraph. A new paragraph
     starts after a pause of 2+ seconds or about 120 words."""
-    out = [f"# {title}", ""]
+    out = [f"# {title}", ""] + ([f"Language: {language}", ""] if language else [])
     para: list[str] = []
     start = 0.0
     last_end = None
@@ -554,13 +597,18 @@ def _wav_seconds(p: Path) -> float:
         return 0.0
 
 
-def _notes(engine: "Engine", job: "Job", st: "JobState", title: str, transcript: str) -> str:
-    """Notes from the transcript; long recordings are noted in pieces, then combined."""
+def _notes(engine: "Engine", job: "Job", st: "JobState", title: str, transcript: str,
+           write_in: str = "English") -> str:
+    """Notes from the transcript; long recordings are noted in pieces, then combined.
+    `write_in` is the language the notes are written in."""
     words = transcript.split()
     pieces = [" ".join(words[i:i + NOTES_CHUNK_WORDS])
               for i in range(0, len(words), NOTES_CHUNK_WORDS)] or [""]
     extra = (job.format.strip() + "\n") if job.format.strip() else ""
     rules = (job.rules.strip() + "\n") if job.rules.strip() else ""
+    if write_in and write_in != "English":
+        rules += (f"Write the notes in {write_in}, headings too (Summary, Key points, Decisions, "
+                  f"To-dos, translated into {write_in}).\n")
     if len(pieces) == 1:
         r = engine._chat(job, 0, "transcribe-notes", NOTES_SYSTEM + "\n" + rules,
                          f"Recording: {title}\n\n{NOTES_FORMAT}{extra}\nTRANSCRIPT:\n{pieces[0]}", st)
@@ -604,12 +652,20 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     folder = tool_dir(engine, job, st)
     opts = chosen_options(job)
     worker = engine.voice or VoiceWorker(engine.log)
-    model = engine.s.voice.stt_model or "base.en"
+    lang = option_value(job, "language") or "english"
+    if lang not in WHISPER_CODES and lang != "auto":
+        lang = "english"
+    model = hearing_model(engine.s.voice.stt_model, lang)
+    notes_in = option_value(job, "notes-in") or "same"
     st.status = "running"
     st.started = st.started or datetime.now().isoformat(timespec="seconds")
     engine._save_state(job, st)
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} recording(s) "
-               f"-> {st.output} (hearing: {model})")
+               f"-> {st.output} (hearing: {model}, "
+               f"{'finding the language' if lang == 'auto' else language_name(lang)})")
+    if not model.endswith(".en"):
+        engine.log(f"  Other languages use Whisper's all-languages model ({model}); the first "
+                   "time, it downloads once from Hugging Face (only the model, never your recording).")
     notes_ok = None                                    # checked once, only if notes are wanted
     failed: list[str] = []
     tmp = engine.meta / "tmp"
@@ -629,8 +685,9 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             secs = _wav_seconds(wav)
             engine.log(f"  {src.name}: transcribing about {max(1, round(secs / 60))} min of sound...")
             t0 = datetime.now()
-            r = worker.call({"cmd": "transcribe", "audio": str(wav), "stt_model": model},
-                            timeout=max(900.0, secs * 4 + 600))
+            r = worker.call({"cmd": "transcribe", "audio": str(wav), "stt_model": model,
+                             "language": whisper_language(lang)},
+                            timeout=max(900.0, secs * 4 + 600) + (0 if model.endswith(".en") else 1800))
             if wav != src:
                 try:
                     wav.unlink()
@@ -642,7 +699,11 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 continue
             segs = r.get("segments") or []
             stem = slug(src.stem) or f"recording-{i + 1}"
-            body = transcript_text(segs, src.stem)
+            heard = code_language(r.get("language") or "") or (
+                language_name(lang) if lang != "auto" else "")
+            if lang == "auto" and heard:
+                engine.log(f"  {src.name}: sounds like {heard}")
+            body = transcript_text(segs, src.stem, "" if heard in ("", "English") and lang == "english" else heard)
             atomic_write_text(folder / f"{stem}.txt", body)
             made = [f"{stem}.txt"]
             if "subtitles" in opts:
@@ -661,7 +722,8 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 if notes_ok:
                     try:
                         notes = _notes(engine, job, st, src.stem,
-                                       " ".join(s.get("t", "").strip() for s in segs))
+                                       " ".join(s.get("t", "").strip() for s in segs),
+                                       "English" if notes_in == "english" else (heard or "English"))
                         atomic_write_text(folder / f"{stem}-notes.md", f"# Notes: {src.stem}\n\n{notes}\n")
                         made.append(f"{stem}-notes.md")
                         st.flags.extend({"item": src.stem, "flag": f} for f in find_flags(notes))
