@@ -84,10 +84,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   Formatting, names, prices and links stay as they are; anything Joe isn't sure about is
   marked [CHECK], and each copy says plainly it's a machine translation to be checked by
   someone who speaks the language.
-- More are on the way, shown as "Coming soon" on the Tools tab: tidying spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
-  and more.
+- **Tidy a spreadsheet**: CSV or Excel in, a tidy CSV out: extra spaces and duplicate rows
+  removed, and if you like, spelling fixed, a Category column added, or a column split (like
+  Name into First and Last). Every change is listed; your original isn't touched.
+- More are on the way, shown as "Coming soon" on the Tools tab: listings from photos, reading
+  scans and receipts, sorting photos, asking questions of your documents, restoring old
+  photos, and more.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
-  "read my story aloud", "proofread my cover letter", "shrink my product photos for the website", "translate my menu into Spanish".
+  "read my story aloud", "proofread my cover letter", "shrink my product photos for the
+  website", "translate my menu into Spanish", "remove the duplicates from my customer list".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses

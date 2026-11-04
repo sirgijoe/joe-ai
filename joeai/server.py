@@ -237,6 +237,44 @@ class App:
         except OSError:
             pass
 
+    def watch_queue_folder(self) -> list[str]:
+        """Missions dropped into Missions/Queue are queued on their own (oldest first), so
+        work can be handed to Joe without pasting. A queued file moves to Queue/done; one
+        with a problem moves to Queue/problems with a note saying what's wrong."""
+        folder = self.sb.missions / "Queue"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            files = sorted((p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in (".txt", ".md")),
+                           key=lambda p: p.stat().st_mtime)
+        except OSError:
+            return []
+        done = []
+        for p in files:
+            try:
+                if time.time() - p.stat().st_mtime < 3:      # still being written
+                    continue
+                text = p.read_text(encoding="utf-8-sig", errors="replace")
+            except OSError:
+                continue
+            try:
+                r = self.enqueue(text)
+            except Exception as e:                           # noqa: BLE001 (never stop the loop)
+                r = {"ok": False, "error": str(e)}
+            sub = folder / ("done" if r.get("ok") else "problems")
+            sub.mkdir(exist_ok=True)
+            stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            target = sub / f"{p.stem}_{stamp}{p.suffix}"
+            try:
+                p.replace(target)
+                if not r.get("ok"):
+                    target.with_suffix(".problem.txt").write_text(
+                        f"Joe couldn't queue {p.name}:\n{r.get('error', 'unknown problem')}\n", encoding="utf-8")
+            except OSError:
+                continue
+            self.log(f"Mission file {p.name} " + ("queued" if r.get("ok") else f"not queued: {r.get('error')}"))
+            done.append(p.name)
+        return done
+
     def enqueue(self, text: str, only: list[str] | None = None) -> dict:
         """Add a mission to the queue; starts running if Joe is idle.
         only = run just these task names (resume: skip what already finished)."""
@@ -1354,6 +1392,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
                 app.tool_voice.idle_check()
             app.ping_tick()
             app.clone.idle_check()
+            app.watch_queue_folder()                   # mission files dropped in Missions/Queue
             for _ in range(10):
                 time.sleep(1)
                 idle = time.monotonic() - app.last_seen

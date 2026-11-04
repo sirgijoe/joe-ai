@@ -106,6 +106,31 @@ class FakeOllama:
                 return 200, self._reply("## Summary\nThe team planned the mug launch.\n## Key points\n"
                                         "- Ship on Friday\n## Decisions\n- Price list update [CHECK]\n"
                                         "## To-dos\n- Sam: update the price list")
+            sysmsg = req["messages"][0]["content"]
+            if sysmsg.startswith("You fix spelling mistakes in spreadsheet cells"):
+                rows = json.loads(re.search(r"^(\[.*\])$", user, re.M).group(1))
+                fixes = [{"row": r["row"], "column": k, "find": "Bwol", "replace": "Bowl"}
+                         for r in rows for k, v in r.items() if isinstance(v, str) and "Bwol" in v]
+                fixes.append({"row": 999, "column": "Name", "find": "x", "replace": "y"})   # not a row: ignored
+                return 200, self._reply(json.dumps(fixes))
+            if sysmsg.startswith("You sort spreadsheet rows"):
+                if "Suggest 3 to 8" in user:
+                    return 200, self._reply('["Mugs", "Bowls"]')
+                rows = json.loads(re.search(r"Rows as JSON:\n(\[.*\])", user, re.S).group(1))
+                out = []
+                for r in rows[:-1]:                                            # last row left out
+                    text = " ".join(str(v) for v in r.values()).lower()
+                    out.append({"row": r["row"], "category": "mugs" if "mug" in text else
+                                "Bowls" if "bowl" in text else "Plates"})
+                return 200, self._reply("```json\n" + json.dumps(out) + "\n```")
+            if sysmsg.startswith("You split one spreadsheet column"):
+                rows = json.loads(re.search(r"Rows as JSON:\n(\[.*\])", user, re.S).group(1))
+                out = []
+                for r in rows:
+                    full = [v for k, v in r.items() if k != "row"][0]
+                    a, _, b = full.partition(" ")
+                    out.append({"row": r["row"], "First name": a, "Last name": b})
+                return 200, self._reply(json.dumps(out))
             if req["messages"][0]["content"].startswith("You are a careful translator"):
                 lang = re.search(r"into (\w+)", req["messages"][0]["content"]).group(1)
                 body = re.search(r"<<<\n(.*)\n>>>", user, re.S).group(1)

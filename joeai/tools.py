@@ -30,6 +30,7 @@ if TYPE_CHECKING:                                    # pragma: no cover
 
 AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".wma", ".amr")
 VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
+SHEET_EXT = (".csv", ".tsv", ".xlsx")
 DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
 LANGUAGES = (("spanish", "Spanish"), ("french", "French"), ("german", "German"),
@@ -140,7 +141,28 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("ask-files", "Ask my files", "Writing",
          "Answers and summaries from a folder of your documents.", needs=("ollama",)),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
-         "Fix duplicates, spelling and categories in a CSV.", needs=("ollama",)),
+         "Fix duplicates, spelling and categories in a CSV.",
+         accepts=SHEET_EXT,
+         options=(Option("spaces", "Tidy extra spaces", True, "Trims spaces at the ends and doubled spaces."),
+                  Option("dupes", "Remove duplicate rows", True,
+                         "Rows that match apart from capitals and spacing. The first one stays."),
+                  Option("spelling", "Fix spelling", False,
+                         "Only misspelled ordinary words; never numbers, codes, emails, names."),
+                  Option("categorize", "Add a Category column", False,
+                         "Give the categories in 'Anything else?' (categories: mugs, bowls) or Joe picks a few."),
+                  Option("split", "Split a column", False,
+                         "Say which in 'Anything else?', e.g. split Name into First name, Last name.")),
+         needs=("ollama",), ready=True,
+         help="Reads CSV, TSV and Excel (.xlsx, first sheet, values only) and saves a tidy CSV that "
+              "opens in Excel, Google Sheets or LibreOffice, plus a list of every change. Your "
+              "original is never changed. Spaces and duplicates are done by Joe himself (instant); "
+              "spelling, categories and splitting use the writing model.",
+         plan_hint="Tidy a spreadsheet: TYPE: tidy-sheet, INPUT: the .csv/.tsv/.xlsx file(s) from the "
+                   "list below, OPTIONS: spaces, dupes, plus spelling / categorize / split only if "
+                   "asked. FORMAT: 'categories: a, b, c' and/or 'split <Column> into <New>, <New>' "
+                   "when they said so. No CHUNKS.",
+         examples=("Remove the duplicates from my customer list", "Sort my product sheet into categories"),
+         extra_hint="optional, e.g. categories: mugs, bowls, vases · split Name into First name, Last name"),
     Tool("photo-batch", "Resize and convert photos", "Files",
          "Shrink, convert, rename or watermark a folder of photos.",
          accepts=PHOTO_EXT,
@@ -342,7 +364,7 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     fn = {"transcribe": run_transcribe, "read-aloud": run_read_aloud,
           "proofread": run_proofread, "photo-batch": run_photo_batch,
-          "translate": run_translate}.get(job.type)
+          "translate": run_translate, "tidy-sheet": run_tidy_sheet}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -1494,6 +1516,305 @@ def run_translate(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     return _finish(engine, job, st, total, failed)
 
 
+# --------------------------------------------------------------------------- tidy a spreadsheet
+SHEET_ROWS = 40                       # rows per model call
+_SPLIT = re.compile(r"split\s+(?:the\s+)?[\"']?(.+?)[\"']?\s+(?:column\s+)?into\s+(.+?)\s*(?:[.;\n]|$)", re.I)
+_CATS = re.compile(r"categor(?:y|ies)\s*(?:are|:|=)\s*(.+?)\s*(?:[.;\n]|$)", re.I)
+SPELL_SYSTEM = """You fix spelling mistakes in spreadsheet cells. Fix only clearly misspelled
+ordinary words. Never change numbers, codes, prices, dates, emails, links, people's names or
+brand names, and never reword anything. Reply with ONLY a JSON array, nothing else."""
+SPELL_ASK = """Rows of a spreadsheet as JSON (row = the row number):
+{rows}
+
+List each fix as {{"row": <row number>, "column": "<column name>", "find": "the misspelled
+word(s) exactly as written", "replace": "the fixed word(s)"}}. If nothing needs fixing, reply []."""
+CAT_SYSTEM = """You sort spreadsheet rows into categories. Use only what the row says; never guess
+beyond it. Reply with ONLY JSON, nothing else."""
+FILL_SYSTEM = """You split one spreadsheet column into new columns. Copy the words exactly as they
+are written in the cell; never invent, look up or correct anything. If a part isn't there,
+leave it "". Reply with ONLY a JSON array, nothing else."""
+
+
+def parse_json_list(raw: str, of=dict) -> list | None:
+    """A JSON array from a model reply (of dicts, or of strings), or None."""
+    import json
+    raw = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
+    raw = re.sub(r"```[\w-]*", "", raw)
+    a, b = raw.find("["), raw.rfind("]")
+    if a < 0 or b < a:
+        return None
+    try:
+        arr = json.loads(raw[a:b + 1])
+    except json.JSONDecodeError:
+        return None
+    return [x for x in arr if isinstance(x, of)] if isinstance(arr, list) else None
+
+
+def tidy_cell(v: str) -> str:
+    return re.sub(r"[ \t ]{2,}", " ", v.replace(" ", " ").replace("\r", "")).strip()
+
+
+def dedupe_rows(rows: list[list[str]]) -> tuple[list[int], list[int]]:
+    """(kept, dropped) row indexes. Rows that match after ignoring case and spacing are
+    duplicates; the first one stays."""
+    seen: set[tuple] = set()
+    kept, dropped = [], []
+    for i, r in enumerate(rows):
+        key = tuple(" ".join(c.split()).casefold() for c in r)
+        (dropped if key in seen else kept).append(i)
+        seen.add(key)
+    return kept, dropped
+
+
+def text_columns(header: list[str], rows: list[list[str]]) -> list[int]:
+    """Columns that hold ordinary words (not numbers, codes, emails or links)."""
+    out = []
+    for c in range(len(header)):
+        vals = [r[c] for r in rows if r[c].strip()][:500]
+        if not vals:
+            continue
+        wordy = sum(1 for v in vals if re.search(r"[^\W\d_]{3,}", v) and "@" not in v
+                    and not re.match(r"(https?://|www\.)", v.strip(), re.I))
+        if wordy >= len(vals) * 0.6:
+            out.append(c)
+    return out
+
+
+def split_request(fmt: str, header: list[str]) -> tuple[int, list[str]] | None:
+    """'split Name into First name, Last name' -> (column index, new names)."""
+    m = _SPLIT.search(fmt or "")
+    if not m:
+        return None
+    want = m.group(1).strip().lower()
+    col = next((i for i, h in enumerate(header) if h.lower() == want), None)
+    if col is None:
+        return None
+    parts = [x.strip(" \"'") for x in re.split(r",|\band\b|/", m.group(2)) if x.strip(" \"'")]
+    return (col, parts[:6]) if len(parts) >= 2 else None
+
+
+def given_categories(fmt: str) -> list[str]:
+    m = _CATS.search(fmt or "")
+    return [x.strip(" \"'") for x in re.split(r",|/|\bor\b", m.group(1)) if x.strip(" \"'")][:30] if m else []
+
+
+def _ask_list(engine: "Engine", job: "Job", st: "JobState", part: int, kind: str, system: str,
+              ask: str, of=dict) -> list | None:
+    from .engine import PartFailed
+    try:
+        for attempt in range(2):
+            r = engine._chat(job, part, kind, system, ask if not attempt else
+                             ask + "\n\nReply with ONLY the JSON array.", st)
+            got = parse_json_list(r.text, of)
+            if got is not None:
+                return got
+            st.retries += 1
+    except PartFailed as e:
+        engine.log(f"  {kind}: {e}")
+    return None
+
+
+def tidy_report(title: str, notes: list[str], dropped: list[tuple[int, str]], fixes: list[str],
+                cats: dict[str, int], unsure: list[str], out_name: str) -> str:
+    L = [f"# Tidied: {title}", "", f"The tidy copy is {out_name}. Your original file was not changed.", ""]
+    L += [f"- {n}" for n in notes] + [""]
+    if dropped:
+        L += [f"## Duplicate rows removed ({len(dropped)})", ""]
+        L += [f"- Row {r}: {_q(v)}" for r, v in dropped[:300]]
+        L += ([f"- ...and {len(dropped) - 300} more"] if len(dropped) > 300 else []) + [""]
+    if fixes:
+        L += [f"## Spelling fixed ({len(fixes)})", ""] + [f"- {f}" for f in fixes[:500]] + [""]
+    if cats:
+        L += ["## Categories", ""] + [f"- {k}: {v} row{'' if v == 1 else 's'}"
+                                      for k, v in sorted(cats.items(), key=lambda x: -x[1])] + [""]
+    if unsure:
+        L += [f"## Worth a look ({len(unsure)})", ""] + [f"- {u}" for u in unsure[:300]] + [""]
+    return "\n".join(L)
+
+
+def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .engine import Stopped
+    from .mission import slug
+    from .sheets import SheetError, read_table, write_csv
+
+    if (bad := _no_files(engine, job, st, "spreadsheets to tidy")) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    opts = chosen_options(job)
+    needs_model = bool(opts & {"spelling", "categorize", "split"})
+    if needs_model and not engine._text_ready(st):
+        engine._save_state(job, st)
+        return st
+    folder = tool_dir(engine, job, st)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} spreadsheet(s) "
+               f"-> {st.output} ({', '.join(sorted(opts)) or 'no changes picked'})")
+    failed: list[str] = []
+    rules = ("\n" + job.rules.strip()) if job.rules.strip() else ""
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            try:
+                header, rows, cut = read_table(src)
+            except (SheetError, OSError, ValueError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            engine.log(f"  {i + 1}/{len(files)} {src.name}: {len(rows)} rows, {len(header)} columns")
+            notes = [f"{len(rows)} rows and {len(header)} columns read."]
+            if cut:
+                notes.append("The sheet was longer than Joe reads at once; only the first rows were tidied.")
+            unsure: list[str] = []
+            fixes: list[str] = []
+            cats: dict[str, int] = {}
+            rownum = list(range(2, len(rows) + 2))          # the original row numbers
+            if "spaces" in opts:
+                n = 0
+                for r in rows:
+                    for c, v in enumerate(r):
+                        t = tidy_cell(v)
+                        if t != v:
+                            r[c] = t
+                            n += 1
+                header = [tidy_cell(h) for h in header]
+                notes.append(f"Extra spaces tidied in {n} cell{'' if n == 1 else 's'}.")
+            dropped: list[tuple[int, str]] = []
+            if "dupes" in opts:
+                kept, gone = dedupe_rows(rows)
+                dropped = [(rownum[g], " | ".join(x for x in rows[g] if x)[:120]) for g in gone]
+                rows = [rows[k] for k in kept]
+                rownum = [rownum[k] for k in kept]
+                notes.append(f"{len(gone)} duplicate row{'' if len(gone) == 1 else 's'} removed.")
+            batches = [list(range(a, min(a + SHEET_ROWS, len(rows)))) for a in range(0, len(rows), SHEET_ROWS)]
+            where = {n: k for k, n in enumerate(rownum)}        # original row number -> index now
+            if "spelling" in opts and rows:
+                tcols = text_columns(header, rows)
+                if not tcols:
+                    notes.append("Spelling: no columns of ordinary words to check.")
+                for bi, idx in enumerate(batches if tcols else []):
+                    if engine.stop.is_set():
+                        raise Stopped()
+                    engine._progress(f"{job.name}: {src.name}, spelling {bi + 1}/{len(batches)}")
+                    got = _ask_list(engine, job, st, bi, "tidy-spelling", SPELL_SYSTEM + rules,
+                                    SPELL_ASK.format(rows=_rows_json_numbered(header, rows, idx, tcols, rownum)))
+                    if got is None:
+                        unsure.append(f"Spelling wasn't checked for rows {rownum[idx[0]]}-{rownum[idx[-1]]} "
+                                      "(the model's answer didn't make sense).")
+                        continue
+                    pos = {rownum[k]: k for k in idx}
+                    for f in got:
+                        k = pos.get(f.get("row"))
+                        col = next((c for c in tcols if header[c] == f.get("column")), None)
+                        find, rep = str(f.get("find") or ""), str(f.get("replace") or "")
+                        if k is None or col is None or not find or find == rep or len(find) > 120:
+                            continue
+                        cell = rows[k][col]
+                        if find in cell and not re.search(r"\d", find):
+                            rows[k][col] = cell.replace(find, rep, 1)
+                            fixes.append(f"Row {rownum[k]}, {header[col]}: {_q(find)} → {_q(rep)}")
+                notes.append(f"Spelling: {len(fixes)} fix{'' if len(fixes) == 1 else 'es'}.")
+            if "split" in opts and rows:
+                req = split_request(job.format, header)
+                if not req:
+                    notes.append("Split: nothing split. Say which column in 'Anything else?', e.g. "
+                                 "\"split Name into First name, Last name\".")
+                else:
+                    col, new = req
+                    vals: dict[int, list[str]] = {}
+                    for bi, idx in enumerate(batches):
+                        if engine.stop.is_set():
+                            raise Stopped()
+                        engine._progress(f"{job.name}: {src.name}, splitting {bi + 1}/{len(batches)}")
+                        ask = (f"Split the \"{header[col]}\" column into: {', '.join(new)}.\n"
+                               f"Rows as JSON:\n{_rows_json_numbered(header, rows, idx, [col], rownum)}\n\n"
+                               f"Reply with one object per row: {{\"row\": <row number>, "
+                               + ", ".join(f'"{n}": "..."' for n in new) + "}")
+                        got = _ask_list(engine, job, st, bi, "tidy-split", FILL_SYSTEM + rules, ask)
+                        for f in got or []:
+                            if f.get("row") in where:
+                                vals[where[f["row"]]] = [str(f.get(n) or "").strip() for n in new]
+                    missing = [rownum[k] for k in range(len(rows)) if k not in vals and rows[k][col].strip()]
+                    header = header[:col + 1] + new + header[col + 1:]
+                    rows = [r[:col + 1] + vals.get(k, [""] * len(new)) + r[col + 1:] for k, r in enumerate(rows)]
+                    notes.append(f"Split {header[col]} into {', '.join(new)} (the original column is kept).")
+                    if missing:
+                        unsure.append(f"Rows not split (check by hand): {', '.join(map(str, missing[:60]))}"
+                                      + (" ..." if len(missing) > 60 else ""))
+            if "categorize" in opts and rows:
+                wanted = given_categories(job.format)
+                cols = [c for c in range(len(header))]
+                if not wanted:
+                    sample = list(range(0, len(rows), max(1, len(rows) // 60)))[:60]
+                    got = _ask_list(engine, job, st, 0, "tidy-categories", CAT_SYSTEM + rules,
+                                    "Here are sample rows of a spreadsheet as JSON:\n"
+                                    + _rows_json_numbered(header, rows, sample, cols, rownum) +
+                                    "\n\nSuggest 3 to 8 short category names (one or two words each) that "
+                                    "together fit every row. Reply with a JSON array of strings.", of=str)
+                    wanted = [w.strip() for w in (got or []) if w.strip()][:12]
+                if not wanted:
+                    unsure.append("No categories were added: Joe couldn't come up with a list. Give one in "
+                                  "'Anything else?', e.g. \"categories: mugs, bowls, vases\".")
+                else:
+                    lower = {w.lower(): w for w in wanted}
+                    picked: dict[int, str] = {}
+                    for bi, idx in enumerate(batches):
+                        if engine.stop.is_set():
+                            raise Stopped()
+                        engine._progress(f"{job.name}: {src.name}, categories {bi + 1}/{len(batches)}")
+                        ask = (f"Categories: {', '.join(wanted)}\nPut each row in exactly one of these "
+                               "categories. If none fits, use \"Other\".\nRows as JSON:\n"
+                               f"{_rows_json_numbered(header, rows, idx, cols, rownum)}\n\n"
+                               "Reply with one object per row: {\"row\": <row number>, \"category\": \"...\"}")
+                        got = _ask_list(engine, job, st, bi, "tidy-categorize", CAT_SYSTEM + rules, ask)
+                        for f in got or []:
+                            if f.get("row") in where:
+                                c = str(f.get("category") or "").strip()
+                                picked[where[f["row"]]] = lower.get(c.lower(), "Other" if c.lower() == "other" else c)
+                    name = "Category" if "category" not in {h.lower() for h in header} else "Joe's category"
+                    header = header + [name]
+                    for k, r in enumerate(rows):
+                        c = picked.get(k, "")
+                        r.append(c)
+                        if not c:
+                            unsure.append(f"Row {rownum[k]}: no category given")
+                        elif c not in wanted and c != "Other":
+                            unsure.append(f"Row {rownum[k]}: category {_q(c)} isn't on the list [CHECK]")
+                        cats[c or "(none)"] = cats.get(c or "(none)", 0) + 1
+                    notes.append(f"Added a \"{name}\" column: {', '.join(wanted)}.")
+            stem = slug(src.stem) or f"sheet-{i + 1}"
+            out_name = f"{stem}-tidy.csv"
+            write_csv(folder / out_name, header, rows)
+            atomic_write_text(folder / f"{stem}-changes.md",
+                              tidy_report(src.stem, notes, dropped, fixes, cats, unsure, out_name))
+            st.flags.extend({"item": src.stem, "flag": f"[CHECK] {u}"} for u in unsure[:30])
+            st.titles.append(key)
+            st.media_files.extend([out_name, f"{stem}-changes.md"])
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: {len(rows)} rows -> {out_name}"
+                       + (f" ({len(unsure)} thing(s) worth a look)" if unsure else ""))
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} spreadsheet(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, len(files), failed)
+
+
+def _rows_json_numbered(header: list[str], rows: list[list[str]], idx: list[int], cols: list[int],
+                        rownum: list[int]) -> str:
+    """Rows as JSON for the model, numbered as in the person's original sheet."""
+    import json
+    return json.dumps([{"row": rownum[i], **{header[c]: rows[i][c] for c in cols}} for i in idx],
+                      ensure_ascii=False)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -1565,6 +1886,16 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type == "read-aloud":
         for f in files:
             secs += _guess_words(f) / LISTEN_WPM * 60 * speeds.get("read-aloud", 0.5)
+    elif job.type == "tidy-sheet":
+        opts = chosen_options(job)
+        for f in files:
+            try:
+                from .sheets import read_table
+                n = len(read_table(f)[1])
+            except Exception:                           # noqa: BLE001 (a guess only)
+                n = 200
+            calls = -(-n // SHEET_ROWS)
+            secs += 1 + calls * (("spelling" in opts) + ("categorize" in opts) + ("split" in opts))                 * speeds.get("part", 25.0)
     elif job.type == "translate":
         n_lang = max(1, len(option_values(job, "to")))
         for f in files:

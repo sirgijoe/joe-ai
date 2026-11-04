@@ -112,6 +112,14 @@ def plain_summary(chk: dict) -> list[str]:
                 names = [language_name(x) for x in langs]
                 into = " and ".join(names) if len(names) < 3 else ", ".join(names[:-1]) + " and " + names[-1]
                 out.append(f"Translate {_n(n, 'document', 'documents')} into {into}: {name}")
+            elif t == "tidy-sheet":
+                from .tools import TOOLS as _T
+                opts = j.get("options") or [o.key for o in _T[t].options if o.default]
+                words = {"spaces": "spaces", "dupes": "duplicates", "spelling": "spelling",
+                         "categorize": "categories", "split": "split a column"}
+                did = [words[o] for o in words if o in opts]
+                tail = (" (" + ", ".join(did) + ")") if did else ""
+                out.append(f"Tidy {_n(n, 'spreadsheet', 'spreadsheets')}{tail}: {name}")
             elif t == "proofread":
                 opts = j.get("options") or ["copy"]
                 tail = " and a corrected copy" if "copy" in opts else ""

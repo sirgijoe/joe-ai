@@ -69,7 +69,7 @@ def test_tool_missions_parse_and_round_trip():
     for bad in ("TASK: x  TYPE: transcribe",                                  # no INPUT
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  OPTIONS: karaoke",
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  CHUNKS: 2 x 2",
-                "TASK: x  TYPE: tidy-sheet  INPUT: a.csv",                      # planned, not built
+                "TASK: x  TYPE: read-scans  INPUT: a.png",                      # planned, not built
                 "TASK: x  CHUNKS: 1 x 2  OPTIONS: notes"):                      # OPTIONS on a text task
         with pytest.raises(MissionError):
             parse(bad)
@@ -495,3 +495,135 @@ def test_describe_routes_translate(app):
     r = describe.draft(app, "translate my menu into spanish and french")
     assert r["ok"] and "TYPE: translate" in r["mission"], r
     assert r["summary"] == ["Translate 1 document into Spanish and French: Menu translations"]
+
+
+# --------------------------------------------------------------------------- tidy a spreadsheet
+SHEET = ("Name,Product,Price\r\n"
+         "  Ann   Lee ,Blue Bwol,12\r\n"
+         "Bo Chan,Tall mug,9\r\n"
+         "ann lee,blue bwol,12\r\n"                      # a duplicate apart from capitals/spaces
+         "Cy Dee,Big plate,15\r\n"
+         ",,\r\n")
+
+
+def _xlsx(path: Path) -> Path:
+    """A tiny Excel file: shared strings, a number, a date cell, an inline string."""
+    import zipfile
+    files = {
+        "[Content_Types].xml": '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"/>',
+        "xl/workbook.xml": '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" '
+                           'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">'
+                           '<sheets><sheet name="Stock" sheetId="1" r:id="rId1"/></sheets></workbook>',
+        "xl/_rels/workbook.xml.rels": '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'
+                                      '<Relationship Id="rId1" Target="worksheets/stock.xml" Type="x"/></Relationships>',
+        "xl/sharedStrings.xml": '<sst xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                                '<si><t>Item</t></si><si><t>Made</t></si><si><t>Count</t></si><si><t>Mug</t></si></sst>',
+        "xl/styles.xml": '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">'
+                         '<cellXfs><xf numFmtId="0"/><xf numFmtId="14"/></cellXfs></styleSheet>',
+        "xl/worksheets/stock.xml": '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>'
+                                   '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="s"><v>1</v></c><c r="C1" t="s"><v>2</v></c></row>'
+                                   '<row r="2"><c r="A2" t="s"><v>3</v></c><c r="B2" s="1"><v>45000</v></c><c r="C2"><v>3.0</v></c></row>'
+                                   '<row r="3"><c r="A3" t="inlineStr"><is><t>Bowl</t></is></c><c r="C3"><v>2.5</v></c></row>'
+                                   '</sheetData></worksheet>'}
+    with zipfile.ZipFile(path, "w") as z:
+        for n, d in files.items():
+            z.writestr(n, d)
+    return path
+
+
+def test_sheets_read_csv_and_xlsx(tmp_path):
+    from joeai import sheets
+    p = tmp_path / "a.csv"
+    p.write_bytes(SHEET.encode("utf-8"))
+    h, rows, cut = sheets.read_table(p)
+    assert h == ["Name", "Product", "Price"] and len(rows) == 4 and not cut   # blank row dropped
+    (tmp_path / "semi.csv").write_text("a;b\n1;2\n", encoding="cp1252")
+    assert sheets.read_table(tmp_path / "semi.csv")[:2] == (["a", "b"], [["1", "2"]])
+    h, rows, _ = sheets.read_table(_xlsx(tmp_path / "s.xlsx"))
+    assert h == ["Item", "Made", "Count"]
+    assert rows == [["Mug", "2023-03-15", "3"], ["Bowl", "", "2.5"]]
+    out = tmp_path / "o.csv"
+    sheets.write_csv(out, ["A", "B"], [["café", "x,y"]])
+    assert out.read_bytes().startswith(b"\xef\xbb\xbf") and b'"x,y"' in out.read_bytes()
+
+
+def test_tidy_helpers():
+    assert tools.tidy_cell("  a    b ") == "a b"
+    kept, gone = tools.dedupe_rows([["A b", "1"], ["a  B", "1"], ["c", "1"]])
+    assert kept == [0, 2] and gone == [1]
+    assert tools.split_request("please split name into First name and Last name.", ["Name", "X"]) == \
+        (0, ["First name", "Last name"])
+    assert tools.split_request("split Nope into a, b", ["Name"]) is None
+    assert tools.given_categories("tone: fun. Categories: mugs, bowls or vases") == ["mugs", "bowls", "vases"]
+    h = ["Name", "Email", "Price", "Note"]
+    rows = [["Ann Lee", "a@b.com", "12", "nice glaze"], ["Bo", "c@d.com", "9", "small chip"]]
+    assert tools.text_columns(h, rows) == [3] or tools.text_columns(h, rows) == [0, 3]
+
+
+def test_tidy_sheet_quick_options_need_no_model(app):
+    (app.sb.inbox / "people.csv").write_bytes(SHEET.encode("utf-8"))
+    text = "TASK: People  TYPE: tidy-sheet\nINPUT: people.csv"
+    chk = app.check(text)
+    assert chk["ok"], chk
+    assert describe.plain_summary(chk) == ["Tidy 1 spreadsheet (spaces, duplicates): People"]
+    app.settings.ollama.url = "http://127.0.0.1:9"                  # no model needed
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    from joeai.sheets import read_table
+    h, rows, _ = read_table(app.sb.output / st.output / "people-tidy.csv")
+    assert rows == [["Ann Lee", "Blue Bwol", "12"], ["Bo Chan", "Tall mug", "9"], ["Cy Dee", "Big plate", "15"]]
+    rep = (app.sb.output / st.output / "people-changes.md").read_text(encoding="utf-8")
+    assert "1 duplicate row removed." in rep and "Row 4:" in rep
+
+
+def test_tidy_sheet_with_the_model(app):
+    (app.sb.inbox / "people.csv").write_bytes(SHEET.encode("utf-8"))
+    text = ("TASK: People  TYPE: tidy-sheet\nINPUT: people.csv\n"
+            "OPTIONS: spaces, dupes, spelling, categorize, split\nFORMAT: split Name into First name, Last name")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    from joeai.sheets import read_table
+    h, rows, _ = read_table(app.sb.output / st.output / "people-tidy.csv")
+    assert h == ["Name", "First name", "Last name", "Product", "Price", "Category"]
+    assert rows[0] == ["Ann Lee", "Ann", "Lee", "Blue Bowl", "12", "Bowls"]
+    assert rows[1][-1] == "Mugs"                        # "mugs" matched to the list's "Mugs"
+    assert rows[2][-1] == ""                            # the model skipped it: flagged, not guessed
+    rep = (app.sb.output / st.output / "people-changes.md").read_text(encoding="utf-8")
+    assert "Row 2, Product: “Bwol” → “Bowl”" in rep
+    assert "Row 5: no category given" in rep and "Mugs: 1 row" in rep
+    assert (app.sb.inbox / "people.csv").read_bytes() == SHEET.encode("utf-8")
+
+
+def test_tidy_sheet_given_categories_and_xlsx(app, tmp_path):
+    _xlsx(app.sb.inbox / "stock.xlsx")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(
+        "TASK: Stock  TYPE: tidy-sheet\nINPUT: stock.xlsx\nOPTIONS: categorize\n"
+        "FORMAT: categories: Mugs, Bowls, Plates"))[0]
+    assert st.status == "done", st.note
+    from joeai.sheets import read_table
+    h, rows, _ = read_table(app.sb.output / st.output / "stock-tidy.csv")
+    assert h[-1] == "Category" and rows[0][-1] == "Mugs" and rows[0][1] == "2023-03-15"
+
+
+def test_missions_dropped_in_the_queue_folder_are_queued(app, monkeypatch):
+    import os
+    import time
+    q = app.sb.missions / "Queue"
+    q.mkdir(parents=True, exist_ok=True)
+    good, bad = q / "night.txt", q / "broken.txt"
+    good.write_text("TASK: Tips  CHUNKS: 1 x 2", encoding="utf-8")
+    bad.write_text("TASK: x  CHUNKS: banana", encoding="utf-8")
+    old = time.time() - 60
+    for f in (good, bad):
+        os.utime(f, (old, old))
+    got = []
+    monkeypatch.setattr(app, "enqueue", lambda text, only=None: got.append(text) or
+                        ({"ok": True, "queued": 0} if "Tips" in text else {"ok": False, "error": "CHUNKS must look like '8 x 10'"}))
+    assert sorted(app.watch_queue_folder()) == ["broken.txt", "night.txt"]
+    assert not good.exists() and not bad.exists() and len(got) == 2
+    assert len(list((q / "done").glob("night_*.txt"))) == 1
+    note = next((q / "problems").glob("*.problem.txt")).read_text(encoding="utf-8")
+    assert "CHUNKS must look like" in note
+    fresh = q / "new.txt"
+    fresh.write_text("TASK: Later  CHUNKS: 1 x 1", encoding="utf-8")
+    assert app.watch_queue_folder() == [] and fresh.exists()                 # still being written

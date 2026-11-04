@@ -10,7 +10,7 @@ Default: `Documents\Joe-ai`.
 Inbox\      reference files you drop in (facts, price lists) — read with INPUT:
 Output\     everything Joe writes, plus _REPORT.md, _log.txt, _progress.txt
 Projects\   project profiles: brand voice, facts, rules (one .md per project)
-Missions\   saved mission files
+Missions\   saved mission files; Missions\Queue\ = drop a mission file here to queue it
 Workflows\  ComfyUI workflows in API format (optional; image tasks have a built-in one)
 Themes\     custom color themes (made in F10, or by hand)
 ```
@@ -51,6 +51,10 @@ The Builder makes the mission for you with simple forms:
   happens only after the last one.
 - **SAVE** keeps it in `Missions\` under a name. **PAST MISSIONS** lists every mission you've
   run, how many tasks finished, and LOAD / RUN buttons to revisit one.
+- **Drop-in queue:** any `.txt` or `.md` mission file put in `Missions\Queue\` while Joe is open
+  is queued on its own within about 10 seconds (oldest first), then moved to `Queue\done\`.
+  A file with a problem goes to `Queue\problems\` with a `.problem.txt` note saying what's
+  wrong. Handy for missions written somewhere else (by another app, a helper, or Claude).
 
 ## First start, tabs and looks
 
@@ -195,6 +199,24 @@ WATERMARK: My Shop                     (optional: text, or a logo .png in Inbox)
 Phone photos are turned the right way up, and hidden details (camera, GPS location, dates)
 aren't copied. Needs FFmpeg (Setup > System check). On the Tools tab the picks are drop-down
 lists, and the Watermark box (or **USE A LOGO**) is empty unless you fill it in.
+
+**Tidy a spreadsheet** (`TYPE: tidy-sheet`) reads .csv, .tsv and Excel .xlsx (the first sheet,
+values only; dates come out as 2025-03-15) and saves `<name>-tidy.csv` (UTF-8, opens in Excel,
+Google Sheets and LibreOffice) and `<name>-changes.md` (everything that changed, by original
+row number). OPTIONS:
+
+- `spaces` (on): trims spaces at the ends of cells and doubled spaces inside them.
+- `dupes` (on): removes rows that match another row apart from capitals and spacing; the first
+  stays. These two are done by Joe himself, instantly, with no model.
+- `spelling`: fixes misspelled ordinary words in columns of words (never numbers, codes,
+  emails, links or names); each fix is listed.
+- `categorize`: adds a Category column. Give the list in FORMAT (`categories: mugs, bowls,
+  vases`) or Joe suggests 3-8 from a sample of rows. A row the model skips is left blank and
+  listed, never guessed.
+- `split`: FORMAT `split Name into First name, Last name` adds the new columns after the old
+  one (which is kept); cells are copied as written, never invented.
+
+Sheets longer than 20,000 rows are cut (the change list says so).
 
 **Translate** (`TYPE: translate`, `OPTIONS: to spanish, to french`: one `to` per language,
 at least one) reads the same documents as Proofread and makes `<name>-<language>.md` (or
