@@ -131,8 +131,9 @@ class JobState:
 class Engine:
     def __init__(self, settings: Settings, sandbox: Sandbox, services: ServiceManager | None = None,
                  client: OllamaClient | None = None, log: Callable[[str], None] = print,
-                 stop: threading.Event | None = None):
+                 stop: threading.Event | None = None, voice=None):
         self.s = settings
+        self.voice = voice                  # the voice helper (Whisper/Kokoro) for tools, if any
         self.sb = sandbox.ensure()
         self.services = services or ServiceManager(settings, log=self.log)
         self.client = client or self.services.ollama
@@ -233,6 +234,9 @@ class Engine:
     # -- job ----------------------------------------------------------------
     def run_job(self, mission: Mission, job: Job, st: JobState | None = None) -> JobState:
         st = st or self._load_state(mission, job)
+        if job.tool:
+            from . import tools as tools_mod
+            return tools_mod.run(self, mission, job, st)
         if job.media:
             self.write_prompts(mission, job, st)
             if st.status not in ("failed", "stopped"):

@@ -4,6 +4,8 @@ Reads one JSON request per line on stdin, writes one JSON reply per line on stdo
   {"cmd": "warmup", "stt_model": "base.en"}
   {"cmd": "stt", "audio": "C:/.../clip.webm", "stt_model": "base.en"}  -> {"ok": true, "text": "..."}
   {"cmd": "tts", "text": "...", "out": "C:/.../reply.wav", "voice": "am_adam", "speed": 1.0}
+  {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base.en"}
+      -> {"ok": true, "segments": [{"s": 0.0, "e": 2.5, "t": "..."}], "seconds": 63.2}
 Everything runs on the CPU so it never fights the night's work for the graphics card.
 """
 import json
@@ -55,6 +57,18 @@ def chunks(text, size=380):
     return parts or [text[:size]]
 
 
+def read_wav16k(path):
+    """A WAV as 16 kHz mono floats, read with soundfile (so faster-whisper never needs PyAV)."""
+    import numpy as np
+    import soundfile as sf
+    data, rate = sf.read(path, dtype="float32", always_2d=True)
+    data = data.mean(axis=1)
+    if rate != 16000:
+        n = int(len(data) * 16000 / rate)
+        data = np.interp(np.linspace(0, len(data) - 1, n), np.arange(len(data)), data).astype("float32")
+    return data
+
+
 def handle(req):
     cmd = req.get("cmd")
     if cmd == "ping":
@@ -80,6 +94,17 @@ def handle(req):
         segs, _ = stt_model(req.get("stt_model", "base.en")).transcribe(
             audio, beam_size=1, vad_filter=True, language="en")
         return {"ok": True, "text": " ".join(s.text.strip() for s in segs).strip()}
+    if cmd == "transcribe":
+        # A whole recording (Joe converts it to 16 kHz mono WAV first). Timed segments, for
+        # transcripts and subtitles. English models (*.en) are told the language.
+        name = req.get("stt_model", "base.en")
+        audio = read_wav16k(req["audio"])
+        segs, info = stt_model(name).transcribe(
+            audio, beam_size=5, vad_filter=True,
+            language="en" if name.endswith(".en") else None)
+        out = [{"s": round(s.start, 2), "e": round(s.end, 2), "t": s.text.strip()} for s in segs]
+        return {"ok": True, "segments": out, "seconds": round(len(audio) / 16000, 1),
+                "language": getattr(info, "language", "")}
     if cmd == "tts":
         import numpy as np
         import soundfile as sf

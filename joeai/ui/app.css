@@ -299,6 +299,8 @@ textarea#theme-desc { min-height: 2.4em; resize: vertical; width: 100%; }
 .talkspeed input[type=range] { width: 140px; accent-color: var(--ph); }
 
 .talkfiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tffiles .chip { border: 1px solid var(--ph); padding: 0 6px; font-size: .85em; display: inline-flex; gap: 6px; align-items: center; }
+.tffiles .chip.busy { border-style: dashed; color: var(--ph-dim); }
 .talkfiles .chip { border: 1px solid var(--ph); padding: 0 6px; font-size: .8em; display: inline-flex; gap: 6px; align-items: center; }
 .talkfiles .chip.busy { border-style: dashed; color: var(--ph-dim); }
 body.dropping #s-talk .talk, body.dropping .dropveil { outline: 3px dashed var(--ph); outline-offset: -8px; }
@@ -488,3 +490,34 @@ body.modern .setbar { border-top: 1px solid var(--line); }
 body.modern .setup fieldset { background: var(--panel); padding: 10px 14px 12px; }
 body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 @media (max-width: 900px) { .panel.full > form.setup { grid-template-columns: 1fr; } .setnav { flex-direction: row; flex-wrap: wrap; border-right: 0; } .setnav input { flex-basis: 100%; } }
+
+/* ---------------- tools (F7) ---------------- */
+.toolsbody { flex: 1; min-height: 0; overflow: auto; }
+.tgroup { margin-bottom: 14px; }
+.tgname { margin: 4px 0 6px; font-size: 1em; font-weight: normal; letter-spacing: .08em; color: var(--ph-dim); text-transform: uppercase; }
+.tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15em, 1fr)); gap: 10px; }
+.tcard { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px 12px; border: 1px solid var(--ph-dim); min-height: 5.2em; }
+.tcard .tcn { font-size: 1.05em; }
+.tcard .tcb { font-size: .82em; color: var(--ph-dim); }
+.tcard:hover .tcb { color: var(--bg); }
+.tcard.soon { opacity: .55; cursor: default; }
+.tcard .tsoon { font-size: .72em; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ph-dim); padding: 0 6px; margin-top: auto; }
+.toolform { display: flex; flex-direction: column; gap: 10px; max-width: 52em; }
+.tfdrop { border: 2px dashed var(--ph-dim); padding: 22px 16px; text-align: center; cursor: pointer; }
+.tfdrop:hover, .tfdrop:focus-visible { border-color: var(--ph); outline: none; }
+.tffiles { display: flex; flex-wrap: wrap; gap: 6px; }
+.tfoptions { display: flex; flex-direction: column; gap: 4px; }
+.tfopt { display: inline-flex; gap: 8px; align-items: center; }
+.tfrow { display: grid; grid-template-columns: minmax(0, 12em) minmax(0, 1fr); gap: 10px; align-items: center; }
+#tf-plan:empty { display: none; }
+#tf-plan { border-top: 1px dashed var(--ph-dim); padding-top: 8px; }
+body.modern .tcard { background: var(--btn); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
+body.modern .tcard:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: var(--ph); border-color: var(--accent); }
+body.modern .tcard:hover .tcb { color: var(--ph-dim); }
+body.modern .tcard .tcn { font-weight: 600; }
+body.modern .tcard.soon:hover { background: var(--btn); color: var(--ph); border-color: var(--line); }
+body.modern .tcard .tsoon { border-radius: 999px; border-color: var(--line); }
+body.modern .tfdrop { border-color: var(--line); border-radius: var(--radius); background: var(--panel); }
+body.modern .tfdrop:hover, body.modern .tfdrop:focus-visible { border-color: var(--accent); }
+body.modern #tf-plan { border-top: 1px solid var(--line); }
+body:not(.modern) .tcard.soon:hover { background: none; color: var(--ph); }

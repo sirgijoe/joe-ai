@@ -83,6 +83,7 @@ def main() -> int:
         if app.thread:
             app.thread.join()
         app.voice.close()
+        app.tool_voice.close()
         app.clone.close()
         try:
             _lock_path().unlink()

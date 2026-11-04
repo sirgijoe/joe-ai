@@ -74,7 +74,8 @@ def _lines(p: Path) -> int:
 
 
 # --------------------------------------------------------------------------- learned speeds
-DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 240.0}
+DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 240.0,
+                  "transcribe": 0.8}      # transcribe: seconds of work per second of sound
 _speed_cache: dict = {}
 
 
@@ -93,21 +94,24 @@ def speeds(sb: Sandbox, recent: int = 300) -> dict:
         f.seek(max(0, st.st_size - 400_000))
         tail = f.read().decode("utf-8", "replace").splitlines()[1:] if st.st_size > 400_000 else \
             f.read().decode("utf-8", "replace").splitlines()
-    got: dict[str, list[float]] = {"write": [], "speedtest": [], "image": [], "video": []}
+    got: dict[str, list[float]] = {"write": [], "speedtest": [], "image": [], "video": [],
+                                   "transcribe": []}
     for line in tail[-recent * 3:]:
         try:
             r = json.loads(line)
         except json.JSONDecodeError:
             continue
         k = r.get("kind")
-        if r.get("ok") and k in got and r.get("seconds"):
+        if r.get("ok") and k == "transcribe" and r.get("seconds") and r.get("audio_seconds"):
+            got[k].append(float(r["seconds"]) / max(1.0, float(r["audio_seconds"])))
+        elif r.get("ok") and k in got and r.get("seconds"):
             got[k].append(float(r["seconds"]))
     out = dict(DEFAULT_SPEEDS, learned=[])
     text = got["write"][-recent:] or got["speedtest"][-5:]
     if len(text) >= 3 or got["speedtest"]:
         out["part"] = round(_median(text) * 1.15, 1)       # + the odd retry / expansion
         out["learned"].append("part")
-    for k in ("image", "video"):
+    for k in ("image", "video", "transcribe"):
         if len(got[k]) >= 2:
             out[k] = round(_median(got[k][-recent:]), 1)
             out["learned"].append(k)

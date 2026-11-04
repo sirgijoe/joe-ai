@@ -20,6 +20,7 @@
     <nav class="tabs" aria-label="Screens">
       <button data-key="F2" title="Tell Joe what you need, run it, and watch it happen.">Queue<b>F2</b></button>
       <button data-key="F4" title="Build a plan step by step with simple forms.">Builder<b>F4</b></button>
+      <button data-key="F7" title="Ready-made tools for your own files: recordings, photos, documents.">Tools<b>F7</b></button>
       <button data-key="F6" title="Talk or type to Joe. Drop a file here to ask about it.">Talk<b>F6</b></button>
       <button data-key="F3" title="Everything Joe made: open, look through and mark pictures.">Files<b>F3</b></button>
       <button data-key="R" title="What Joe finished last time and what needs a look.">Report<b>R</b></button>
@@ -156,6 +157,36 @@ FORMAT: ...
   </main>
 
   <!-- ============ TALK (F6) ============ -->
+  <main id="s-tools" class="view">
+    <section class="panel full tools">
+      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Queue screen</span></h2>
+      <div class="toolsbody">
+        <div id="toolgrid" class="toolgrid"></div>
+        <div id="toolform" class="toolform" hidden>
+          <div class="row"><button type="button" data-act="tool-back" title="Back to all tools.">[ ← ALL TOOLS ]</button></div>
+          <h3 id="tf-title" class="settitle"></h3>
+          <div id="tf-blurb" class="dim"></div>
+          <div id="tf-need" class="warn small" hidden></div>
+          <div id="tf-drop" class="tfdrop" tabindex="0" role="button" title="Drop files here, or click to pick them.">
+            <b>Drop files here</b> <span class="dim">or click to pick them</span>
+            <div id="tf-accepts" class="dim small"></div>
+          </div>
+          <input type="file" id="tf-file" multiple hidden>
+          <div id="tf-files" class="tffiles"></div>
+          <div id="tf-options" class="tfoptions"></div>
+          <label class="tfrow" title="A short name for this job. It becomes the folder name in Output.">Name <input id="tf-name" placeholder="e.g. Tuesday meeting"></label>
+          <label class="tfrow" title="Anything Joe should know, like who the speakers are or what to focus on in the notes.">Anything else? <input id="tf-extra" placeholder="optional, e.g. focus on dates and to-dos"></label>
+          <div id="tf-help" class="dim small"></div>
+          <div class="row buttons">
+            <button type="button" class="primary" data-act="tool-run" title="Check it, show the plan, and start (or queue it if Joe is busy).">[ RUN IT ]</button>
+            <button type="button" data-act="tool-plan" title="See the plan and the mission text without running.">[ SHOW THE PLAN ]</button>
+          </div>
+          <pre id="tf-plan" class="out"></pre>
+        </div>
+      </div>
+    </section>
+  </main>
+
   <main id="s-talk" class="view">
     <section class="panel full talk">
       <h2>TALK TO JOE <span class="dim">— just talk, or type · drop files here · Joe never starts a run without you</span></h2>
@@ -597,6 +628,11 @@ FORMAT: ...
        and Joe answers when you pause (MIC button mutes). Prefer
        push-to-talk? Setup > Voice & Talk, pick any key. You can always type.
        (Voice needs a one-time setup: F10 > System check.)
+ F7    Tools: ready-made jobs for your own files. Pick a card, drop
+       your files on it (or click to pick), choose the extras, RUN IT.
+       Transcribe a recording is ready now; the rest say "Coming soon".
+       Dropping a recording anywhere outside Talk opens Transcribe.
+       Files you add are copied to Inbox\tools\<tool>.
  F5    Run the mission  /  stop a running mission
        ADD TO QUEUE adds more work while Joe is busy; queued
        missions run one after another until all are done.

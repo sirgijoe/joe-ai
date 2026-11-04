@@ -66,6 +66,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
+**Tools for your own files** (Tools tab, **F7**)
+- **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
+  file (.srt) and short notes (summary, key points, decisions, to-dos). English for now; uses
+  the voice add-on and runs on the processor.
+- More are on the way, shown as "Coming soon" on the Tools tab: proofreading, translating,
+  reading documents aloud, photo resizing, tidying spreadsheets, listings from photos, reading
+  scans and receipts, restoring old photos, and more.
+- Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes".
+
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses
   Pandoc (free) and the PDF printer built into Microsoft Edge.

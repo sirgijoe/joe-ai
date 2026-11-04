@@ -16,7 +16,8 @@ nothing before or after it.
 
 What Joe can make: lists of items (product blurbs, captions, emails, FAQs, recipes...),
 documents written section by section, spreadsheets (CSV), code drafts, AI pictures, and
-short AI video clips. He cannot browse the web, send anything, or use real photos.
+short AI video clips. He also has tools that work on the person's own files (listed below,
+with the files waiting in Joe's Inbox). He cannot browse the web or send anything.
 
 Mission block format (keys are UPPERCASE):
 === JOE MISSION ===
@@ -38,6 +39,7 @@ Kinds of task:
   FORMAT: subject and style. Pictures are AI art or mockups, never fake photos of real
   products, places or people.
 - Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens.
+{tools}
 
 Rules:
 - Match the numbers the person asked for exactly. If they gave none, pick a sensible small
@@ -46,6 +48,12 @@ Rules:
 - Put writing first and pictures/video last.
 - Use FORMAT and RULES to pass on every detail they gave (tone, audience, length, style).
 - Never invent prices, reviews, quotes or facts; tell Joe to mark unknowns [CHECK]."""
+
+def planner_text() -> str:
+    from . import tools as tools_mod
+    lines = tools_mod.planner_lines()
+    return PLANNER.replace("{tools}", ("- Tools on the person's own files:\n" + lines) if lines else "")
+
 
 _BLOCK = re.compile(r"===\s*JOE\s+MISSION\s*===.*?===\s*END\s*===", re.S | re.I)
 _TASK_START = re.compile(r"(?m)^\s*(PROJECT|RULES|TASK)\s*:")
@@ -73,7 +81,16 @@ def plain_summary(chk: dict) -> list[str]:
     for j in chk.get("jobs", []):
         name = j["name"]
         t = j["type"]
-        if t in ("image", "video"):
+        from .tools import TOOLS
+        if t in TOOLS:
+            n = j.get("files", 0)
+            if t == "transcribe":
+                extras = [x for x in ("subtitles", "notes") if not j.get("options") or x in j["options"]]
+                tail = (" with " + " and ".join(extras)) if extras else ""
+                out.append(f"Transcribe {_n(n, 'recording', 'recordings')}{tail}: {name}")
+            else:
+                out.append(f"{TOOLS[t].name}: {_n(n, 'file', 'files')} ({name})")
+        elif t in ("image", "video"):
             n = j["prompts"] * j["variants"]
             what = _n(n, "picture", "pictures") if t == "image" else _n(n, "short video clip", "short video clips")
             extra = f" ({j['variants']} versions of each)" if j["variants"] > 1 else ""
@@ -116,8 +133,13 @@ def draft(app, request: str) -> dict:
         return {"ok": False, "error": "Ollama isn't running. Setup (F10) > System check can start it."}
     from .doctor import resolve_text_model
     model = resolve_text_model(app.settings, app.services, app.log)
-    msgs = [{"role": "system", "content": PLANNER},
-            {"role": "user", "content": "The request, in the person's words:\n" + request}]
+    from . import tools as tools_mod
+    waiting = tools_mod.inbox_media(app.sb)
+    files_note = ("\n\nRecordings waiting in Joe's Inbox (use these exact names in INPUT):\n"
+                  + "\n".join("- " + f for f in waiting)) if waiting else \
+                 "\n\nNo recordings are waiting in Joe's Inbox right now."
+    msgs = [{"role": "system", "content": planner_text()},
+            {"role": "user", "content": "The request, in the person's words:\n" + request + files_note}]
     problem = ""
     for attempt in range(2):
         try:

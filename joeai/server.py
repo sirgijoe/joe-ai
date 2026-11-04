@@ -76,6 +76,8 @@ class App:
         self.busy = ""                       # a system-check fix running in the background
         self.busy_pct: float | None = None
         self.voice = addons_mod.VoiceWorker(self.log)
+        # Tools (transcribing a long recording) get their own helper so Talk stays quick meanwhile.
+        self.tool_voice = addons_mod.VoiceWorker(self.log)
         self.clone = addons_mod.VoiceWorker(self.log, python=str(addons_mod.clone_python()),
                                             script=Path(addons_mod.__file__).with_name("clone_worker.py"))
         self.chat_history: list[dict] = []   # this session only (fresh start every launch)
@@ -161,9 +163,30 @@ class App:
                 warnings.append(f"Based on your {lv.capitalize()} video setting, I'd recommend the "
                                 f"{WAN_TURBO['label']} (under 1 GB) for this: several times faster. "
                                 "Install it from Setup > System check, or run as is.")
-        parts = sum(j.parts for j in m.jobs if not j.media)
+        parts = sum(j.parts for j in m.jobs if not j.media and not j.tool)
         sp = stats_mod.speeds(self.sb)                # learned on this PC; rough defaults at first
         secs = parts * sp["part"]
+        tool_info: dict[str, dict] = {}
+        for j in m.jobs:
+            if not j.tool:
+                continue
+            from . import tools as tools_mod
+            problem = tools_mod.needs_problem(self.settings, j)
+            if problem:
+                return {"ok": False, "error": problem}
+            info = tools_mod.plan_info(self.sb, j, sp)
+            if not info["files"]:
+                return {"ok": False, "error": f"Task '{j.name}': no files to work on yet. Add them "
+                        "on the Tools tab (F7), or put them in Joe's Inbox folder."
+                        + (f" ({info['problems'][0]})" if info["problems"] else "")}
+            warnings += [f"Task '{j.name}': {p}" for p in info["problems"]]
+            if j.type == "transcribe" and any(not str(x).lower().endswith(".wav") for x in j.inputs):
+                from .doctor import ffmpeg_exe
+                if not ffmpeg_exe(self.settings.comfy.ffmpeg):
+                    warnings.append("FFmpeg isn't installed, so only .wav recordings can be read "
+                                    "(Setup > System check installs it).")
+            secs += info["seconds"]
+            tool_info[j.job_id] = info
         for j in m.jobs:
             if j.media:
                 n = (len(j.part_prompts) or j.parts * j.part_size)
@@ -175,7 +198,8 @@ class App:
                           "size": j.part_size, "items": j.total_items, "guided": j.guided,
                           "min_words": j.min_words, "save": j.save, "variants": j.variants,
                           "prompts": len(j.part_prompts) or j.parts * j.part_size,
-                          "workflow": j.workflow,
+                          "workflow": j.workflow, "options": j.options,
+                          "files": tool_info.get(j.job_id, {}).get("files", 0),
                           "project": j.project or m.project}
                          for j in m.jobs]}
 
@@ -253,7 +277,7 @@ class App:
                 text, mission, entry = self.queue.pop(0)
                 self.mission_text = text
                 self.engine = Engine(self.settings, self.sb, services=self.services,
-                                     log=self.log, stop=self.stop)
+                                     log=self.log, stop=self.stop, voice=self.tool_voice)
                 last = not self.queue
             try:
                 states = self.engine.run_mission(mission, earlier=self.chain, finish=False)
@@ -895,6 +919,13 @@ def make_handler(app: App):
                     return self._json({**addons_mod.status(), "settings": asdict(app.settings.voice)})
                 if u.path == "/api/themes":
                     return self._json({"themes": themes_mod.list_themes(app.sb.themes)})
+                if u.path == "/api/tools":                # the Tools tab's cards
+                    from . import tools as tools_mod
+                    from .doctor import ffmpeg_exe
+                    voice = Path(addons_mod.voice_python()).exists()
+                    return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),
+                                       "have": {"voice": voice,
+                                                "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg))}})
                 if u.path == "/api/update":
                     from . import update as update_mod
                     if q.get("auto") and not app.settings.ui.check_updates:
@@ -947,6 +978,59 @@ def make_handler(app: App):
                     app.settings.save()
                     app.log("Saved your voice sample (stays on this PC). Joe will use it when he talks.")
                 return self._json({"ok": not err, "error": err})
+            if u.path == "/api/tools/upload":           # a file for a tool (streamed to Inbox/tools/<id>/)
+                from urllib.parse import unquote
+                from . import tools as tools_mod
+                n = int(self.headers.get("Content-Length") or 0)
+                tool = (parse_qs(u.query).get("tool") or [""])[0]
+                name = unquote(self.headers.get("X-Filename") or "file")
+                if tool not in tools_mod.TOOLS or not tools_mod.TOOLS[tool].ready:
+                    return self._json({"ok": False, "error": "unknown tool"})
+                if not 0 < n <= tools_mod.UPLOAD_MAX_BYTES:
+                    return self._json({"ok": False, "error": "That file is empty or over 8 GB."})
+                if Path(name).suffix.lower() not in tools_mod.TOOLS[tool].accepts:
+                    self.rfile.read(n)
+                    return self._json({"ok": False, "error": f"{tools_mod.TOOLS[tool].name} can't use "
+                                       f"{Path(name).suffix or 'that kind of file'} files."})
+                try:
+                    p = tools_mod.upload_target(app.sb, tool, name)
+                    part = p.with_name(p.name + ".part")
+                    left = n
+                    with open(part, "wb") as f:
+                        while left > 0:
+                            chunk = self.rfile.read(min(left, 1 << 20))
+                            if not chunk:
+                                break
+                            f.write(chunk)
+                            left -= len(chunk)
+                    if left:
+                        part.unlink(missing_ok=True)
+                        return self._json({"ok": False, "error": "The upload stopped part way."})
+                    part.replace(p)
+                except (OSError, SandboxError) as e:
+                    return self._json({"ok": False, "error": str(e)})
+                rel = str(p.relative_to(app.sb.inbox)).replace("\\", "/")
+                return self._json({"ok": True, "input": rel, "name": p.name, "bytes": n})
+            if u.path == "/api/tools/mission":          # the Tools form -> a mission (not run yet)
+                from . import tools as tools_mod
+                n = int(self.headers.get("Content-Length") or 0)
+                b = json.loads(self.rfile.read(n) or b"{}") if 0 < n <= 200_000 else {}
+                tid = b.get("tool", "")
+                if tid not in tools_mod.TOOLS or not tools_mod.TOOLS[tid].ready:
+                    return self._json({"ok": False, "error": "unknown tool"})
+                files = [str(x) for x in (b.get("files") or []) if str(x).strip()][:200]
+                if not files:
+                    return self._json({"ok": False, "error": "Add at least one file first."})
+                text = tools_mod.mission_for(tid, files, [str(x) for x in b.get("options") or []],
+                                             str(b.get("name") or ""), str(b.get("extra") or ""))
+                chk = app.check(text)
+                if not chk["ok"]:
+                    return self._json(chk)
+                from . import describe as describe_mod
+                return self._json({"ok": True, "mission": text, "summary": describe_mod.plain_summary(chk),
+                                   "time": describe_mod.plain_time(chk["eta_min"])
+                                   + ("" if chk.get("eta_learned") else describe_mod.ROUGH),
+                                   "warnings": chk.get("warnings", [])})
             if u.path == "/api/talk/attach":            # a file dropped into Talk
                 from urllib.parse import unquote
                 from . import attach
@@ -1255,6 +1339,8 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
         while True:
             app.refresh_services()
             app.voice.idle_check()                     # free the voice models after a quiet spell
+            if not app.running:
+                app.tool_voice.idle_check()
             app.ping_tick()
             app.clone.idle_check()
             for _ in range(10):

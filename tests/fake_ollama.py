@@ -102,6 +102,16 @@ class FakeOllama:
             user = req["messages"][-1]["content"]
             self.prompts.append(user)
             self.systems.append(req["messages"][0]["content"])
+            if req["messages"][0]["content"].startswith("You write clear notes from a transcript"):
+                return 200, self._reply("## Summary\nThe team planned the mug launch.\n## Key points\n"
+                                        "- Ship on Friday\n## Decisions\n- Price list update [CHECK]\n"
+                                        "## To-dos\n- Sam: update the price list")
+            if req["messages"][0]["content"].startswith("You turn a plain request") and \
+                    "transcribe" in req["messages"][1]["content"].lower():
+                m = re.search(r"^- (\S+)$", req["messages"][1]["content"], re.M)
+                rec = m.group(1) if m else "nothing.mp3"
+                return 200, self._reply(f"=== JOE MISSION ===\nTASK: Meeting notes\nTYPE: transcribe\n"
+                                        f"INPUT: {rec}\nOPTIONS: subtitles, notes\n=== END ===")
             if req["messages"][0]["content"].startswith("You turn a plain request"):
                 if "BADFIRST" in req["messages"][1]["content"] and "That didn't work" not in user:
                     return 200, self._reply("Sure! I'll get right on it.")      # no mission at all

@@ -122,6 +122,34 @@ so after changing a level the first estimate may be off.
   line when a run is done ("Joe is done: 3 of 3 tasks done, 48 items."), nothing from your files.
   It's the only thing Joe ever sends off your PC, and only when you turn it on.
 
+## Tools (F7)
+
+Ready-made jobs for your own files. Each card opens a short form: drop your files on it (or click
+to pick them), tick the extras you want, give it a name if you like, and press **RUN IT** (it
+queues behind other work if Joe is busy). **SHOW THE PLAN** shows the plan and the mission text
+without running. Files you add are copied into `Inbox\tools\<tool>\`; your originals aren't
+touched. Dropping a recording anywhere outside Talk opens Transcribe with it. Tools not built
+yet show "Coming soon".
+
+You can also just ask on the Queue screen ("turn the call I added into notes"): Joe sees the
+recordings waiting in Inbox and plans a transcribe task. In a mission:
+
+```
+TASK: Tuesday meeting  TYPE: transcribe
+INPUT: tools/transcribe/meeting.mp3        (files or folders in Inbox, comma-separated)
+OPTIONS: subtitles, notes                  (or none; leave it out for both)
+FORMAT: focus on dates and to-dos           (optional, for the notes)
+```
+
+**Transcribe a recording** makes, per recording, in `Output\<task name>\`:
+`<name>.txt` (the transcript, a [mm:ss] time at the start of each paragraph), `<name>.srt`
+(subtitles) and `<name>-notes.md` (summary, key points, decisions, to-dos, written by the
+writing model from the transcript; anything unclear is marked [CHECK]). Long recordings are
+noted in pieces, then combined. It needs Joe's voice add-on (Setup > System check) and FFmpeg
+for anything but .wav. It uses the Hearing setting (Setup > Voice & Talk; Most accurate is
+slower), English only for now, and runs on the processor, so it can work while pictures draw.
+A stopped run picks up at the next recording.
+
 ## Talking to Joe (F6)
 
 Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):

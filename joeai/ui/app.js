@@ -18,7 +18,7 @@ async function api(path, body) {
 }
 
 /* ---------------- screens ---------------- */
-const SCREENS = { F1: "help", F2: "queue", F3: "files", F4: "builder", F6: "talk", F8: "stats", F9: "about", F10: "setup" };
+const SCREENS = { F1: "help", F2: "queue", F3: "files", F4: "builder", F6: "talk", F7: "tools", F8: "stats", F9: "about", F10: "setup" };
 let current = "queue";
 function show(name, page) {
   current = name;
@@ -31,6 +31,7 @@ function show(name, page) {
   if (name === "setup") loadSetup();
   if (name === "report") loadReport();
   if (name === "builder") loadBuilder();
+  if (name === "tools") loadTools();
   if (name === "talk") loadTalk(); else if (typeof openMicStop === "function") openMicStop();
 }
 
@@ -1740,7 +1741,9 @@ window.addEventListener("dragover", (ev) => ev.preventDefault());       // never
 window.addEventListener("drop", (ev) => {
   ev.preventDefault(); dragDepth = 0; $("#dropveil").hidden = true;
   const files = [...(ev.dataTransfer?.files || [])];
-  if (files.length) attachFiles(files);
+  if (!files.length) return;
+  if (current === "tools" || (current !== "talk" && typeof toolFor === "function" && toolFor(files))) { toolsDrop(files); return; }
+  attachFiles(files);
 });
 $("#talk-file").addEventListener("change", (ev) => { attachFiles([...ev.target.files]); ev.target.value = ""; });
 document.addEventListener("click", async (ev) => {
@@ -1985,3 +1988,124 @@ function comfortTick() {
     }
   }
 }
+
+
+/* ---------------- Tools tab (F7): one card per tool, a short form, same engine ---------------- */
+let toolCat = null, toolHave = {}, toolOpen = null, toolFiles = [];
+async function loadTools() {
+  if (!toolCat) {
+    try { const r = await api("/api/tools"); toolCat = r; toolHave = r.have || {}; }
+    catch (e) { $("#toolgrid").textContent = e.message; return; }
+  } else {
+    api("/api/tools").then((r) => { toolHave = r.have || {}; if (toolOpen) toolNeeds(); }).catch(() => {});
+  }
+  if (!toolOpen) renderToolGrid();
+}
+function renderToolGrid() {
+  const by = {};
+  toolCat.tools.forEach((t) => (by[t.group] = by[t.group] || []).push(t));
+  Object.values(by).forEach((list) => list.sort((x, y) => y.ready - x.ready));     // ready tools first
+  const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
+  $("#toolgrid").innerHTML = groups.map((g) =>
+    `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
+    by[g].map((t) => `<button type="button" class="tcard${t.ready ? "" : " soon"}" data-tool="${t.id}"` +
+      ` title="${esc(t.ready ? t.blurb : "Coming soon: " + t.blurb)}"${t.ready ? "" : " disabled"}>` +
+      `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
+      (t.ready ? "" : `<span class="tsoon">Coming soon</span>`) + `</button>`).join("") +
+    `</div></div>`).join("");
+  $("#toolgrid").hidden = false; $("#toolform").hidden = true;
+}
+function toolById(id) { return toolCat && toolCat.tools.find((t) => t.id === id); }
+function toolFor(files) {          // dropped files outside Tools: recordings go to Transcribe
+  if (!toolCat) return null;
+  const ext = (f) => "." + f.name.split(".").pop().toLowerCase();
+  return toolCat.tools.find((t) => t.ready && files.every((f) => t.accepts.includes(ext(f)))) || null;
+}
+function toolNeeds() {
+  const t = toolOpen, msgs = [];
+  if (t.id === "transcribe" && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > System check > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
+  if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > System check installs it.");
+  $("#tf-need").innerHTML = msgs.map(esc).join("<br>");
+  $("#tf-need").hidden = !msgs.length;
+}
+function openTool(id) {
+  const t = toolById(id); if (!t || !t.ready) return;
+  toolOpen = t; toolFiles = [];
+  $("#tf-title").textContent = t.name;
+  $("#tf-blurb").textContent = t.blurb;
+  $("#tf-accepts").textContent = "Works with: " + t.accepts.join(" ");
+  $("#tf-file").accept = t.accepts.join(",");
+  $("#tf-help").textContent = t.help || "";
+  $("#tf-options").innerHTML = t.options.map((o) =>
+    `<label class="tfopt" title="${esc(o.hint)}"><input type="checkbox" data-opt="${o.key}"${o.default ? " checked" : ""}> ${esc(o.label)}</label>`).join("");
+  $("#tf-name").value = ""; $("#tf-extra").value = ""; $("#tf-plan").textContent = "";
+  renderToolFiles(); toolNeeds();
+  $("#toolgrid").hidden = true; $("#toolform").hidden = false;
+}
+function renderToolFiles() {
+  $("#tf-files").innerHTML = toolFiles.map((f, i) =>
+    `<span class="chip${f.busy ? " busy" : ""}">${esc(f.name)}${f.busy ? ` … ${f.pct || 0}%` : f.err ? " ✗" : ""}` +
+    (f.busy ? "" : ` <button type="button" data-tfrm="${i}" title="Remove from this job (the file stays in Inbox).">×</button>`) + `</span>`).join("");
+}
+function uploadOne(file, f) {      // XHR so a big recording shows progress
+  return new Promise((resolve) => {
+    const x = new XMLHttpRequest();
+    x.open("POST", "/api/tools/upload?tool=" + encodeURIComponent(toolOpen.id));
+    x.setRequestHeader("X-NR-Token", TOKEN);
+    x.setRequestHeader("Content-Type", "application/octet-stream");
+    x.setRequestHeader("X-Filename", encodeURIComponent(file.name));
+    x.upload.onprogress = (e) => { if (e.lengthComputable) { f.pct = Math.round(e.loaded * 100 / e.total); renderToolFiles(); } };
+    x.onload = () => { let r = {}; try { r = JSON.parse(x.responseText); } catch (e) {} resolve(r); };
+    x.onerror = () => resolve({ ok: false, error: "Couldn't send " + file.name });
+    x.send(file);
+  });
+}
+async function toolsDrop(files) {
+  if (current !== "tools") show("tools");
+  if (!toolCat) await loadTools();
+  if (!toolOpen) { const t = toolFor(files); if (!t) { toast("Pick a tool first, then drop the files on it."); return; } openTool(t.id); }
+  for (const file of files) {
+    const ext = "." + file.name.split(".").pop().toLowerCase();
+    if (!toolOpen.accepts.includes(ext)) { toast(`${toolOpen.name} can't use ${ext} files`); continue; }
+    const f = { name: file.name, busy: true, pct: 0 };
+    toolFiles.push(f); renderToolFiles();
+    const r = await uploadOne(file, f);
+    if (r.ok) Object.assign(f, { busy: false, input: r.input, name: r.name });
+    else { toolFiles.splice(toolFiles.indexOf(f), 1); toast(r.error || "Upload failed"); }
+    renderToolFiles();
+  }
+}
+function toolRequest() {
+  return { tool: toolOpen.id, files: toolFiles.filter((f) => f.input).map((f) => f.input),
+    options: [...document.querySelectorAll("#tf-options [data-opt]")].filter((c) => c.checked).map((c) => c.dataset.opt),
+    name: $("#tf-name").value.trim(), extra: $("#tf-extra").value.trim() };
+}
+async function toolPlan(run) {
+  if (toolFiles.some((f) => f.busy)) { toast("Still adding files…"); return; }
+  const req = toolRequest();
+  if (!req.files.length) { toast("Add at least one file first"); return; }
+  if (!req.options.length && toolOpen.options.length) req.options = ["none"];
+  let r;
+  try { r = await api("/api/tools/mission", req); } catch (e) { r = { ok: false, error: e.message }; }
+  if (!r.ok) { $("#tf-plan").textContent = r.error; return; }
+  $("#tf-plan").textContent = r.summary.join("\n") + `\nTime: ${r.time}` +
+    (r.warnings.length ? "\n\n" + r.warnings.map((w) => "! " + w).join("\n") : "") +
+    (run ? "" : "\n\nMission:\n" + r.mission);
+  if (!run) return;
+  const q = await api("/api/queue/add", { text: r.mission });
+  if (!q.ok) { $("#tf-plan").textContent = "ERROR: " + q.error; return; }
+  toast(q.queued ? `Queued: it runs after the current work (${q.queued} waiting)` : "Started — safe to close this window");
+  toolFiles = []; renderToolFiles();
+}
+$("#tf-file").addEventListener("change", (ev) => { toolsDrop([...ev.target.files]); ev.target.value = ""; });
+$("#tf-drop").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#tf-file").click(); } });
+document.addEventListener("click", (ev) => {
+  if (ev.target.closest("#tf-drop")) { $("#tf-file").click(); return; }
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.tool) openTool(b.dataset.tool);
+  else if (b.dataset.act === "tool-back") { toolOpen = null; renderToolGrid(); }
+  else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));
+  else if (b.dataset.act === "tool-plan") toolPlan(false).catch((e) => toast(e.message));
+  else if (b.dataset.tfrm !== undefined) { toolFiles.splice(+b.dataset.tfrm, 1); renderToolFiles(); }
+});
+api("/api/tools").then((r) => { toolCat = toolCat || r; toolHave = r.have || {}; }).catch(() => {});

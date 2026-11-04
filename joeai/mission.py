@@ -23,6 +23,8 @@ Two ways to split a task:
 TYPE: image / video: SAVE is a folder. CHUNKS n x m = n parts of m prompts written by the
 model (one image each, VARIANTS: 2 for more), or PART lines = one prompt brief each
 (PROMPTS: as written uses them unchanged). WORKFLOW, NEGATIVE, SIZE 1024 x 1024, SEED, FPS.
+TYPE: <tool> (e.g. transcribe, see tools.py) works on the person's own files: INPUT: files or
+folders in Inbox, SAVE is a folder, OPTIONS: picks extras (e.g. subtitles, notes).
 MODEL on an image task = part of a checkpoint file name (e.g. sdxl or a word from its file name).
 A SAVE ending in .csv needs HEADER:; rows are checked and re-quoted so they import cleanly.
 PROJECT may also be set per task (after its TASK line) to override the mission's.
@@ -41,7 +43,8 @@ from dataclasses import asdict, dataclass, field
 
 KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
-        "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT")
+        "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
+        "OPTIONS")
 EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html")
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
@@ -82,10 +85,16 @@ class Job:
     fps: int = 16             # for frames -> MP4
     prompts_as_written: bool = False   # PART text used as the prompt, no rewriting
     export: list[str] = field(default_factory=list)   # finished copies: docx, pdf, epub...
+    options: list[str] = field(default_factory=list)  # tool extras (OPTIONS: subtitles, notes)
 
     @property
     def media(self) -> bool:
         return self.type in ("image", "video")
+
+    @property
+    def tool(self) -> bool:
+        from .tools import is_tool
+        return is_tool(self.type)
 
     @property
     def guided(self) -> bool:
@@ -117,6 +126,8 @@ class Mission:
                       "prompts_as_written"):
                 j.pop(k, None)
         j.pop("export", None)      # exporting copies doesn't change what gets written
+        if not j.get("options"):   # keep hashes stable for tasks without OPTIONS
+            j.pop("options", None)
         blob = json.dumps({"p": self.project, "r": self.rules, "j": j}, sort_keys=True)
         return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
@@ -232,9 +243,29 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     if not mw.isdigit():
         raise MissionError(f"Task '{name}': MIN WORDS PER ITEM must be a number.")
     jtype = (d.get("TYPE") or "text").strip().lower()
-    if jtype not in ("text", "code", "image", "video"):
-        raise MissionError(f"Task '{name}': TYPE must be text, code, image or video.")
+    from .tools import TOOLS, ready_ids
+    if jtype in TOOLS and not TOOLS[jtype].ready:
+        raise MissionError(f"Task '{name}': the {TOOLS[jtype].name} tool is planned but not built yet.")
+    if jtype not in ("text", "code", "image", "video") + ready_ids():
+        raise MissionError(f"Task '{name}': TYPE must be text, code, image, video, or a tool "
+                           f"({', '.join(ready_ids())}).")
     inputs = [x.strip() for x in re.split(r"[,\n]", d.get("INPUT", "")) if x.strip()]
+    options = [x.strip().lower() for x in re.split(r"[,\n]", d.get("OPTIONS", "")) if x.strip()]
+    if options and jtype not in TOOLS:
+        raise MissionError(f"Task '{name}': OPTIONS is for tools (like TYPE: transcribe).")
+    if jtype in TOOLS:
+        if not inputs:
+            raise MissionError(f"Task '{name}': say which files to use with INPUT: (files or a "
+                               "folder in Inbox).")
+        if "CHUNKS" in d or part_prompts:
+            raise MissionError(f"Task '{name}': a {TOOLS[jtype].name} task doesn't use CHUNKS or PART.")
+        known = {o.key for o in TOOLS[jtype].options} | {"none"}
+        bad = [o for o in options if o not in known]
+        if bad:
+            raise MissionError(f"Task '{name}': OPTIONS can be {', '.join(sorted(known))} (got {', '.join(bad)}).")
+        if d["SAVE"].strip().lower().endswith((".md", ".csv", ".txt")):
+            raise MissionError(f"Task '{name}': a tool saves into a folder; give SAVE a folder name.")
+        parts, size = 1, 1
     media = {}
     if jtype in ("image", "video"):
         if part_prompts == [] and "CHUNKS" not in d:
@@ -273,7 +304,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
         raise MissionError(f"Task '{name}': EXPORT can be {', '.join(EXPORT_FORMATS)} (got {', '.join(bad)}).")
     if export and (jtype in ("image", "video") or d["SAVE"].strip().lower().endswith(".csv")):
         raise MissionError(f"Task '{name}': EXPORT works on writing tasks (not pictures or spreadsheets).")
-    return Job(**media, export=export, name=name, save=d["SAVE"].strip(), parts=parts, part_size=size,
+    return Job(**media, export=export, options=options, name=name, save=d["SAVE"].strip(), parts=parts, part_size=size,
                min_words=int(mw), format=d.get("FORMAT", ""), rules=d.get("RULES", ""),
                model=d.get("MODEL", "").strip(), type=jtype, inputs=inputs,
                notes=d.get("NOTES", ""), part_prompts=part_prompts, header=header,
@@ -286,12 +317,13 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
 TASK_FIELDS = ("name", "save", "type", "project", "parts", "part_size", "part_prompts", "format",
                "rules", "min_words", "header", "inputs", "model", "notes", "workflow",
                "negative", "width", "height", "variants", "seed", "fps", "prompts_as_written",
-               "export")
+               "export", "options")
 
 
 def job_to_dict(j: Job) -> dict:
     d = {k: getattr(j, k) for k in TASK_FIELDS}
-    d["mode"] = ("media" if j.media else "csv" if j.is_csv else "guided" if j.guided else "list")
+    d["mode"] = ("tool" if j.tool else "media" if j.media else "csv" if j.is_csv
+                 else "guided" if j.guided else "list")
     return d
 
 
@@ -325,7 +357,8 @@ def to_text(project: str, rules: str, tasks: list[dict]) -> str:
         if str(t.get("project") or "").strip():
             L.append(f"PROJECT: {_safe(t['project'])}")
         prompts = [p for p in (t.get("part_prompts") or []) if str(p).strip()]
-        if not prompts:
+        from .tools import is_tool
+        if not prompts and not is_tool(typ):
             L.append(f"CHUNKS: {int(t.get('parts') or 1)} x {int(t.get('part_size') or 5)}")
         if int(t.get("min_words") or 0):
             L.append(f"MIN WORDS PER ITEM: {int(t['min_words'])}")
@@ -343,6 +376,11 @@ def to_text(project: str, rules: str, tasks: list[dict]) -> str:
             inputs = [x for x in re.split(r"[,\n]", inputs) if x.strip()]
         if inputs:
             L.append("INPUT: " + ", ".join(_safe(x) for x in inputs))
+        opts = t.get("options") or []
+        if isinstance(opts, str):
+            opts = [x for x in re.split(r"[,\s]+", opts) if x]
+        if opts and is_tool(typ):
+            L.append("OPTIONS: " + ", ".join(_safe(x) for x in opts))
         if typ in ("image", "video"):
             if str(t.get("workflow") or "").strip():
                 L.append(f"WORKFLOW: {_safe(t['workflow'])}")
