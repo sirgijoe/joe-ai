@@ -107,6 +107,31 @@ class FakeOllama:
                                         "- Ship on Friday\n## Decisions\n- Price list update [CHECK]\n"
                                         "## To-dos\n- Sam: update the price list")
             sysmsg = req["messages"][0]["content"]
+            seen = req["messages"][-1].get("images")
+            if sysmsg.startswith("You write shop listings from product photos"):
+                if not seen:
+                    return 200, self._reply("no picture?")
+                name = re.search(r"file: ([^)]+)\)", user).group(1)
+                if "blurry" in name:
+                    return 200, self._reply("I can't tell what this is.")
+                return 200, self._reply(json.dumps({"title": f"Blue mug ({name})", "description":
+                    "A blue glazed mug with a round handle. Size [CHECK].", "tags": ["mug", "blue", "handmade"],
+                    "alt_text": "A blue mug on a wooden table."}))
+            if sysmsg.startswith("You read text from pictures"):
+                if "receipt or invoice" in user:
+                    return 200, self._reply(json.dumps({"date": "2026-03-02", "store": "Corner Shop", "total": "$12.50",
+                        "tax": "$0.75", "currency": "$", "items": [{"name": "Milk", "price": "$3.00"},
+                                                                   {"name": "Br[CHECK]ad", "price": "$9.50"}]}))
+                if "Copy the table" in user:
+                    return 200, self._reply(json.dumps({"columns": ["Name", "Qty"], "rows": [["Mugs", "4"], ["Bowls", "2", "extra"]]}))
+                return 200, self._reply(json.dumps({"text": "# Notice\n\nOpen 9 to 5. Closed S[CHECK]day."}))
+            if sysmsg.startswith("You sort photos"):
+                name = re.search(r"file: ([^)]+)\)", user).group(1)
+                cat = "dogs" if "dog" in name.lower() else ("Beach days" if "beach" in name else "Food")
+                if "Pick the category from this list" in user and cat == "Food":
+                    cat = "Snacks"                                        # not on the list: flagged
+                return 200, self._reply(json.dumps({"category": cat, "tags": [cat.lower(), "photo"],
+                                                    "caption": f"A photo of {cat.lower()}."}))
             if sysmsg.startswith("You fix spelling mistakes in spreadsheet cells"):
                 rows = json.loads(re.search(r"^(\[.*\])$", user, re.M).group(1))
                 fixes = [{"row": r["row"], "column": k, "find": "Bwol", "replace": "Bowl"}

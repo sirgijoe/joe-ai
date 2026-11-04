@@ -971,8 +971,13 @@ def make_handler(app: App):
                     from . import tools as tools_mod
                     from .doctor import ffmpeg_exe
                     voice = Path(addons_mod.voice_python()).exists()
+                    vision = None                        # unknown while Ollama is off
+                    if app.services.ollama_up():
+                        from .attach import vision_model
+                        from .doctor import ollama_models
+                        vision = bool(vision_model(ollama_models(app.services)))
                     return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),
-                                       "have": {"voice": voice,
+                                       "have": {"voice": voice, "vision": vision,
                                                 "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg))}})
                 if u.path == "/api/update":
                     from . import update as update_mod

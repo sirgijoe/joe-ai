@@ -32,6 +32,10 @@ AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", "
 VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
 SHEET_EXT = (".csv", ".tsv", ".xlsx")
 DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
+VISION_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
+VISION_HELP_TEXT = ("Uses a vision model on this PC (Setup > System check offers a free one). Big "
+                    "photos are shrunk first with FFmpeg. Your pictures never leave this computer "
+                    "and are never changed.")
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
 LANGUAGES = (("spanish", "Spanish"), ("french", "French"), ("german", "German"),
              ("italian", "Italian"), ("portuguese", "Portuguese"), ("dutch", "Dutch"),
@@ -194,11 +198,51 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Shrink my product photos for the website", "Convert these photos to JPG"),
          extra_hint=""),
     Tool("read-scans", "Read scans and receipts", "Files",
-         "Pull the text out of scans, receipts and forms.", needs=("vision",)),
+         "Pull the text out of scans, receipts and forms.",
+         accepts=VISION_EXT,
+         options=(Option("as", "Read as", hint="Text: everything written. Receipts: date, shop, total "
+                         "and items in a spreadsheet. Table: a table in the picture as a spreadsheet.",
+                         choices=(("text", "Text (letters, pages, signs)"), ("receipts", "Receipts and invoices"),
+                                  ("table", "A table")), value="text"),),
+         needs=("vision",), ready=True,
+         help="Copies exactly what's written, never guesses: anything it can't read clearly is "
+              "marked [CHECK], so check totals before you rely on them. Photos of paper work too; "
+              "flat, bright and in focus works best. PDFs aren't read here yet (take a screenshot). "
+              + VISION_HELP_TEXT,
+         plan_hint="Read scans/receipts/photos of text: TYPE: read-scans, INPUT: the picture file(s) "
+                   "from the list below, OPTIONS: as text|receipts|table. No CHUNKS.",
+         examples=("Type up the text from these scanned pages", "Put my receipts in a spreadsheet"),
+         extra_hint="optional, e.g. the receipts are from March"),
     Tool("photo-listing", "Listings from photos", "Pictures",
-         "Titles, descriptions, tags and alt text from product photos.", needs=("vision",)),
+         "Titles, descriptions, tags and alt text from product photos.",
+         accepts=VISION_EXT,
+         options=(Option("csv", "Spreadsheet (for shop uploads)", True),
+                  Option("doc", "Readable document", True)),
+         needs=("vision",), ready=True,
+         help="One listing per photo: title, description, search tags and alt text. Joe only "
+              "describes what he can see: sizes, materials and prices are left for you and marked "
+              "[CHECK] if needed. Tell him about the products in 'Anything else?' for better words. "
+              + VISION_HELP_TEXT,
+         plan_hint="Listings from product photos: TYPE: photo-listing, INPUT: the photo file(s) or "
+                   "folder from the list below, OPTIONS: csv, doc. FORMAT: what they told you about "
+                   "the products and the tone. No CHUNKS.",
+         examples=("Write listings for my product photos", "Alt text for these pictures"),
+         extra_hint="optional, e.g. handmade stoneware mugs, warm friendly tone"),
     Tool("sort-photos", "Sort my photos", "Pictures",
-         "Tag and sort a folder of pictures by what's in them.", needs=("vision",)),
+         "Tag and sort a folder of pictures by what's in them.",
+         accepts=VISION_EXT,
+         options=(Option("folders", "Copy into a folder per category", True,
+                         "Copies: your photos stay where they are."),),
+         needs=("vision",), ready=True,
+         help="Gives every photo a category, tags and a one-line caption (photo-list.csv), and "
+              "copies it into a folder named after its category. Give your own categories in "
+              "'Anything else?' (categories: family, garden, pets) or Joe picks and reuses short "
+              "ones. Faces are never named. " + VISION_HELP_TEXT,
+         plan_hint="Sort/tag photos: TYPE: sort-photos, INPUT: the photo folder or files from the "
+                   "list below, OPTIONS: folders (or none). FORMAT: 'categories: a, b, c' if they "
+                   "named them. No CHUNKS.",
+         examples=("Sort my vacation photos", "Tag these pictures by what's in them"),
+         extra_hint="optional, e.g. categories: family, garden, pets"),
     Tool("remove-bg", "Remove background and upscale", "Pictures",
          "Clean, sharp product shots.", needs=("comfy",)),
     Tool("edit-picture", "Edit a picture by asking", "Pictures",
@@ -364,7 +408,9 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     fn = {"transcribe": run_transcribe, "read-aloud": run_read_aloud,
           "proofread": run_proofread, "photo-batch": run_photo_batch,
-          "translate": run_translate, "tidy-sheet": run_tidy_sheet}.get(job.type)
+          "translate": run_translate, "tidy-sheet": run_tidy_sheet,
+          "photo-listing": run_photo_listing, "read-scans": run_read_scans,
+          "sort-photos": run_sort_photos}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -1815,6 +1861,386 @@ def _rows_json_numbered(header: list[str], rows: list[list[str]], idx: list[int]
                       ensure_ascii=False)
 
 
+# --------------------------------------------------------------------------- vision tools (shared)
+RAW_IMAGE_MAX = 6_000_000             # without FFmpeg, photos bigger than this can't be sent
+
+
+def find_vision_model(engine: "Engine") -> str | None:
+    from .attach import vision_model
+    from .doctor import ollama_models
+    return vision_model(ollama_models(engine.services))
+
+
+def picture_b64(ffmpeg: str | None, src: Path, tmp: Path, longest: int) -> str:
+    """The photo, upright and shrunk to `longest` px, as base64 JPEG for the vision model.
+    Raises ValueError when it can't be prepared."""
+    import base64
+    ext = src.suffix.lower()
+    if ffmpeg:
+        from .system import no_window_flags
+        dims = image_size(ffmpeg, src)
+        if not dims:
+            raise ValueError("couldn't open the picture")
+        turn = jpeg_orientation(src) if ext in (".jpg", ".jpeg") else 1
+        w, h = (dims[1], dims[0]) if turn >= 5 else dims
+        tmp.parent.mkdir(parents=True, exist_ok=True)
+        cmd = photo_command(ffmpeg, src, tmp, fit_size(w, h, longest), turn, "jpg", None, None, None, "")
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=300, creationflags=no_window_flags())
+        except (OSError, subprocess.SubprocessError) as e:
+            raise ValueError(f"couldn't prepare the picture: {e}") from e
+        if p.returncode != 0 or not tmp.exists():
+            raise ValueError("couldn't prepare the picture")
+        try:
+            return base64.b64encode(tmp.read_bytes()).decode()
+        finally:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+    if ext not in (".jpg", ".jpeg", ".png", ".webp") or src.stat().st_size > RAW_IMAGE_MAX:
+        raise ValueError("big or unusual pictures need FFmpeg to shrink them first (Setup > System check)")
+    return base64.b64encode(src.read_bytes()).decode()
+
+
+def parse_json_object(raw: str) -> dict | None:
+    import json
+    raw = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
+    raw = re.sub(r"```[\w-]*", "", raw)
+    a, b = raw.find("{"), raw.rfind("}")
+    if a < 0 or b < a:
+        return None
+    try:
+        o = json.loads(raw[a:b + 1])
+    except json.JSONDecodeError:
+        return None
+    return o if isinstance(o, dict) else None
+
+
+def _look(engine: "Engine", job: "Job", st: "JobState", part: int, kind: str, system: str,
+          ask: str, image: str, model: str) -> dict | None:
+    """Ask the vision model about one picture; a JSON object back (asked twice), or None."""
+    from .engine import PartFailed
+    try:
+        for attempt in range(2):
+            r = engine._chat(job, part, kind, system, ask if not attempt else
+                             ask + "\n\nReply with ONLY the JSON object.", st, images=[image], model=model)
+            o = parse_json_object(r.text)
+            if o is not None:
+                return o
+            st.retries += 1
+    except PartFailed as e:
+        engine.log(f"  {kind}: {e}")
+    return None
+
+
+def _s(v, n: int = 2000) -> str:
+    if isinstance(v, list):
+        v = ", ".join(str(x).strip() for x in v if str(x).strip())
+    return " ".join(str(v if v is not None else "").split())[:n]
+
+
+def _vision_start(engine: "Engine", job: "Job", st: "JobState", what: str):
+    """Shared start for the picture tools: files, the vision model, FFmpeg, the folder.
+    Returns (files, model, ffmpeg, folder) or a finished JobState when it can't start."""
+    from .doctor import ffmpeg_exe
+    if (bad := _no_files(engine, job, st, what)) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    if not engine.services.handoff("text"):
+        st.status, st.note = "failed", "Ollama is not running and could not be started"
+        engine.log(st.note)
+        return st
+    model = find_vision_model(engine)
+    if not model:
+        st.status, st.note = "failed", ("this needs a vision model (one that can look at pictures). "
+                                        "Setup (F10) > System check offers a free one")
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    folder = tool_dir(engine, job, st)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} picture(s) "
+               f"-> {st.output} (looking with {model})")
+    return files, model, ffmpeg, folder
+
+
+def _read_rows(p: Path) -> tuple[list[str], list[list[str]]]:
+    """An earlier run's CSV (to carry on after a stop), or nothing."""
+    try:
+        from .sheets import read_csv
+        return read_csv(p)
+    except Exception:                                   # noqa: BLE001 (a fresh start is fine)
+        return [], []
+
+
+# --------------------------------------------------------------------------- B6 listings from photos
+LISTING_SYSTEM = """You write shop listings from product photos. Describe only what you can see:
+the kind of item, colors, shapes, finish, patterns, how many. Never invent materials, sizes,
+weights, prices, brands or care instructions; if the writer would need one, write [CHECK].
+Plain, warm, honest words. Reply with ONLY a JSON object, nothing else."""
+LISTING_ASK = """{wish}Write a listing for the product in this photo (file: {name}).
+JSON keys:
+ "title": up to 70 characters,
+ "description": 2-4 sentences,
+ "tags": up to 13 short search tags (a list),
+ "alt_text": one sentence describing the photo for people who can't see it."""
+LISTING_COLS = ["File", "Title", "Description", "Tags", "Alt text"]
+
+
+def run_photo_listing(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .engine import Stopped
+    from .sheets import write_csv
+    got = _vision_start(engine, job, st, "product photos")
+    if not isinstance(got, tuple):
+        return got
+    files, model, ffmpeg, folder = got
+    opts = chosen_options(job)
+    wish = f"About these products: {job.format.strip()}\n" if job.format.strip() else ""
+    system = LISTING_SYSTEM + (("\n" + job.rules.strip()) if job.rules.strip() else "")
+    sheet = folder / "listings.csv"
+    _, rows = _read_rows(sheet)
+    failed: list[str] = []
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            try:
+                img = picture_b64(ffmpeg, src, engine.meta / "tmp" / f"look-{job.job_id}.jpg", 1280)
+            except (ValueError, OSError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            o = _look(engine, job, st, i, "photo-listing", system,
+                      LISTING_ASK.format(wish=wish, name=src.name), img, model)
+            if not o or not _s(o.get("title")):
+                failed.append(f"{src.name}: the model's answer didn't make sense")
+                engine.log(f"  {src.name}: the model's answer didn't make sense")
+                continue
+            row = [src.name, _s(o.get("title"), 140), _s(o.get("description")),
+                   _s(o.get("tags"), 600), _s(o.get("alt_text"), 300)]
+            rows = [r for r in rows if r and r[0] != src.name] + [row]
+            if "csv" in opts:
+                write_csv(sheet, LISTING_COLS, rows)
+            if "doc" in opts:
+                doc = ["# Listings", "", "Written by Joe from your photos. Check every [CHECK] and add "
+                       "sizes, materials and prices yourself.", ""]
+                for r in rows:
+                    doc += [f"## {r[1]}", "", f"*{r[0]}*", "", r[2], "", f"**Tags:** {r[3]}", "",
+                            f"**Alt text:** {r[4]}", ""]
+                atomic_write_text(folder / "listings.md", "\n".join(doc))
+            st.flags.extend({"item": src.name, "flag": f} for f in find_flags(" ".join(row)))
+            st.titles.append(key)
+            st.items += 1
+            st.words += count_words(" ".join(row[1:]))
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: {row[1]}")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} photo(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    st.media_files = [n for n, on in (("listings.csv", "csv" in opts), ("listings.md", "doc" in opts)) if on]
+    return _finish(engine, job, st, len(files), failed)
+
+
+# --------------------------------------------------------------------------- B7 read scans and receipts
+SCAN_SYSTEM = """You read text from pictures of documents, receipts, forms and signs. Copy exactly
+what is written: never guess, fix, translate or fill in anything. Write [CHECK] where you
+can't read something clearly. Reply with ONLY a JSON object, nothing else."""
+SCAN_ASK = {
+    "text": """Copy all the text in this picture (file: {name}), in reading order, keeping
+headings, lists and line breaks. JSON: {{"text": "the text, in Markdown"}}""",
+    "receipts": """This is a receipt or invoice (file: {name}). JSON keys:
+ "date": as written (or "" if not shown), "store": the shop or company name,
+ "total": the total paid exactly as written, "tax": tax as written or "",
+ "currency": the currency symbol or code if shown,
+ "items": a list of {{"name": "...", "price": "..."}} exactly as written.""",
+    "table": """Copy the table in this picture (file: {name}) exactly. JSON: {{"columns": [the
+column names], "rows": [[one list of cells per row, as written]]}}""",
+}
+RECEIPT_COLS = ["File", "Date", "Store", "Total", "Tax", "Currency", "Items"]
+
+
+def run_read_scans(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .engine import Stopped
+    from .mission import slug
+    from .sheets import write_csv
+    got = _vision_start(engine, job, st, "scans or receipts")
+    if not isinstance(got, tuple):
+        return got
+    files, model, ffmpeg, folder = got
+    mode = option_value(job, "as") or "text"
+    wish = f"Note: {job.format.strip()}\n" if job.format.strip() else ""
+    system = SCAN_SYSTEM + (("\n" + job.rules.strip()) if job.rules.strip() else "")
+    receipts = folder / "receipts.csv"
+    items_csv = folder / "receipt-items.csv"
+    _, rec_rows = _read_rows(receipts)
+    _, item_rows = _read_rows(items_csv)
+    failed: list[str] = []
+    made: list[str] = []
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            try:                                          # reading needs more detail than describing
+                img = picture_b64(ffmpeg, src, engine.meta / "tmp" / f"look-{job.job_id}.jpg", 2000)
+            except (ValueError, OSError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            o = _look(engine, job, st, i, "read-scans", system,
+                      wish + SCAN_ASK[mode].format(name=src.name), img, model)
+            stem = slug(src.stem) or f"scan-{i + 1}"
+            if mode == "text" and o and _s(o.get("text")):
+                text = str(o.get("text")).strip()
+                atomic_write_text(folder / f"{stem}.md", f"# {src.stem}\n\n{text}\n")
+                made.append(f"{stem}.md")
+                st.words += count_words(text)
+                st.flags.extend({"item": src.name, "flag": f} for f in find_flags(text))
+            elif mode == "receipts" and o and (_s(o.get("total")) or _s(o.get("store"))):
+                its = [x for x in (o.get("items") or []) if isinstance(x, dict)]
+                rec_rows = [r for r in rec_rows if r and r[0] != src.name] + [[
+                    src.name, _s(o.get("date"), 40), _s(o.get("store"), 120), _s(o.get("total"), 40),
+                    _s(o.get("tax"), 40), _s(o.get("currency"), 10), str(len(its))]]
+                item_rows = [r for r in item_rows if r and r[0] != src.name] + \
+                    [[src.name, _s(x.get("name"), 200), _s(x.get("price"), 40)] for x in its]
+                write_csv(receipts, RECEIPT_COLS, rec_rows)
+                write_csv(items_csv, ["File", "Item", "Price"], item_rows)
+                if not _s(o.get("total")):
+                    st.flags.append({"item": src.name, "flag": "[CHECK] no total found"})
+                st.flags.extend({"item": src.name, "flag": f} for f in find_flags(json_text(o)))
+            elif mode == "table" and o and isinstance(o.get("rows"), list) and o["rows"]:
+                cols = [_s(c, 200) for c in (o.get("columns") or [])]
+                rows = [[_s(c, 500) for c in r] for r in o["rows"] if isinstance(r, list)]
+                width = max([len(cols)] + [len(r) for r in rows])
+                cols = (cols + [f"Column {k + 1}" for k in range(len(cols), width)])[:width]
+                write_csv(folder / f"{stem}.csv", cols, [r + [""] * (width - len(r)) for r in rows])
+                made.append(f"{stem}.csv")
+                st.flags.extend({"item": src.name, "flag": f} for f in find_flags(json_text(o)))
+            else:
+                failed.append(f"{src.name}: nothing could be read (is it a clear photo?)")
+                engine.log(f"  {src.name}: nothing could be read")
+                continue
+            st.titles.append(key)
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: read")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} picture(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    if mode == "text" and st.titles:                       # everything in one file too
+        parts = []
+        for f in sorted(folder.glob("*.md")):
+            if f.name != "all-text.md":
+                parts.append(f.read_text(encoding="utf-8").strip())
+        atomic_write_text(folder / "all-text.md", "\n\n---\n\n".join(parts) + "\n")
+    st.media_files = (["receipts.csv", "receipt-items.csv"] if mode == "receipts" else
+                      sorted(p.name for p in folder.iterdir() if p.is_file()))
+    return _finish(engine, job, st, len(files), failed)
+
+
+def json_text(o) -> str:
+    import json
+    return json.dumps(o, ensure_ascii=False)
+
+
+# --------------------------------------------------------------------------- B8 sort my photos
+SORT_SYSTEM = """You sort photos by what is in them. Describe only what you can see; never guess
+names of people or places. Reply with ONLY a JSON object, nothing else."""
+SORT_ASK = """{wish}Look at this photo (file: {name}).
+{cats}
+JSON keys: "category": the one category, "tags": up to 8 short tags (a list),
+"caption": one short sentence saying what the photo shows."""
+
+
+def run_sort_photos(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    import shutil
+    from .engine import Stopped
+    from .mission import slug
+    from .sheets import write_csv
+    got = _vision_start(engine, job, st, "photos to sort")
+    if not isinstance(got, tuple):
+        return got
+    files, model, ffmpeg, folder = got
+    opts = chosen_options(job)
+    given = given_categories(job.format)
+    wish = f"Note: {job.format.strip()}\n" if job.format.strip() else ""
+    system = SORT_SYSTEM + (("\n" + job.rules.strip()) if job.rules.strip() else "")
+    catalog = folder / "photo-list.csv"
+    _, rows = _read_rows(catalog)
+    used = sorted({r[1] for r in rows if len(r) > 1 and r[1]})
+    failed: list[str] = []
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            try:
+                img = picture_b64(ffmpeg, src, engine.meta / "tmp" / f"look-{job.job_id}.jpg", 1024)
+            except (ValueError, OSError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            if given:
+                cats = f"Pick the category from this list: {', '.join(given)}. If none fits, use \"Other\"."
+            else:
+                cats = ("Pick a short category (one or two words, plural, like \"Dogs\" or \"Beach days\")"
+                        + (f". Reuse one of these if it fits: {', '.join(used)}." if used else "."))
+            o = _look(engine, job, st, i, "sort-photos", system,
+                      SORT_ASK.format(wish=wish, name=src.name, cats=cats), img, model)
+            cat = _s((o or {}).get("category"), 40).strip(" .")
+            if not cat:
+                failed.append(f"{src.name}: the model's answer didn't make sense")
+                engine.log(f"  {src.name}: the model's answer didn't make sense")
+                continue
+            pool = given or used                         # same words, same folder ("dogs" = "Dogs")
+            cat = next((c for c in pool if c.lower() == cat.lower()), cat if not given else
+                       ("Other" if cat.lower() == "other" else cat))
+            if given and cat not in given and cat != "Other":
+                st.flags.append({"item": src.name, "flag": f"[CHECK] category {cat} isn't on your list"})
+            if cat not in used:
+                used.append(cat)
+            row = [src.name, cat, _s(o.get("tags"), 300), _s(o.get("caption"), 300)]
+            rows = [r for r in rows if r and r[0] != src.name] + [row]
+            write_csv(catalog, ["File", "Category", "Tags", "Caption"], rows)
+            if "folders" in opts:
+                sub = folder / (re.sub(r'[<>:"/\\|?*\x00-\x1f]', "", cat).strip(" .") or "Other")
+                sub.mkdir(exist_ok=True)
+                dest, n = sub / src.name, 2
+                while dest.exists():
+                    dest = sub / f"{src.stem}_{n}{src.suffix}"
+                    n += 1
+                shutil.copy2(src, dest)                  # a copy: the original stays where it was
+            st.titles.append(key)
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: {cat}")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} photo(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    st.media_files = ["photo-list.csv"]
+    st.note = (st.note + "; " if st.note else "") + f"{len(used)} categories: {', '.join(used[:12])}"
+    return _finish(engine, job, st, len(files), failed)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -1896,6 +2322,8 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
                 n = 200
             calls = -(-n // SHEET_ROWS)
             secs += 1 + calls * (("spelling" in opts) + ("categorize" in opts) + ("split" in opts))                 * speeds.get("part", 25.0)
+    elif job.type in ("photo-listing", "read-scans", "sort-photos"):
+        secs += len(files) * speeds.get("vision", 20.0) * (1.5 if job.type == "read-scans" else 1)
     elif job.type == "translate":
         n_lang = max(1, len(option_values(job, "to")))
         for f in files:

@@ -1,6 +1,7 @@
 """Tools (tools.py): Transcribe end to end with the fake voice helper and fake Ollama."""
 from __future__ import annotations
 
+import json
 import struct
 import sys
 from pathlib import Path
@@ -69,7 +70,7 @@ def test_tool_missions_parse_and_round_trip():
     for bad in ("TASK: x  TYPE: transcribe",                                  # no INPUT
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  OPTIONS: karaoke",
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  CHUNKS: 2 x 2",
-                "TASK: x  TYPE: read-scans  INPUT: a.png",                      # planned, not built
+                "TASK: x  TYPE: remove-bg  INPUT: a.png",                       # planned, not built
                 "TASK: x  CHUNKS: 1 x 2  OPTIONS: notes"):                      # OPTIONS on a text task
         with pytest.raises(MissionError):
             parse(bad)
@@ -627,3 +628,84 @@ def test_missions_dropped_in_the_queue_folder_are_queued(app, monkeypatch):
     fresh = q / "new.txt"
     fresh.write_text("TASK: Later  CHUNKS: 1 x 1", encoding="utf-8")
     assert app.watch_queue_folder() == [] and fresh.exists()                 # still being written
+
+
+# --------------------------------------------------------------------------- vision tools
+@pytest.fixture
+def seeing(app, monkeypatch):
+    monkeypatch.setattr(tools, "find_vision_model", lambda engine: "qwen2.5vl:7b")
+    return app
+
+
+def _pics(folder: Path, *names: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    for n in names:
+        (folder / n).write_bytes(b"\x89PNG fake picture " + n.encode())
+    return folder
+
+
+def test_photo_listing(seeing):
+    app = seeing
+    _pics(app.sb.inbox / "tools" / "photo-listing", "mug1.png", "mug2.jpg", "blurry.png")
+    text = "TASK: Shop  TYPE: photo-listing\nINPUT: tools/photo-listing\nFORMAT: handmade stoneware"
+    chk = app.check(text)
+    assert chk["ok"] and describe.plain_summary(chk) == ["Listings from 3 photos: Shop"], chk
+    eng = Engine(app.settings, app.sb, log=lambda x: None)
+    st = eng.run_mission(parse(text))[0]
+    assert st.status == "partial" and "blurry.png" in st.note
+    out = app.sb.output / st.output
+    from joeai.sheets import read_table
+    h, rows, _ = read_table(out / "listings.csv")
+    assert h == tools.LISTING_COLS and [r[0] for r in rows] == ["mug1.png", "mug2.jpg"]
+    assert rows[0][3] == "mug, blue, handmade"
+    assert "Size [CHECK]" in (out / "listings.md").read_text(encoding="utf-8")
+    assert any("[CHECK]" in f["flag"] for f in st.flags)
+
+
+def test_read_scans_three_ways(seeing):
+    app = seeing
+    _pics(app.sb.inbox, "sign.png", "r1.jpg", "stock.png")
+    eng = lambda: Engine(app.settings, app.sb, log=lambda x: None)
+    st = eng().run_mission(parse("TASK: Sign  TYPE: read-scans\nINPUT: sign.png"))[0]
+    out = app.sb.output / st.output
+    assert st.status == "done" and (out / "sign.md").read_text(encoding="utf-8").startswith("# sign\n\n# Notice")
+    assert (out / "all-text.md").exists()
+    st = eng().run_mission(parse("TASK: Receipts  TYPE: read-scans\nINPUT: r1.jpg\nOPTIONS: as receipts"))[0]
+    from joeai.sheets import read_table
+    out = app.sb.output / st.output
+    assert read_table(out / "receipts.csv")[1] == [["r1.jpg", "2026-03-02", "Corner Shop", "$12.50", "$0.75", "$", "2"]]
+    assert read_table(out / "receipt-items.csv")[1][1] == ["r1.jpg", "Br[CHECK]ad", "$9.50"]
+    assert any("[CHECK]" in f["flag"] for f in st.flags)
+    st = eng().run_mission(parse("TASK: Table  TYPE: read-scans\nINPUT: stock.png\nOPTIONS: as table"))[0]
+    h, rows, _ = read_table(app.sb.output / st.output / "stock.csv")
+    assert h == ["Name", "Qty", "Column 3"] and rows == [["Mugs", "4", ""], ["Bowls", "2", "extra"]]
+
+
+def test_sort_photos(seeing):
+    app = seeing
+    _pics(app.sb.inbox / "trip", "dog1.png", "Dog2.png", "beach.jpg", "lunch.png")
+    text = "TASK: Trip  TYPE: sort-photos\nINPUT: trip"
+    chk = app.check(text)
+    assert describe.plain_summary(chk) == ["Sort and tag 4 photos into folders: Trip"]
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    assert sorted(p.name for p in out.iterdir() if p.is_dir()) == ["Beach days", "Food", "dogs"]
+    assert sorted(p.name for p in (out / "dogs").iterdir()) == ["Dog2.png", "dog1.png"]
+    assert (app.sb.inbox / "trip" / "dog1.png").exists()                       # copied, not moved
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(
+        "TASK: Given  TYPE: sort-photos\nINPUT: trip\nOPTIONS: none\nFORMAT: categories: Dogs, Beach days"))[0]
+    out = app.sb.output / st.output
+    from joeai.sheets import read_table
+    cats = {r[0]: r[1] for r in read_table(out / "photo-list.csv")[1]}
+    assert cats["dog1.png"] == "Dogs" and cats["lunch.png"] == "Snacks"
+    assert any("isn't on your list" in f["flag"] for f in st.flags)
+    assert not [p for p in out.iterdir() if p.is_dir()]
+
+
+def test_vision_tools_explain_a_missing_model(app, monkeypatch):
+    monkeypatch.setattr(tools, "find_vision_model", lambda engine: None)
+    _pics(app.sb.inbox, "a.png")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: L  TYPE: photo-listing\nINPUT: a.png"))[0]
+    assert st.status == "failed" and "vision model" in st.note

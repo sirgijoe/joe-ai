@@ -2030,6 +2030,8 @@ function toolNeeds() {
   const t = toolOpen, msgs = [], needs = t.needs || [];
   if (needs.includes("voice") && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > System check > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
   if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > System check installs it.");
+  if (needs.includes("vision") && toolHave.vision === false) msgs.push("This needs a vision model (one that can look at pictures). Setup (F10) > System check offers a free one to download.");
+  if (needs.includes("vision") && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only JPG, PNG and WebP photos under 6 MB can be used. Setup (F10) > System check installs it.");
   if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > System check installs it.");
   $("#tf-need").innerHTML = msgs.map(esc).join("<br>");
   $("#tf-need").hidden = !msgs.length;

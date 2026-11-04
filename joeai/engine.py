@@ -439,17 +439,22 @@ class Engine:
         return "\n".join(lines)
 
     # -- model calls ---------------------------------------------------------
-    def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState) -> ChatResult:
-        model = (job.model if not job.media else "") or getattr(self, "text_model", "") \
+    def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState,
+              images: list[str] | None = None, model: str = "") -> ChatResult:
+        """One model call with retries. `images` (base64) go with the question to a vision
+        `model` (tools that look at the person's photos)."""
+        model = model or (job.model if not job.media else "") or getattr(self, "text_model", "") \
             or self.s.ollama.text_model
         last_err = None
         for attempt in range(1, self.s.engine.max_retries + 1):
             if self.stop.is_set():
                 raise Stopped()
             try:
-                r = self.client.chat([{"role": "system", "content": system},
-                                      {"role": "user", "content": user}], model=model,
-                                     think=quality_mod.writing(self.s).think or None)
+                ask = {"role": "user", "content": user}
+                if images:
+                    ask["images"] = images
+                r = self.client.chat([{"role": "system", "content": system}, ask], model=model,
+                                     think=None if images else (quality_mod.writing(self.s).think or None))
                 st.tokens_in += r.prompt_tokens
                 st.tokens_out += r.output_tokens
                 st.model_seconds += r.seconds

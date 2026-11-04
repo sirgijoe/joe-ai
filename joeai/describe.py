@@ -120,6 +120,16 @@ def plain_summary(chk: dict) -> list[str]:
                 did = [words[o] for o in words if o in opts]
                 tail = (" (" + ", ".join(did) + ")") if did else ""
                 out.append(f"Tidy {_n(n, 'spreadsheet', 'spreadsheets')}{tail}: {name}")
+            elif t == "photo-listing":
+                out.append(f"Listings from {_n(n, 'photo', 'photos')}: {name}")
+            elif t == "read-scans":
+                how = next((o.split(" ", 1)[1] for o in (j.get("options") or []) if o.startswith("as ")), "text")
+                what = {"text": "the text", "receipts": "receipts into a spreadsheet",
+                        "table": "tables into spreadsheets"}[how]
+                out.append(f"Read {what} from {_n(n, 'picture', 'pictures')}: {name}")
+            elif t == "sort-photos":
+                tail = " into folders" if not j.get("options") or "folders" in j["options"] else ""
+                out.append(f"Sort and tag {_n(n, 'photo', 'photos')}{tail}: {name}")
             elif t == "proofread":
                 opts = j.get("options") or ["copy"]
                 tail = " and a corrected copy" if "copy" in opts else ""

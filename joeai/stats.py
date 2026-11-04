@@ -76,7 +76,8 @@ def _lines(p: Path) -> int:
 # --------------------------------------------------------------------------- learned speeds
 DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 240.0,
                   "transcribe": 0.8,      # transcribe: seconds of work per second of sound
-                  "read-aloud": 0.5}      # read aloud: seconds of work per second of speech
+                  "read-aloud": 0.5,      # read aloud: seconds of work per second of speech
+                  "vision": 20.0}         # one look at a picture
 _speed_cache: dict = {}
 
 
@@ -96,7 +97,7 @@ def speeds(sb: Sandbox, recent: int = 300) -> dict:
         tail = f.read().decode("utf-8", "replace").splitlines()[1:] if st.st_size > 400_000 else \
             f.read().decode("utf-8", "replace").splitlines()
     got: dict[str, list[float]] = {"write": [], "speedtest": [], "image": [], "video": [],
-                                   "transcribe": [], "read-aloud": []}
+                                   "transcribe": [], "read-aloud": [], "vision": []}
     for line in tail[-recent * 3:]:
         try:
             r = json.loads(line)
@@ -105,6 +106,8 @@ def speeds(sb: Sandbox, recent: int = 300) -> dict:
         k = r.get("kind")
         if r.get("ok") and k in ("transcribe", "read-aloud") and r.get("seconds") and r.get("audio_seconds"):
             got[k].append(float(r["seconds"]) / max(1.0, float(r["audio_seconds"])))
+        elif r.get("ok") and k in ("photo-listing", "read-scans", "sort-photos") and r.get("seconds"):
+            got["vision"].append(float(r["seconds"]))
         elif r.get("ok") and k in got and r.get("seconds"):
             got[k].append(float(r["seconds"]))
     out = dict(DEFAULT_SPEEDS, learned=[])
@@ -112,7 +115,7 @@ def speeds(sb: Sandbox, recent: int = 300) -> dict:
     if len(text) >= 3 or got["speedtest"]:
         out["part"] = round(_median(text) * 1.15, 1)       # + the odd retry / expansion
         out["learned"].append("part")
-    for k in ("image", "video", "transcribe", "read-aloud"):
+    for k in ("image", "video", "transcribe", "read-aloud", "vision"):
         if len(got[k]) >= 2:
             out[k] = round(_median(got[k][-recent:]), 1)
             out["learned"].append(k)

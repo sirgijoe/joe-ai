@@ -87,12 +87,21 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Tidy a spreadsheet**: CSV or Excel in, a tidy CSV out: extra spaces and duplicate rows
   removed, and if you like, spelling fixed, a Category column added, or a column split (like
   Name into First and Last). Every change is listed; your original isn't touched.
-- More are on the way, shown as "Coming soon" on the Tools tab: listings from photos, reading
-  scans and receipts, sorting photos, asking questions of your documents, restoring old
-  photos, and more.
+- **Listings from photos**: a title, description, search tags and alt text for each product
+  photo, as a spreadsheet for shop uploads and a readable document. Joe only describes what
+  he can see; sizes, materials and prices are yours to add.
+- **Read scans and receipts**: the text from photos of pages and signs, receipts into a
+  spreadsheet (date, shop, total, items), or a pictured table into a spreadsheet. Copied
+  exactly; anything unclear is marked [CHECK].
+- **Sort my photos**: a category, tags and a caption for every photo, and copies sorted into
+  a folder per category (your own categories, or Joe picks short ones). Faces are never named.
+- These three use a free vision model on your computer (Setup > System check offers one); your
+  pictures never leave it.
+- More are on the way, shown as "Coming soon" on the Tools tab: asking questions of your
+  documents, removing backgrounds, restoring old photos, and more.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
-  website", "translate my menu into Spanish", "remove the duplicates from my customer list".
+  website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses

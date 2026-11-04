@@ -218,6 +218,26 @@ row number). OPTIONS:
 
 Sheets longer than 20,000 rows are cut (the change list says so).
 
+**Picture tools** (Listings from photos, Read scans and receipts, Sort my photos) read .jpg,
+.png, .webp, .bmp and .tif and use a vision model in Ollama (any installed model whose name
+says it can see, like qwen2.5vl; Setup > System check offers one sized for your graphics
+card). Each photo is turned upright and shrunk with FFmpeg before Joe looks at it (without
+FFmpeg only JPG/PNG/WebP under 6 MB work). Originals are never changed or moved. A stopped
+run carries on at the next picture.
+
+- **Listings from photos** (`TYPE: photo-listing`, `OPTIONS: csv, doc`): `listings.csv`
+  (File, Title, Description, Tags, Alt text) and `listings.md`. FORMAT tells Joe about the
+  products and tone. Only what's visible is described; anything else is marked [CHECK].
+- **Read scans and receipts** (`TYPE: read-scans`, `OPTIONS: as text|receipts|table`): text
+  gives `<name>.md` per picture plus `all-text.md`; receipts gives `receipts.csv` (File, Date,
+  Store, Total, Tax, Currency, Items) and `receipt-items.csv`; table gives `<name>.csv`. Words
+  and numbers are copied as written, never fixed or guessed; unclear bits are marked [CHECK],
+  and a receipt with no total is flagged. PDFs aren't read by this tool yet.
+- **Sort my photos** (`TYPE: sort-photos`, `OPTIONS: folders` or none): `photo-list.csv`
+  (File, Category, Tags, Caption) and, with folders, a copy of each photo in
+  `<task>\<Category>\`. FORMAT `categories: family, garden, pets` gives the list (anything
+  else goes to Other, or is flagged); without it Joe picks short categories and reuses them.
+
 **Translate** (`TYPE: translate`, `OPTIONS: to spanish, to french`: one `to` per language,
 at least one) reads the same documents as Proofread and makes `<name>-<language>.md` (or
 `.txt` for text files; Word files also get a `.docx` with Pandoc). Languages: Spanish, French,
