@@ -169,6 +169,12 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
   sell, or rely on anything he writes.
 - **Check model licenses** before using pictures or text commercially. Each AI model has its
   own license.
+- **Joe is free; what you plug into him might not be.** Joe works with programs, AI models,
+  ComfyUI workflows and custom nodes, add-ons and plugins made by other people and companies.
+  Joe's makers don't make, own, control or vouch for any of them. Each has its own license,
+  terms, privacy rules and sometimes a price, and can change or stop working at any time. If you
+  choose to connect a paid model, service or plugin, that's your decision, and any cost or
+  agreement is between you and whoever provides it.
 - **It's a hobby project** built by one person with help from AI, shared for free. It comes
   with no warranty.
 
