@@ -84,12 +84,12 @@ class UISettings:
 
 @dataclass
 class VoiceSettings:
-    voice: str = "am_adam"        # Kokoro voice (F10 > Voice)
+    voice: str = "am_adam"        # Kokoro voice (Setup > Voice & Talk)
     speed: float = 1.0
     stt_model: str = "base.en"       # tiny.en (fastest) | base.en | small.en (most accurate)
     speak_replies: bool = True       # Joe answers out loud in Talk (F6)
     talk_mode: str = "open"          # open: mic listens while Talk (F6) is open | push: hold a key
-    ptt_key: str = "F6"              # push-to-talk key (any key; set in F10 > Voice)
+    ptt_key: str = "F6"              # push-to-talk key (any key; set in Setup > Voice & Talk)
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
 
@@ -114,14 +114,14 @@ class StatsSettings:
 
 @dataclass
 class WebSettings:
-    enabled: bool = False            # Talk may look things up online (Setup > Permissions)
+    enabled: bool = False            # Talk may look things up online (Setup > Voice & Talk)
     ollama_key: str = ""             # free key from ollama.com/settings/keys; blank = Wikipedia only
     max_results: int = 5
 
 
 @dataclass
 class QualitySettings:
-    # Setup > Quality: low = fastest, rougher | medium = balanced | high = best, slowest
+    # Setup > Writing / Images & video: low = fastest, rougher | medium = balanced | high = best, slowest
     writing: str = "medium"
     pictures: str = "medium"
     video: str = "medium"

@@ -1,4 +1,4 @@
-"""Looking things up online for Talk (off unless Setup > Permissions turns it on).
+"""Looking things up online for Talk (off unless Setup > Voice & Talk > Online lookups turns it on).
 
 Only the search words leave the PC: never files, chats or anything from the Joe folder.
 With a free Ollama account key, Joe uses Ollama's web search (news, prices, how-tos, anything).

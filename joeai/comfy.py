@@ -280,7 +280,7 @@ def load_template(path: Path) -> dict:
 
 
 def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m") -> dict:
-    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Quality)."""
+    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Images & video)."""
     sdxl = family != "sd15"
     return {
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "{{CHECKPOINT}}"}},

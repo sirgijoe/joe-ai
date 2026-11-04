@@ -523,7 +523,7 @@ class App:
                         if b.get("set") == "talk":                    # the quick Talk model
                             self.settings.voice.talk_model = model
                             self.settings.save()
-                            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice).")
+                            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
                         elif (not self.running and self.settings.ollama.text_model
                                 and b.get("id") not in ("pull-vision", "pull-small-model")):
                             self.settings.ollama.text_model = model

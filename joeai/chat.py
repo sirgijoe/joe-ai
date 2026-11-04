@@ -228,7 +228,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
 
 
 def talk_model(app) -> str:
-    """Talk can use its own small, quick model (Setup > Voice); else the writing model."""
+    """Talk can use its own small, quick model (Setup > Voice & Talk); else the writing model."""
     tm = (app.settings.voice.talk_model or "").strip()
     if tm:
         try:

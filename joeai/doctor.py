@@ -230,7 +230,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         t = comfy_mod.WAN_TURBO
         issues.append({"id": "get-video-turbo", "text": f"Faster video: the {t['label']} (under 1 GB, "
                        f"{t['license']}) makes a video in 4 steps instead of 20, several times faster. "
-                       "Used for Low and Medium video quality (Setup > Quality); High keeps the full model.",
+                       "Used for Low and Medium video quality (Setup > Images & video); High keeps the full model.",
                        "action": "download-video-turbo", "optional": True,
                        "what": f"the {t['label']} (under 1 GB)"})
     from . import addons as addons_mod

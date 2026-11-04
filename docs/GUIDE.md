@@ -32,7 +32,7 @@ JOE'S PLAN — about 14 minutes
 **RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in the Builder,
 **START OVER** clears it. Nothing runs until you press RUN IT.
 Time estimates learn from your own runs; until then they're marked as a rough guess. TEST MY
-SPEED (in the setup helper or Setup > Ollama) times one small batch to get them right at once. The mission text itself is under
+SPEED (in the setup helper or Setup > System check) times one small batch to get them right at once. The mission text itself is under
 **ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
 
 ## Building it step by step (F4)
@@ -56,7 +56,7 @@ The Builder makes the mission for you with simple forms:
 
 The first time Joe opens, a setup helper walks through it one step at a time: your graphics card
 in plain words, the writing model (the only must-have), pictures, talking, extras, and a look.
-Each **YES** installs just that one thing. Reopen it any time: Setup (F10) > **SETUP HELPER**.
+Each **YES** installs just that one thing. Reopen it any time: Setup (F10) > System check > **SETUP HELPER**.
 
 Joe finds the programs he works with on his own: ComfyUI Desktop (old and new program names),
 a portable ComfyUI (`run_nvidia_gpu.bat`) or your own install with a `venv`, ComfyUI's models
@@ -72,7 +72,7 @@ and its Turbo add-on. Every download asks first.
 Every screen has a tab along the top (the F-keys still work). Hover over any button and the
 bottom line says what it does.
 
-Looks (Setup > Display > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
+Looks (Setup > Display & sound > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
 **Modern night**, **Futuristic**, and the **Retro** green, amber and white screens (the old-screen
 effect only applies to the retro looks). CUSTOM THEME still designs a retro-style look from a
 description.
@@ -81,7 +81,7 @@ Joe opens fresh every time. If the last run didn't finish (stopped, crash, power
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).
 Pictures and video always run after the writing tasks, so the GPU switches over only once.
 
-## Quality vs speed (Setup > Quality)
+## Quality vs speed (Setup > Writing, and Setup > Images & video)
 
 Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but
 careful pictures, or the other way round. The line under each choice says what it does.
@@ -105,7 +105,7 @@ same way. Nothing downloads without your yes.
 A task's own SIZE or MODEL always wins over these choices. Time estimates learn from your runs,
 so after changing a level the first estimate may be off.
 
-## Comfort (Setup > Comfort)
+## Comfort (Setup > Display & sound, and Setup > General)
 
 - **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).
 - **Intro (when Joe opens)**: **Show the intro screen** turns the opening 01000001 01001001 / JOE
@@ -126,7 +126,7 @@ so after changing a level the first estimate may be off.
 
 Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
 just talk, and when you pause Joe hears it and answers. He doesn't listen while he's speaking,
-and the mic closes when you leave Talk. Prefer push-to-talk? F10 > Voice > How to talk >
+and the mic closes when you leave Talk. Prefer push-to-talk? Setup > Voice & Talk > How to talk >
 Push-to-talk, then SET KEY and press any key; hold it anywhere in Joe to talk. Typing works without any setup. For voice, run F10 > System check > "Joe's voice"
 once: Joe installs uv, makes a private Python 3.12 just for speech (your Python is left alone),
 then installs faster-whisper (hearing) and Kokoro (his voice). Everything runs on the CPU and
@@ -134,7 +134,7 @@ lives in `%LOCALAPPDATA%\joe-ai\addons`. Recordings are deleted right after they
 
 Ask how the run is going, what failed, or tell him what you need done. If he writes a mission,
 it shows up with OPEN IN BUILDER and RUN IT buttons: Joe never starts work on his own.
-F10 > Voice picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
+Setup > Voice & Talk picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
 quick model (3-4B) answer in Talk while the big one keeps writing missions overnight; blank uses
 the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
@@ -147,7 +147,7 @@ Clicking a chat (or **+ NEW CHAT**) takes you to Talk.
 Every time Joe opens you get a fresh chat; **+ NEW CHAT** starts another. Click an old chat to
 read it and carry on where you left off (Joe remembers what was said in it). The **✕** next to a
 chat deletes it, **DELETE ALL** clears the list, and the search box finds a chat by its words.
-Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than F10 > Voice >
+Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than Setup > Voice & Talk >
 **Delete chats after (days)** are removed on their own (default 30; 0 keeps them). Nothing
 leaves the PC.
 
@@ -159,7 +159,7 @@ opening another one, or deleting the one he's answering in also stops him.
 
 ### Looking things up online (off unless you turn it on)
 
-Setup > Permissions > **Let Talk look things up online**. When it's on and you ask about
+Setup > Voice & Talk > **Let Talk look things up online**. When it's on and you ask about
 something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
 other questions he can decide to search when he isn't sure. He answers in his own words and lists
 his **Sources** under the reply (click one to open it). Only the search words go online, never
@@ -173,14 +173,14 @@ your files or chats, and overnight runs never go online.
 
 ### Microphone permission
 
-The window asks for the microphone once and remembers the answer. F10 > **Permissions** shows
+The window asks for the microphone once and remembers the answer. Setup > **Privacy** shows
 whether it's allowed, and **ALLOW MICROPHONE** asks again if you said no. (Joe keeps the same
 local address every time he opens so the answer sticks.)
 
 ### Make Joe sound like me (optional)
 
 System check offers **Voice copy** on PCs with an NVIDIA card (6 GB+). It installs Chatterbox
-(Resemble AI, MIT license) and PyTorch, about 3 GB, in its own environment. Then F10 > Voice >
+(Resemble AI, MIT license) and PyTorch, about 3 GB, in its own environment. Then Setup > Voice & Talk >
 MAKE JOE SOUND LIKE ME: tick "this is my own voice", press RECORD and read the passage
 (about 30 seconds). Pick "My voice" in the voice list. The recording lives only in
 `%LOCALAPPDATA%\joe-ai\addons\voice\myvoice` and is never shared, exported or packaged;
@@ -274,7 +274,7 @@ F8 shows how much room each folder takes, the disk's free space, and four CLEAN 
 versions (the newest is kept, and picture folders with a K or S mark are never touched),
 reports older than 30 days, and leftover ComfyUI copies. Logs trim themselves at 2 MB.
 ComfyUI keeps its own copy of every picture; Joe removes it once he has saved his
-(F10 > ComfyUI, on by default). Only ComfyUI's `output\Joe` folder is ever touched.
+(Setup > Images & video, on by default). Only ComfyUI's `output\Joe` folder is ever touched.
 
 Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 "Note: …" inside a value is left alone. Values can span several lines.
@@ -295,7 +295,7 @@ Double-click again to check on it. F1 shows all keys.
 | F5 | Run / stop |
 | F8 | Stats and storage: space used, clean-up buttons |
 | F9 | About Joe and the license |
-| F10 | Setup: system check, models, ComfyUI, themes (incl. custom AI-made ones), CRT effect |
+| F10 | Setup: a side menu with System check, General, Writing, Images & video, Voice & Talk, Display & sound, Privacy, Stats & costs, plus a find box |
 
 The status bar shows the GPU live: temperature, load, memory, power and fan. It flashes
 when the GPU gets within 5 °C of the pause temperature.

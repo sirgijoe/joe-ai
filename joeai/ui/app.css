@@ -141,14 +141,11 @@ textarea::placeholder { color: var(--ph-dim); opacity: .6; }
 .cleanups .issue .t { flex: 1; }
 
 /* ---------- setup ---------- */
-.setup { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 14px; }
 .setup fieldset { border: 1px solid var(--ph-dim); padding: 6px 10px 10px; margin: 0; display: flex; flex-direction: column; gap: 6px; }
 .setup legend { padding: 0 6px; }
 .setup label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; align-items: center; }
 .setup label input:not([type=checkbox]), .setup label select { width: 100%; min-width: 0; }
 .setup label input[type=checkbox] { justify-self: start; }
-.setup fieldset.wide label { grid-template-columns: 6em minmax(0, 1fr); }
-.setup .buttons, .setup pre { grid-column: 1 / -1; }
 .help pre { margin: 0; font: inherit; }
 
 /* ---------- footer ---------- */
@@ -222,7 +219,6 @@ body.nochats .chatside { display: none; }
 .swatch i { width: 1.2em; height: 1.2em; display: inline-block; border: 1px solid var(--ph-dim); }
 .swatch.on { outline: 2px solid var(--ph); }
 textarea#theme-desc { min-height: 2.4em; resize: vertical; width: 100%; }
-.setup fieldset.doctor { grid-column: 1 / -1; }
 
 /* ---------- name + boot screen ---------- */
 .titlebar .bin { letter-spacing: .12em; font-size: .85em; }
@@ -458,6 +454,34 @@ body:not(.modern) button.primary:hover, body:not(.modern) button.primary:focus-v
 .saver[hidden] { display: none; }
 #saver-box { position: absolute; transition: left 3s ease, top 3s ease; text-align: center; color: var(--ph-dim); }
 .saver-name { font-size: 3em; letter-spacing: .2em; opacity: .5; color: var(--accent); }
-.setup fieldset.comfort .inline { display: flex; gap: 8px; align-items: center; }
-.setup fieldset.comfort .inline input { width: 6em; }
-.setup fieldset.comfort label { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+
+/* ---------------- setup: side menu + one section at a time ---------------- */
+.panel.full > form.setup { display: grid; grid-template-columns: minmax(10em, 13em) minmax(0, 1fr); gap: 18px; overflow: hidden; min-height: 0; }
+.setnav { display: flex; flex-direction: column; gap: 2px; overflow: auto; min-height: 0; padding-right: 10px; border-right: 1px dashed var(--ph-dim); }
+.setnav input { width: 100%; margin-bottom: 8px; }
+.setnav button { text-align: left; padding: 3px 8px; }
+.setnav button.on { background: var(--ph); color: var(--bg); text-shadow: none; }
+.setnav.finding button:not(.hit) { opacity: .45; }
+.setmain { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
+.setpages { flex: 1; min-height: 0; overflow: auto; padding-right: 8px; }
+.setpage { display: none; flex-direction: column; gap: 14px; max-width: 58em; padding-bottom: 10px; }
+.setpage.on { display: flex; }
+.settitle { margin: 0 0 2px; font-size: 1.15em; font-weight: normal; letter-spacing: .06em; }
+.setbar { display: flex; gap: 12px; align-items: baseline; flex-wrap: wrap; border-top: 1px dashed var(--ph-dim); padding-top: 8px; margin-top: 6px; }
+.setbar .out { flex: 1; min-width: 12em; }
+#set-dirty { font-style: italic; }
+.setup .inline { display: flex; gap: 8px; align-items: center; }
+.setup .inline input[size] { width: 6em; }
+.setup details.more { display: flex; flex-direction: column; gap: 6px; }
+.setup details.more[open] > summary { margin-bottom: 4px; }
+.setup fieldset.myvoice { border-top: 1px solid var(--ph-dim); margin-top: 0; padding-top: 6px; }
+.setup .hide { display: none !important; }
+body.modern .setnav { border-right: 1px solid var(--line); }
+body.modern .setnav button { background: none; border-color: transparent; border-radius: 8px; padding: 6px 10px; }
+body.modern .setnav button:hover { background: var(--btn); color: var(--ph); border-color: var(--line); }
+body.modern .setnav button.on { background: var(--accent); color: var(--on-accent); border-color: var(--accent); }
+body.modern .settitle { font-weight: 650; letter-spacing: .02em; }
+body.modern .setbar { border-top: 1px solid var(--line); }
+body.modern .setup fieldset { background: var(--panel); padding: 10px 14px 12px; }
+body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
+@media (max-width: 900px) { .panel.full > form.setup { grid-template-columns: 1fr; } .setnav { flex-direction: row; flex-wrap: wrap; border-right: 0; } .setnav input { flex-basis: 100%; } }

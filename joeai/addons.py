@@ -207,7 +207,7 @@ def install_clone(log: Log, approved: bool = False) -> bool:
         log(f"  voice copy test failed: {r.get('error')}")
         return False
     (cd / ".ready").write_text(time.strftime("%Y-%m-%d %H:%M"), encoding="utf-8")
-    log("Voice copy is ready. In F10 > Voice, press MAKE JOE SOUND LIKE ME.")
+    log("Voice copy is ready. In Setup > Voice & Talk, press MAKE JOE SOUND LIKE ME.")
     return True
 
 

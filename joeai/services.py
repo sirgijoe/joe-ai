@@ -104,7 +104,7 @@ class ServiceManager:
         inst = self.comfy_install()
         if not inst or not inst.command:
             self.log("ComfyUI not found on this PC. Install it from F10 > System check, or put its "
-                     "start command in Setup > Pictures.")
+                     "start command in Setup > Images & video > More options.")
             return False
         shown = inst.command if isinstance(inst.command, str) else inst.command[0]
         self.log(f"Starting {inst.label}: {shown}")

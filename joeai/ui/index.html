@@ -213,7 +213,7 @@ FORMAT: ...
       <div id="storage" class="storage"><span class="dim">Measuring...</span></div>
       <h2 class="sub">CLEAN UP <span class="dim">— asks first; files go to the Recycle Bin</span></h2>
       <div id="cleanups" class="cleanups"></div>
-      <p class="dim small">Logs trim themselves at 2 MB. ComfyUI's own copy of each picture is removed once Joe saves his (Setup F10 &gt; ComfyUI).</p>
+      <p class="dim small">Logs trim themselves at 2 MB. ComfyUI's own copy of each picture is removed once Joe saves his (Setup F10 &gt; Images &amp; video).</p>
     </section>
   </main>
 
@@ -222,147 +222,228 @@ FORMAT: ...
     <section class="panel full">
       <h2>SETUP <span class="dim">— Ctrl+S saves</span></h2>
       <form id="setup" class="setup" autocomplete="off">
-        <fieldset class="wide doctor"><legend>SYSTEM CHECK</legend>
-          <pre id="doctor" class="out dim">Checking…</pre>
-          <div id="issues"></div>
-          <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
-            <span id="busy" class="dim"></span></div>
-        </fieldset>
-        <fieldset class="wide quality"><legend>QUALITY vs SPEED</legend>
-          <div class="dim small">Pick how Joe balances speed and quality for each kind of work. <b>Low</b> is fastest with rougher results,
-            <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people. A task's own SIZE or MODEL always wins.</div>
-          <div class="qrow">
-            <label>Writing
-              <select data-path="quality.writing"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-            <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
+        <nav class="setnav" aria-label="Setup sections">
+          <input id="set-find" type="search" placeholder="Find a setting…" aria-label="Find a setting" title="Type part of a setting's name, like 'voice' or 'folder'.">
+          <button type="button" data-page="system" title="What Joe found on this PC, and the setup helper.">System check</button>
+          <button type="button" data-page="general" title="Joe's folder, what happens when a run ends, quiet hours, phone ping, updates.">General</button>
+          <button type="button" data-page="writing" title="Writing quality and the writing model.">Writing</button>
+          <button type="button" data-page="images" title="Picture and video quality, and ComfyUI.">Images &amp; video</button>
+          <button type="button" data-page="voice" title="Joe's voice, listening, chats, online lookups.">Voice &amp; Talk</button>
+          <button type="button" data-page="display" title="Theme, text size, intro, sounds, screen saver.">Display &amp; sound</button>
+          <button type="button" data-page="privacy" title="Microphone and what Joe sends anywhere.">Privacy</button>
+          <button type="button" data-page="stats" title="Prices used for the savings numbers on F8.">Stats &amp; costs</button>
+        </nav>
+        <div class="setmain">
+          <div class="setpages">
+
+            <!-- SYSTEM CHECK -->
+            <div class="setpage" data-page="system" data-title="System check">
+              <h3 class="settitle">System check</h3>
+              <fieldset class="doctor"><legend>WHAT JOE FOUND ON THIS PC</legend>
+                <pre id="doctor" class="out dim">Checking…</pre>
+                <div id="issues"></div>
+                <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
+                  <span id="busy" class="dim"></span></div>
+              </fieldset>
+              <fieldset><legend>HELPERS</legend>
+                <div class="row">
+                  <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
+                  <button type="button" data-act="speedtest" title="Time one small batch so Joe's estimates fit this PC.">[ TEST MY SPEED ]</button>
+                  <button type="button" data-act="check-update" title="See if a newer Joe is out.">[ CHECK FOR UPDATES ]</button>
+                </div>
+              </fieldset>
+            </div>
+
+            <!-- GENERAL -->
+            <div class="setpage" data-page="general" data-title="General">
+              <h3 class="settitle">General</h3>
+              <fieldset><legend>JOE'S FOLDER</legend>
+                <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace"></label>
+              </fieldset>
+              <fieldset><legend>WHEN A RUN ENDS</legend>
+                <label>When finished
+                  <select data-path="engine.when_finished">
+                    <option value="nothing">Do nothing</option><option value="sleep">Sleep</option>
+                    <option value="shutdown">Shut down</option></select></label>
+                <label title="Stops the PC from going to sleep while Joe works.">Keep PC awake <input type="checkbox" data-path="engine.keep_awake"></label>
+                <label title="Joe waits for the graphics card to cool down above this temperature. 0 = off.">Pause if GPU over (°C, 0 = off) <input type="number" data-path="engine.gpu_temp_pause_c" min="0" max="100"></label>
+                <label title="How many times Joe tries a part again when it comes out wrong.">Retries <input type="number" data-path="engine.max_retries" min="1" max="10"></label>
+              </fieldset>
+              <fieldset class="comfort"><legend>QUIET HOURS &amp; PHONE PING</legend>
+                <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
+                <div class="dim small">Optional: a ping on your phone when Joe is done. Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>
+                <label title="The same topic name you subscribed to in the ntfy app.">ntfy topic <input data-path="comfort.ntfy_topic" placeholder="blank = off"></label>
+                <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
+                </details>
+              </fieldset>
+              <fieldset><legend>UPDATES</legend>
+                <label title="Joe looks on GitHub for a newer version each time he opens.">Check for updates on start <input type="checkbox" data-path="ui.check_updates"></label>
+              </fieldset>
+            </div>
+
+            <!-- WRITING -->
+            <div class="setpage" data-page="writing" data-title="Writing">
+              <h3 class="settitle">Writing</h3>
+              <fieldset class="quality"><legend>QUALITY vs SPEED</legend>
+                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people. A task's own SIZE or MODEL always wins.</div>
+                <div class="qrow">
+                  <label>Writing
+                    <select data-path="quality.writing"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
+                </div>
+              </fieldset>
+              <fieldset><legend>WRITING MODEL (OLLAMA)</legend>
+                <label title="The Ollama model that writes. Blank = Joe picks the best one for this PC.">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
+                <div class="row"><button type="button" data-act="start-ollama" title="Start Ollama, the program that runs the writing models.">[ START OLLAMA ]</button></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="How much text the model can keep in mind at once. 0 = Joe picks.">Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
+                  <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
+                  <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
+                </details>
+              </fieldset>
+            </div>
+
+            <!-- IMAGES & VIDEO -->
+            <div class="setpage" data-page="images" data-title="Images & video">
+              <h3 class="settitle">Images &amp; video</h3>
+              <fieldset class="quality"><legend>QUALITY vs SPEED</legend>
+                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people.</div>
+                <div class="qrow">
+                  <label>Pictures
+                    <select data-path="quality.pictures"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="pictures" data-low="About half the drawing steps and slightly smaller pictures. Roughly twice as fast; less fine detail." data-medium="The model's normal settings. Clean pictures at full size." data-high="More drawing steps and a finer sampler. Sharper detail; about half again as long per picture."></div>
+                </div>
+                <div class="qrow">
+                  <label>Video
+                    <select data-path="quality.video"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="video" data-low="Shorter (about 3 s), smaller clips. With the Turbo add-on (System check) this is very quick." data-medium="Full 5-second clips at 1280x704. Uses the Turbo add-on when it's installed (several times faster), otherwise the full model." data-high="The full model with extra steps, never Turbo. Best motion and detail; can take 20 minutes or more per clip on a 12 GB card."></div>
+                </div>
+              </fieldset>
+              <fieldset><legend>PICTURES &amp; VIDEO (COMFYUI)</legend>
+                <label title="Things every picture should avoid, like 'blurry, text, watermark'.">Leave out of every picture <input data-path="comfy.negative"></label>
+                <label title="ComfyUI keeps its own copy of each picture. Joe deletes that copy once he has saved his.">Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
+                <div class="row"><button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
+                  <label title="Where ComfyUI listens. Leave as is unless ComfyUI runs on another PC.">ComfyUI address <input name="cu" data-path="comfy.url"></label>
+                  <label title="How to start ComfyUI. Blank = Joe finds ComfyUI Desktop himself.">Start command <input name="cs" data-path="comfy.start_command" placeholder="blank = find ComfyUI Desktop"></label>
+                  <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" placeholder="blank = automatic"></label>
+                  <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" placeholder="blank = automatic"></label>
+                  <label title="A ComfyUI workflow file (in Workflows/) to use instead of Joe's built-in one.">Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
+                  <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" placeholder="blank = automatic"></label>
+                </details>
+              </fieldset>
+            </div>
+
+            <!-- VOICE & TALK -->
+            <div class="setpage" data-page="voice" data-title="Voice & Talk">
+              <h3 class="settitle">Voice &amp; Talk</h3>
+              <fieldset><legend>JOE'S VOICE</legend>
+                <label>Joe's voice <select data-path="voice.voice" id="voice-select"><option value="am_adam">Adam (US)</option></select></label>
+                <label title="How fast Joe talks. 1 = normal.">Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
+                <label>Speak replies in Talk (F6) <input type="checkbox" data-path="voice.speak_replies"></label>
+                <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
+              </fieldset>
+              <fieldset><legend>LISTENING</legend>
+                <label>How to talk
+                  <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
+                <label title="The key you hold while talking, when push-to-talk is on.">Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
+                <label title="Fastest hears quickly but makes more mistakes; Most accurate is slower.">Hearing
+                  <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
+              </fieldset>
+              <fieldset><legend>REPLIES &amp; CHATS</legend>
+                <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
+                <datalist id="dl-talkmodels"></datalist>
+                <label title="Every chat with Joe is saved in his folder and listed on the left. Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
+              </fieldset>
+              <fieldset><legend>ONLINE LOOKUPS</legend>
+                <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight runs never go online.">Let Talk look things up online <input type="checkbox" data-path="web.enabled"></label>
+                <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
+                <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
+                  For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
+                <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
+              </fieldset>
+              <fieldset class="myvoice"><legend>MAKE JOE SOUND LIKE ME</legend>
+                <div id="mv-status" class="dim small"></div>
+                <label class="inline small"><input type="checkbox" id="mv-consent"> This is my own voice, and I'm recording it myself.</label>
+                <div class="row"><button type="button" data-act="mv-record" id="mv-record" title="Record yourself reading a short passage (about 30 seconds).">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete" title="Delete your recording; Joe goes back to a built-in voice.">[ DELETE MY VOICE ]</button></div>
+                <pre id="mv-script" class="out mvscript" hidden></pre>
+                <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
+              </fieldset>
+            </div>
+
+            <!-- DISPLAY & SOUND -->
+            <div class="setpage" data-page="display" data-title="Display & sound">
+              <h3 class="settitle">Display &amp; sound</h3>
+              <fieldset><legend>LOOK</legend>
+                <label>Theme
+                  <select data-path="ui.phosphor" id="theme-select">
+                    <option value="modern-auto">Modern (follows day and night)</option>
+                    <option value="modern-day">Modern day (light)</option><option value="modern-night">Modern night (dark)</option>
+                    <option value="futuristic">Futuristic</option>
+                    <option value="green">Retro green screen</option>
+                    <option value="amber">Retro amber screen</option><option value="white">Retro white screen</option></select></label>
+                <label title="Scanlines and glow, for the retro looks only.">Old-screen effect
+                  <select data-path="ui.crt"><option value="0">Off</option><option value="1">Subtle</option>
+                    <option value="2">Normal</option><option value="3">Heavy</option></select></label>
+                <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
+                <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
+              </fieldset>
+              <fieldset><legend>CUSTOM THEME</legend>
+                <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
+                <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights" aria-label="Describe a theme"></textarea>
+                <div class="row"><button type="button" data-act="make-theme" title="Joe designs a color scheme from your description.">[ MAKE THEME ]</button><span id="theme-msg" class="dim"></span></div>
+                <div id="swatches" class="swatches"></div>
+              </fieldset>
+              <fieldset class="comfort"><legend>SOUNDS &amp; INTRO</legend>
+                <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
+                <label title="The short 01000001 01001001 / JOE screen when Joe opens. Off = straight to work.">Show the intro screen <input type="checkbox" data-path="ui.intro"></label>
+                <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (Setup > System check). Always silent during quiet hours.">Intro sound
+                  <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
+                    <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
+                <label title="Which tune plays when Joe opens.">Jingle
+                  <select data-path="ui.jingle"><option value="theme">Joe's 8-bit theme</option><option value="chime">Short chime</option></select></label>
+                <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
+                <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
+              </fieldset>
+            </div>
+
+            <!-- PRIVACY -->
+            <div class="setpage" data-page="privacy" data-title="Privacy">
+              <h3 class="settitle">Privacy</h3>
+              <fieldset class="perms"><legend>MICROPHONE</legend>
+                <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
+                  <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
+                <div class="dim small" id="perm-mic-help"></div>
+              </fieldset>
+              <fieldset><legend>WHAT JOE PROMISES</legend>
+                <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
+                  He never sends your files anywhere, only searches online when you turn that on (Voice &amp; Talk &gt; Online lookups, and only for Talk), and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
+              </fieldset>
+            </div>
+
+            <!-- STATS & COSTS -->
+            <div class="setpage" data-page="stats" data-title="Stats & costs">
+              <h3 class="settitle">Stats &amp; costs</h3>
+              <fieldset><legend>PRICES FOR THE SAVINGS NUMBERS (F8)</legend>
+                <div class="dim small">Joe compares what your PC's power cost against what the same work would cost from a paid cloud AI.</div>
+                <label>Cloud $ / M input tokens <input type="number" step="0.01" data-path="stats.cloud_price_in_per_mtok"></label>
+                <label>Cloud $ / M output tokens <input type="number" step="0.01" data-path="stats.cloud_price_out_per_mtok"></label>
+                <label title="Your graphics card's power draw. 0 = Joe measures it.">GPU watts (0 = measure) <input type="number" min="0" data-path="stats.gpu_watts"></label>
+                <label title="From your electric bill.">$ per kWh <input type="number" step="0.01" data-path="stats.kwh_price"></label>
+              </fieldset>
+            </div>
+
+            <div class="setnone dim" hidden>No setting matches that. Try a shorter word.</div>
           </div>
-          <div class="qrow">
-            <label>Pictures
-              <select data-path="quality.pictures"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-            <div class="dim small qhelp" data-q="pictures" data-low="About half the drawing steps and slightly smaller pictures. Roughly twice as fast; less fine detail." data-medium="The model's normal settings. Clean pictures at full size." data-high="More drawing steps and a finer sampler. Sharper detail; about half again as long per picture."></div>
+          <div class="setbar">
+            <button type="submit" class="primary" title="Save these settings (Ctrl+S).">[ SAVE ]</button>
+            <span id="set-dirty" class="dim" hidden>Unsaved changes</span>
+            <pre id="setup-msg" class="out"></pre>
           </div>
-          <div class="qrow">
-            <label>Video
-              <select data-path="quality.video"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-            <div class="dim small qhelp" data-q="video" data-low="Shorter (about 3 s), smaller clips. With the Turbo add-on (System check) this is very quick." data-medium="Full 5-second clips at 1280x704. Uses the Turbo add-on when it's installed (several times faster), otherwise the full model." data-high="The full model with extra steps, never Turbo. Best motion and detail; can take 20 minutes or more per clip on a 12 GB card."></div>
-          </div>
-        </fieldset>
-        <fieldset class="wide"><legend>WORKSPACE</legend>
-          <label>Folder <input name="workspace" data-path="workspace"></label>
-        </fieldset>
-        <fieldset><legend>OLLAMA</legend>
-          <label>Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
-          <label>Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
-          <label>Address <input name="u" data-path="ollama.url"></label>
-          <label>Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
-        </fieldset>
-        <fieldset class="wide"><legend>COMFYUI</legend>
-          <label>Address <input name="cu" data-path="comfy.url"></label>
-          <label>Start command <input name="cs" data-path="comfy.start_command" placeholder="blank = find ComfyUI Desktop"></label>
-          <label>Models folder <input data-path="comfy.models_dir" placeholder="blank = automatic"></label>
-          <label>Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
-          <label>Negative <input data-path="comfy.negative"></label>
-          <label>FFmpeg <input data-path="comfy.ffmpeg" placeholder="blank = automatic"></label>
-          <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
-          <label>Output folder <input data-path="comfy.output_dir" placeholder="blank = automatic"></label>
-          <label>Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
-        </fieldset>
-        <fieldset><legend>RUN</legend>
-          <label>When finished
-            <select data-path="engine.when_finished">
-              <option value="nothing">Do nothing</option><option value="sleep">Sleep</option>
-              <option value="shutdown">Shut down</option></select></label>
-          <label>Keep PC awake <input type="checkbox" data-path="engine.keep_awake"></label>
-          <label>Pause if GPU over (°C, 0 = off) <input type="number" data-path="engine.gpu_temp_pause_c" min="0" max="100"></label>
-          <label>Retries <input type="number" data-path="engine.max_retries" min="1" max="10"></label>
-        </fieldset>
-        <fieldset><legend>DISPLAY</legend>
-          <label>Theme
-            <select data-path="ui.phosphor" id="theme-select">
-              <option value="modern-auto">Modern (follows day and night)</option>
-              <option value="modern-day">Modern day (light)</option><option value="modern-night">Modern night (dark)</option>
-              <option value="futuristic">Futuristic</option>
-              <option value="green">Retro green screen</option>
-              <option value="amber">Retro amber screen</option><option value="white">Retro white screen</option></select></label>
-          <label title="Scanlines and glow, for the retro looks only.">Old-screen effect
-            <select data-path="ui.crt"><option value="0">Off</option><option value="1">Subtle</option>
-              <option value="2">Normal</option><option value="3">Heavy</option></select></label>
-          <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
-          <label>Check for updates on start <input type="checkbox" data-path="ui.check_updates"></label>
-        </fieldset>
-        <fieldset class="wide comfort"><legend>COMFORT</legend>
-          <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
-          <div class="dim small">INTRO (WHEN JOE OPENS)</div>
-          <label title="The short 01000001 01001001 / JOE screen when Joe opens. Off = straight to work.">Show the intro screen <input type="checkbox" data-path="ui.intro"></label>
-          <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (F10 > System check). Always silent during quiet hours.">Intro sound
-            <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
-              <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
-          <label title="Which tune plays when Joe opens.">Jingle
-            <select data-path="ui.jingle"><option value="theme">Joe's 8-bit theme</option><option value="chime">Short chime</option></select></label>
-          <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
-          <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
-          <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
-          <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
-          <div class="dim small">PHONE PING WHEN JOE IS DONE (optional). Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>
-          <label title="The same topic name you subscribed to in the ntfy app.">ntfy topic <input data-path="comfort.ntfy_topic" placeholder="blank = off"></label>
-          <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
-          <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
-        </fieldset>
-        <fieldset class="wide perms"><legend>PERMISSIONS</legend>
-          <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
-            <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
-          <div class="dim small" id="perm-mic-help"></div>
-          <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight runs never go online.">Let Talk look things up online <input type="checkbox" data-path="web.enabled"></label>
-          <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
-          <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
-            For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
-          <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
-          <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
-            He never sends your files anywhere, only searches online when you turn that on above (and only for Talk), and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
-        </fieldset>
-        <fieldset class="wide"><legend>CUSTOM THEME</legend>
-          <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
-          <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights"></textarea>
-          <div class="row"><button type="button" data-act="make-theme" title="Joe designs a color scheme from your description.">[ MAKE THEME ]</button><span id="theme-msg" class="dim"></span></div>
-          <div id="swatches" class="swatches"></div>
-        </fieldset>
-        <fieldset><legend>VOICE</legend>
-          <label>Joe's voice <select data-path="voice.voice" id="voice-select"><option value="am_adam">Adam (US)</option></select></label>
-          <label>Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
-          <label>Hearing
-            <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
-          <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
-          <datalist id="dl-talkmodels"></datalist>
-          <label>Speak replies in Talk (F6) <input type="checkbox" data-path="voice.speak_replies"></label>
-          <label title="Every chat with Joe is saved in his folder and listed on the left of Talk. Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
-          <label>How to talk
-            <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
-          <label>Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
-          <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
-          <div class="myvoice">
-            <div class="dim">MAKE JOE SOUND LIKE ME</div>
-            <div id="mv-status" class="dim small"></div>
-            <label class="inline small"><input type="checkbox" id="mv-consent"> This is my own voice, and I'm recording it myself.</label>
-            <div class="row"><button type="button" data-act="mv-record" id="mv-record" title="Record yourself reading a short passage (about 30 seconds).">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete" title="Delete your recording; Joe goes back to a built-in voice.">[ DELETE MY VOICE ]</button></div>
-            <pre id="mv-script" class="out mvscript" hidden></pre>
-            <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
-          </div>
-        </fieldset>
-        <fieldset><legend>STATS RATES</legend>
-          <label>Cloud $ / M input tokens <input type="number" step="0.01" data-path="stats.cloud_price_in_per_mtok"></label>
-          <label>Cloud $ / M output tokens <input type="number" step="0.01" data-path="stats.cloud_price_out_per_mtok"></label>
-          <label>GPU watts (0 = measure) <input type="number" min="0" data-path="stats.gpu_watts"></label>
-          <label>$ per kWh <input type="number" step="0.01" data-path="stats.kwh_price"></label>
-        </fieldset>
-        <div class="row buttons">
-          <button type="submit" title="Save these settings (Ctrl+S).">[ SAVE ]</button>
-          <button type="button" data-act="start-ollama" title="Start Ollama, the program that runs the writing models.">[ START OLLAMA ]</button>
-          <button type="button" data-act="speedtest" title="Time one small batch so Joe's estimates fit this PC.">[ TEST MY SPEED ]</button>
-          <button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button>
-          <button type="button" data-act="check-update" title="See if a newer Joe is out.">[ CHECK FOR UPDATES ]</button>
-          <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
         </div>
-        <pre id="setup-msg" class="out"></pre>
       </form>
     </section>
   </main>
@@ -489,7 +570,7 @@ FORMAT: ...
        Dropped files are copied to Inbox\dropped.
        The mic is open while this screen is up: just talk,
        and Joe answers when you pause (MIC button mutes). Prefer
-       push-to-talk? F10 > Voice, pick any key. You can always type.
+       push-to-talk? Setup > Voice & Talk, pick any key. You can always type.
        (Voice needs a one-time setup: F10 > System check.)
  F5    Run the mission  /  stop a running mission
        ADD TO QUEUE adds more work while Joe is busy; queued

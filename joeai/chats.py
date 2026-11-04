@@ -2,7 +2,7 @@
 each one is saved in Joe's own folder (Output/.joe/chats/) so it can be read again later.
 
 Chats can be deleted one at a time or all at once, and old ones are removed automatically
-after Setup > Voice > "Delete chats after (days)" (0 = keep them). Nothing leaves the PC.
+after Setup > Voice & Talk > "Delete chats after (days)" (0 = keep them). Nothing leaves the PC.
 """
 from __future__ import annotations
 

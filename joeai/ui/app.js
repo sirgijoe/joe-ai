@@ -20,8 +20,9 @@ async function api(path, body) {
 /* ---------------- screens ---------------- */
 const SCREENS = { F1: "help", F2: "queue", F3: "files", F4: "builder", F6: "talk", F8: "stats", F9: "about", F10: "setup" };
 let current = "queue";
-function show(name) {
+function show(name, page) {
   current = name;
+  if (name === "setup" && page && typeof setupPage === "function") setupPage(page);
   document.querySelectorAll(".view").forEach((v) => v.classList.toggle("active", v.id === "s-" + name));
   $("#title-screen").textContent = name.toUpperCase();
   document.querySelectorAll(".tabs button").forEach((b) => b.classList.toggle("on", (SCREENS[b.dataset.key] || (b.dataset.key === "R" && "report")) === name));
@@ -666,6 +667,7 @@ async function loadSetup() {
   });
   qualityHelp();
   $("#setup-msg").textContent = "";
+  $("#set-dirty").hidden = true;
 }
 async function saveSetup(ev) {
   if (ev) ev.preventDefault();
@@ -677,9 +679,74 @@ async function saveSetup(ev) {
   });
   const r = await api("/api/settings", out);
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
-  if (r.ok) { toast("Settings saved"); voiceSettings(); }
+  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; }
 }
 $("#setup").addEventListener("submit", saveSetup);
+
+// --- setup side menu: one section at a time, a find box, and an "unsaved" note ---------------
+let setupPageName = "system";
+try { setupPageName = localStorage.getItem("joe-setup-page") || "system"; } catch (e) {}
+function setupPage(name) {
+  if (!document.querySelector(`.setpage[data-page="${name}"]`)) name = "system";
+  setupPageName = name;
+  try { localStorage.setItem("joe-setup-page", name); } catch (e) {}
+  const find = $("#set-find");
+  if (find.value) { find.value = ""; setupFind(); }
+  document.querySelectorAll(".setpage").forEach((p) => p.classList.toggle("on", p.dataset.page === name));
+  document.querySelectorAll(".setnav button[data-page]").forEach((b) => b.classList.toggle("on", b.dataset.page === name));
+  $(".setpages").scrollTop = 0;
+}
+// Shows every section, hiding settings whose name and hint don't match. Opens "More options"
+// when a match is inside it. Empty box = back to the section you were on.
+function setupFind() {
+  const q = $("#set-find").value.trim().toLowerCase();
+  const nav = $(".setnav");
+  const items = "fieldset > label, fieldset > .row, fieldset > .qrow, fieldset > .dim, details.more > label";
+  document.querySelectorAll(".setup .hide").forEach((el) => el.classList.remove("hide"));
+  nav.classList.toggle("finding", !!q);
+  if (!q) {
+    document.querySelectorAll(".setup details.more").forEach((d) => { if (d.dataset.found) { d.open = false; delete d.dataset.found; } });
+    $(".setnone").hidden = true;
+    document.querySelectorAll(".setpage").forEach((p) => p.classList.toggle("on", p.dataset.page === setupPageName));
+    document.querySelectorAll(".setnav button[data-page]").forEach((b) => { b.classList.remove("hit"); b.classList.toggle("on", b.dataset.page === setupPageName); });
+    return;
+  }
+  const words = (el) => (el.textContent + " " + (el.title || "") + " " + Array.from(el.querySelectorAll("[title],[placeholder],option")).map((x) => (x.title || "") + " " + (x.placeholder || "") + " " + x.textContent).join(" ")).toLowerCase();
+  let any = false;
+  document.querySelectorAll(".setpage").forEach((page) => {
+    let pageHit = false;
+    const pageNameHit = (page.dataset.title || "").toLowerCase().includes(q);
+    page.querySelectorAll("fieldset").forEach((fs) => {
+      const legendHit = pageNameHit || (fs.querySelector("legend") || {}).textContent.toLowerCase().includes(q);
+      let fsHit = legendHit;
+      fs.querySelectorAll(items).forEach((el) => {
+        const hit = legendHit || words(el).includes(q);
+        el.classList.toggle("hide", !hit);
+        if (hit) { fsHit = true; const d = el.closest("details.more"); if (d && !legendHit && !d.open) { d.open = true; d.dataset.found = "1"; } }
+      });
+      fs.querySelectorAll("details.more").forEach((d) => d.classList.toggle("hide", !legendHit && !d.querySelector(":scope > label:not(.hide)")));
+      fs.classList.toggle("hide", !fsHit);
+      if (fsHit) pageHit = true;
+    });
+    page.classList.toggle("on", pageHit);
+    const btn = document.querySelector(`.setnav button[data-page="${page.dataset.page}"]`);
+    btn.classList.toggle("hit", pageHit); btn.classList.remove("on");
+    if (pageHit) any = true;
+  });
+  $(".setnone").hidden = any;
+}
+document.querySelector(".setnav").addEventListener("click", (ev) => {
+  const b = ev.target.closest("button[data-page]");
+  if (b) setupPage(b.dataset.page);
+});
+$("#set-find").addEventListener("input", setupFind);
+$("#set-find").addEventListener("keydown", (ev) => {
+  if (ev.key === "Escape" && ev.target.value) { ev.stopPropagation(); ev.preventDefault(); ev.target.value = ""; setupFind(); }
+  if (ev.key === "Enter") ev.preventDefault();   // don't submit the form
+});
+$("#setup").addEventListener("input", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
+$("#setup").addEventListener("change", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
+setupPage(setupPageName);
 
 /* ---------------- buttons ---------------- */
 document.addEventListener("click", async (ev) => {
@@ -894,7 +961,7 @@ function boot() {
   }, 55);
 }
 // When Joe opens: his 8-bit theme, then (with his voice set up) "Joe is now reporting
-// for duty." Setup > Comfort > "When Joe opens" picks jingle, voice, both or off. Quiet hours = silent.
+// for duty." Setup > Display & sound > "Intro sound" picks jingle, voice, both or off. Quiet hours = silent.
 let bootCtx = null;
 // Joe's 8-bit intro theme. Resolves with its length (seconds) once it starts, so his spoken
 // hello can wait until the tune is done.
@@ -1556,7 +1623,7 @@ window.addEventListener("keyup", (ev) => { if (isPtt(ev)) { ev.preventDefault();
 function f6Down() { show("talk"); }                 // F6 opens Talk (open mic starts there)
 $("#ptt").addEventListener("mousedown", (ev) => {
   ev.preventDefault();
-  if (!voiceReady) { show("setup"); toast("Press SET UP next to \"Joe's voice\" in the System check"); return; }
+  if (!voiceReady) { show("setup", "system"); toast("Press SET UP next to \"Joe's voice\" in the System check"); return; }
   if (talkMode === "push") { recStartFn(); return; }
   micMuted = !micMuted; pttLabel();
   if (micMuted) openMicStop(); else openMicStart();
@@ -1723,7 +1790,7 @@ const W_TEXT = {
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "install-voice": ["So you can talk to Joe and hear him answer. About 500 MB.", "YES, SET UP HIS VOICE", "Runs on the regular processor, so it never slows the night's work."],
   "pull-vision": ["So Joe can look at pictures you show him.", "YES, DOWNLOAD IT", ""],
-  "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice."],
+  "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice & Talk."],
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
 };
