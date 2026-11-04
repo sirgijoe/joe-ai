@@ -2022,9 +2022,9 @@ function toolsFor(files) {         // every ready tool that can use all these fi
   const ext = (f) => "." + f.name.split(".").pop().toLowerCase();
   return toolCat.tools.filter((t) => t.ready && files.every((f) => t.accepts.includes(ext(f))));
 }
-function toolFor(files) {          // dropped outside Tools: only when exactly one tool fits (recordings)
-  const fit = toolsFor(files);
-  return fit.length === 1 ? fit[0] : null;
+function toolFor(files) {          // dropped outside Tools: recordings go to Transcribe; pictures and
+  const fit = toolsFor(files);     // documents still attach to Talk as before
+  return fit.length === 1 && fit[0].id === "transcribe" ? fit[0] : null;
 }
 function toolNeeds() {
   const t = toolOpen, msgs = [], needs = t.needs || [];
@@ -2042,8 +2042,12 @@ function openTool(id) {
   $("#tf-accepts").textContent = "Works with: " + t.accepts.join(" ");
   $("#tf-file").accept = t.accepts.join(",");
   $("#tf-help").textContent = t.help || "";
-  $("#tf-options").innerHTML = t.options.map((o) =>
-    `<label class="tfopt" title="${esc(o.hint)}"><input type="checkbox" data-opt="${o.key}"${o.default ? " checked" : ""}> ${esc(o.label)}</label>`).join("");
+  $("#tf-options").innerHTML = t.options.map((o) => o.choices && o.choices.length
+    ? `<label class="tfopt tfpick" title="${esc(o.hint)}">${esc(o.label)} <select data-pick="${o.key}">` +
+      o.choices.map(([v, l]) => `<option value="${esc(v)}"${v === o.value ? " selected" : ""}>${esc(l)}</option>`).join("") +
+      `</select></label>`
+    : `<label class="tfopt" title="${esc(o.hint)}"><input type="checkbox" data-opt="${o.key}"${o.default ? " checked" : ""}> ${esc(o.label)}</label>`).join("");
+  $("#tf-markrow").hidden = !t.mark; $("#tf-mark").value = ""; $("#tf-logoname").textContent = "";
   $("#tf-name").value = ""; $("#tf-extra").value = ""; $("#tf-plan").textContent = "";
   $("#tf-extra").placeholder = t.extra_hint || "optional, e.g. focus on dates and to-dos";
   renderToolFiles(); toolNeeds();
@@ -2093,8 +2097,10 @@ async function toolsDrop(files) {
 }
 function toolRequest() {
   return { tool: toolOpen.id, files: toolFiles.filter((f) => f.input).map((f) => f.input),
-    options: [...document.querySelectorAll("#tf-options [data-opt]")].filter((c) => c.checked).map((c) => c.dataset.opt),
-    name: $("#tf-name").value.trim(), extra: $("#tf-extra").value.trim() };
+    options: [...document.querySelectorAll("#tf-options [data-opt]")].filter((c) => c.checked).map((c) => c.dataset.opt)
+      .concat([...document.querySelectorAll("#tf-options [data-pick]")].map((x) => x.dataset.pick + " " + x.value)),
+    name: $("#tf-name").value.trim(), extra: $("#tf-extra").value.trim(),
+    mark: toolOpen.mark ? $("#tf-mark").value.trim() : "" };
 }
 async function toolPlan(run) {
   if (toolFiles.some((f) => f.busy)) { toast("Still adding files…"); return; }
@@ -2114,6 +2120,15 @@ async function toolPlan(run) {
   toolFiles = []; renderToolFiles();
 }
 $("#tf-file").addEventListener("change", (ev) => { toolsDrop([...ev.target.files]); ev.target.value = ""; });
+$("#tf-logo").addEventListener("change", async (ev) => {       // a logo .png as the watermark
+  const file = ev.target.files[0]; ev.target.value = "";
+  if (!file || !toolOpen) return;
+  if (!file.name.toLowerCase().endsWith(".png")) { toast("A logo needs to be a .png file"); return; }
+  $("#tf-logoname").textContent = "Adding " + file.name + "…";
+  const r = await uploadOne(file, {});
+  if (!r.ok) { $("#tf-logoname").textContent = ""; toast(r.error || "Couldn't add the logo"); return; }
+  $("#tf-mark").value = r.input; $("#tf-logoname").textContent = "Logo: " + r.name;
+});
 $("#tf-drop").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#tf-file").click(); } });
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("#tf-drop")) { $("#tf-file").click(); return; }
@@ -2124,6 +2139,7 @@ document.addEventListener("click", (ev) => {
     if (waiting && toolOpen) toolsDrop(waiting);
   }
   else if (b.dataset.act === "tool-back") { toolOpen = null; toolPending = null; renderToolGrid(); }
+  else if (b.dataset.act === "tool-logo") $("#tf-logo").click();
   else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));
   else if (b.dataset.act === "tool-plan") toolPlan(false).catch((e) => toast(e.message));
   else if (b.dataset.tfrm !== undefined) { toolFiles.splice(+b.dataset.tfrm, 1); renderToolFiles(); }

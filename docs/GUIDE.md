@@ -172,6 +172,30 @@ rewording of confusing sentences. Joe asks the writing model for a list of exact
 applies only those, so nothing changes that isn't on the list. FORMAT passes on wishes like
 "British spelling". Your original file is never changed.
 
+**Resize and convert photos** (`TYPE: photo-batch`) reads .jpg, .png, .webp, .bmp and .tif
+files (not iPhone HEIC yet) and saves new copies in `Output\<task name>\`. OPTIONS are picks
+written as `key value`:
+
+```
+TASK: Shop photos  TYPE: photo-batch
+INPUT: tools/photo-batch
+OPTIONS: size 1600, format jpg, rename, corner bottom-right
+WATERMARK: My Shop                     (optional: text, or a logo .png in Inbox)
+```
+
+- `size` 800 / 1200 / 1600 (default) / 2400 / keep: the longest side in pixels. Photos are
+  only made smaller, never stretched.
+- `format` same (default) / jpg / webp / png. See-through parts become white in JPG.
+- `rename`: name-01, name-02... from the task name (off: each keeps its own name).
+- `corner` bottom-right (default) / bottom-left / top-right / top-left / center: where the
+  watermark goes. There is no watermark unless WATERMARK is given; it's faint (about half
+  see-through). Text uses a font that comes with the computer; a logo is scaled to about a
+  fifth of the photo.
+
+Phone photos are turned the right way up, and hidden details (camera, GPS location, dates)
+aren't copied. Needs FFmpeg (Setup > System check). On the Tools tab the picks are drop-down
+lists, and the Watermark box (or **USE A LOGO**) is empty unless you fill it in.
+
 ## Talking to Joe (F6)
 
 Press **F6** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):

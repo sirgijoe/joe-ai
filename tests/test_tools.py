@@ -351,3 +351,97 @@ def test_catalog_lists_needs_and_hints():
     assert cat["read-aloud"]["ready"] and cat["proofread"]["ready"]
     assert "voice" in cat["read-aloud"]["needs"] and cat["proofread"]["extra_hint"]
     assert ".docx" in cat["proofread"]["accepts"]
+
+
+# --------------------------------------------------------------------------- photo batch
+import shutil as _shutil
+import subprocess as _sp
+
+HAVE_FFMPEG = _shutil.which("ffmpeg")
+
+
+def _jpeg_with_orientation(src: Path, dest: Path, value: int) -> Path:
+    tiff = b"MM\x00\x2a" + struct.pack(">I", 8) + struct.pack(">H", 1) + \
+        struct.pack(">HHIHH", 0x0112, 3, 1, value, 0) + struct.pack(">I", 0)
+    app1 = b"Exif\x00\x00" + tiff
+    raw = src.read_bytes()
+    dest.write_bytes(raw[:2] + b"\xff\xe1" + struct.pack(">H", len(app1) + 2) + app1 + raw[2:])
+    return dest
+
+
+def test_photo_options_parse_and_round_trip():
+    m = parse("TASK: Shop photos  TYPE: photo-batch\nINPUT: tools/photo-batch\n"
+              "OPTIONS: size: 800, format=webp, rename\nWATERMARK:   My   Shop ")
+    j = m.jobs[0]
+    assert j.options == ["size 800", "format webp", "rename"] and j.watermark == "My Shop"
+    assert tools.option_value(j, "size") == "800" and tools.option_value(j, "corner") == "bottom-right"
+    assert tools.chosen_options(j) == {"rename"}
+    again = parse(to_text("", "", mission_to_dict(m)["tasks"])).jobs[0]
+    assert again.options == j.options and again.watermark == "My Shop"
+    for bad in ("TASK: x  TYPE: photo-batch\nINPUT: a.jpg\nOPTIONS: size 999",
+                "TASK: x  TYPE: photo-batch\nINPUT: a.jpg\nOPTIONS: rename yes",
+                "TASK: x  TYPE: transcribe\nINPUT: a.wav\nWATERMARK: Mine"):
+        with pytest.raises(MissionError):
+            parse(bad)
+    assert "watermark" not in str(parse("TASK: Tips  CHUNKS: 1 x 2").spec_hash(parse("TASK: Tips  CHUNKS: 1 x 2").jobs[0]))
+
+
+def test_fit_size_and_spots():
+    assert tools.fit_size(4000, 3000, 1600) == (1600, 1200)
+    assert tools.fit_size(800, 600, 1600) == (800, 600)                     # never enlarged
+    assert tools.fit_size(3000, 4000, None) == (3000, 4000)
+    assert tools._spot("top-left", "tw", "th", "9") == ("9", "9")
+    assert tools._spot("center", "w", "h", "9") == ("(W-w)/2", "(H-h)/2")
+    assert tools._ff_path("C:\\Fonts\\a'b.ttf") == "'C\\:/Fonts/a\\'b.ttf'"
+
+
+def test_photo_summary(app, monkeypatch):
+    (app.sb.inbox / "a.png").write_bytes(b"x")
+    text = "TASK: Web  TYPE: photo-batch\nINPUT: a.png\nOPTIONS: format jpg\nWATERMARK: Me"
+    chk = app.check(text)
+    assert not chk["ok"] and "FFmpeg" in chk["error"]                    # no FFmpeg: says so first
+    import joeai.doctor as doctor
+    monkeypatch.setattr(doctor, "ffmpeg_exe", lambda configured="": "ffmpeg")
+    chk = app.check(text)
+    assert describe.plain_summary(chk) == ["Resize 1 photo (1600 px, JPG, watermark bottom right): Web"]
+
+
+@pytest.mark.skipif(not HAVE_FFMPEG, reason="needs FFmpeg")
+def test_photo_batch_end_to_end(app, tmp_path, monkeypatch):
+    import joeai.doctor as doctor
+    monkeypatch.setattr(doctor, "ffmpeg_exe", lambda configured="": HAVE_FFMPEG)
+    folder = app.sb.inbox / "tools" / "photo-batch"
+    folder.mkdir(parents=True)
+    _sp.run([HAVE_FFMPEG, "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc=s=2000x1500:d=1",
+             "-frames:v", "1", str(tmp_path / "base.jpg")], check=True)
+    _jpeg_with_orientation(tmp_path / "base.jpg", folder / "Phone Pic.jpg", 6)
+    _sp.run([HAVE_FFMPEG, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=red@0.2:s=600x400,format=rgba",
+             "-frames:v", "1", str(folder / "see-through.png")], check=True)
+    _sp.run([HAVE_FFMPEG, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=blue:s=200x100,format=rgba",
+             "-frames:v", "1", str(folder / "logo.png")], check=True)
+    (folder / "notes.txt").write_text("not a photo")
+    text = ("TASK: Shop Pics  TYPE: photo-batch\nINPUT: tools/photo-batch\n"
+            "OPTIONS: size 800, format jpg, rename, corner top-left\nWATERMARK: tools/photo-batch/logo.png")
+    chk = app.check(text)
+    assert chk["ok"] and chk["jobs"][0]["files"] == 2, chk                  # the logo isn't a photo
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    names = sorted(p.name for p in out.iterdir())
+    assert names == ["shop-pics-01.jpg", "shop-pics-02.jpg"], names
+    sizes = sorted(tools.image_size(HAVE_FFMPEG, out / n) for n in names)
+    assert sizes == [(600, 400), (600, 800)]                    # small one untouched; phone photo stood up
+    assert tools.jpeg_orientation(out / "shop-pics-02.jpg") == 1             # no hidden details kept
+    # text watermark, same format, keep size
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(
+        "TASK: Marked  TYPE: photo-batch\nINPUT: tools/photo-batch/see-through.png\n"
+        "OPTIONS: size keep\nWATERMARK: 100% Mine: 'ok'"))[0]
+    assert st.status == "done", st.note
+    assert tools.image_size(HAVE_FFMPEG, app.sb.output / st.output / "see-through.png") == (600, 400)
+
+
+def test_photo_batch_needs_ffmpeg(app):
+    (app.sb.inbox / "a.jpg").write_bytes(b"x")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: P  TYPE: photo-batch\nINPUT: a.jpg"))[0]
+    assert st.status == "failed" and "FFmpeg" in st.note

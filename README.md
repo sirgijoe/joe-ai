@@ -76,11 +76,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Proofread my writing**: fixes spelling, grammar and punctuation (and, if you ask, unclear
   wording) and lists every change with the before and after. Nothing is changed silently, and
   your original file is never touched.
-- More are on the way, shown as "Coming soon" on the Tools tab: translating, photo resizing,
-  tidying spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
+- **Resize and convert photos**: shrink a batch for the web or email, turn them into JPG,
+  WebP or PNG, rename them in order, and (only if you ask) add a faint watermark with your
+  text or logo. Phone photos come out the right way up; hidden details like GPS location are
+  left out of the copies. Uses FFmpeg.
+- More are on the way, shown as "Coming soon" on the Tools tab: translating, tidying
+  spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
   and more.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
-  "read my story aloud", "proofread my cover letter".
+  "read my story aloud", "proofread my cover letter", "shrink my product photos for the website".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses

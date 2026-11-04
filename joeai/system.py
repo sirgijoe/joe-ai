@@ -337,3 +337,30 @@ def install_plan(tool: str) -> dict:
 def manager_label(pm: str | None) -> str:
     return {"winget": "winget", "brew": "Homebrew", "apt": "apt", "dnf": "dnf",
             "pacman": "pacman"}.get(pm or "", "your package manager")
+
+
+# --------------------------------------------------------------------------- fonts
+def font_file() -> Path | None:
+    """A plain sans-serif font file that ships with the system (for watermarks)."""
+    import os
+    if WINDOWS:
+        root = Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
+        names = ["arialbd.ttf", "arial.ttf", "segoeuib.ttf", "segoeui.ttf", "verdana.ttf"]
+        spots = [root / n for n in names]
+    elif MAC:
+        spots = [Path(p) for p in ("/System/Library/Fonts/Supplemental/Arial Bold.ttf",
+                                   "/System/Library/Fonts/Supplemental/Arial.ttf",
+                                   "/Library/Fonts/Arial.ttf", "/System/Library/Fonts/Helvetica.ttc")]
+    else:
+        spots = [Path(p) for p in ("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+                                   "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+                                   "/usr/share/fonts/dejavu/DejaVuSans.ttf",
+                                   "/usr/share/fonts/TTF/DejaVuSans.ttf",
+                                   "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
+                                   "/usr/share/fonts/noto/NotoSans-Regular.ttf")]
+        for base in (Path("/usr/share/fonts"), Path.home() / ".local/share/fonts"):
+            try:
+                spots += sorted(base.rglob("*Sans*.ttf"))[:5]
+            except OSError:
+                pass
+    return next((p for p in spots if p.is_file()), None)

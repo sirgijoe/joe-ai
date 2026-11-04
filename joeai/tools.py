@@ -31,15 +31,20 @@ if TYPE_CHECKING:                                    # pragma: no cover
 AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".wma", ".amr")
 VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
 DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
+PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
 @dataclass(frozen=True)
 class Option:
+    """A tick box (OPTIONS: subtitles), or with `choices` a pick-one list written as
+    'key value' (OPTIONS: size 1600). `value` is the choice used when nothing is said."""
     key: str
     label: str
     default: bool = True
     hint: str = ""
+    choices: tuple[tuple[str, str], ...] = ()       # (value, plain label)
+    value: str = ""
 
 
 @dataclass(frozen=True)
@@ -56,6 +61,7 @@ class Tool:
     plan_hint: str = ""                  # one line for the describe planner
     examples: tuple[str, ...] = field(default_factory=tuple)
     extra_hint: str = ""                 # placeholder for the form's "Anything else?" box
+    mark: bool = False                   # takes WATERMARK: (text or a logo .png), only if asked
 
 
 TOOLS: dict[str, Tool] = {t.id: t for t in (
@@ -113,7 +119,35 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
          "Fix duplicates, spelling and categories in a CSV.", needs=("ollama",)),
     Tool("photo-batch", "Resize and convert photos", "Files",
-         "Shrink, convert, rename or watermark a folder of photos.", needs=("ffmpeg",)),
+         "Shrink, convert, rename or watermark a folder of photos.",
+         accepts=PHOTO_EXT,
+         options=(Option("size", "Longest side", hint="Photos are only ever made smaller, never stretched.",
+                         choices=(("keep", "Keep the size"), ("800", "Small: 800 px (email, chat)"),
+                                  ("1200", "Medium: 1200 px"), ("1600", "Web: 1600 px (shops, sites)"),
+                                  ("2400", "Large: 2400 px")), value="1600"),
+                  Option("format", "Save as", hint="JPG: photos, small files. WebP: smaller still, "
+                         "for websites. PNG: sharp edges and see-through backgrounds, big files.",
+                         choices=(("same", "Same as now"), ("jpg", "JPG"), ("webp", "WebP"),
+                                  ("png", "PNG")), value="same"),
+                  Option("rename", "Rename in order (name-01, name-02...)", False,
+                         "Uses the job name. Off: each photo keeps its own name."),
+                  Option("corner", "Watermark spot", hint="Only used when you give a watermark.",
+                         choices=(("bottom-right", "Bottom right"), ("bottom-left", "Bottom left"),
+                                  ("top-right", "Top right"), ("top-left", "Top left"),
+                                  ("center", "Middle")), value="bottom-right")),
+         needs=("ffmpeg",), ready=True, mark=True,
+         help="Your originals are never changed: new copies go in Output. A watermark is only "
+              "added if you type one (or pick a logo .png); it's faint, in the spot you choose. "
+              "Hidden photo details like the camera and GPS location are left out of the copies. "
+              "Needs FFmpeg (Setup > System check). iPhone HEIC photos aren't supported yet: save "
+              "them as JPG first.",
+         plan_hint="Resize/convert photos: TYPE: photo-batch, INPUT: the photo file(s) or folder "
+                   "from the list below, OPTIONS: size 800|1200|1600|2400|keep, format "
+                   "same|jpg|webp|png, rename (only if asked), corner bottom-right|bottom-left|"
+                   "top-right|top-left|center (only with a watermark). WATERMARK: the exact text, "
+                   "ONLY if they asked for a watermark. No CHUNKS.",
+         examples=("Shrink my product photos for the website", "Convert these photos to JPG"),
+         extra_hint=""),
     Tool("read-scans", "Read scans and receipts", "Files",
          "Pull the text out of scans, receipts and forms.", needs=("vision",)),
     Tool("photo-listing", "Listings from photos", "Pictures",
@@ -146,8 +180,9 @@ def catalog() -> list[dict]:
     """What the Tools tab shows."""
     return [{"id": t.id, "name": t.name, "group": t.group, "blurb": t.blurb, "ready": t.ready,
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
-             "needs": list(t.needs), "extra_hint": t.extra_hint,
-             "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint}
+             "needs": list(t.needs), "extra_hint": t.extra_hint, "mark": t.mark,
+             "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint,
+                          "choices": [list(c) for c in o.choices], "value": o.value}
                          for o in t.options]}
             for t in TOOLS.values()]
 
@@ -156,11 +191,40 @@ def planner_lines() -> str:
     return "\n".join(f"- {t.plan_hint}" for t in TOOLS.values() if t.ready and t.plan_hint)
 
 
+def option_ok(tool: Tool, token: str) -> bool:
+    """Is this OPTIONS entry one the tool knows ('none', a tick box, or 'key value')?"""
+    if token == "none":
+        return True
+    key, _, val = token.partition(" ")
+    for o in tool.options:
+        if o.key == key:
+            return (val in {c[0] for c in o.choices}) if o.choices else not val
+    return False
+
+
+def options_help(tool: Tool) -> str:
+    out = []
+    for o in tool.options:
+        out.append(f"{o.key} {'|'.join(c[0] for c in o.choices)}" if o.choices else o.key)
+    return ", ".join(out + ["none"])
+
+
 def chosen_options(job: "Job") -> set[str]:
+    """Tick boxes that are on. With no OPTIONS line, each box's default is used."""
     tool = TOOLS[job.type]
+    boxes = [o for o in tool.options if not o.choices]
     if job.options:
-        return {o for o in job.options if any(o == x.key for x in tool.options)}
-    return {o.key for o in tool.options if o.default}
+        return {t for t in job.options if any(t == o.key for o in boxes)}
+    return {o.key for o in boxes if o.default}
+
+
+def option_value(job: "Job", key: str) -> str:
+    """The pick for a pick-one option ('size' -> '1600'), or its default."""
+    for t in job.options:
+        k, _, v = t.partition(" ")
+        if k == key and v:
+            return v
+    return next((o.value for o in TOOLS[job.type].options if o.key == key), "")
 
 
 # --------------------------------------------------------------------------- inputs
@@ -234,7 +298,7 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
 # --------------------------------------------------------------------------- run
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     fn = {"transcribe": run_transcribe, "read-aloud": run_read_aloud,
-          "proofread": run_proofread}.get(job.type)
+          "proofread": run_proofread, "photo-batch": run_photo_batch}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -1007,6 +1071,238 @@ def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     return _finish(engine, job, st, len(files), failed)
 
 
+# --------------------------------------------------------------------------- photo batch
+MARK_OPACITY = 0.55                   # watermarks are faint: there to claim, not to ruin the photo
+
+
+def jpeg_orientation(p: Path) -> int:
+    """The EXIF 'which way is up' number (1-8) from a JPEG, or 1. Phones store photos
+    sideways and set this, so copies must be turned the same way."""
+    import struct
+    try:
+        with open(p, "rb") as f:
+            if f.read(2) != b"\xff\xd8":
+                return 1
+            while True:
+                head = f.read(4)
+                if len(head) < 4 or head[0] != 0xFF:
+                    return 1
+                marker, size = head[1], struct.unpack(">H", head[2:])[0]
+                if marker == 0xE1:
+                    data = f.read(size - 2)
+                    if not data.startswith(b"Exif\x00\x00"):
+                        continue
+                    t = data[6:]
+                    e = "<" if t[:2] == b"II" else ">"
+                    off = struct.unpack(e + "I", t[4:8])[0]
+                    n = struct.unpack(e + "H", t[off:off + 2])[0]
+                    for i in range(n):
+                        ent = t[off + 2 + i * 12: off + 14 + i * 12]
+                        if struct.unpack(e + "H", ent[:2])[0] == 0x0112:
+                            v = struct.unpack(e + "H", ent[8:10])[0]
+                            return v if 1 <= v <= 8 else 1
+                    return 1
+                if marker in (0xDA, 0xD9):                  # picture data starts: no EXIF
+                    return 1
+                f.seek(size - 2, 1)
+    except (OSError, struct.error, IndexError):
+        return 1
+
+
+_TURN = {2: "hflip", 3: "hflip,vflip", 4: "vflip", 5: "transpose=0", 6: "transpose=1",
+         7: "transpose=3", 8: "transpose=2"}
+
+
+def image_size(ffmpeg: str, p: Path) -> tuple[int, int] | None:
+    from .system import no_window_flags
+    try:
+        r = subprocess.run([ffmpeg, "-hide_banner", "-noautorotate", "-i", str(p)], capture_output=True,
+                           text=True, timeout=60, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", r.stderr or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def fit_size(w: int, h: int, longest: int | None) -> tuple[int, int]:
+    """Shrink so the longest side is at most `longest` (never enlarge)."""
+    if not longest or max(w, h) <= longest:
+        return w, h
+    k = longest / max(w, h)
+    return max(1, round(w * k)), max(1, round(h * k))
+
+
+def _ff_path(p: Path | str) -> str:
+    """A path inside an FFmpeg filter: forward slashes, ':' and quotes escaped."""
+    s = str(p).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
+    return f"'{s}'"
+
+
+def _spot(corner: str, w: str, h: str, m: str) -> tuple[str, str]:
+    """x, y expressions for a mark of size w x h with margin m."""
+    x = {"left": m, "right": f"W-{w}-{m}"}.get(corner.split("-")[-1], f"(W-{w})/2")
+    y = {"top": m, "bottom": f"H-{h}-{m}"}.get(corner.split("-")[0], f"(H-{h})/2")
+    return x, y
+
+
+def photo_command(ffmpeg: str, src: Path, dest: Path, size: tuple[int, int], turn: int,
+                  fmt: str, mark_text_file: Path | None, logo: Path | None, font: Path | None,
+                  corner: str) -> list[str]:
+    """One FFmpeg call: turn the right way up, shrink, flatten see-through parts onto white
+    for JPG, add a faint watermark if asked, leave hidden details (GPS, camera) out."""
+    W, H = size
+    cmd = [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src)]
+    chain = [f"[0:v]{_TURN[turn] + ',' if turn in _TURN else ''}scale={W}:{H}:flags=lanczos,format=rgba[a]"]
+    last, n = "a", 1
+    if fmt == "jpg":                                       # no see-through in JPG: white behind
+        cmd += ["-f", "lavfi", "-i", f"color=c=white:s={W}x{H}:d=1"]
+        chain.append(f"[{n}:v][{last}]overlay=format=auto,format=rgba[b]")
+        last, n = "b", n + 1
+    m = max(8, round(min(W, H) / 40))
+    if logo:
+        cmd += ["-i", str(logo)]
+        lw = max(16, round(min(W, H) * 0.22))
+        x, y = _spot(corner, "w", "h", str(m))
+        chain.append(f"[{n}:v]scale={lw}:-1,format=rgba,colorchannelmixer=aa={MARK_OPACITY}[lg]")
+        chain.append(f"[{last}][lg]overlay=x={x}:y={y}[c]")
+        last, n = "c", n + 1
+    elif mark_text_file and font:
+        fs = max(12, round(min(W, H) / 20))
+        x, y = _spot(corner, "tw", "th", str(m))
+        chain.append(f"[{last}]drawtext=fontfile={_ff_path(font)}:textfile={_ff_path(mark_text_file)}"
+                     f":expansion=none:fontsize={fs}:fontcolor=white@{MARK_OPACITY}:borderw={max(1, fs // 14)}"
+                     f":bordercolor=black@{MARK_OPACITY * 0.6}:x={x}:y={y}[c]")
+        last = "c"
+    pix = {"jpg": "yuvj444p", "png": "rgba", "webp": "yuva420p"}.get(fmt, "rgba")
+    if fmt == "bmp":
+        pix = "bgr24"
+    elif fmt == "tiff":
+        pix = "rgba"
+    chain.append(f"[{last}]format={pix}[out]")
+    cmd += ["-filter_complex", ";".join(chain), "-map", "[out]", "-map_metadata", "-1",
+            "-frames:v", "1", "-update", "1"]
+    if fmt == "jpg":
+        cmd += ["-q:v", "2"]
+    elif fmt == "webp":
+        cmd += ["-c:v", "libwebp", "-quality", "82"]
+    elif fmt == "png":
+        cmd += ["-compression_level", "9"]
+    return cmd + [str(dest)]
+
+
+def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .doctor import ffmpeg_exe
+    from .engine import Stopped
+    from .mission import slug
+    from .sandbox import SandboxError
+    from .system import font_file, no_window_flags
+
+    if (bad := _no_files(engine, job, st, "photos to work on")) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    if not ffmpeg:
+        st.status, st.note = "failed", "photo tools need FFmpeg (Setup > System check installs it)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    size_opt = option_value(job, "size")
+    longest = int(size_opt) if size_opt.isdigit() else None
+    fmt_opt = option_value(job, "format")
+    corner = option_value(job, "corner") or "bottom-right"
+    opts = chosen_options(job)
+    logo = None
+    text_file = None
+    font = None
+    mark = job.watermark.strip()
+    if mark:
+        if mark.lower().endswith(".png"):
+            try:
+                logo = engine.sb.resolve(mark, base="Inbox")
+            except SandboxError:
+                logo = None
+            if not logo or not logo.is_file():
+                st.status, st.note = "failed", f"the watermark logo {mark} isn't in Inbox"
+                engine.log(f"'{job.name}' failed: {st.note}")
+                return st
+            files = [f for f in files if f != logo]           # the logo isn't one of the photos
+        else:
+            font = font_file()
+            if not font:
+                engine.log("  No font found on this computer, so the watermark text is left off.")
+    folder = tool_dir(engine, job, st)
+    if mark and not logo and font:
+        text_file = engine.meta / "tmp" / f"mark-{job.job_id}.txt"
+        text_file.parent.mkdir(parents=True, exist_ok=True)
+        text_file.write_text(mark, encoding="utf-8")
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} photo(s) -> {st.output} "
+               f"({'keep size' if not longest else f'{longest} px'}, {fmt_opt}"
+               + (f", watermark {corner}" if mark else "") + ")")
+    failed: list[str] = []
+    used = {p.name.lower() for p in folder.iterdir()} if folder.exists() else set()
+    base = slug(job.name) or "photo"
+    t0 = datetime.now()
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            ext = src.suffix.lower().lstrip(".")
+            fmt = {"jpeg": "jpg", "tif": "tiff"}.get(ext, ext) if fmt_opt == "same" else fmt_opt
+            stem = f"{base}-{i + 1:0{max(2, len(str(len(files))))}d}" if "rename" in opts \
+                else (slug(src.stem) or f"photo-{i + 1}")
+            name, n = f"{stem}.{fmt}", 2
+            while name.lower() in used:
+                name, n = f"{stem}_{n}.{fmt}", n + 1
+            dims = image_size(ffmpeg, src)
+            if not dims:
+                failed.append(f"{src.name}: couldn't open the picture")
+                engine.log(f"  {src.name}: couldn't open the picture")
+                continue
+            turn = jpeg_orientation(src) if ext in ("jpg", "jpeg") else 1
+            w, h = (dims[1], dims[0]) if turn >= 5 else dims
+            out = fit_size(w, h, longest)
+            cmd = photo_command(ffmpeg, src, folder / name, out, turn, fmt, text_file, logo, font, corner)
+            try:
+                p = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
+                                   creationflags=no_window_flags())
+                ok = p.returncode == 0 and (folder / name).exists()
+                err = (p.stderr or "").strip().splitlines()[-1:] if not ok else []
+            except (OSError, subprocess.SubprocessError) as e:
+                ok, err = False, [str(e)]
+            if not ok:
+                failed.append(f"{src.name}: {(err or ['FFmpeg failed'])[0][:160]}")
+                engine.log(f"  {src.name}: FFmpeg failed: {(err or ['?'])[0][:200]}")
+                continue
+            used.add(name.lower())
+            before, after = src.stat().st_size, (folder / name).stat().st_size
+            st.titles.append(key)
+            st.media_files.append(name)
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {src.name} ({dims[0]}x{dims[1]}, {before // 1024} KB) -> {name} "
+                       f"({out[0]}x{out[1]}, {after // 1024} KB)")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} photo(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    finally:
+        if text_file:
+            try:
+                text_file.unlink()
+            except OSError:
+                pass
+    engine._record(job=job.job_id, part=1, kind="photo-batch", model="ffmpeg", ok=True,
+                   seconds=round((datetime.now() - t0).total_seconds(), 1), photos=len(st.titles))
+    return _finish(engine, job, st, len(files), failed)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -1026,7 +1322,7 @@ def upload_target(sb, tool_id: str, name: str) -> Path:
 
 
 def mission_for(tool_id: str, files: list[str], options: list[str], name: str = "",
-                extra: str = "") -> str:
+                extra: str = "", mark: str = "") -> str:
     """The mission a Tools-tab form runs (also shown under ADVANCED)."""
     tool = TOOLS[tool_id]
     task = (name or tool.name).replace("\n", " ").strip()[:80]
@@ -1035,6 +1331,8 @@ def mission_for(tool_id: str, files: list[str], options: list[str], name: str = 
         lines.append("OPTIONS: " + (", ".join(options) if options else "none"))
     if extra.strip():
         lines.append("FORMAT: " + extra.strip().replace("\n", " "))
+    if mark.strip() and tool.mark:
+        lines.append("WATERMARK: " + " ".join(mark.split())[:120])
     return "\n".join(lines) + "\n"
 
 
@@ -1076,6 +1374,11 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type == "read-aloud":
         for f in files:
             secs += _guess_words(f) / LISTEN_WPM * 60 * speeds.get("read-aloud", 0.5)
+    elif job.type == "photo-batch":
+        mark = job.watermark.strip().lower()
+        files = [f for f in files if not (mark.endswith(".png") and
+                                          str(f).replace("\\", "/").lower().endswith(mark))]
+        secs += len(files) * speeds.get("photo", 1.5)
     elif job.type == "proofread":
         for f in files:
             secs += max(1, -(-_guess_words(f) // PROOF_WORDS)) * speeds.get("part", 25.0)

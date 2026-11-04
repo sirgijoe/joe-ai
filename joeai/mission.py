@@ -44,7 +44,7 @@ from dataclasses import asdict, dataclass, field
 KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
         "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
-        "OPTIONS")
+        "OPTIONS", "WATERMARK")
 EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html")
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
@@ -86,6 +86,7 @@ class Job:
     prompts_as_written: bool = False   # PART text used as the prompt, no rewriting
     export: list[str] = field(default_factory=list)   # finished copies: docx, pdf, epub...
     options: list[str] = field(default_factory=list)  # tool extras (OPTIONS: subtitles, notes)
+    watermark: str = ""      # photo tools: text, or a logo .png in Inbox (only if asked for)
 
     @property
     def media(self) -> bool:
@@ -128,6 +129,8 @@ class Mission:
         j.pop("export", None)      # exporting copies doesn't change what gets written
         if not j.get("options"):   # keep hashes stable for tasks without OPTIONS
             j.pop("options", None)
+        if not j.get("watermark"):
+            j.pop("watermark", None)
         blob = json.dumps({"p": self.project, "r": self.rules, "j": j}, sort_keys=True)
         return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
@@ -250,7 +253,8 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
         raise MissionError(f"Task '{name}': TYPE must be text, code, image, video, or a tool "
                            f"({', '.join(ready_ids())}).")
     inputs = [x.strip() for x in re.split(r"[,\n]", d.get("INPUT", "")) if x.strip()]
-    options = [x.strip().lower() for x in re.split(r"[,\n]", d.get("OPTIONS", "")) if x.strip()]
+    options = [re.sub(r"\s*[:=]\s*|\s+", " ", x.strip().lower())         # "size: 1600" -> "size 1600"
+               for x in re.split(r"[,\n]", d.get("OPTIONS", "")) if x.strip()]
     if options and jtype not in TOOLS:
         raise MissionError(f"Task '{name}': OPTIONS is for tools (like TYPE: transcribe).")
     if jtype in TOOLS:
@@ -259,10 +263,11 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
                                "folder in Inbox).")
         if "CHUNKS" in d or part_prompts:
             raise MissionError(f"Task '{name}': a {TOOLS[jtype].name} task doesn't use CHUNKS or PART.")
-        known = {o.key for o in TOOLS[jtype].options} | {"none"}
-        bad = [o for o in options if o not in known]
+        from .tools import option_ok, options_help
+        bad = [o for o in options if not option_ok(TOOLS[jtype], o)]
         if bad:
-            raise MissionError(f"Task '{name}': OPTIONS can be {', '.join(sorted(known))} (got {', '.join(bad)}).")
+            raise MissionError(f"Task '{name}': OPTIONS can be {options_help(TOOLS[jtype])} "
+                               f"(got {', '.join(bad)}).")
         if d["SAVE"].strip().lower().endswith((".md", ".csv", ".txt")):
             raise MissionError(f"Task '{name}': a tool saves into a folder; give SAVE a folder name.")
         parts, size = 1, 1
@@ -304,7 +309,12 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
         raise MissionError(f"Task '{name}': EXPORT can be {', '.join(EXPORT_FORMATS)} (got {', '.join(bad)}).")
     if export and (jtype in ("image", "video") or d["SAVE"].strip().lower().endswith(".csv")):
         raise MissionError(f"Task '{name}': EXPORT works on writing tasks (not pictures or spreadsheets).")
-    return Job(**media, export=export, options=options, name=name, save=d["SAVE"].strip(), parts=parts, part_size=size,
+    watermark = " ".join(d.get("WATERMARK", "").split())[:120]
+    if watermark:
+        from .tools import TOOLS as _T
+        if jtype not in _T or not _T[jtype].mark:
+            raise MissionError(f"Task '{name}': WATERMARK works on photo tools (TYPE: photo-batch).")
+    return Job(**media, export=export, options=options, watermark=watermark, name=name, save=d["SAVE"].strip(), parts=parts, part_size=size,
                min_words=int(mw), format=d.get("FORMAT", ""), rules=d.get("RULES", ""),
                model=d.get("MODEL", "").strip(), type=jtype, inputs=inputs,
                notes=d.get("NOTES", ""), part_prompts=part_prompts, header=header,
@@ -317,7 +327,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
 TASK_FIELDS = ("name", "save", "type", "project", "parts", "part_size", "part_prompts", "format",
                "rules", "min_words", "header", "inputs", "model", "notes", "workflow",
                "negative", "width", "height", "variants", "seed", "fps", "prompts_as_written",
-               "export", "options")
+               "export", "options", "watermark")
 
 
 def job_to_dict(j: Job) -> dict:
@@ -381,6 +391,8 @@ def to_text(project: str, rules: str, tasks: list[dict]) -> str:
             opts = [x for x in re.split(r"[,\s]+", opts) if x]
         if opts and is_tool(typ):
             L.append("OPTIONS: " + ", ".join(_safe(x) for x in opts))
+        if str(t.get("watermark") or "").strip() and is_tool(typ):
+            L.append("WATERMARK: " + " ".join(_safe(t["watermark"]).split()))
         if typ in ("image", "video"):
             if str(t.get("workflow") or "").strip():
                 L.append(f"WORKFLOW: {_safe(t['workflow'])}")

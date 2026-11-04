@@ -91,6 +91,21 @@ def plain_summary(chk: dict) -> list[str]:
             elif t == "read-aloud":
                 ch = " (one track per chapter)" if "chapters" in (j.get("options") or []) else ""
                 out.append(f"Read {_n(n, 'document', 'documents')} aloud as MP3{ch}: {name}")
+            elif t == "photo-batch":
+                from .tools import TOOLS as _T
+                vals = {o.key: o.value for o in _T[t].options if o.choices}
+                for o in j.get("options") or []:
+                    k, _, v = o.partition(" ")
+                    if v:
+                        vals[k] = v
+                bits = ["same size" if vals["size"] == "keep" else f"{vals['size']} px"]
+                if vals["format"] != "same":
+                    bits.append(vals["format"].upper())
+                if "rename" in (j.get("options") or []):
+                    bits.append("renamed in order")
+                if j.get("watermark"):
+                    bits.append("watermark " + vals["corner"].replace("-", " "))
+                out.append(f"Resize {_n(n, 'photo', 'photos')} ({', '.join(bits)}): {name}")
             elif t == "proofread":
                 opts = j.get("options") or ["copy"]
                 tail = " and a corrected copy" if "copy" in opts else ""

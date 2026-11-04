@@ -185,6 +185,11 @@ class App:
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
                     warnings.append("FFmpeg isn't installed, so only .wav recordings can be read "
                                     "(Setup > System check installs it).")
+            if j.type == "photo-batch":
+                from .doctor import ffmpeg_exe
+                if not ffmpeg_exe(self.settings.comfy.ffmpeg):
+                    return {"ok": False, "error": f"Task '{j.name}': photo tools need FFmpeg first. "
+                            "Setup (F10) > System check installs it."}
             if j.type == "read-aloud":
                 from .doctor import ffmpeg_exe
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
@@ -203,7 +208,7 @@ class App:
                           "size": j.part_size, "items": j.total_items, "guided": j.guided,
                           "min_words": j.min_words, "save": j.save, "variants": j.variants,
                           "prompts": len(j.part_prompts) or j.parts * j.part_size,
-                          "workflow": j.workflow, "options": j.options,
+                          "workflow": j.workflow, "options": j.options, "watermark": j.watermark,
                           "files": tool_info.get(j.job_id, {}).get("files", 0),
                           "project": j.project or m.project}
                          for j in m.jobs]}
@@ -1027,7 +1032,8 @@ def make_handler(app: App):
                 if not files:
                     return self._json({"ok": False, "error": "Add at least one file first."})
                 text = tools_mod.mission_for(tid, files, [str(x) for x in b.get("options") or []],
-                                             str(b.get("name") or ""), str(b.get("extra") or ""))
+                                             str(b.get("name") or ""), str(b.get("extra") or ""),
+                                             str(b.get("mark") or ""))
                 chk = app.check(text)
                 if not chk["ok"]:
                     return self._json(chk)

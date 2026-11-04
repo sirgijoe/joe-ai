@@ -501,6 +501,9 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 .tcard .tcb { font-size: .82em; color: var(--ph-dim); }
 .tcard:hover .tcb { color: var(--bg); }
 .tcard.soon { opacity: .55; cursor: default; }
+.tfpick select { margin-left: 6px; }
+.tfrow.tfmark { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.tfrow.tfmark label { flex: 1 1 18em; }
 .tcard.lit { border-color: var(--ph); box-shadow: 0 0 0 2px var(--ph); }
 .tcard .tsoon { font-size: .72em; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ph-dim); padding: 0 6px; margin-top: auto; }
 .toolform { display: flex; flex-direction: column; gap: 10px; max-width: 52em; }

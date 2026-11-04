@@ -174,6 +174,12 @@ FORMAT: ...
           <input type="file" id="tf-file" multiple hidden>
           <div id="tf-files" class="tffiles"></div>
           <div id="tf-options" class="tfoptions"></div>
+          <div id="tf-markrow" class="tfrow tfmark" hidden>
+            <label title="Only added if you type something here. Leave it empty for no watermark.">Watermark <input id="tf-mark" maxlength="120" placeholder="optional, e.g. your shop name — empty = none"></label>
+            <button type="button" data-act="tool-logo" title="Use your own logo (.png, a see-through background looks best) instead of text.">[ USE A LOGO ]</button>
+            <span id="tf-logoname" class="dim small"></span>
+            <input type="file" id="tf-logo" accept=".png" hidden>
+          </div>
           <label class="tfrow" title="A short name for this job. It becomes the folder name in Output.">Name <input id="tf-name" placeholder="e.g. Tuesday meeting"></label>
           <label class="tfrow" title="Anything Joe should know, like who the speakers are or what to focus on in the notes.">Anything else? <input id="tf-extra" placeholder="optional, e.g. focus on dates and to-dos"></label>
           <div id="tf-help" class="dim small"></div>
@@ -632,7 +638,8 @@ FORMAT: ...
        your files on it (or click to pick), choose the extras, RUN IT.
        Ready now: Transcribe a recording, Read a document aloud
        (MP3), Proofread my writing (a list of every change; your
-       original is never touched). The rest say "Coming soon".
+       original is never touched), Resize and convert photos
+       (watermark only if you type one). The rest say "Coming soon".
        Dropping a recording anywhere outside Talk opens Transcribe;
        a document dropped on Tools lights up the tools that fit it.
        Files you add are copied to Inbox\tools\<tool>.
