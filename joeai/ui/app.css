@@ -501,6 +501,7 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 .tcard .tcb { font-size: .82em; color: var(--ph-dim); }
 .tcard:hover .tcb { color: var(--bg); }
 .tcard.soon { opacity: .55; cursor: default; }
+.tcard.lit { border-color: var(--ph); box-shadow: 0 0 0 2px var(--ph); }
 .tcard .tsoon { font-size: .72em; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ph-dim); padding: 0 6px; margin-top: auto; }
 .toolform { display: flex; flex-direction: column; gap: 10px; max-width: 52em; }
 .tfdrop { border: 2px dashed var(--ph-dim); padding: 22px 16px; text-align: center; cursor: pointer; }
@@ -514,6 +515,7 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 body.modern .tcard { background: var(--btn); border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; }
 body.modern .tcard:hover:not(:disabled) { background: color-mix(in srgb, var(--accent) 10%, var(--panel)); color: var(--ph); border-color: var(--accent); }
 body.modern .tcard:hover .tcb { color: var(--ph-dim); }
+body.modern .tcard.lit { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent); }
 body.modern .tcard .tcn { font-weight: 600; }
 body.modern .tcard.soon:hover { background: var(--btn); color: var(--ph); border-color: var(--line); }
 body.modern .tcard .tsoon { border-radius: 999px; border-color: var(--line); }

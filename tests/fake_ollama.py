@@ -106,6 +106,24 @@ class FakeOllama:
                 return 200, self._reply("## Summary\nThe team planned the mug launch.\n## Key points\n"
                                         "- Ship on Friday\n## Decisions\n- Price list update [CHECK]\n"
                                         "## To-dos\n- Sam: update the price list")
+            if req["messages"][0]["content"].startswith("You are a careful proofreader"):
+                fixes = [{"find": w, "replace": r, "why": "spelling"}
+                         for w, r in (("teh cat", "the cat"), ("recieve", "receive")) if w in user]
+                if "clearer wording" in user or "confusing" in req["messages"][0]["content"]:
+                    fixes.append({"find": "words that are not in the text", "replace": "x", "why": "clarity"})
+                if "Paris" in user:
+                    fixes.append({"find": "Paris", "replace": "Paris", "why": "is this the right city?"})
+                if "GARBLE" in user and "ONLY the JSON" not in user:
+                    return 200, self._reply("Sure, here are my thoughts on your lovely text!")
+                return 200, self._reply("```json\n" + json.dumps(fixes) + "\n```")
+            first = req["messages"][1]["content"].lower().split("\n\n")[0] if len(req["messages"]) > 1 else ""
+            if req["messages"][0]["content"].startswith("You turn a plain request") and \
+                    ("aloud" in first or "proofread" in first):
+                m = re.search(r"^- (\S+\.(?:txt|md|docx|pdf))$", req["messages"][1]["content"], re.M)
+                doc = m.group(1) if m else "nothing.txt"
+                kind = "read-aloud\nOPTIONS: none" if "aloud" in first else "proofread\nOPTIONS: copy"
+                return 200, self._reply(f"=== JOE MISSION ===\nTASK: My story\nTYPE: {kind}\n"
+                                        f"INPUT: {doc}\n=== END ===")
             if req["messages"][0]["content"].startswith("You turn a plain request") and \
                     "transcribe" in req["messages"][1]["content"].lower():
                 m = re.search(r"^- (\S+)$", req["messages"][1]["content"], re.M)

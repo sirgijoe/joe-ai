@@ -69,7 +69,7 @@ def test_tool_missions_parse_and_round_trip():
     for bad in ("TASK: x  TYPE: transcribe",                                  # no INPUT
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  OPTIONS: karaoke",
                 "TASK: x  TYPE: transcribe  INPUT: a.mp3  CHUNKS: 2 x 2",
-                "TASK: x  TYPE: proofread  INPUT: a.txt",                       # planned, not built
+                "TASK: x  TYPE: translate  INPUT: a.txt",                       # planned, not built
                 "TASK: x  CHUNKS: 1 x 2  OPTIONS: notes"):                      # OPTIONS on a text task
         with pytest.raises(MissionError):
             parse(bad)
@@ -158,3 +158,196 @@ def test_mission_for_builds_a_runnable_mission(app):
     j = parse(text).jobs[0]
     assert j.name == "Tuesday call" and j.options == ["notes"] and j.format == "focus on dates"
     assert app.check(text)["ok"]
+
+
+# --------------------------------------------------------------------------- read aloud
+STORY = """# The Kiln
+
+Intro words before anything else, see [the site](https://example.com) **now**.
+
+## Chapter 1
+
+- First line of a list
+- Second line [CHECK: name]
+
+| Mug | Price |
+|-----|-------|
+| Blue | 12 |
+
+```
+code_never_read()
+```
+
+## Chapter 2
+
+The end. Visit https://example.com today.
+"""
+
+
+def test_speakable_drops_symbols_links_and_code():
+    t = tools.speakable(STORY)
+    for gone in ("#", "**", "https://", "[CHECK", "code_never_read", "|", "---"):
+        assert gone not in t, gone
+    assert "The Kiln." in t and "see the site now." in t
+    assert "First line of a list." in t and "Blue, 12." in t
+
+
+def test_speech_pieces_stay_under_the_limit():
+    long = ("This is a sentence. " * 600).strip()
+    pcs = tools.speech_pieces(long + "\n\nShort ending.", size=1000)
+    assert all(len(p) <= 1000 for p in pcs) and pcs[-1].endswith("Short ending.")
+    assert " ".join(pcs).count("This is a sentence.") == 600
+
+
+def test_split_sections_needs_two_headings():
+    secs = tools.split_sections(STORY)
+    assert [t for t, _ in secs] == ["The Kiln", "Chapter 1", "Chapter 2"]
+    assert tools.split_sections("just text\nno headings") == [("", "just text\nno headings")]
+    plain = tools.split_sections("Chapter One\nWords.\n\nChapter Two\nMore.\n\nPart of it is fine.")
+    assert [t for t, _ in plain] == ["Chapter One", "Chapter Two"]
+
+
+def test_read_aloud_end_to_end(app):
+    (app.sb.inbox / "tools" / "read-aloud").mkdir(parents=True)
+    (app.sb.inbox / "tools" / "read-aloud" / "Kiln Story.md").write_text(STORY, encoding="utf-8")
+    text = "TASK: Story  TYPE: read-aloud\nINPUT: tools/read-aloud/Kiln Story.md\nOPTIONS: chapters"
+    chk = app.check(text)
+    assert chk["ok"], chk
+    assert describe.plain_summary(chk) == ["Read 1 document aloud as MP3 (one track per chapter): Story"]
+    assert any("WAV" in w for w in chk["warnings"])                     # no FFmpeg in tests
+    eng = Engine(app.settings, app.sb, log=lambda x: None, voice=app.voice)
+    st = eng.run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    names = sorted(p.name for p in out.iterdir())
+    assert names == ["kiln-story-01-the-kiln.wav", "kiln-story-02-chapter-1.wav",
+                     "kiln-story-03-chapter-2.wav"], names
+    import wave
+    with wave.open(str(out / "kiln-story-02-chapter-1.wav")) as w:
+        assert w.getframerate() == 24000 and w.getnframes() > 0
+    assert not (eng.meta / "tmp" / "read-aloud" / parse(text).jobs[0].job_id / "kiln-story").exists()
+    assert st.words > 10 and st.items == 1
+
+
+def test_read_aloud_one_track_and_resume_after_a_failure(app):
+    doc = app.sb.inbox / "talk.txt"
+    doc.write_text("Hello there.\n\nVOICEFAIL in the middle.\n", encoding="utf-8")
+    text = "TASK: Talk  TYPE: read-aloud\nINPUT: talk.txt"
+    eng = Engine(app.settings, app.sb, log=lambda x: None, voice=app.voice)
+    st = eng.run_mission(parse(text))[0]
+    assert st.status == "failed" and "the voice broke" in st.note
+    doc.write_text("Hello there.\n\nAll good now.\n", encoding="utf-8")
+    st = Engine(app.settings, app.sb, log=lambda x: None, voice=app.voice).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    assert sorted(p.name for p in (app.sb.output / st.output).iterdir()) == ["talk.wav"]
+
+
+def test_read_aloud_reuses_finished_pieces(app, monkeypatch):
+    doc = app.sb.inbox / "book.txt"
+    doc.write_text("\n\n".join(f"Paragraph {i}. " + "words " * 200 for i in range(12)), encoding="utf-8")
+    monkeypatch.setattr(tools, "SPEECH_PIECE", 1500)
+    monkeypatch.setattr(tools.speech_pieces, "__defaults__", (1500,))
+    text = "TASK: Book  TYPE: read-aloud\nINPUT: book.txt"
+    job = parse(text).jobs[0]
+    eng = Engine(app.settings, app.sb, log=lambda x: None, voice=app.voice)
+    calls = []
+    real = app.voice.call
+
+    def stop_after_two(req, timeout=0):
+        calls.append(req["cmd"])
+        r = real(req, timeout=timeout)
+        if len(calls) == 2:
+            eng.stop.set()
+        return r
+    monkeypatch.setattr(app.voice, "call", stop_after_two)
+    st = eng.run_mission(parse(text))[0]
+    assert st.status == "stopped" and "carries on" in st.note
+    kept = list((eng.meta / "tmp" / "read-aloud" / job.job_id).rglob("*.wav"))
+    assert len(kept) == 2
+    calls.clear()
+    eng2 = Engine(app.settings, app.sb, log=lambda x: None, voice=app.voice)
+    monkeypatch.setattr(app.voice, "call", lambda req, timeout=0: (calls.append(1), real(req, timeout=timeout))[1])
+    st = eng2.run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    total = len(tools.speech_pieces(tools.speakable(doc.read_text())))
+    assert len(calls) == total - 2                       # the two finished pieces weren't redone
+
+
+# --------------------------------------------------------------------------- proofread
+LETTER = "Dear Sam,\n\nI saw teh cat in Paris.\n\nPlease recieve this note.\n\nThanks,\nAlex\n"
+
+
+def test_apply_changes_only_exact_matches():
+    text, applied, noted, missed = tools.apply_changes(
+        "One.\n\nTwo teh cat.\n", [{"find": "teh cat", "replace": "the cat", "why": "spelling"},
+                                   {"find": "nope", "replace": "x", "why": ""},
+                                   {"find": "One.", "replace": "One.", "why": "check"},
+                                   {"find": "a" * 500, "replace": "b", "why": ""}])
+    assert text == "One.\n\nTwo the cat.\n"
+    assert applied[0]["par"] == 2 and noted[0]["par"] == 1
+    assert [m["reason"] for m in missed] == ["couldn't find those exact words", "too much to change at once"]
+
+
+def test_proof_chunks_join_back_exactly():
+    text = "\n\n".join(f"Para {i} " + "word " * 150 for i in range(10)) + "\n"
+    chunks = tools.proof_chunks(text, words=400)
+    assert "".join(chunks) == text and len(chunks) > 2
+    assert tools.parse_changes("no json here") is None
+    assert tools.parse_changes('ok ```json\n[{"find": "a", "replace": "b"}, {"x": 1}]\n```') == \
+        [{"find": "a", "replace": "b", "why": ""}]
+
+
+def test_proofread_end_to_end(app):
+    (app.sb.inbox / "letter.txt").write_text(LETTER, encoding="utf-8")
+    text = "TASK: Letter  TYPE: proofread\nINPUT: letter.txt\nFORMAT: British spelling"
+    chk = app.check(text)
+    assert chk["ok"], chk
+    assert describe.plain_summary(chk) == ["Proofread 1 document with a list of every change "
+                                           "and a corrected copy: Letter"]
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse(text))[0]
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    assert sorted(p.name for p in out.iterdir()) == ["letter-changes.md", "letter-proofread.txt"]
+    fixed = (out / "letter-proofread.txt").read_text(encoding="utf-8")
+    assert fixed == LETTER.replace("teh cat", "the cat").replace("recieve", "receive")
+    report = (out / "letter-changes.md").read_text(encoding="utf-8")
+    assert "2 changes. Your original file was not changed." in report
+    assert "Paragraph 2 (spelling): “teh cat” → “the cat”" in report
+    assert "Paragraph 3 (spelling)" in report and "Worth a look" in report and "right city" in report
+    assert (app.sb.inbox / "letter.txt").read_text(encoding="utf-8") == LETTER     # original untouched
+    assert any("right city" in f["flag"] for f in st.flags)
+
+
+def test_proofread_clarity_and_no_copy(app):
+    (app.sb.inbox / "a.md").write_text("I saw teh cat.\n", encoding="utf-8")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: A  TYPE: proofread\nINPUT: a.md\nOPTIONS: clarity"))[0]
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    assert [p.name for p in out.iterdir()] == ["a-changes.md"]
+    assert "couldn't apply" in (out / "a-changes.md").read_text(encoding="utf-8")
+
+
+def test_proofread_retries_a_garbled_reply(app):
+    (app.sb.inbox / "g.txt").write_text("GARBLE but teh cat.\n", encoding="utf-8")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: G  TYPE: proofread\nINPUT: g.txt"))[0]
+    assert st.status == "done" and st.retries >= 1, st.note
+    assert "the cat" in (app.sb.output / st.output / "g-proofread.txt").read_text(encoding="utf-8")
+
+
+def test_describe_routes_documents(app):
+    (app.sb.inbox / "tools" / "read-aloud").mkdir(parents=True)
+    (app.sb.inbox / "tools" / "read-aloud" / "story.md").write_text("Once upon a time.", encoding="utf-8")
+    r = describe.draft(app, "read my story aloud please")
+    assert r["ok"], r
+    assert "TYPE: read-aloud" in r["mission"] and "tools/read-aloud/story.md" in r["mission"]
+    r = describe.draft(app, "proofread my story")
+    assert r["ok"] and "TYPE: proofread" in r["mission"], r
+
+
+def test_catalog_lists_needs_and_hints():
+    cat = {t["id"]: t for t in tools.catalog()}
+    assert cat["read-aloud"]["ready"] and cat["proofread"]["ready"]
+    assert "voice" in cat["read-aloud"]["needs"] and cat["proofread"]["extra_hint"]
+    assert ".docx" in cat["proofread"]["accepts"]

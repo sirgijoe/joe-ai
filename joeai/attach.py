@@ -87,8 +87,9 @@ def _pdf_text(p: Path, log) -> str:
     return r.stdout
 
 
-def extract(p: Path, log=print) -> dict:
-    """{'kind': 'text'|'image', 'text': ..., 'image_b64': ...}"""
+def extract(p: Path, log=print, limit: int = MAX_TEXT) -> dict:
+    """{'kind': 'text'|'image', 'text': ..., 'image_b64': ...}. `limit` = characters kept
+    (tools that read whole documents pass a bigger one)."""
     ext = p.suffix.lower()
     if ext in IMAGE_EXT:
         return {"kind": "image", "text": "", "image_b64": base64.b64encode(p.read_bytes()).decode()}
@@ -96,7 +97,7 @@ def extract(p: Path, log=print) -> dict:
         text = p.read_bytes().decode("utf-8", "replace")
         if ext == ".json":
             try:
-                text = json.dumps(json.loads(text), indent=1)[:MAX_TEXT]
+                text = json.dumps(json.loads(text), indent=1)[:limit]
             except ValueError:
                 pass
     elif ext in HTML_EXT:
@@ -118,7 +119,7 @@ def extract(p: Path, log=print) -> dict:
     text = re.sub(r"\n{3,}", "\n\n", text).strip()
     if not text:
         raise ValueError("That file doesn't have any text Joe can read (is it a scan?).")
-    return {"kind": "text", "text": text[:MAX_TEXT], "truncated": len(text) > MAX_TEXT}
+    return {"kind": "text", "text": text[:limit], "truncated": len(text) > limit}
 
 
 def vision_model(models: list[dict]) -> str | None:

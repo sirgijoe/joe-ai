@@ -22,8 +22,16 @@ for line in sys.stdin:
                 {"s": 2.1, "e": 4.0, "t": "We will ship the new mugs on Friday."},
                 {"s": 7.5, "e": 9.0, "t": "Sam will update the price list."}]}
     elif req["cmd"] == "tts":
-        open(req["out"], "wb").write(b"RIFF\x24\x00\x00\x00WAVEfmt ")
-        out = {"ok": True, "out": req["out"]}
+        if "VOICEFAIL" in req.get("text", ""):
+            out = {"ok": False, "error": "the voice broke"}
+        else:
+            import wave                                  # a real 16-bit WAV, 0.1 s per 100 letters
+            with wave.open(req["out"], "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(24000)
+                w.writeframes(b"\x00\x00" * (24 * len(req.get("text", ""))))
+            out = {"ok": True, "out": req["out"]}
     else:
         out = {"ok": True}
     print("@@JOE@@" + json.dumps(out), flush=True)

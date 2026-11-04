@@ -88,6 +88,15 @@ def plain_summary(chk: dict) -> list[str]:
                 extras = [x for x in ("subtitles", "notes") if not j.get("options") or x in j["options"]]
                 tail = (" with " + " and ".join(extras)) if extras else ""
                 out.append(f"Transcribe {_n(n, 'recording', 'recordings')}{tail}: {name}")
+            elif t == "read-aloud":
+                ch = " (one track per chapter)" if "chapters" in (j.get("options") or []) else ""
+                out.append(f"Read {_n(n, 'document', 'documents')} aloud as MP3{ch}: {name}")
+            elif t == "proofread":
+                opts = j.get("options") or ["copy"]
+                tail = " and a corrected copy" if "copy" in opts else ""
+                tail += ", with wording suggestions" if "clarity" in opts else ""
+                out.append(f"Proofread {_n(n, 'document', 'documents')} with a list of every change"
+                           f"{tail}: {name}")
             else:
                 out.append(f"{TOOLS[t].name}: {_n(n, 'file', 'files')} ({name})")
         elif t in ("image", "video"):
@@ -135,9 +144,9 @@ def draft(app, request: str) -> dict:
     model = resolve_text_model(app.settings, app.services, app.log)
     from . import tools as tools_mod
     waiting = tools_mod.inbox_media(app.sb)
-    files_note = ("\n\nRecordings waiting in Joe's Inbox (use these exact names in INPUT):\n"
+    files_note = ("\n\nFiles waiting in Joe's Inbox (use these exact names in INPUT):\n"
                   + "\n".join("- " + f for f in waiting)) if waiting else \
-                 "\n\nNo recordings are waiting in Joe's Inbox right now."
+                 "\n\nNo files are waiting in Joe's Inbox right now."
     msgs = [{"role": "system", "content": planner_text()},
             {"role": "user", "content": "The request, in the person's words:\n" + request + files_note}]
     problem = ""

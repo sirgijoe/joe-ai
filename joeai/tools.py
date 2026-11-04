@@ -30,6 +30,7 @@ if TYPE_CHECKING:                                    # pragma: no cover
 
 AUDIO_EXT = (".mp3", ".wav", ".m4a", ".aac", ".ogg", ".oga", ".opus", ".flac", ".wma", ".amr")
 VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
+DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
@@ -54,6 +55,7 @@ class Tool:
     help: str = ""                       # shown in the form
     plan_hint: str = ""                  # one line for the describe planner
     examples: tuple[str, ...] = field(default_factory=tuple)
+    extra_hint: str = ""                 # placeholder for the form's "Anything else?" box
 
 
 TOOLS: dict[str, Tool] = {t.id: t for t in (
@@ -72,9 +74,38 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "below, OPTIONS: subtitles, notes (leave out what they don't want). No CHUNKS.",
          examples=("Turn my meeting recording into notes", "Make subtitles for this video")),
     Tool("read-aloud", "Read a document aloud", "Audio",
-         "Turn writing into an MP3 you can listen to.", needs=("voice",)),
+         "Turn writing into an MP3 you can listen to.",
+         accepts=DOC_EXT,
+         options=(Option("chapters", "One track per chapter", False,
+                         "Splits at headings like '# Title' or 'Chapter 3'. Handy for long documents."),),
+         needs=("voice", "ffmpeg"), ready=True,
+         help="Uses Joe's voice and speed from Setup > Voice & Talk (your own copied voice isn't "
+              "used here yet). Runs on the processor, so it can work while pictures are drawing. "
+              "Without FFmpeg Joe saves WAV files (much bigger) instead of MP3. Reading PDFs needs "
+              "Joe's voice add-on. Long books take a while: a stopped run picks up where it left off.",
+         plan_hint="Read aloud (document -> MP3): TYPE: read-aloud, INPUT: the document file(s) "
+                   "from the list below, OPTIONS: chapters (only if they want one track per "
+                   "chapter, else none). No CHUNKS.",
+         examples=("Read my short story aloud as an MP3", "Turn this guide into an audiobook"),
+         extra_hint="optional, e.g. skip the table of contents"),
     Tool("proofread", "Proofread my writing", "Writing",
-         "Fix spelling and grammar, with a list of every change.", needs=("ollama",)),
+         "Fix spelling and grammar, with a list of every change.",
+         accepts=DOC_EXT,
+         options=(Option("clarity", "Also suggest clearer wording", False,
+                         "Off: only real mistakes (spelling, grammar, punctuation). On: also "
+                         "awkward or unclear sentences."),
+                  Option("copy", "Corrected copy", True,
+                         "A fixed copy next to the change list. Your original file is never changed.")),
+         needs=("ollama",), ready=True,
+         help="Joe lists every change with the before and after, so nothing is changed silently, "
+              "and your original file is never touched. Word files come back as a text copy "
+              "(plus a Word copy if Pandoc is installed); formatting like fonts isn't kept. "
+              "Reading PDFs needs Joe's voice add-on.",
+         plan_hint="Proofread (spelling/grammar with a change list): TYPE: proofread, INPUT: the "
+                   "document file(s) from the list below, OPTIONS: copy, plus clarity only if "
+                   "they want wording suggestions too. No CHUNKS.",
+         examples=("Proofread my cover letter", "Check the grammar in my newsletter"),
+         extra_hint="optional, e.g. British spelling, keep the casual tone"),
     Tool("translate", "Translate", "Writing",
          "Make a copy of finished text in another language.", needs=("ollama",)),
     Tool("ask-files", "Ask my files", "Writing",
@@ -115,6 +146,7 @@ def catalog() -> list[dict]:
     """What the Tools tab shows."""
     return [{"id": t.id, "name": t.name, "group": t.group, "blurb": t.blurb, "ready": t.ready,
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
+             "needs": list(t.needs), "extra_hint": t.extra_hint,
              "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint}
                          for o in t.options]}
             for t in TOOLS.values()]
@@ -132,8 +164,15 @@ def chosen_options(job: "Job") -> set[str]:
 
 
 # --------------------------------------------------------------------------- inputs
-def inbox_media(sb, kinds: tuple[str, ...] = AUDIO_EXT + VIDEO_IN_EXT, limit: int = 40) -> list[str]:
-    """Recordings waiting in Inbox (newest first), as INPUT paths, for the describe planner."""
+def tool_exts() -> tuple[str, ...]:
+    """Every kind of file a ready tool reads."""
+    return tuple(sorted({e for t in TOOLS.values() if t.ready for e in t.accepts}))
+
+
+def inbox_media(sb, kinds: tuple[str, ...] | None = None, limit: int = 40) -> list[str]:
+    """Files waiting in Inbox that tools can use (newest first), as INPUT paths, for the
+    describe planner. `kinds` narrows it (default: everything a ready tool reads)."""
+    kinds = kinds or tool_exts()
     out = []
     try:
         files = [p for p in sb.inbox.rglob("*") if p.is_file() and p.suffix.lower() in kinds]
@@ -194,7 +233,8 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
 
 # --------------------------------------------------------------------------- run
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
-    fn = {"transcribe": run_transcribe}.get(job.type)
+    fn = {"transcribe": run_transcribe, "read-aloud": run_read_aloud,
+          "proofread": run_proofread}.get(job.type)
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -436,6 +476,537 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     return _finish(engine, job, st, len(files), failed)
 
 
+# --------------------------------------------------------------------------- documents
+DOC_LIMIT = 3_000_000                 # characters read from one document (a whole book)
+RAW_TEXT_EXT = (".txt", ".md", ".markdown")
+
+
+def document_text(src: Path, log) -> str:
+    """All the words in a document. Plain text and Markdown come back exactly as written
+    (so a proofread copy changes nothing but the fixes); Word, PDF and web pages are
+    read with the same code as Talk attachments. Raises ValueError if it can't be read."""
+    if src.suffix.lower() in RAW_TEXT_EXT:
+        raw = src.read_bytes()
+        if b"\x00" in raw[:4096]:
+            raise ValueError("that file isn't plain text")
+        return raw.decode("utf-8-sig", "replace").replace("\r\n", "\n")
+    from .attach import extract
+    return extract(src, log, limit=DOC_LIMIT)["text"]
+
+
+def _guess_words(f: Path) -> int:
+    """A quick word count for time guesses, without reading the whole document."""
+    try:
+        size = f.stat().st_size
+    except OSError:
+        return 0
+    ext = f.suffix.lower()
+    if ext == ".docx":
+        try:
+            from .attach import _docx_text
+            return count_words(_docx_text(f))
+        except Exception:                               # noqa: BLE001 (a guess only)
+            return size // 20
+    if ext == ".pdf":
+        return max(200, size // 60)
+    if ext in (".html", ".htm"):
+        return size // 12
+    return size // 6
+
+
+# --------------------------------------------------------------------------- read aloud
+_MD_LINK = re.compile(r"!?\[([^\]]*)\]\([^)]*\)")
+_URL = re.compile(r"https?://\S+|www\.\S+")
+_FLAG = re.compile(r"\[(?:CHECK|TODO|TK)\b[^\]]*\]", re.I)
+_BULLET = re.compile(r"^([-*+•]|\d+[.)])\s+")
+_CHAPTER = re.compile(r"^(?:#{1,2}[ \t]+\S[^\n]*|(?:chapter|part)[ \t]+(?:\d+|[ivxlc]+|one|two|three|four|"
+                      r"five|six|seven|eight|nine|ten|eleven|twelve)\b[^\n]{0,80})$", re.I | re.M)
+SPEECH_PIECE = 4500                   # characters per call to the voice helper (it takes 6000)
+LISTEN_WPM = 160                      # words per minute of speech, for time guesses
+
+
+def speakable(text: str) -> str:
+    """Writing -> words worth saying: no Markdown symbols, links, code blocks or [CHECK]
+    marks; titles and list lines end with a full stop so the voice pauses."""
+    text = re.sub(r"(?s)```.*?```", " ", text)
+    out: list[str] = []
+    for line in text.splitlines():
+        ln = line.strip()
+        if not ln:
+            out.append("")
+            continue
+        if re.fullmatch(r"[-*_=|:+\s]{3,}", ln):        # rules and table separator lines
+            continue
+        heading = bool(re.match(r"#{1,6}\s", ln))
+        ln = re.sub(r"^#{1,6}\s*", "", ln)
+        ln = re.sub(r"^>\s*", "", ln)
+        listed = bool(_BULLET.match(ln))
+        ln = _BULLET.sub("", ln)
+        if ln.count("|") >= 2:                           # a table row: say the cells
+            ln = ", ".join(c.strip() for c in ln.strip("|").split("|") if c.strip())
+            listed = True
+        ln = _MD_LINK.sub(r"\1", ln)
+        ln = _URL.sub("", ln)
+        ln = _FLAG.sub("", ln)
+        ln = re.sub(r"[*`~]+|(?<!\w)_+|_+(?!\w)", "", ln)
+        ln = re.sub(r"\s{2,}", " ", ln).strip()
+        if not ln:
+            continue
+        if (heading or listed) and ln[-1] not in ".!?:;,":
+            ln += "."
+        out += ["", ln, ""] if heading else [ln]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out)).strip()
+
+
+def speech_pieces(text: str, size: int = SPEECH_PIECE) -> list[str]:
+    """Paragraphs grouped into pieces the voice helper can say in one go."""
+    out: list[str] = []
+    cur = ""
+    for para in re.split(r"\n\s*\n", text):
+        para = para.strip()
+        if not para:
+            continue
+        while len(para) > size:                          # a huge paragraph: cut at a sentence
+            cut = max(para.rfind(". ", 0, size), para.rfind("? ", 0, size), para.rfind("! ", 0, size))
+            if cut < size // 3:
+                cut = para.rfind(" ", 0, size)
+            if cut <= 0:
+                cut = size - 1
+            if cur:
+                out.append(cur)
+                cur = ""
+            out.append(para[:cut + 1].strip())
+            para = para[cut + 1:].strip()
+        if cur and len(cur) + len(para) + 2 > size:
+            out.append(cur)
+            cur = para
+        else:
+            cur = (cur + "\n\n" + para).strip()
+    if cur:
+        out.append(cur)
+    return out
+
+
+def split_sections(text: str) -> list[tuple[str, str]]:
+    """(title, text) per chapter, split at '# Title' / '## Title' / 'Chapter 3' lines.
+    Fewer than two such lines = one section."""
+    marks = [m.start() for m in _CHAPTER.finditer(text)]
+    if len(marks) < 2:
+        return [("", text)]
+    out = []
+    if text[:marks[0]].strip():
+        out.append(("Opening", text[:marks[0]]))
+    for a, b in zip(marks, marks[1:] + [len(text)]):
+        part = text[a:b]
+        out.append((part.splitlines()[0].lstrip("#").strip(), part))
+    return out
+
+
+def _wav_ok(p: Path) -> bool:
+    try:
+        return p.stat().st_size > 44
+    except OSError:
+        return False
+
+
+def merge_wavs(parts: list[Path], dest: Path, pause: float = 0.45) -> float:
+    """Join WAV pieces (same format) with a short pause between them. Returns seconds."""
+    import wave
+    fmt = None
+    frames = 0
+    with wave.open(str(dest), "wb") as out:
+        for i, p in enumerate(parts):
+            with wave.open(str(p), "rb") as w:
+                f = (w.getnchannels(), w.getsampwidth(), w.getframerate())
+                if fmt is None:
+                    fmt = f
+                    out.setnchannels(f[0])
+                    out.setsampwidth(f[1])
+                    out.setframerate(f[2])
+                elif f != fmt:
+                    raise ValueError(f"{p.name} is a different kind of WAV")
+                if i:
+                    gap = int(fmt[2] * pause)
+                    out.writeframes(b"\x00" * gap * fmt[0] * fmt[1])
+                    frames += gap
+                n = w.getnframes()
+                out.writeframes(w.readframes(n))
+                frames += n
+    return frames / fmt[2] if fmt else 0.0
+
+
+def to_mp3(ffmpeg: str, wav: Path, mp3: Path, title: str, log) -> bool:
+    from .system import no_window_flags
+    try:
+        p = subprocess.run([ffmpeg, "-y", "-v", "error", "-i", str(wav), "-codec:a", "libmp3lame",
+                            "-q:a", "4", "-metadata", f"title={title[:120]}",
+                            "-metadata", "artist=Read aloud by Joe", str(mp3)],
+                           capture_output=True, text=True, timeout=3600,
+                           creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError) as e:
+        log(f"  FFmpeg couldn't make the MP3: {e}")
+        return False
+    if p.returncode != 0 or not mp3.exists():
+        log(f"  FFmpeg couldn't make the MP3: {(p.stderr or '').strip()[-200:]}")
+        return False
+    return True
+
+
+def _voice_missing(engine: "Engine", job: "Job", st: "JobState", what: str) -> bool:
+    from .addons import voice_python
+    if not Path(voice_python()).exists() and engine.voice is None:
+        st.status, st.note = "failed", f"{what} needs Joe's voice add-on (Setup > System check)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return True
+    return False
+
+
+def _no_files(engine: "Engine", job: "Job", st: "JobState", what: str) -> "JobState | None":
+    files, problems = resolve_inputs(engine, job)
+    for pr in problems:
+        engine.log(f"  INPUT: {pr}")
+    if files:
+        return None
+    st.status, st.note = "failed", (f"no {what}" + (f" ({problems[0]})" if problems else
+                                    "; add them with INPUT: (files or a folder in Inbox)"))
+    engine.log(f"'{job.name}' failed: {st.note}")
+    return st
+
+
+def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    import hashlib
+    import shutil
+    import wave
+
+    from .addons import VOICES, VoiceWorker
+    from .doctor import ffmpeg_exe
+    from .engine import Stopped
+    from .mission import slug
+
+    if (bad := _no_files(engine, job, st, "documents to read")) is not None:
+        return bad
+    if _voice_missing(engine, job, st, "reading aloud"):
+        return st
+    files, _ = resolve_inputs(engine, job)
+    ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    if not ffmpeg:
+        engine.log("  FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3 "
+                   "(Setup > System check installs it).")
+    folder = tool_dir(engine, job, st)
+    opts = chosen_options(job)
+    worker = engine.voice or VoiceWorker(engine.log)
+    v = engine.s.voice
+    voice = v.voice if v.voice in VOICES else "am_adam"
+    if v.voice == "mine":
+        engine.log(f"  Your own voice isn't used for reading aloud yet, so Joe reads with {voice}.")
+    speed = float(v.speed or 1.0)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} document(s) "
+               f"-> {st.output} (voice: {voice})")
+    failed: list[str] = []
+    work = engine.meta / "tmp" / "read-aloud" / job.job_id
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            try:
+                raw = document_text(src, engine.log)
+            except (ValueError, OSError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            sections = split_sections(raw) if "chapters" in opts else [("", raw)]
+            plan = [(title, pcs) for title, body in sections if (pcs := speech_pieces(speakable(body)))]
+            if not plan:
+                failed.append(f"{src.name}: no words to read")
+                engine.log(f"  {src.name}: no words to read")
+                continue
+            total = sum(len(p) for _, p in plan)
+            words = sum(count_words(x) for _, p in plan for x in p)
+            engine.log(f"  {i + 1}/{len(files)} {src.name}: {words} words, about "
+                       f"{max(1, round(words / LISTEN_WPM))} min of listening"
+                       + (f" in {len(plan)} tracks" if len(plan) > 1 else ""))
+            stem = slug(src.stem) or f"document-{i + 1}"
+            sig = hashlib.sha1(f"{raw}|{voice}|{speed}|{sorted(opts)}".encode("utf-8", "replace")).hexdigest()[:10]
+            tmp = work / f"{stem}-{sig}"                 # finished pieces survive a stop
+            tmp.mkdir(parents=True, exist_ok=True)
+            t0 = datetime.now()
+            made: list[str] = []
+            audio = 0.0
+            n = 0
+            broke = ""
+            for si, (title, pcs) in enumerate(plan):
+                wavs = []
+                for pi, text in enumerate(pcs):
+                    if engine.stop.is_set():
+                        raise Stopped()
+                    n += 1
+                    w = tmp / f"s{si + 1:03d}-p{pi + 1:04d}.wav"
+                    if not _wav_ok(w):
+                        engine._progress(f"{job.name}: {src.name}, piece {n}/{total}")
+                        r = worker.call({"cmd": "tts", "text": text, "out": str(w), "voice": voice,
+                                         "speed": speed}, timeout=max(600.0, len(text) * 0.5))
+                        if not r.get("ok") or not _wav_ok(w):
+                            broke = r.get("error") or "the voice didn't make any sound"
+                            break
+                    wavs.append(w)
+                if broke:
+                    break
+                name = stem if len(plan) == 1 else \
+                    f"{stem}-{si + 1:02d}" + (f"-{slug(title)[:40]}" if slug(title) else "")
+                merged = tmp / f"{name}.wav"
+                try:
+                    audio += merge_wavs(wavs, merged)
+                except (OSError, ValueError, EOFError, wave.Error) as e:
+                    broke = f"couldn't join the pieces: {e}"
+                    break
+                label = (title or src.stem) if len(plan) > 1 else src.stem
+                if ffmpeg and to_mp3(ffmpeg, merged, folder / f"{name}.mp3", label, engine.log):
+                    made.append(f"{name}.mp3")
+                else:
+                    shutil.move(str(merged), str(folder / f"{name}.wav"))
+                    made.append(f"{name}.wav")
+            if broke:
+                failed.append(f"{src.name}: {broke}"[:200])
+                engine.log(f"  {src.name}: {broke}")
+                continue                                 # pieces kept: a re-run carries on
+            took = (datetime.now() - t0).total_seconds()
+            engine._record(job=job.job_id, part=i + 1, kind="read-aloud", model=f"kokoro:{voice}",
+                           ok=True, seconds=round(took, 1), audio_seconds=round(audio, 1), words=words)
+            shutil.rmtree(tmp, ignore_errors=True)
+            st.titles.append(key)
+            st.media_files.extend(made)
+            st.items += 1
+            st.words += words
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: {round(audio / 60, 1)} min of speech in {round(took / 60, 1)} min "
+                       f"-> {', '.join(made)}")
+    except Stopped:
+        st.status, st.note = "stopped", (f"stopped after {len(st.titles)} of {len(files)} document(s); "
+                                         "finished pieces are kept, so the next run carries on")
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, len(files), failed)
+
+
+# --------------------------------------------------------------------------- proofread
+PROOF_SYSTEM = """You are a careful proofreader. You fix real mistakes only: spelling, grammar,
+punctuation, wrong or missing words, repeated words.{clarity} You never rewrite the writing in
+your own style: keep the writer's voice, tone, word choices, spelling style and formatting.
+Never add facts. Reply with ONLY a JSON array, nothing before or after it."""
+PROOF_CLARITY = (" You may also fix sentences that are confusing or awkward, changing as few "
+                 "words as you can.")
+PROOF_ASK = """Proofread the text between <<< and >>>.
+For each fix, give one object:
+  {"find": "the exact words from the text, copied exactly, enough words to be unique",
+   "replace": "the corrected words",
+   "why": "a few plain words, e.g. spelling"}
+If something might be wrong but you aren't sure, put the same words in find and replace and say
+why in "why". If there is nothing to fix, reply [].
+"""
+PROOF_WORDS = 600                     # words per model call
+MAX_FIND = 400                        # longer "find"s are rewrites, not fixes: never applied
+
+
+def proof_chunks(text: str, words: int = PROOF_WORDS) -> list[str]:
+    """Paragraph groups of about `words` words; "".join(chunks) == text exactly."""
+    bits = re.split(r"(\n[ \t]*\n)", text)
+    out: list[str] = []
+    cur, n = "", 0
+    for b in bits:
+        w = count_words(b)
+        if cur and n + w > words and b.strip():
+            out.append(cur)
+            cur, n = "", 0
+        cur += b
+        n += w
+    if cur:
+        out.append(cur)
+    return out
+
+
+def parse_changes(raw: str) -> list[dict] | None:
+    """The model's JSON list of fixes, or None if the reply isn't one."""
+    import json
+    raw = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
+    raw = re.sub(r"```[\w-]*", "", raw)
+    a, b = raw.find("["), raw.rfind("]")
+    if a < 0 or b < a:
+        return None
+    try:
+        arr = json.loads(raw[a:b + 1])
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(arr, list):
+        return None
+    return [{"find": o["find"], "replace": o["replace"], "why": str(o.get("why") or "").strip()[:120]}
+            for o in arr if isinstance(o, dict) and isinstance(o.get("find"), str)
+            and isinstance(o.get("replace"), str) and o["find"].strip()]
+
+
+def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[str, list, list, list]:
+    """Apply exact-match fixes. Returns (text, applied, noted, missed); each change gets a
+    paragraph number ("par"). Nothing is changed that isn't on the applied list."""
+    applied, noted, missed = [], [], []
+    for c in changes:
+        f, r = c["find"], c["replace"]
+        pos = text.find(f)
+        par = first_par + (len(re.findall(r"\n[ \t]*\n", text[:pos])) if pos >= 0 else 0)
+        c = dict(c, par=par if pos >= 0 else 0)
+        if f == r:
+            noted.append(c)
+        elif len(f) > MAX_FIND:
+            missed.append(dict(c, reason="too much to change at once"))
+        elif pos < 0:
+            missed.append(dict(c, reason="couldn't find those exact words"))
+        else:
+            text = text[:pos] + r + text[pos + len(f):]
+            applied.append(c)
+    return text, applied, noted, missed
+
+
+def _q(s: str) -> str:
+    s = " ".join(s.split())
+    return "“" + (s if len(s) <= 300 else s[:297] + "...") + "”"
+
+
+def changes_report(title: str, applied: list, noted: list, missed: list, copy_name: str,
+                   skipped: list[int]) -> str:
+    n = len(applied)
+    lines = [f"# Proofread: {title}", "",
+             f"{n} change{'' if n == 1 else 's'}. Your original file was not changed."
+             + (f" The corrected copy is {copy_name}." if copy_name and n else ""), ""]
+    if skipped:
+        lines += [f"Joe couldn't check part(s) {', '.join(map(str, skipped))} of this document "
+                  "(the model's answer didn't make sense). Those parts are unchanged.", ""]
+    lines += ["## Changes", ""]
+    lines += [f"{i}. Paragraph {c['par']}" + (f" ({c['why']})" if c["why"] else "") +
+              f": {_q(c['find'])} → {_q(c['replace'])}" for i, c in enumerate(applied, 1)] or ["None needed."]
+    if noted:
+        lines += ["", "## Worth a look (not changed)", ""]
+        lines += [f"- " + (f"Paragraph {c['par']}: " if c["par"] else "") + _q(c["find"]) +
+                  (f": {c['why']}" if c["why"] else "") for c in noted]
+    if missed:
+        lines += ["", "## Suggestions Joe couldn't apply (check these yourself)", ""]
+        lines += [f"- {_q(c['find'])} → {_q(c['replace'])}" + (f" ({c['why']})" if c["why"] else "") +
+                  f": {c['reason']}" for c in missed]
+    return "\n".join(lines) + "\n"
+
+
+def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from .addons import export_document, pandoc_exe
+    from .engine import PartFailed, Stopped
+    from .mission import slug
+
+    if (bad := _no_files(engine, job, st, "documents to proofread")) is not None:
+        return bad
+    files, _ = resolve_inputs(engine, job)
+    if not engine._text_ready(st):
+        engine._save_state(job, st)
+        return st
+    folder = tool_dir(engine, job, st)
+    opts = chosen_options(job)
+    system = PROOF_SYSTEM.replace("{clarity}", PROOF_CLARITY if "clarity" in opts else "")
+    if job.rules.strip():
+        system += "\n" + job.rules.strip()
+    wish = f"The writer asked: {job.format.strip()}\n" if job.format.strip() else ""
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(files)} document(s) "
+               f"-> {st.output}" + (" (also clearer wording)" if "clarity" in opts else ""))
+    failed: list[str] = []
+    try:
+        for i, src in enumerate(files):
+            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            try:
+                text = document_text(src, engine.log)
+            except (ValueError, OSError) as e:
+                failed.append(f"{src.name}: {e}"[:200])
+                engine.log(f"  {src.name}: {e}")
+                continue
+            if not text.strip():
+                failed.append(f"{src.name}: no words to check")
+                continue
+            chunks = proof_chunks(text)
+            words = count_words(text)
+            engine.log(f"  {i + 1}/{len(files)} {src.name}: {words} words in {len(chunks)} part(s)")
+            fixed: list[str] = []
+            applied, noted, missed, skipped = [], [], [], []
+            par = 1
+            for ci, chunk in enumerate(chunks):
+                if engine.stop.is_set():
+                    raise Stopped()
+                engine._progress(f"{job.name}: {src.name}, part {ci + 1}/{len(chunks)}")
+                changes = None
+                if chunk.strip():
+                    ask = f"{wish}{PROOF_ASK}\n<<<\n{chunk.strip()}\n>>>"
+                    try:
+                        for attempt in range(2):
+                            r = engine._chat(job, ci, "proofread", system, ask if not attempt else
+                                             ask + "\n\nReply with ONLY the JSON array.", st)
+                            changes = parse_changes(r.text)
+                            if changes is not None:
+                                break
+                            st.retries += 1
+                    except PartFailed as e:
+                        engine.log(f"  {src.name} part {ci + 1}: {e}")
+                    if changes is None:
+                        skipped.append(ci + 1)
+                        changes = []
+                new, a, nt, m = apply_changes(chunk, changes, par)
+                fixed.append(new)
+                applied += a
+                noted += nt
+                missed += m
+                par += len(re.findall(r"\n[ \t]*\n", chunk))
+            stem = slug(src.stem) or f"document-{i + 1}"
+            ext = src.suffix.lower() if src.suffix.lower() in RAW_TEXT_EXT else ".md"
+            made = []
+            copy_name = ""
+            if "copy" in opts:
+                copy_name = f"{stem}-proofread{ext}"
+                atomic_write_text(folder / copy_name, "".join(fixed))
+                made.append(copy_name)
+                if src.suffix.lower() == ".docx":
+                    pandoc = pandoc_exe(engine.s.pandoc)
+                    if pandoc:
+                        made += [p.name for p in export_document(folder / copy_name, ["docx"], pandoc, engine.log)]
+                    else:
+                        engine.log("  Pandoc isn't installed, so the corrected copy is text, not Word.")
+            atomic_write_text(folder / f"{stem}-changes.md",
+                              changes_report(src.stem, applied, noted, missed, copy_name, skipped))
+            made.insert(0, f"{stem}-changes.md")
+            st.flags.extend({"item": src.stem, "flag": f"[CHECK] {c['why'] or 'worth a look'}: {c['find'][:80]}"}
+                            for c in noted[:20])
+            if skipped:
+                failed.append(f"{src.name}: couldn't check part(s) {', '.join(map(str, skipped))}")
+            st.titles.append(key)
+            st.media_files.extend(made)
+            st.items += 1
+            st.words += words
+            engine._save_state(job, st)
+            engine.log(f"  {src.name}: {len(applied)} change(s), {len(noted)} to look at, "
+                       f"{len(missed)} not applied -> {', '.join(made)}")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} document(s)"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, len(files), failed)
+
+
 # --------------------------------------------------------------------------- uploads
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
@@ -502,6 +1073,12 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
             secs += audio_min * 60 * speeds.get("transcribe", 0.8)
             if "notes" in chosen_options(job):
                 secs += max(1, audio_min / 20) * speeds.get("part", 25.0)
+    elif job.type == "read-aloud":
+        for f in files:
+            secs += _guess_words(f) / LISTEN_WPM * 60 * speeds.get("read-aloud", 0.5)
+    elif job.type == "proofread":
+        for f in files:
+            secs += max(1, -(-_guess_words(f) // PROOF_WORDS)) * speeds.get("part", 25.0)
     return {"files": len(files), "seconds": secs, "problems": problems}
 
 

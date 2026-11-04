@@ -70,10 +70,17 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English for now; uses
   the voice add-on and runs on the processor.
-- More are on the way, shown as "Coming soon" on the Tools tab: proofreading, translating,
-  reading documents aloud, photo resizing, tidying spreadsheets, listings from photos, reading
-  scans and receipts, restoring old photos, and more.
-- Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes".
+- **Read a document aloud**: text, Word, PDF or a web page in, an MP3 out (one track per
+  chapter if you like), in Joe's voice from Setup. Runs on the processor; a stopped run
+  carries on where it left off.
+- **Proofread my writing**: fixes spelling, grammar and punctuation (and, if you ask, unclear
+  wording) and lists every change with the before and after. Nothing is changed silently, and
+  your original file is never touched.
+- More are on the way, shown as "Coming soon" on the Tools tab: translating, photo resizing,
+  tidying spreadsheets, listings from photos, reading scans and receipts, restoring old photos,
+  and more.
+- Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
+  "read my story aloud", "proofread my cover letter".
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F3. Uses

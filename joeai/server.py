@@ -185,6 +185,11 @@ class App:
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
                     warnings.append("FFmpeg isn't installed, so only .wav recordings can be read "
                                     "(Setup > System check installs it).")
+            if j.type == "read-aloud":
+                from .doctor import ffmpeg_exe
+                if not ffmpeg_exe(self.settings.comfy.ffmpeg):
+                    warnings.append("FFmpeg isn't installed, so Joe saves WAV files (much bigger) "
+                                    "instead of MP3 (Setup > System check installs it).")
             secs += info["seconds"]
             tool_info[j.job_id] = info
         for j in m.jobs:

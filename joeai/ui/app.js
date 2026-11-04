@@ -2001,14 +2001,14 @@ async function loadTools() {
   }
   if (!toolOpen) renderToolGrid();
 }
-function renderToolGrid() {
+function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting for a pick)
   const by = {};
   toolCat.tools.forEach((t) => (by[t.group] = by[t.group] || []).push(t));
   Object.values(by).forEach((list) => list.sort((x, y) => y.ready - x.ready));     // ready tools first
   const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
   $("#toolgrid").innerHTML = groups.map((g) =>
     `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
-    by[g].map((t) => `<button type="button" class="tcard${t.ready ? "" : " soon"}" data-tool="${t.id}"` +
+    by[g].map((t) => `<button type="button" class="tcard${t.ready ? "" : " soon"}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
       ` title="${esc(t.ready ? t.blurb : "Coming soon: " + t.blurb)}"${t.ready ? "" : " disabled"}>` +
       `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
       (t.ready ? "" : `<span class="tsoon">Coming soon</span>`) + `</button>`).join("") +
@@ -2016,15 +2016,21 @@ function renderToolGrid() {
   $("#toolgrid").hidden = false; $("#toolform").hidden = true;
 }
 function toolById(id) { return toolCat && toolCat.tools.find((t) => t.id === id); }
-function toolFor(files) {          // dropped files outside Tools: recordings go to Transcribe
-  if (!toolCat) return null;
+let toolPending = null;            // files dropped while several tools fit: waiting for a pick
+function toolsFor(files) {         // every ready tool that can use all these files
+  if (!toolCat) return [];
   const ext = (f) => "." + f.name.split(".").pop().toLowerCase();
-  return toolCat.tools.find((t) => t.ready && files.every((f) => t.accepts.includes(ext(f)))) || null;
+  return toolCat.tools.filter((t) => t.ready && files.every((f) => t.accepts.includes(ext(f))));
+}
+function toolFor(files) {          // dropped outside Tools: only when exactly one tool fits (recordings)
+  const fit = toolsFor(files);
+  return fit.length === 1 ? fit[0] : null;
 }
 function toolNeeds() {
-  const t = toolOpen, msgs = [];
-  if (t.id === "transcribe" && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > System check > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
+  const t = toolOpen, msgs = [], needs = t.needs || [];
+  if (needs.includes("voice") && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > System check > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
   if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > System check installs it.");
+  if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > System check installs it.");
   $("#tf-need").innerHTML = msgs.map(esc).join("<br>");
   $("#tf-need").hidden = !msgs.length;
 }
@@ -2039,6 +2045,7 @@ function openTool(id) {
   $("#tf-options").innerHTML = t.options.map((o) =>
     `<label class="tfopt" title="${esc(o.hint)}"><input type="checkbox" data-opt="${o.key}"${o.default ? " checked" : ""}> ${esc(o.label)}</label>`).join("");
   $("#tf-name").value = ""; $("#tf-extra").value = ""; $("#tf-plan").textContent = "";
+  $("#tf-extra").placeholder = t.extra_hint || "optional, e.g. focus on dates and to-dos";
   renderToolFiles(); toolNeeds();
   $("#toolgrid").hidden = true; $("#toolform").hidden = false;
 }
@@ -2063,7 +2070,16 @@ function uploadOne(file, f) {      // XHR so a big recording shows progress
 async function toolsDrop(files) {
   if (current !== "tools") show("tools");
   if (!toolCat) await loadTools();
-  if (!toolOpen) { const t = toolFor(files); if (!t) { toast("Pick a tool first, then drop the files on it."); return; } openTool(t.id); }
+  if (!toolOpen) {
+    const fit = toolsFor(files);
+    if (!fit.length) { toast("Pick a tool first, then drop the files on it."); return; }
+    if (fit.length > 1) {          // e.g. a document: read it aloud or proofread it? Let them pick.
+      toolPending = files; renderToolGrid(fit.map((t) => t.id));
+      toast("Which tool? Pick one of the lit-up cards: " + fit.map((t) => t.name).join(" or "));
+      return;
+    }
+    openTool(fit[0].id);
+  }
   for (const file of files) {
     const ext = "." + file.name.split(".").pop().toLowerCase();
     if (!toolOpen.accepts.includes(ext)) { toast(`${toolOpen.name} can't use ${ext} files`); continue; }
@@ -2102,8 +2118,12 @@ $("#tf-drop").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("#tf-drop")) { $("#tf-file").click(); return; }
   const b = ev.target.closest("button"); if (!b) return;
-  if (b.dataset.tool) openTool(b.dataset.tool);
-  else if (b.dataset.act === "tool-back") { toolOpen = null; renderToolGrid(); }
+  if (b.dataset.tool) {
+    openTool(b.dataset.tool);
+    const waiting = toolPending; toolPending = null;
+    if (waiting && toolOpen) toolsDrop(waiting);
+  }
+  else if (b.dataset.act === "tool-back") { toolOpen = null; toolPending = null; renderToolGrid(); }
   else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));
   else if (b.dataset.act === "tool-plan") toolPlan(false).catch((e) => toast(e.message));
   else if (b.dataset.tfrm !== undefined) { toolFiles.splice(+b.dataset.tfrm, 1); renderToolFiles(); }

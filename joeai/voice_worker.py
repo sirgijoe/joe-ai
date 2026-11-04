@@ -115,7 +115,8 @@ def handle(req):
                                      speed=float(req.get("speed", 1.0)), lang="en-us")
             audio.append(samples)
             audio.append(np.zeros(int(rate * 0.18), dtype=samples.dtype))   # small pause
-        sf.write(req["out"], np.concatenate(audio) if audio else np.zeros(1), rate)
+        sf.write(req["out"], np.concatenate(audio) if audio else np.zeros(1), rate,
+                 subtype="PCM_16")                  # plain 16-bit, so Joe can join pieces
         return {"ok": True, "out": req["out"]}
     return {"ok": False, "error": f"unknown command {cmd!r}"}
 

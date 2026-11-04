@@ -128,11 +128,12 @@ Ready-made jobs for your own files. Each card opens a short form: drop your file
 to pick them), tick the extras you want, give it a name if you like, and press **RUN IT** (it
 queues behind other work if Joe is busy). **SHOW THE PLAN** shows the plan and the mission text
 without running. Files you add are copied into `Inbox\tools\<tool>\`; your originals aren't
-touched. Dropping a recording anywhere outside Talk opens Transcribe with it. Tools not built
-yet show "Coming soon".
+touched. Dropping a recording anywhere outside Talk opens Transcribe with it. Dropping a
+document on the Tools tab lights up the tools that can use it (Read aloud, Proofread); pick one.
+Tools not built yet show "Coming soon".
 
-You can also just ask on the Queue screen ("turn the call I added into notes"): Joe sees the
-recordings waiting in Inbox and plans a transcribe task. In a mission:
+You can also just ask on the Queue screen ("turn the call I added into notes", "read my story
+aloud"): Joe sees the files waiting in Inbox and plans the right tool task. In a mission:
 
 ```
 TASK: Tuesday meeting  TYPE: transcribe
@@ -149,6 +150,27 @@ noted in pieces, then combined. It needs Joe's voice add-on (Setup > System chec
 for anything but .wav. It uses the Hearing setting (Setup > Voice & Talk; Most accurate is
 slower), English only for now, and runs on the processor, so it can work while pictures draw.
 A stopped run picks up at the next recording.
+
+**Read a document aloud** (`TYPE: read-aloud`, `OPTIONS: chapters` or none) reads .txt, .md,
+.docx, .pdf and web pages and makes `<name>.mp3` in `Output\<task name>\`. With **chapters**
+it makes one track per chapter (`<name>-01-<title>.mp3` ...), split at `# Title` / `## Title`
+lines or lines like "Chapter 3"; with fewer than two of those it makes one track. Markdown
+symbols, links, code blocks and [CHECK] marks aren't read out; titles and list lines get a
+pause. It uses the voice and speed from Setup > Voice & Talk (your own copied voice isn't used
+for this yet), needs Joe's voice add-on, and saves WAV instead of MP3 when FFmpeg isn't
+installed. Runs on the processor. Finished pieces are kept while a document is read, so a
+stopped run carries on mid-document.
+
+**Proofread my writing** (`TYPE: proofread`, `OPTIONS: copy, clarity`) reads the same kinds of
+files and makes, per document, `<name>-changes.md` (every change with paragraph, before and
+after, and why; "Worth a look" items Joe wasn't sure about, left unchanged; and suggestions he
+couldn't apply because the words didn't match exactly) and, with **copy** (on by default),
+`<name>-proofread.txt`/`.md` with the fixes applied (Word files: a `.md` copy, plus `.docx` if
+Pandoc is installed; fonts and layout aren't kept). By default only real mistakes are fixed
+(spelling, grammar, punctuation, wrong or repeated words); **clarity** also allows small
+rewording of confusing sentences. Joe asks the writing model for a list of exact fixes and
+applies only those, so nothing changes that isn't on the list. FORMAT passes on wishes like
+"British spelling". Your original file is never changed.
 
 ## Talking to Joe (F6)
 
