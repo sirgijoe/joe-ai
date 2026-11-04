@@ -404,6 +404,17 @@ def resolve_inputs(engine: "Engine", job: "Job") -> tuple[list[Path], list[str]]
     return unique, problems
 
 
+def _key(engine: "Engine", src: Path) -> str:
+    """How a file is named in progress notes: its path in Inbox, or (for a file in another
+    workspace folder, like Output/...) its path from the workspace."""
+    for base in (engine.sb.inbox, engine.sb.root):
+        try:
+            return str(src.relative_to(base)).replace("\\", "/")
+        except ValueError:
+            continue
+    return src.name
+
+
 def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
     """The task's output folder; resuming reuses it, a new run never mixes with an old one."""
     if st.output and st.titles:
@@ -604,7 +615,7 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     tmp = engine.meta / "tmp"
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue                                # done in an earlier run
             if engine.stop.is_set():
@@ -903,7 +914,7 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     work = engine.meta / "tmp" / "read-aloud" / job.job_id
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -1119,7 +1130,7 @@ def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     failed: list[str] = []
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -1376,7 +1387,7 @@ def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     t0 = datetime.now()
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -1493,7 +1504,7 @@ def run_translate(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     model = getattr(engine, "text_model", "") or engine.s.ollama.text_model
     try:
         for i, src in enumerate(files):
-            rel = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            rel = _key(engine, src)
             todo = [x for x in langs if f"{rel} -> {x}" not in st.titles]
             if not todo:
                 continue
@@ -1719,7 +1730,7 @@ def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     rules = ("\n" + job.rules.strip()) if job.rules.strip() else ""
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -2023,7 +2034,7 @@ def run_photo_listing(engine: "Engine", mission: "Mission", job: "Job", st: "Job
     failed: list[str] = []
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -2105,7 +2116,7 @@ def run_read_scans(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     made: list[str] = []
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -2203,7 +2214,7 @@ def run_sort_photos(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     failed: list[str] = []
     try:
         for i, src in enumerate(files):
-            key = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+            key = _key(engine, src)
             if key in st.titles:
                 continue
             if engine.stop.is_set():
@@ -2435,7 +2446,7 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     texts: dict[str, str] = {}
     chunks: list[dict] = []
     for src in files:
-        name = str(src.relative_to(engine.sb.inbox)).replace("\\", "/")
+        name = _key(engine, src)
         try:
             t = document_text(src, engine.log)
         except (ValueError, OSError) as e:

@@ -768,3 +768,14 @@ def test_ask_files_no_question_means_summaries(app, monkeypatch):
     assert describe.plain_summary(chk) == ["Read 2 documents for summaries: Sum"]
     st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(parse("TASK: Sum  TYPE: ask-files\nINPUT: docs"))[0]
     assert st.status == "done" and [p.name for p in (app.sb.output / st.output).iterdir()] == ["summaries.md"]
+
+
+def test_tools_can_use_files_in_output(app):
+    """A tool can work on something Joe made earlier (INPUT: Output/...)."""
+    made = app.sb.output / "earlier"
+    made.mkdir(parents=True)
+    (made / "draft.txt").write_text("I saw teh cat.\n", encoding="utf-8")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: Again  TYPE: proofread\nINPUT: Output/earlier/draft.txt"))[0]
+    assert st.status == "done", st.note
+    assert st.titles == ["Output/earlier/draft.txt"]
