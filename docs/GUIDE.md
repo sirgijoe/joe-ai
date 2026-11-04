@@ -81,7 +81,7 @@ Pictures and video always run after the writing tasks, so the GPU switches over 
 - **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).
 - **Intro (when Joe opens)**: **Show the intro screen** turns the opening 01000001 01001001 / JOE
   screen on or off (it stays up about 3 seconds; a click or any key skips it). **Intro sound**:
-  a short jingle, then Joe says hello ("Hello! Joe here, reporting for duty." Change the words in
+  Joe's 8-bit theme (or a short chime: **Jingle**), then Joe says hello ("Hello! Joe here, reporting for duty." Change the words in
   **Joe's hello**), or jingle only, hello only, or **Mute**. **HEAR IT** plays it now. The spoken
   hello needs Joe's voice set up; it's made once and kept, so it plays right away. Always silent
   during quiet hours.

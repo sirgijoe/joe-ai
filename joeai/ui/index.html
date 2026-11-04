@@ -277,6 +277,8 @@ FORMAT: ...
           <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (F10 > System check). Always silent during quiet hours.">Intro sound
             <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
               <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
+          <label title="Which tune plays when Joe opens.">Jingle
+            <select data-path="ui.jingle"><option value="theme">Joe's 8-bit theme</option><option value="chime">Short chime</option></select></label>
           <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
           <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
           <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>

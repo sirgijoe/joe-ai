@@ -854,6 +854,16 @@ function boot() {
 // When Joe opens: a short rising jingle, then (with his voice set up) "Hello! Joe here, reporting
 // for duty." Setup > Comfort > "When Joe opens" picks jingle, voice, both or off. Quiet hours = silent.
 let bootCtx = null;
+// Joe's 8-bit intro theme. Resolves with its length (seconds) once it starts, so his spoken
+// hello can wait until the tune is done.
+function playTheme() {
+  return new Promise((ok, fail) => {
+    const a = new Audio("/sounds/intro.wav");
+    a.volume = 0.8;
+    a.addEventListener("error", () => fail(new Error("no theme")), { once: true });
+    a.play().then(() => ok(isFinite(a.duration) && a.duration > 0 ? a.duration : 3.2)).catch(fail);
+  });
+}
 function jingle(retro) {
   try {
     const actx = bootCtx = bootCtx || new AudioContext();
@@ -878,7 +888,11 @@ async function startupSound() {
   try { quiet = (await api("/api/state")).quiet; } catch (e) {}
   if (quiet) return;
   const retro = ["green", "amber", "white"].includes(s.ui.phosphor);
-  const wait = (mode === "jingle" || mode === "both") ? jingle(retro) * 1000 : 0;
+  let wait = 0;
+  if (mode === "jingle" || mode === "both") {
+    if (s.ui.jingle === "chime") wait = jingle(retro) * 1000;
+    else wait = await playTheme().catch(() => jingle(retro)) * 1000;   // the tones if the file won't play
+  }
   if (mode !== "voice" && mode !== "both") return;
   const hello = fetch("/api/voice/hello", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" })
     .then((r) => (r.headers.get("content-type") || "").startsWith("audio/") ? r.blob() : null).catch(() => null);

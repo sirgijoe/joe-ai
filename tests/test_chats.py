@@ -118,5 +118,8 @@ def test_intro_screen_can_be_turned_off(env):  # noqa: F811
         assert '<meta name="joe-intro" content="1">' in page()
         app.settings.ui.intro = False
         assert '<meta name="joe-intro" content="0">' in page()
+        with urllib.request.urlopen(url + "sounds/intro.wav", timeout=5) as r:     # Joe's 8-bit theme
+            body = r.read()
+            assert r.headers["Content-Type"] == "audio/wav" and body[:4] == b"RIFF" and len(body) < 400_000
     finally:
         httpd.shutdown()

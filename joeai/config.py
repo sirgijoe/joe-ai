@@ -78,6 +78,7 @@ class UISettings:
     welcomed: bool = False           # the first-start welcome (setup helper) has been seen
     intro: bool = True               # show the opening "01000001 01001001 / JOE" screen
     startup_sound: str = "both"      # when Joe opens: off | jingle | voice (Joe says hello) | both
+    jingle: str = "theme"            # theme = Joe's 8-bit intro (ui/sounds/intro.wav) | chime = short tones
     hello_text: str = "Hello! Joe here, reporting for duty."
 
 

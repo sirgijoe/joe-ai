@@ -833,6 +833,8 @@ def make_handler(app: App):
                                    "font-src 'self' https://fonts.gstatic.com; script-src 'self'"})
             if u.path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon")
+            if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle
+                return self._send(200, (UI_DIR / "sounds" / "intro.wav").read_bytes(), "audio/wav")
             if u.path in ("/app.css", "/app.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"
