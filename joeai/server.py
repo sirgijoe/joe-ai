@@ -44,7 +44,7 @@ UI_DIR = Path(__file__).parent / "ui"
 
 
 def local_font() -> Path | None:
-    """The retro VT323 font shipped with Joe (OFL), if it's there; else Google Fonts is used."""
+    """The retro VT323 font shipped with Joe (SIL OFL 1.1, joeai/ui/fonts/OFL.txt)."""
     f = UI_DIR / "fonts" / "VT323-Regular.ttf"
     return f if f.is_file() and f.stat().st_size > 10_000 else None
 TEXT_TYPES = {".md", ".txt", ".csv", ".json", ".log", ".py", ".cs", ".cpp", ".h", ".js",
@@ -1000,16 +1000,12 @@ def make_handler(app: App):
             if u.path in ("/", "/index.html"):
                 html = (UI_DIR / "index.html").read_text(encoding="utf-8")
                 html = html.replace("__INTRO__", "1" if app.settings.ui.intro else "0")
-                if local_font():                          # bundled font: no Google Fonts call at all
-                    html = re.sub(r'<link rel="(?:preconnect|stylesheet)" href="https://fonts\.googleapis\.com[^>]*>\n?',
-                                  "", html)
-                    html = html.replace("</head>", '<link rel="stylesheet" href="/fonts/vt323.css">\n</head>', 1)
                 return self._send(200, html.replace("__TOKEN__", app.token).encode(),
                                   "text/html; charset=utf-8",
                                   {"Content-Security-Policy":
                                    "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; "
-                                   "style-src 'self' https://fonts.googleapis.com 'unsafe-inline'; "
-                                   "font-src 'self' https://fonts.gstatic.com; script-src 'self'"})
+                                   "style-src 'self' 'unsafe-inline'; "
+                                   "font-src 'self'; script-src 'self'"})
             if u.path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon")
             if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle

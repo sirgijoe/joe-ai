@@ -295,3 +295,10 @@ def test_report_names_skipped_parts():
     m = parse("TASK: Test requests\nCHUNKS: 2 x 15\nFORMAT: one line each")
     lines = "\n".join(_mission_lines(m, [st]))
     assert "part 2 skipped" in lines and "0 part(s)" not in lines
+
+
+def test_font_is_bundled_and_served_locally():
+    from joeai.server import UI_DIR, local_font
+    assert local_font() and (UI_DIR / "fonts" / "OFL.txt").is_file()
+    html = (UI_DIR / "index.html").read_text(encoding="utf-8")
+    assert "googleapis" not in html and "/fonts/vt323.css" in html

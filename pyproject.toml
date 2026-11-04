@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "joe-ai"
-version = "2.0.0.dev68"
+version = "2.0.0.dev69"
 description = "Joe (01000001 01001001): overnight grunt work on your own PC with local AI models"
 readme = "README.md"
 license = "GPL-3.0-or-later"
@@ -21,7 +21,7 @@ dev = ["pytest>=8"]
 packages = ["joeai"]
 
 [tool.setuptools.package-data]
-joeai = ["ui/*.html", "ui/*.js", "ui/*.css", "ui/sounds/*.wav"]
+joeai = ["ui/*.html", "ui/*.js", "ui/*.css", "ui/sounds/*.wav", "ui/fonts/*.ttf", "ui/fonts/*.txt"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

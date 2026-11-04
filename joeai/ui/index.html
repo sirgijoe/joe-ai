@@ -6,8 +6,7 @@
 <meta name="nr-token" content="__TOKEN__">
 <meta name="joe-intro" content="__INTRO__">
 <title>Joe</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
+<link rel="stylesheet" href="/fonts/vt323.css">
 <link rel="stylesheet" href="/app.css">
 </head>
 <body class="ph-green crt-2">
@@ -466,7 +465,6 @@ FORMAT: ...
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
                   <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. Turn it off in General &gt; Updates.</li>
-                  <li><b>Display font</b> for the retro looks, from Google Fonts. Without internet Joe uses a built-in font.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
                   <li><b>Talk lookups</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Online lookups).</li>
                 </ul>
@@ -555,7 +553,7 @@ FORMAT: ...
  Joe comes with NO WARRANTY, to the extent the law allows.
 
  Other pieces, each under its own license:
-   VT323 font ........ SIL Open Font License 1.1
+   VT323 font ........ SIL Open Font License 1.1 (bundled, joeai/ui/fonts/OFL.txt)
    Ollama ............ separate program (MIT license)
    ComfyUI ........... separate program (GPL-3.0)
    FFmpeg ............ separate program (LGPL/GPL)
@@ -596,7 +594,6 @@ FORMAT: ...
   - install programs and download AI models (only after you say yes)
   - get the hearing model for other languages, once (Transcribe)
   - check GitHub for a newer Joe (Setup > General > Updates)
-  - load the retro display font from Google Fonts
   - send a phone ping, if you set one up (one short line)
   - look things up in Talk, if you turn it on (search words only)
  Ollama and ComfyUI have their own update checks and settings.
