@@ -824,6 +824,7 @@ def make_handler(app: App):
             app.last_seen = time.monotonic()
             if u.path in ("/", "/index.html"):
                 html = (UI_DIR / "index.html").read_text(encoding="utf-8")
+                html = html.replace("__INTRO__", "1" if app.settings.ui.intro else "0")
                 return self._send(200, html.replace("__TOKEN__", app.token).encode(),
                                   "text/html; charset=utf-8",
                                   {"Content-Security-Policy":

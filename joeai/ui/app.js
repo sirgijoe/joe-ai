@@ -836,10 +836,11 @@ function boot() {
   let shown = false;
   try { shown = sessionStorage.getItem("joe-booted") === "1"; sessionStorage.setItem("joe-booted", "1"); } catch (e) {}
   const done = () => { el.classList.add("gone"); setTimeout(() => el.remove(), 600); };
-  if (shown || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.remove(); return; }
+  const introOff = (document.querySelector('meta[name="joe-intro"]') || {}).content === "0";
+  if (!shown) startupSound();                       // the sound has its own on/off; it plays even with no intro screen
+  if (shown || introOff || matchMedia("(prefers-reduced-motion: reduce)").matches) { el.remove(); return; }
   el.addEventListener("click", done);
   document.addEventListener("keydown", done, { once: true });
-  startupSound();
   let i = 0;
   const t = setInterval(() => {
     $("#boot-bin").textContent = bin.slice(0, ++i) + (i < bin.length ? "█" : "");

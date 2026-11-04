@@ -4,6 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="nr-token" content="__TOKEN__">
+<meta name="joe-intro" content="__INTRO__">
 <title>Joe</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=VT323&display=swap">
@@ -271,9 +272,11 @@ FORMAT: ...
         </fieldset>
         <fieldset class="wide comfort"><legend>COMFORT</legend>
           <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
-          <label title="What you hear when Joe's window opens. Joe's spoken hello needs his voice set up (F10 > System check). Silent during quiet hours.">When Joe opens
+          <div class="dim small">INTRO (WHEN JOE OPENS)</div>
+          <label title="The short 01000001 01001001 / JOE screen when Joe opens. Off = straight to work.">Show the intro screen <input type="checkbox" data-path="ui.intro"></label>
+          <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (F10 > System check). Always silent during quiet hours.">Intro sound
             <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
-              <option value="voice">Joe says hello</option><option value="off">Nothing</option></select></label>
+              <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
           <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
           <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
           <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>

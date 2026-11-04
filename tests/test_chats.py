@@ -104,3 +104,19 @@ def test_hello_voice_is_made_once_and_kept(env, tmp_path, monkeypatch):  # noqa:
     assert calls[-1] == "Morning, boss." and len(list((tmp_path / "cfg" / "hello").glob("*.wav"))) == 1
     monkeypatch.setattr(app, "quiet", lambda: True)
     assert app.hello_audio()[0] == b""                                 # silent in quiet hours
+
+
+def test_intro_screen_can_be_turned_off(env):  # noqa: F811
+    from joeai.server import App, serve
+    s, sb, _ = env
+    app = App(s)
+    httpd = serve(app)
+    threading.Thread(target=httpd.serve_forever, daemon=True).start()
+    url = f"http://127.0.0.1:{httpd.server_address[1]}/"
+    try:
+        page = lambda: urllib.request.urlopen(url, timeout=5).read().decode()  # noqa: E731
+        assert '<meta name="joe-intro" content="1">' in page()
+        app.settings.ui.intro = False
+        assert '<meta name="joe-intro" content="0">' in page()
+    finally:
+        httpd.shutdown()

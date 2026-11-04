@@ -79,11 +79,12 @@ Pictures and video always run after the writing tasks, so the GPU switches over 
 ## Comfort (Setup > Comfort)
 
 - **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).
-- **When Joe opens**: a short jingle, then Joe says hello ("Hello! Joe here, reporting for
-  duty." Change the words in **Joe's hello**). Pick jingle only, hello only, both, or nothing;
-  **HEAR IT** plays it now. The spoken hello needs Joe's voice set up; it's made once and kept,
-  so it plays right away. Silent during quiet hours. The opening screen stays up about 3 seconds
-  (click or press any key to skip it).
+- **Intro (when Joe opens)**: **Show the intro screen** turns the opening 01000001 01001001 / JOE
+  screen on or off (it stays up about 3 seconds; a click or any key skips it). **Intro sound**:
+  a short jingle, then Joe says hello ("Hello! Joe here, reporting for duty." Change the words in
+  **Joe's hello**), or jingle only, hello only, or **Mute**. **HEAR IT** plays it now. The spoken
+  hello needs Joe's voice set up; it's made once and kept, so it plays right away. Always silent
+  during quiet hours.
 - **Screen saver**: after this many minutes without the mouse or keyboard (default 10, 0 = off)
   the window goes dark with a small, slowly drifting status line. Any key or mouse move wakes it.
 - **Quiet hours** (e.g. 22:00 to 07:00): no chimes and no phone pings. A ping waits until they end.

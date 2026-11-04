@@ -76,6 +76,7 @@ class UISettings:
     sounds: bool = False             # a soft chime when a run finishes or something fails
     check_updates: bool = True       # look for a newer release on GitHub when Joe starts
     welcomed: bool = False           # the first-start welcome (setup helper) has been seen
+    intro: bool = True               # show the opening "01000001 01001001 / JOE" screen
     startup_sound: str = "both"      # when Joe opens: off | jingle | voice (Joe says hello) | both
     hello_text: str = "Hello! Joe here, reporting for duty."
 
