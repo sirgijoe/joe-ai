@@ -486,8 +486,7 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log) -> list
                        "--css", css.name], log, 300)
             edge = _edge()
             if ok and edge:
-                ok = _run([edge, "--headless", "--disable-gpu", "--no-pdf-header-footer",
-                           f"--print-to-pdf={out}", html.resolve().as_uri()], log, 300)
+                ok = _print_pdf(edge, html, out, log)
             elif ok:
                 log("  PDF needs Microsoft Edge (built into Windows); saved HTML instead.")
             for tmp in (html, css):
@@ -501,6 +500,60 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log) -> list
         else:
             log(f"  unknown export format: {fmt}")
     return made
+
+
+def _kill_tree(p: subprocess.Popen) -> None:
+    """Stop a program and everything it started (Edge starts several helper processes)."""
+    try:
+        if sys.platform == "win32":
+            subprocess.run(["taskkill", "/PID", str(p.pid), "/T", "/F"], capture_output=True,
+                           timeout=30, creationflags=NO_WINDOW)
+        else:
+            p.kill()
+    except (OSError, subprocess.SubprocessError):
+        pass
+
+
+def _print_pdf(edge: str, html: Path, out: Path, log: Log, timeout: int = 180) -> bool:
+    """Print an HTML file to PDF with headless Edge/Chrome, without ever hanging the run.
+
+    Edge's helper processes can keep an output pipe open forever, so Joe never captures its
+    output; it gets its own throwaway profile (so it never hands the job to an Edge window
+    that's already open, like Joe's own), and Joe waits for the PDF, not for Edge to exit."""
+    import tempfile
+    prof = Path(tempfile.mkdtemp(prefix="joe-pdf-"))
+    cmd = [edge, "--headless", "--disable-gpu", "--no-first-run", "--no-default-browser-check",
+           f"--user-data-dir={prof}", "--no-pdf-header-footer", f"--print-to-pdf={out}",
+           html.resolve().as_uri()]
+    log("  > " + Path(edge).name + " (printing the PDF)")
+    try:
+        out.unlink(missing_ok=True)
+        p = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
+                             stderr=subprocess.DEVNULL, creationflags=NO_WINDOW)
+    except OSError as e:
+        log(f"  couldn't start the PDF printer: {e}")
+        shutil.rmtree(prof, ignore_errors=True)
+        return False
+    end = time.monotonic() + timeout
+    size = -1
+    while time.monotonic() < end:
+        done = p.poll() is not None
+        if out.exists():
+            now = out.stat().st_size
+            if now > 0 and (now == size or done):       # finished writing
+                break
+            size = now
+        elif done:
+            break
+        time.sleep(1)
+    ok = out.exists() and out.stat().st_size > 0
+    if p.poll() is None:
+        _kill_tree(p)
+    if not ok:
+        log(f"  The PDF didn't come out within {timeout // 60} min; skipped it (the Word copy and "
+            "the .md are fine).")
+    shutil.rmtree(prof, ignore_errors=True)
+    return ok
 
 
 def _edge() -> str | None:

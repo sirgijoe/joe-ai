@@ -292,3 +292,37 @@ def test_attach_route_and_stream_uses_files(app):
     lines = [json.loads(l) for l in urllib.request.urlopen(req, timeout=20).read().splitlines() if l.strip()]
     assert lines[-1]["say"] == "Line one. Line two." and app.talk_files == []
     httpd.shutdown()
+
+
+def test_pdf_print_never_hangs(tmp_path, monkeypatch):
+    """A printer that never exits (like Edge's helpers holding a pipe) must not stall the run."""
+    import sys
+    from joeai import addons
+    html = tmp_path / "a.print.html"
+    html.write_text("<p>x</p>")
+    out = tmp_path / "a.pdf"
+    stuck = tmp_path / "stuck.py"
+    stuck.write_text("import time\ntime.sleep(600)\n")
+    monkeypatch.setattr(addons, "_kill_tree", lambda p: p.kill())
+    import time
+    t = time.monotonic()
+    real_popen = addons.subprocess.Popen
+    monkeypatch.setattr(addons.subprocess, "Popen",
+                        lambda cmd, **kw: real_popen([sys.executable, str(stuck)], **kw))
+    assert addons._print_pdf("edge", html, out, lambda m: None, timeout=3) is False
+    assert time.monotonic() - t < 15
+
+
+def test_pdf_print_waits_for_the_file(tmp_path, monkeypatch):
+    import sys
+    from joeai import addons
+    html = tmp_path / "a.print.html"
+    html.write_text("<p>x</p>")
+    out = tmp_path / "a.pdf"
+    maker = tmp_path / "make.py"
+    maker.write_text(f"import time\ntime.sleep(1)\nopen(r'{out}','wb').write(b'%PDF-1.4 x')\ntime.sleep(600)\n")
+    monkeypatch.setattr(addons, "_kill_tree", lambda p: p.kill())
+    real_popen = addons.subprocess.Popen
+    monkeypatch.setattr(addons.subprocess, "Popen",
+                        lambda cmd, **kw: real_popen([sys.executable, str(maker)], **kw))
+    assert addons._print_pdf("edge", html, out, lambda m: None, timeout=20) is True
