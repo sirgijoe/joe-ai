@@ -478,6 +478,11 @@ best installed model for your GPU is used. `SEED: 1234` makes runs repeatable.
 
 No `WORKFLOW` = a built-in text-to-image graph for SD 1.5 / SDXL checkpoints.
 
+**ComfyUI Desktop waits on its start screen?** Joe opens ComfyUI by himself, but ComfyUI
+Desktop can stop on its start screen (the list of installs, or "New / GitHub / Cloud") and
+wait for a click while Joe waits too. Set it once: ComfyUI menu (☰, top left) > **Desktop
+Settings** > **Auto-launch on startup** > pick your install (not "None (show dashboard)").
+
 **Video without a workflow file:** System check offers Wan 2.2 5B (Apache 2.0, about 18 GB,
 needs an 8 GB+ graphics card). After it downloads, restart ComfyUI once. Then
 `TASK: Shop tour  SAVE: clips/tour.mp4` (or `TYPE: video`) makes about 5-second 1280 x 704

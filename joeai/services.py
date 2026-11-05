@@ -119,13 +119,19 @@ class ServiceManager:
             return False
         hint = ("ComfyUI is taking a while to open. It may be updating, or waiting for you to click "
                 "something in its own window (an Update, Restart or Install button). Have a look; Joe "
-                "keeps waiting.")
+                "keeps waiting."
+                " If ComfyUI Desktop stops on its start screen (the list of installs, or New / GitHub / Cloud), "
+                "set it to open your install by itself: ComfyUI menu (☰, top left) > Desktop Settings > "
+                "Auto-launch on startup > your install.")
         if self._wait(self.comfy_up, COMFY_START_WAIT_S, "ComfyUI to open", hint_after=45, hint=hint):
             self.attention = ""
             self.log(f"ComfyUI is ready at {self.comfy_base}.")
             return True
         self.attention = ("ComfyUI didn't open. If its window shows an update or a question, finish "
-                          "that, then press RUN (F5) again: Joe carries on where he stopped.")
+                          "that, then press RUN (F5) again: Joe carries on where he stopped."
+                          " If ComfyUI Desktop stops on its start screen (the list of installs, or New / GitHub / Cloud), "
+                "set it to open your install by itself: ComfyUI menu (☰, top left) > Desktop Settings > "
+                "Auto-launch on startup > your install.")
         self.log(f"ComfyUI didn't answer within {COMFY_START_WAIT_S // 60} minutes. If its window is "
                  "showing a question or an update, answer it and press F5 again.")
         return False

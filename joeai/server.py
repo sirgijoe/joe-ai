@@ -671,6 +671,10 @@ class App:
             try:
                 if action == "install":
                     ok = doctor.install(tool, self.log, approved=True)
+                    if ok and tool == "comfyui":
+                        self.log("Tip: so ComfyUI Desktop doesn't stop on its start screen each time, "
+                                 "set ComfyUI menu (☰, top left) > Desktop Settings > Auto-launch on "
+                                 "startup > your install, once it has finished setting up.")
                     if ok and tool in ("ollama", "comfyui"):
                         (self.services.ensure_ollama if tool == "ollama" else self.services.ensure_comfy)()
                 elif action == "start":
