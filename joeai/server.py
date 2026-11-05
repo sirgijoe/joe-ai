@@ -66,10 +66,11 @@ class App:
         self.sb = Sandbox(self.settings.workspace_path).ensure()
         storage_mod.cap_logs(self.sb)
         self.token = secrets.token_urlsafe(24)
+        self.held_plan: dict = {}                 # a request that waits for the pictures to finish
         self.lock = threading.RLock()
         self.logs: collections.deque[str] = collections.deque(maxlen=400)
         self.log_count = 0                   # lines logged since Joe started (never goes down)
-        self.log_from = 0                    # the Queue screen shows lines from here (this chat)
+        self.log_from = 0                    # the Home screen shows lines from here (this chat)
         self.capture: list[str] | None = None   # the running mission's log, saved into its chat
         self.engine: Engine | None = None
         self.thread: threading.Thread | None = None
@@ -492,12 +493,12 @@ class App:
                 "image_models": imgs}
 
     def session_log(self, n: int = 120) -> list[str]:
-        """The Queue screen's log: only what happened in this chat (a fresh chat starts empty)."""
+        """The Home screen's log: only what happened in this chat (a fresh chat starts empty)."""
         mine = max(0, min(len(self.logs), self.log_count - self.log_from))
         return list(self.logs)[len(self.logs) - mine:][-n:] if mine else []
 
     def new_session(self) -> dict:
-        """A complete fresh start (Joe opening, or NEW CHAT): a new chat, an empty Queue screen.
+        """A complete fresh start (Joe opening, or NEW CHAT): a new chat, an empty Home screen.
         Work that's still running stays on screen; it reports back to the chat it started in."""
         with self.lock:
             self.new_chat()
@@ -553,6 +554,36 @@ class App:
         except OSError as e:
             self.log(f"Couldn't save the results to the chat: {e}")
 
+    def plan_now(self, text: str) -> dict:
+        from . import describe as describe_mod
+        r = describe_mod.draft(self, text)
+        if r.get("ok"):                          # the request and the plan go in this chat
+            self.note_chat({"who": "you", "text": text.strip()[:4000]})
+            self.note_chat({"who": "joe", "kind": "plan", "text": "Here's the plan (" + r["time"] + "):",
+                            "summary": r["summary"], "mission": r["mission"]})
+        return r
+
+    def hold_plan(self, text: str) -> dict:
+        """Joe is busy drawing (the graphics card is full): keep the request, plan it after."""
+        from .chat import busy_drawing
+        text = text.strip()
+        if len(text) < 4:
+            return {"ok": False, "error": "Tell Joe what you need first, in your own words."}
+
+        def wait_then_plan():
+            while busy_drawing(self) and self.held_plan.get("text") == text:
+                time.sleep(3)
+            if self.held_plan.get("text") != text:
+                return                           # replaced or cancelled
+            r = self.plan_now(text)
+            if self.held_plan.get("text") == text:
+                self.held_plan = {"text": text, "status": "ready", "result": r}
+        self.held_plan = {"text": text, "status": "waiting"}
+        threading.Thread(target=wait_then_plan, daemon=True).start()
+        return {"ok": False, "held": True,
+                "error": "Joe is busy drawing right now. He'll plan this as soon as the pictures "
+                         "finish, and it'll show up here. You can leave it."}
+
     def state(self) -> dict:
         eng = self.engine
         jobs = []
@@ -592,6 +623,7 @@ class App:
                 "queued": [e["label"] for _, _, e in self.queue],
                 "media": media[-12:][::-1],
                 "chain": len(self.chain),
+                "held_plan": {k: v for k, v in self.held_plan.items() if k != "thread"},
                 "quiet": self.quiet(), "finished": self.finished,
                 "comfort": {"screensaver_min": s.comfort.screensaver_min}}
 
@@ -679,9 +711,20 @@ class App:
                         (self.services.ensure_ollama if tool == "ollama" else self.services.ensure_comfy)()
                 elif action == "start":
                     (self.services.ensure_ollama if tool == "ollama" else self.services.ensure_comfy)()
+                elif action == "update":
+                    from . import upkeep
+                    ok = (upkeep.update_ollama(self.log) if tool == "ollama"
+                          else upkeep.install_comfy_own(self.log, progress=prog))
+                    if ok:
+                        upkeep.forget_updates()
+                        self.log(f"{tool} is up to date." + (" Restart ComfyUI so it uses the new version."
+                                                            if tool == "comfyui" and self.services.comfy_up() else ""))
                 elif action == "pull":
                     if doctor.pull_ollama_model(self.services, model, self.log, approved=True, progress=prog):
-                        if b.get("set") == "talk":                    # the quick Talk model
+                        if b.get("keep"):                              # refreshed an installed model
+                            from . import upkeep
+                            upkeep.forget_updates()
+                        elif b.get("set") == "talk":                    # the quick Talk model
                             self.settings.voice.talk_model = model
                             self.settings.save()
                             self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
@@ -725,7 +768,7 @@ class App:
             finally:
                 self.fix_result = {"action": action, "ok": bool(ok), "n": self.fix_result.get("n", 0) + 1}
                 self.busy, self.busy_pct = "", None
-        labels = {"install": f"installing {tool}", "start": f"starting {tool}",
+        labels = {"install": f"installing {tool}", "start": f"starting {tool}", "update": f"updating {tool}",
                   "pull": f"downloading {model}", "download-image-model": "downloading image model",
                   "download-video-model": "downloading video model",
                   "download-video-turbo": "downloading the Turbo add-on",
@@ -1116,6 +1159,11 @@ def make_handler(app: App):
                     from . import update as update_mod
                     if q.get("auto") and not app.settings.ui.check_updates:
                         return self._json({"ok": False, "off": True})
+                    if q.get("force"):                    # the button: helpers and models too
+                        from . import upkeep
+                        upkeep.check_in_background(app.services.ollama.base,
+                                                   doctor.ollama_models(app.services) if app.services.ollama_up() else [],
+                                                   force=True)
                     return self._json(update_mod.check(force=bool(q.get("force"))))
                 if u.path == "/api/doctor":
                     return self._json(doctor.check(app.settings, app.services))
@@ -1354,15 +1402,17 @@ def make_handler(app: App):
                     return self._json({"ok": not err, "error": err})
                 if u.path == "/api/speedtest":
                     return self._json(app.speed_test())
+                if u.path == "/api/route":             # one box: command, chat, plan or unclear?
+                    from .route import classify
+                    return self._json(classify(str(b.get("text", ""))[:4000]))
                 if u.path == "/api/describe":          # plain words in, a mission + summary out
-                    from . import describe as describe_mod
-                    r = describe_mod.draft(app, b.get("text", ""))
-                    if r.get("ok"):                  # the request and the plan go in this chat
-                        ask = str(b.get("text", "")).strip()[:4000]
-                        app.note_chat({"who": "you", "text": ask})
-                        app.note_chat({"who": "joe", "kind": "plan", "text": "Here's the plan (" + r["time"] + "):",
-                                       "summary": r["summary"], "mission": r["mission"]})
-                    return self._json(r)
+                    from .chat import busy_drawing
+                    if busy_drawing(app):              # hold it: plan once the pictures finish
+                        return self._json(app.hold_plan(str(b.get("text", ""))))
+                    return self._json(app.plan_now(str(b.get("text", ""))))
+                if u.path == "/api/describe/held":     # the UI took the held plan (or dropped it)
+                    app.held_plan = {}
+                    return self._json({"ok": True})
                 if u.path == "/api/session/new":       # Joe opened, or NEW CHAT: a fresh start
                     return self._json(app.new_session())
                 if u.path == "/api/summary":           # plain-English summary of any mission

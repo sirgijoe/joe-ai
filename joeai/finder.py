@@ -319,6 +319,11 @@ def _search_roots() -> list[Path]:
     for d in (h / "Desktop", h / "Documents", h / "Downloads", h / "AI"):
         roots += [c for c in _children(d) if _is_dir(c) and re.search(r"\bai\b|stable|diffusion|tools",
                                                                       c.name, re.I)]
+    try:
+        from .addons import addons_dir
+        roots.append(addons_dir())                      # the copy Joe set up himself
+    except Exception:
+        pass
     roots += [h / "comfy", h / "pinokio" / "api", h / "StabilityMatrix" / "Data" / "Packages"]
     if WINDOWS:
         ad = _env("APPDATA")

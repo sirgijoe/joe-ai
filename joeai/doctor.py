@@ -65,6 +65,24 @@ PAGES = {"uv": "https://docs.astral.sh/uv/getting-started/installation/",
          "pandoc": "https://pandoc.org/installing.html"}
 
 
+def install_how(tool: str) -> str:
+    """One plain sentence for the 'install it?' question, true for this system."""
+    from . import system
+    plan = system.install_plan(tool)
+    k, mgr = plan["kind"], system.manager_label(plan.get("manager"))
+    if k == "run":
+        return f"Install it now with {mgr}? Your computer may ask for permission."
+    if k == "joe":
+        return {"ollama": "Download Ollama's official Mac app into your Applications folder now?",
+                "comfyui": "Set it up now? Joe downloads ComfyUI from its official GitHub page into his "
+                           "own folder, with a private Python (about 3-5 GB in all). It takes a while."
+                }.get(tool, "Set it up now?")
+    if k == "command":
+        return ("This one needs your computer's admin password, which Joe never asks for. Show the "
+                "one line to paste into a terminal?")
+    return "There's no automatic install here. Open the official download page?"
+
+
 def run_install(tool: str, label: str, page: str, log: Log) -> bool:
     """Install one program the way this system does it (see system.install_plan)."""
     from . import system
@@ -76,6 +94,13 @@ def run_install(tool: str, label: str, page: str, log: Log) -> bool:
             "opening the official download page instead.")
         if page:
             webbrowser.open(page)
+        return False
+    if plan["kind"] == "joe":
+        from . import upkeep
+        if tool == "ollama":
+            return upkeep.install_ollama_mac(log)
+        if tool == "comfyui":
+            return upkeep.install_comfy_own(log)
         return False
     if plan["kind"] == "command":
         log(f"Installing {label} needs your admin password, and Joe never asks for passwords. "
@@ -111,7 +136,7 @@ def ollama_models(sm: ServiceManager) -> list[dict]:
         d = m.get("details", {}) or {}
         out.append({"name": m["name"], "size_gb": round(m.get("size", 0) / 2**30, 1),
                     "params": d.get("parameter_size", "") or _tag_params(m["name"]),
-                    "family": d.get("family", ""),
+                    "family": d.get("family", ""), "digest": m.get("digest", ""),
                     "writer": not NOT_WRITERS.search(m["name"])})
     return out
 
@@ -151,10 +176,16 @@ def smaller_text_model(sm: ServiceManager, current: str) -> str | None:
 
 
 def recommended_download(vram_gb: float) -> dict:
-    for need, name, gb in OLLAMA_PICKS:
+    """Best writing model to download for this card (list from upkeep: GitHub copy or built-in)."""
+    from .upkeep import writing_picks
+    try:
+        rows = writing_picks()
+    except Exception:
+        rows = OLLAMA_PICKS
+    for need, name, gb in rows:
         if (vram_gb or 0) >= need:
             return {"name": name, "size_gb": gb}
-    return {"name": OLLAMA_PICKS[-1][1], "size_gb": OLLAMA_PICKS[-1][2]}
+    return {"name": rows[-1][1], "size_gb": rows[-1][2]}
 
 
 def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
@@ -233,9 +264,11 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                            "what": f"{rec['name']} ({rec['size_gb']} GB)"})
         if addons_mod_voice_ready() and not settings.voice.talk_model and \
                 not any(1 <= _params_b(m["params"]) <= 4.5 for m in writers):
-            issues.append({"id": "pull-talk-model", "text": "A small, quick model just for Talk (qwen3:4b, "
-                           "2.6 GB) makes Joe answer much faster when you talk to him.",
-                           "action": "pull", "model": "qwen3:4b", "set": "talk", "optional": True})
+            from .upkeep import talk_pick
+            tp = talk_pick()
+            issues.append({"id": "pull-talk-model", "text": f"A small, quick model just for Talk ({tp['name']}, "
+                           f"{tp['size_gb']} GB) makes Joe answer much faster when you talk to him.",
+                           "action": "pull", "model": tp["name"], "set": "talk", "optional": True})
         if settings.quality.writing == "low" and best_text and not smaller_text_model(sm, best_text):
             cur_b = next((_params_b(m["params"]) for m in writers if m["name"] == best_text), 0)
             tag_b = lambda n: _params_b(n.split(":")[-1].upper())               # noqa: E731
@@ -311,7 +344,19 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     if not ffmpeg_exe(settings.comfy.ffmpeg):
         issues.append({"id": "install-ffmpeg", "text": "FFmpeg not found (only needed to turn "
                        "frames/GIFs into MP4).", "action": "install", "tool": "ffmpeg", "optional": True})
+    from . import upkeep
+    if oll_up:
+        upkeep.check_in_background(sm.ollama.base, omodels)
+    installed = {m["name"] for m in omodels}
+    for it in upkeep.known_updates():
+        if it.get("action") == "pull" and it.get("model") not in installed:
+            continue                       # that model was removed since the check
+        issues.append(dict(it))
+    for it in issues:
+        if it.get("action") == "install" and it.get("tool"):
+            it["how"] = install_how(it["tool"])
     return {
+        "updates_checking": upkeep.checking(),
         "gpu": g, "vram_gb": vram, "ram_gb": hardware.ram_total_gb(), "winget": bool(winget()),
         "gpu_advice": hardware.gpu_advice(g), "vendor": g.get("vendor") if g else "none",
         "os": _system.pretty_name(), "pkg": _system.manager_label(_system.package_manager())

@@ -143,6 +143,7 @@ async function poll() {
     if (++fails === 3) $("#status").innerHTML = "&nbsp;CONNECTION LOST — close this window and start Joe again";
     return;
   }
+  heldPlanTick();
   if ((state.attention || "") !== (window._lastAttention || "")) {      // ComfyUI needs the person
     window._lastAttention = state.attention || "";
     if (state.attention) toast(state.attention, 15000);
@@ -197,9 +198,12 @@ async function poll() {
   const done = state.jobs.reduce((a, j) => a + j.parts_done, 0);
   const total = state.jobs.reduce((a, j) => a + j.parts_total, 0);
   const loaded = (sv.loaded || [])[0];
+  // Plain words: is writing / are pictures ready? (Joe starts Ollama and ComfyUI by himself when needed.)
+  const dd = doctorData;
+  const plain = (up, inst, busy) => up ? "READY" : busy ? "BUSY" : (dd && !inst) ? "NOT SET UP" : "STARTS WHEN NEEDED";
   const parts = [
-    `OLLAMA ${sv.ollama ? "UP" : "DOWN"}`,
-    `COMFYUI ${sv.comfyui ? "UP" : (state.running ? "BUSY" : "DOWN")}`,   // a big model loading can keep it from answering
+    `WRITING ${plain(sv.ollama, dd && dd.ollama.installed, false)}`,
+    `PICTURES ${plain(sv.comfyui, dd && dd.comfyui.installed, state.running)}`,   // a big model loading can keep it from answering
     `MODEL ${state.model}${loaded ? " " + loaded.gpu_pct + "% GPU" : ""}`,
     state.running ? (state.stopping ? "STOPPING…" : `RUNNING ${done}/${total} ETA ${fmtEta(state.eta_s)}`) : (state.busy ? state.busy.toUpperCase() + (state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : "") + "…" : "IDLE"),
   ];
@@ -214,10 +218,10 @@ async function poll() {
     gpuHtml = `<span class="${hot ? "hot blink" : ""}" title="${esc(hw.name || "GPU")}">GPU ${esc(bits.join(" "))}</span>`;
   }
   $("#status").innerHTML = parts.map((p) => `<span>${esc(p)}</span>`).join("") + gpuHtml;
-  if (current === "setup" && state.busy !== lastBusy) { lastBusy = state.busy; if (!state.busy) loadDoctor(); }
+  if (state.busy !== lastBusy) { lastBusy = state.busy; if (!state.busy) loadDoctor(); }
   const fr = state.fix_result || {};
   if (fr.n && fr.n !== lastFix) {
-    if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe F2 log says why (it's also saved in\n%LOCALAPPDATA%\\joe-ai\\addons\\install.log).\nCopy the last lines to Claude to get it fixed.\n\nOpen the log now?", () => show("queue"));
+    if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > System check > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
     else if (lastFix !== -1 && fr.ok) toast("Setup finished");
     lastFix = fr.n;
   } else if (lastFix === -1) lastFix = fr.n || 0;
@@ -244,24 +248,64 @@ async function refreshPlan() {                 // keep the plain plan in step wi
   try { const r = await api("/api/summary", { text }); if (r.ok) showPlan(r); else hidePlan(); } catch (e) {}
 }
 let describing = false;
+// One box for everything: short words run right away, questions go to Talk, work gets a plan.
+const COMMAND_SAY = { run: "Starting the plan.", stop: "Stopping after the current step.",
+  help: "Here's the help page.", report: "Here's the last report.", files: "Here are your files.",
+  tools: "Here are the tools.", setup: "Here's Setup.", check: "Here's what Joe found on this PC.",
+  updates: "Checking for updates to Joe, Ollama, ComfyUI and your models…", new: "New chat: a fresh start.",
+  talk: "Talk to Joe here.", builder: "Build it step by step here.", stats: "Here are the numbers." };
+async function doCommand(cmd) {
+  const say = COMMAND_SAY[cmd] || "";
+  if (cmd === "run") {
+    if (state && state.running) return "Joe is already working. Say stop to stop.";
+    if (!$("#mission").value.trim()) return "There's no plan yet. Tell Joe what to make first, then say go.";
+    await runOrStop(); return say;
+  }
+  if (cmd === "stop") { if (state && state.running) { await api("/api/stop", {}); return say; } return "Nothing is running."; }
+  if (cmd === "new") { await freshStart(); return say; }
+  if (cmd === "check") { show("setup", "system"); loadDoctor(); return say; }
+  if (cmd === "updates") { show("setup", "system"); await checkUpdate(true); setTimeout(loadDoctor, 6000); return say; }
+  const scr = { help: "help", report: "report", files: "files", tools: "tools", setup: "setup", talk: "talk",
+    builder: "builder", stats: "stats" }[cmd];
+  if (scr) show(scr);
+  return say;
+}
+async function routeText(text) {
+  try { return await api("/api/route", { text }); } catch (e) { return { kind: "plan" }; }
+}
 async function describeIt() {
   const text = $("#describe").value.trim();
   if (!text) { $("#describe-msg").textContent = "Type what you need first."; $("#describe").focus(); return; }
   if (describing) return;
+  const rt = await routeText(text);
+  if (rt.kind === "command") { $("#describe").value = ""; $("#describe-msg").textContent = await doCommand(rt.cmd); return; }
+  if (rt.kind === "unclear") { $("#describe-msg").textContent = rt.say; return; }
+  if (rt.kind === "chat") { $("#describe").value = ""; $("#describe-msg").textContent = ""; show("talk"); await talkSend(text); return; }
   describing = true;
   $("#btn-describe").disabled = true;
   $("#describe-msg").innerHTML = '<span class="blink">Joe is planning…</span> this takes a few seconds';
   try {
     const r = await api("/api/describe", { text });
     if (!r.ok) { $("#describe-msg").textContent = r.error; return; }
+    takePlan(r);
+  } catch (e) { $("#describe-msg").textContent = e.message; }
+  finally { describing = false; $("#btn-describe").disabled = false; }
+}
+function takePlan(r) {
     $("#mission").value = r.mission;
     api("/api/mission/save", { text: r.mission });
     $("#plan").textContent = "";
     showPlan(r);
     $("#describe-msg").textContent = "Here's the plan. Change it, or press RUN IT.";
     loadChats();
-  } catch (e) { $("#describe-msg").textContent = e.message; }
-  finally { describing = false; $("#btn-describe").disabled = false; }
+}
+function heldPlanTick() {                        // a request held while Joe was drawing is ready
+  const h = state && state.held_plan;
+  if (!h || h.status !== "ready") return;
+  api("/api/describe/held", {});
+  state.held_plan = {};
+  if (h.result && h.result.ok) { takePlan(h.result); toast("Joe planned what you asked for earlier. Check it on the Home screen."); }
+  else if (h.result) { $("#describe-msg").textContent = h.result.error; }
 }
 $("#describe").addEventListener("keydown", (ev) => {
   if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); describeIt(); }
@@ -626,6 +670,7 @@ async function loadDoctor() {
   let d;
   try { d = await api("/api/doctor"); } catch (e) { $("#doctor").textContent = e.message; return null; }
   doctorData = d;
+  readyBanner(d);
   const g = d.gpu, o = d.ollama, c = d.comfyui;
   const tl = $("#dl-talkmodels"); if (tl) tl.innerHTML = o.models.map((m) => `<option value="${esc(m.name)}">`).join("");
   const yes = (b) => (b ? "YES" : "no ");
@@ -641,14 +686,27 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   $("#issues").innerHTML = d.issues.length ? d.issues.map((it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
     : '<div class="dim">All good. Everything Joe needs is installed and running.</div>';
   return d;
+}
+// Banner on the main screen while Joe can't work yet (writing not set up), with one button.
+function readyBanner(d) {
+  const bar = $("#readybar"); if (!bar || !d) return;
+  const need = d.issues.find((it) => !it.optional);
+  const ups = d.issues.filter((it) => it.group === "updates").length;
+  if (need) {
+    $("#readybar-text").textContent = "Joe can't work yet: " + need.text;
+    bar.querySelector("button").textContent = "[ FINISH SETTING UP ]"; bar.dataset.mode = "setup"; bar.hidden = false;
+  } else if (ups) {
+    $("#readybar-text").textContent = `${ups} update${ups > 1 ? "s" : ""} for Joe's helpers or models (optional).`;
+    bar.querySelector("button").textContent = "[ SEE UPDATES ]"; bar.dataset.mode = "updates"; bar.hidden = false;
+  } else bar.hidden = true;
 }
 function askFix(it) {
   const pkg = (doctorData && doctorData.pkg) || "";
   const viaPkg = pkg ? `Install it now with ${pkg}? Your system may ask for permission.` : "Open the official download page?";
-  const what = { install: viaPkg, start: "Start it now?",
+  const what = { install: it.how || viaPkg, update: "Update it now? Your files and models are kept.", start: "Start it now?",
     use: "Switch to this model?", pull: "Download it now?", "download-image-model": "Download it now?",
     "download-video-model": "Download it now? About 18 GB in 3 files; it can take an hour or more.",
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
@@ -778,6 +836,10 @@ document.addEventListener("click", async (ev) => {
   const act = b.dataset.act;
   try {
     if (act === "describe") await describeIt();
+    if (act === "finish-setup") {
+      if ($("#readybar").dataset.mode === "updates") show("setup", "system");
+      else { await loadThemes().catch(() => {}); welcomeOpen(2); }
+    }
     if (act === "plan-run") {
       if (state && state.running) {
         const r = await api("/api/queue/add", { text: $("#mission").value });
@@ -1412,6 +1474,16 @@ async function talkSend(textArg) {
   if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
+  if (text && !sent.length && text.length <= 40) {        // "go", "stop", "report"...: do it, no AI
+    const rt = await routeText(text);
+    if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {
+      $("#talk-in").value = "";
+      const said = await doCommand(rt.cmd);
+      talkLog.push({ who: "you", text }, { who: "joe", text: said });
+      if (current === "talk") renderTalk();
+      return;
+    }
+  }
   $("#talk-in").value = "";
   if (sent.length) { talkFiles = talkFiles.filter((f) => f.busy); renderFiles(); }
   talkLog.push({ who: "you", text: (text || "(file)") + sent.map((f) => `  📎 ${f.name}`).join("") });
@@ -1849,26 +1921,31 @@ setTimeout(() => checkUpdate(false), 8000);
 /* ---------------- first-start welcome (setup helper) ---------------- */
 // One small step at a time, in plain words. Each YES is the person's OK for that one install;
 // the System check (F10) does the actual work underneath.
+// Four short steps. "Get set up" is one ticked list (Joe's picks for this PC already ticked)
+// and one button; things that only appear after an install (the writing model once Ollama is
+// in, picture models once ComfyUI is in) are added to the same run by themselves.
+const W_GROUPS = [
+  { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"] },
+  { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit"] },
+  { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
+  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "pull-embed", "pack-music", "pack-sfx"] },
+];
 const W_STEPS = [
   { id: "hello", name: "Hello" },
   { id: "pc", name: "Your PC" },
-  { id: "pick", name: "Pick" },
-  { id: "writing", name: "Writing", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"], need: true },
-  { id: "pictures", name: "Pictures", ids: ["install-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit"] },
-  { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Extras", ids: ["install-pandoc", "install-ffmpeg", "pull-embed", "pack-music", "pack-sfx"] },
+  { id: "pick", name: "Get set up" },
   { id: "look", name: "Look" },
   { id: "done", name: "Ready" },
 ];
 const W_TEXT = {
-  "install-ollama": ["Joe needs Ollama: a free program that runs AI writing models on your own PC.", "YES, INSTALL OLLAMA", "Windows may ask for permission."],
+  "install-ollama": ["Joe needs Ollama: a free program that runs AI writing models on your own PC.", "YES, INSTALL OLLAMA", "Your computer may ask for permission."],
   "start-ollama": ["Ollama is installed but switched off.", "YES, START IT", ""],
   "pull-model": [null, "YES, DOWNLOAD IT", "It can take a while. You can keep going while it downloads."],
   "use-model": [null, "YES, USE IT", ""],
   "upgrade-model": [null, "YES, GET THE BETTER ONE", "It can take a while. Joe uses it as soon as it's done."],
   "get-video-turbo": ["The Turbo add-on makes videos several times faster (under 1 GB).", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "pull-talk-model": ["A small, quick model just for talking, so Joe answers faster.", "YES, DOWNLOAD IT", ""],
-  "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Windows may ask for permission. Skip this if you only want writing."],
+  "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Your computer may ask for permission. Skip this if you only want writing."],
   "get-image-model": ["ComfyUI needs a picture model to draw with.", "YES, DOWNLOAD ONE", ""],
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "install-voice": ["So you can talk to Joe and hear him answer. About 500 MB.", "YES, SET UP HIS VOICE", "Runs on the regular processor, so it never slows the night's work."],
@@ -1878,7 +1955,7 @@ const W_TEXT = {
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
 };
-let W = { open: false, i: 0, d: null, busyWas: "", asked: {}, pick: null, queue: [] };
+let W = { open: false, i: 0, d: null, busyWas: "", asked: {}, pick: null, queue: [], auto: false, tried: {} };
 // The checklist: everything Joe could install, grouped, with sizes. Small and needed things
 // start ticked; big downloads (picture editor, video, music) start unticked. Nothing is
 // installed until the person presses INSTALL WHAT'S TICKED.
@@ -1899,13 +1976,15 @@ function wPickList() {
   const d = W.d; if (!d) return '<div class="blink">Checking…</div>';
   W.pick = W.pick || {};
   d.issues.forEach((it) => { if (!(it.id in W.pick)) W.pick[it.id] = wDefaultTick(it, d); });   // new choices appear after installs
-  const groups = W_STEPS.filter((s) => s.ids);
+  const groups = W_GROUPS;
   const seen = new Set();
-  let h = "<p>Tick what you want. Nothing downloads until you press the button, and you can add or remove things later in Setup (F10) > System check.</p>";
-  if (d.issues.some((it) => it.id === "install-ollama" || it.id === "install-comfyui"))
-    h += '<p class="dim small">More choices (writing, picture, music models) show up here once Ollama and ComfyUI are installed.</p>';
+  const list = d.issues.filter((it) => it.group !== "updates");
+  if (!list.length) return '<p class="bright">√ Everything Joe needs is here. Press NEXT.</p>';
+  let h = "<p>Joe ticked what fits this PC. Change anything you like, then press the button: he installs it all, one thing after another. Nothing downloads before that. You can add more later in Setup (F10).</p>";
+  if (list.some((it) => it.id === "install-ollama" || it.id === "install-comfyui"))
+    h += '<p class="dim small">The writing model (and picture models) are picked and added by themselves once Ollama (and ComfyUI) are in.</p>';
   groups.forEach((g) => {
-    const its = d.issues.filter((it) => g.ids.includes(it.id));
+    const its = list.filter((it) => g.ids.includes(it.id));
     its.forEach((it) => seen.add(it.id));
     if (!its.length) return;
     h += `<div class="wgroup"><b>${esc(g.name)}</b>` + its.map((it) => {
@@ -1913,18 +1992,30 @@ function wPickList() {
       return `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}${!it.optional ? " disabled" : ""}> ${esc(it.text)}${size ? ` <span class="dim">(${size})</span>` : ""}</label>`;
     }).join("") + "</div>";
   });
-  const rest = d.issues.filter((it) => !seen.has(it.id));
+  const rest = list.filter((it) => !seen.has(it.id));
   if (rest.length) h += `<div class="wgroup"><b>Other</b>` + rest.map((it) => `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}> ${esc(it.text)}</label>`).join("") + "</div>";
-  const picked = d.issues.filter((it) => W.pick[it.id]);
+  const picked = list.filter((it) => W.pick[it.id]);
   const total = picked.reduce((a, it) => a + wSizeGB(it), 0);
   h += `<p class="bright">You picked ${picked.length} thing(s), about ${total >= 1 ? total.toFixed(0) + " GB" : Math.round(total * 1024) + " MB"} to download.</p>`;
   if (W.queue.length || (state && state.busy)) h += `<div class="blink">Installing${state && state.busy ? ": " + esc(state.busy) + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") : "…"} (${W.queue.length} more after this)</div>`;
-  else h += picked.length ? `<button data-wpickgo="1">[ INSTALL WHAT'S TICKED ]</button>` : "";
+  else h += picked.length ? `<button class="primary" data-wpickgo="1">[ INSTALL WHAT'S TICKED ]</button>` : "";
   return h;
 }
+function wFollowOns() {                          // new choices after an install join the same run
+  if (!W.auto || !W.d) return;
+  W.pick = W.pick || {};
+  W.d.issues.forEach((it) => {
+    if (it.group === "updates") return;
+    if (!(it.id in W.pick)) W.pick[it.id] = wDefaultTick(it, W.d);
+    if (W.pick[it.id] && !W.tried[it.id] && !W.queue.includes(it.id)) W.queue.push(it.id);
+  });
+}
 async function wPickNext() {
-  if (!W.queue.length || (state && state.busy)) return;
+  wFollowOns();
+  if (!W.queue.length) { if (W.auto && !(state && state.busy)) { W.auto = false; wRender(); } return; }
+  if (state && state.busy) return;
   const id = W.queue.shift();
+  W.tried[id] = true;
   const it = W.d && W.d.issues.find((x) => x.id === id);
   if (!it) { wPickNext(); return; }
   try {
@@ -1945,6 +2036,7 @@ async function welcomeClose() {
 }
 async function wCheck() {
   try { W.d = await api("/api/doctor"); doctorData = W.d; } catch (e) { W.d = null; }
+  if (typeof readyBanner === "function") readyBanner(W.d);
   if (W.open) wRender();
 }
 function wIssues(step) {
@@ -2009,22 +2101,25 @@ function wRender() {
       opts.map(([v, n]) => `<button data-wlook="${esc(v)}" class="${v === cur ? "on" : ""}">[ ${esc(n)} ]</button>`).join("") + "</div>";
   } else if (st.id === "done") {
     const need = W.d && W.d.issues.find((it) => !it.optional);
-    h = need ? `<p>Almost: Joe still needs his writing setup (the Writing step) before he can work.</p>`
-      : `<p>All set. Here's how it works:</p><ol class="planlist"><li>On the Queue screen, tell Joe what you need in your own words.</li>
-        <li>He shows you a plan. Press RUN IT.</li><li>Go to bed. In the morning, press R for the report.</li></ol>
-        <p class="dim small">Hover over any button to see what it does. F1 is help.</p>`;
+    const how = `<ol class="planlist"><li>Type what you need in the big box, in your own words. Questions work too.</li>
+        <li>Joe shows you a plan. Press RUN IT.</li><li>Go to bed. In the morning, see the report.</li></ol>
+        <p class="dim small">Short words work in the box: go, stop, help, report, files, tools, update. Hover over any button to see what it does.</p>`;
+    h = need ? `<p>Almost: Joe still needs his writing setup. Go BACK to "Get set up" and press the button, or finish later from the banner on the main screen.</p>` + how
+      : `<p>All set. Here's how it works:</p>` + how +
+        `<div class="witem"><div>Optional: a half-minute speed test makes Joe's time estimates fit your computer.</div>` +
+        (W.speed ? `<div class="bright">${esc(W.speed)}</div>` : `<button data-wspeed="1"${W.speeding ? " disabled" : ""}>[ ${W.speeding ? "TESTING…" : "TEST MY SPEED"} ]</button>`) + `</div>`;
   }
   $("#w-body").innerHTML = h;
   $("#w-back").disabled = W.i === 0;
-  $("#w-next").textContent = W.i === W_STEPS.length - 1 ? "[ START USING JOE ]" : st.ids && wIssues(st).length && !st.need ? "[ NOT NOW, NEXT ▸ ]" : "[ NEXT ▸ ]";
+  $("#w-next").textContent = W.i === W_STEPS.length - 1 ? "[ START USING JOE ]" : "[ NEXT ▸ ]";
 }
 function welcomeTick() {                          // called by poll(): show progress, re-check when a setup ends
-  if (!W.open || !state) return;
+  if (!state || (!W.open && !W.auto)) return;      // the ticked installs keep going after the helper closes
   if (state.busy !== W.busyWas) {
     const ended = W.busyWas && !state.busy;
     W.busyWas = state.busy;
-    if (ended) wCheck().then(() => wPickNext()); else wRender();
-  } else if (state.busy) wRender();
+    if (ended) wCheck().then(() => wPickNext()); else if (W.open) wRender();
+  } else if (state.busy && W.open) wRender();
 }
 $("#welcome").addEventListener("click", async (ev) => {
   const b = ev.target.closest("button"); if (!b) return;
@@ -2044,7 +2139,8 @@ $("#welcome").addEventListener("click", async (ev) => {
     wRender();
   }
   if (b.dataset.wpickgo) {
-    W.queue = (W.d ? W.d.issues : []).filter((it) => W.pick[it.id]).map((it) => it.id);
+    W.auto = true; W.tried = {};
+    W.queue = (W.d ? W.d.issues : []).filter((it) => W.pick[it.id] && it.group !== "updates").map((it) => it.id);
     wPickNext();
   }
   if (b.dataset.wspeed) {
@@ -2138,10 +2234,10 @@ function comfortTick() {
 let toolCat = null, toolHave = {}, toolOpen = null, toolFiles = [];
 async function loadTools() {
   if (!toolCat) {
-    try { const r = await api("/api/tools"); toolCat = r; toolHave = r.have || {}; }
+    try { const r = await api("/api/tools"); toolCat = r; toolHave = r.have || {}; toolBadge(r.status); }
     catch (e) { $("#toolgrid").textContent = e.message; return; }
   } else {
-    api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); }).catch(() => {});
+    api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); else renderToolGrid(); }).catch(() => {});
   }
   if (!toolOpen) renderToolGrid();
 }
@@ -2152,10 +2248,12 @@ function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting 
   const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
   $("#toolgrid").innerHTML = groups.map((g) =>
     `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
-    by[g].map((t) => `<button type="button" class="tcard${t.ready ? "" : " soon"}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
-      ` title="${esc(t.ready ? t.blurb : "Coming soon: " + t.blurb)}"${t.ready ? "" : " disabled"}>` +
+    by[g].map((t) => { const st = toolStat[t.id], miss = t.ready && st && !st.ok;
+      return `<button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
+      ` title="${esc(!t.ready ? "Coming soon: " + t.blurb : miss ? "Not ready yet: " + st.why + ". Open it to get what's missing." : t.blurb)}"${t.ready ? "" : " disabled"}>` +
       `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
-      (t.ready ? "" : `<span class="tsoon">Coming soon</span>`) + `</button>`).join("") +
+      (!t.ready ? `<span class="tsoon">Coming soon</span>` : miss ? `<span class="tsoon tneed">${esc(st.why.replace(/^needs /, "Needs "))} · GET IT</span>`
+        : st ? `<span class="tsoon tok">√ Ready</span>` : "") + `</button>`; }).join("") +
     `</div></div>`).join("");
   $("#toolgrid").hidden = false; $("#toolform").hidden = true;
 }
@@ -2322,7 +2420,9 @@ document.addEventListener("click", (ev) => {
 api("/api/tools").then((r) => { toolCat = toolCat || r; toolHave = r.have || {}; toolBadge(r.status); }).catch(() => {});
 
 /* TOOLS n/m badge: what's ready, hover for what's missing, click for System check. */
+let toolStat = {};
 function toolBadge(status) {
+  if (status) toolStat = Object.fromEntries(status.map((t) => [t.id, t]));
   const b = $("#toolsbadge"); if (!b || !status) return;
   const ok = status.filter((t) => t.ok).length;
   b.textContent = `TOOLS ${ok}/${status.length}`;

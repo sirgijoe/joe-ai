@@ -115,3 +115,26 @@ def test_video_request_planned_as_text_is_caught():
     assert "TYPE: image" in kind_mismatch("make 8 pictures of mugs on a shelf", "TASK: x\nCHUNKS: 1 x 8")
     assert kind_mismatch("remove the background from my pictures", "TASK: x  TYPE: remove-bg\nINPUT: a.png") == ""
     assert wants_high(req) and not wants_high("a quick video")
+
+
+def test_request_is_held_while_drawing_then_planned(app, monkeypatch):
+    import time
+    from joeai import chat
+    busy = {"on": True}
+    monkeypatch.setattr(chat, "busy_drawing", lambda a: busy["on"])
+    r = app.hold_plan("48 menu blurbs for my cafe, a price sheet and 16 food pictures")
+    assert r["held"] and not r["ok"]
+    assert app.state()["held_plan"]["status"] == "waiting"
+    busy["on"] = False
+    for _ in range(100):
+        if app.held_plan.get("status") == "ready":
+            break
+        time.sleep(0.1)
+    h = app.state()["held_plan"]
+    assert h["status"] == "ready" and h["result"]["ok"]
+
+
+def test_talk_knows_the_tools(app):
+    from joeai import chat
+    p = chat.prepare(app, [], "fix my old photo please")
+    assert "restore-photo" in p["msgs"][0]["content"]

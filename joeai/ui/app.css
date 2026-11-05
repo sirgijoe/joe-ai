@@ -569,3 +569,13 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 @media (max-width: 1050px) { .titlebar .brand { display: none; } .tabs button b { margin-left: 3px; } }
 .tabs { flex-wrap: nowrap; white-space: nowrap; }
 @media (max-width: 1250px) { .tabs { gap: 3px; } .tabs button { padding: 0 4px; font-size: .85em; } .tabs button b { margin-left: 3px; } }
+
+/* tool cards say whether they're ready */
+.tcard.needs { opacity: .8; border-style: dashed; }
+.tcard .tsoon.tneed { border-color: var(--warn, #c98a00); color: var(--warn, #c98a00); text-transform: none; letter-spacing: 0; }
+.tcard .tsoon.tok { border-color: transparent; padding-left: 0; }
+
+/* "Joe can't work yet" banner on the main screen */
+.readybar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px;
+  border: 1px solid var(--warn, #c98a00); border-radius: var(--radius, 0); background: color-mix(in srgb, var(--warn, #c98a00) 12%, transparent); }
+.readybar span { flex: 1 1 14em; }

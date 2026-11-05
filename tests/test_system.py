@@ -58,7 +58,7 @@ def test_install_plan_ffmpeg(monkeypatch, osname, pm, kind, first):
 def test_install_plan_falls_back_to_the_download_page(monkeypatch):
     _as(monkeypatch, "linux")
     monkeypatch.setattr(system, "package_manager", lambda: "apt")
-    assert system.install_plan("comfyui")["kind"] == "page"    # no apt package for ComfyUI
+    assert system.install_plan("comfyui")["kind"] == "joe"     # no apt package: Joe sets up his own copy
     monkeypatch.setattr(system, "package_manager", lambda: None)
     assert system.install_plan("ffmpeg")["kind"] == "page"
 

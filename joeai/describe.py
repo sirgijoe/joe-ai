@@ -272,7 +272,7 @@ def draft(app, request: str) -> dict:
                     if mismatch:
                         warns.append("Joe planned only writing, though you mentioned a video or "
                                      "pictures. If you wanted those, try 'make a video of ...' or use "
-                                     "the Builder (F6).")
+                                     "Step by step (F6).")
                     if wants_high(request) and re.search(r"TYPE:\s*(video|image)", block, re.I):
                         warns.append("For high quality, set Setup (F10) > Images & video > Quality to "
                                      "High first (slower, finer).")
@@ -289,4 +289,4 @@ def draft(app, request: str) -> dict:
                  {"role": "user", "content": f"That didn't work: {problem}. Reply with the corrected "
                                              "mission block only."}]
     return {"ok": False, "error": "Joe couldn't turn that into a plan (" + problem + "). "
-            "Try saying it another way, or use the Builder (F6)."}
+            "Try saying it another way, or use Step by step (F6)."}

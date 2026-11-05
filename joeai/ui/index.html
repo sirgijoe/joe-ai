@@ -17,10 +17,10 @@
     <span class="inv brand">&nbsp;JOE&nbsp;</span>
     <span class="dim bin">01000001 01001001</span>
     <nav class="tabs" aria-label="Screens">
-      <button data-key="F2" title="Make something: tell Joe what you need, run it, watch it happen (F2).">Queue<b>F2</b></button>
+      <button data-key="F2" title="The main screen: ask Joe anything or tell him what to make, run it, watch it happen (F2).">Home<b>F2</b></button>
       <button data-key="F3" title="Make something: ready-made tools for your own files and pictures, sound and video (F3).">Tools<b>F3</b></button>
       <button data-key="F4" title="Make something: talk or type to Joe; drop a file here to ask about it (F4).">Talk<b>F4</b></button>
-      <button data-key="F6" title="Make something, step by step: build a plan with simple forms (F6).">Builder<b>F6</b></button>
+      <button data-key="F6" title="Make something, step by step: build a plan with simple forms (F6).">Step by step<b>F6</b></button>
       <span class="tabsep" aria-hidden="true"></span>
       <button data-key="F7" title="See results: everything Joe made; open, look through, mark pictures (F7).">Files<b>F7</b></button>
       <button data-key="F8" title="See results: what Joe finished last time and what needs a look (F8).">Report<b>F8</b></button>
@@ -30,7 +30,7 @@
       <button data-key="F1" title="Every key and button explained, plus About Joe (F1).">Help<b>F1</b></button>
     </nav>
     <span class="grow"></span>
-    <button type="button" id="runbtn" class="runbtn" data-key="F5" title="Run the plan on the Queue screen, or stop the run that's going (F5).">RUN<b>F5</b></button>
+    <button type="button" id="runbtn" class="runbtn" data-key="F5" title="Run the plan on the Home screen, or stop the run that's going (F5).">RUN<b>F5</b></button>
     <span id="toolsbadge" class="toolsbadge" tabindex="0" role="button" title="What's installed for the tools. Click for Setup > System check.">TOOLS …</span>
     <span id="title-screen" class="dim" hidden>QUEUE</span>
     <span id="ver" class="dim"></span>
@@ -52,13 +52,15 @@
   <!-- ============ QUEUE (F2) ============ -->
   <main id="s-queue" class="view active">
     <section class="panel mission">
+      <div id="readybar" class="readybar" hidden><span id="readybar-text"></span>
+        <button type="button" data-act="finish-setup" class="primary">[ FINISH SETTING UP ]</button></div>
       <h2>WHAT DO YOU NEED?</h2>
-      <div class="prompt" title="No special words needed. Say what you want made, how many, and any style or tone."><span class="dosp">C:\JOE&gt; </span>Tell Joe in your own words. He makes a plan, you check it, then press RUN.</div>
+      <div class="prompt" title="No special words needed. Ask a question, or say what you want made, how many, and any style or tone. Short words work too: go, stop, help, report, files, tools, update."><span class="dosp">C:\JOE&gt; </span>Ask Joe anything, or tell him what to make, in your own words. For work, he shows you a plan first.</div>
       <textarea id="describe" spellcheck="true" placeholder="For example:
-40 product descriptions for handmade coffee mugs, friendly and short,
-plus 8 pictures of mugs on a wooden table in morning light."></textarea>
+40 product descriptions for handmade coffee mugs, friendly and short
+fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
       <div class="row buttons">
-        <button data-act="describe" id="btn-describe" class="primary" title="Joe turns what you wrote into a plan. Nothing runs until you press RUN IT.">[ MAKE A PLAN ]</button>
+        <button data-act="describe" id="btn-describe" class="primary" title="Joe answers, does it, or makes a plan. Nothing big runs until you press RUN IT. (Ctrl+Enter)">[ ASK JOE ]</button>
         <span id="describe-msg" class="dim"></span>
       </div>
       <div id="plancard" class="plancard" hidden>
@@ -137,7 +139,7 @@ FORMAT: ...
         </div>
         <h2 class="sub">PASTE A WHOLE MISSION <span class="dim">it becomes a list you can change</span></h2>
         <textarea id="b-paste" rows="3" spellcheck="false" placeholder="Paste a === JOE MISSION === block here, then IMPORT"></textarea>
-        <div class="row buttons"><button data-b="import">[ IMPORT ]</button><button data-b="import-box" title="Bring in the plan from the Queue screen.">[ BRING IN THE QUEUE PLAN ]</button><button data-b="clear">[ START OVER ]</button></div>
+        <div class="row buttons"><button data-b="import">[ IMPORT ]</button><button data-b="import-box" title="Bring in the plan from the Home screen.">[ BRING IN THE QUEUE PLAN ]</button><button data-b="clear">[ START OVER ]</button></div>
       </details>
       <h2 class="sub">PAST MISSIONS <span class="dim">open or run one again</span></h2>
       <div id="b-history" class="bhistory"></div>
@@ -151,7 +153,7 @@ FORMAT: ...
       <div class="row buttons">
         <button data-b="run" id="b-run" class="primary" title="Start now (or wait in line if Joe is busy).">[ RUN IT ]</button>
         <button data-b="queue" title="Put it in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
-        <button data-b="send" title="Show this plan on the Queue screen without running it.">[ SEND TO QUEUE SCREEN ]</button>
+        <button data-b="send" title="Show this plan on the Home screen without running it.">[ SEND TO QUEUE SCREEN ]</button>
         <input id="b-name" placeholder="name it" size="12" title="Give it a name to save it for later."><button data-b="save" title="Save this mission so you can run it again another night.">[ SAVE ]</button>
       </div>
     </section>
@@ -161,7 +163,7 @@ FORMAT: ...
   <!-- ============ TALK (F4) ============ -->
   <main id="s-tools" class="view">
     <section class="panel full tools">
-      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Queue screen</span></h2>
+      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span></h2>
       <div class="toolsbody">
         <div id="toolgrid" class="toolgrid"></div>
         <div id="toolform" class="toolform" hidden>
@@ -319,7 +321,7 @@ FORMAT: ...
                 </details>
               </fieldset>
               <fieldset><legend>UPDATES</legend>
-                <label title="Joe looks on GitHub for a newer version each time he opens.">Check for updates on start <input type="checkbox" data-path="ui.check_updates"></label>
+                <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
               </fieldset>
             </div>
 
@@ -469,7 +471,7 @@ FORMAT: ...
                   <li><b>Installing programs and downloading models</b> (System check, setup helper): only after you say yes.</li>
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
-                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. Turn it off in General &gt; Updates.</li>
+                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
                   <li><b>Talk lookups</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Online lookups).</li>
                 </ul>
@@ -604,7 +606,9 @@ FORMAT: ...
  Joe is not offline-only. He uses the internet to:
   - install programs and download AI models (only after you say yes)
   - get the hearing model for other languages, once (Transcribe)
-  - check GitHub for a newer Joe (Setup > General > Updates)
+  - check GitHub for a newer Joe, and about weekly for newer Ollama,
+    ComfyUI and models, plus his list of suggested models
+    (all off with Setup > General > Updates)
   - send a phone ping, if you set one up (one short line)
   - look things up in Talk, if you turn it on (search words only)
  Ollama and ComfyUI have their own update checks and settings.
@@ -621,7 +625,7 @@ FORMAT: ...
       <h2>HELP</h2>
 <pre>
  GETTING STARTED
- 1. Queue screen: type what you need in your own words,
+ 1. Home screen: type what you need in your own words,
     then MAKE A PLAN.
  2. Check Joe's plan. RUN IT (or CHANGE IT in the Builder).
  3. In the morning, Report (R) says what's done.
@@ -632,7 +636,7 @@ FORMAT: ...
  KEY   WHAT IT DOES
  ───   ─────────────────────────────────────────────
  F1    This help (ABOUT JOE is at the bottom)
- F2    Queue: describe what you need, run it, watch progress
+ F2    Home: ask anything or say what to make; short words like go, stop, help, report, files, tools, update work too
        (ADVANCED shows the mission text)
  F3    Tools: ready-made jobs for your own files. Pick a card, drop
        your files on it (or click to pick), choose the extras, RUN IT.
@@ -661,7 +665,7 @@ FORMAT: ...
        and Joe answers when you pause (MIC button mutes). Prefer
        push-to-talk? Setup > Voice & Talk, pick any key. You can always type.
        (Voice needs a one-time setup: F10 > System check.)
- F6    Builder: make a plan with simple forms, reorder or
+ F6    Step by step: make a plan with simple forms, reorder or
        split, paste a whole mission, rerun past ones
  F7    Files: browse the workspace, preview, open
  F8    Report: what Joe finished last time and what needs a look
@@ -718,8 +722,8 @@ FORMAT: ...
   <footer>
     <div id="status" class="statusbar inv"></div>
     <nav class="fkeys">
-      <button data-key="F5" title="Start the plan on the Queue screen, or stop a run (it can pick up again later)."><b>F5</b><span id="f5label">Run</span></button>
-      <button data-key="Escape" title="Back to the Queue screen."><b>Esc</b>Back</button>
+      <button data-key="F5" title="Start the plan on the Home screen, or stop a run (it can pick up again later)."><b>F5</b><span id="f5label">Run</span></button>
+      <button data-key="Escape" title="Back to the Home screen."><b>Esc</b>Back</button>
       <span class="grow"></span>
       <span class="dim small hintline" id="hintline">Hover over anything to see what it does.</span>
     </nav>

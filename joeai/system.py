@@ -319,6 +319,13 @@ def install_plan(tool: str) -> dict:
     pm = package_manager()
     pid = ids.get(pm or "")
     if not pm or not pid:
+        if tool == "comfyui" and not WINDOWS:          # Joe sets up his own copy (uv + GitHub)
+            return {"kind": "joe", "manager": "joe"}
+        if tool == "ollama" and MAC:                    # the official app, no Homebrew needed
+            return {"kind": "joe", "manager": "joe"}
+        if tool == "ollama" and LINUX:                  # Ollama's official install script (needs sudo)
+            return {"kind": "command", "manager": "ollama",
+                    "cmd": ["curl -fsSL https://ollama.com/install.sh | sh"]}
         return {"kind": "page", "manager": pm}
     if pm == "winget":
         return {"kind": "run", "manager": pm,
@@ -336,7 +343,7 @@ def install_plan(tool: str) -> dict:
 
 def manager_label(pm: str | None) -> str:
     return {"winget": "winget", "brew": "Homebrew", "apt": "apt", "dnf": "dnf",
-            "pacman": "pacman"}.get(pm or "", "your package manager")
+            "pacman": "pacman", "joe": "Joe", "ollama": "Ollama's install script"}.get(pm or "", "your package manager")
 
 
 # --------------------------------------------------------------------------- fonts

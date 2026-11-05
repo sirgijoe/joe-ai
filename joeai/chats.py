@@ -1,6 +1,6 @@
 """Chats: every time Joe opens (or NEW CHAT is pressed) a fresh chat starts, and each one is
 saved in Joe's own folder (Output/.joe/chats/) so it can be read again later. A chat holds
-the whole session: what was said in Talk, what was asked for on the Queue screen, the plan,
+the whole session: what was said in Talk, what was asked for on the Home screen, the plan,
 each run that started, and its results (tasks, output folders, report and log).
 
 Chats can be deleted one at a time or all at once, and old ones are removed automatically

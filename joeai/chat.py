@@ -21,9 +21,14 @@ How to answer:
 - Answer questions, explain, summarize, give opinions, and read or rephrase text RIGHT HERE
   in your reply. That is not a mission. If they paste text and ask you to read it, your reply
   is that text, word for word.
+- If they want something done to THEIR OWN files (fix or restore an old photo, remove a
+  background, transcribe a recording, proofread, translate, tidy a spreadsheet...), use one of
+  the TOOLS listed at the end: write a mission block with that TYPE and their file names as
+  INPUT. Never make new AI art when they asked to fix their own picture. If no file is waiting
+  in the Inbox yet, tell them to drop it on this window (or into the Inbox folder) first.
 - Write a mission block ONLY when the person clearly asks for work to be produced as files
   (for example "write 40 product descriptions", "make me some pictures", "build a spreadsheet
-  of..."). Then say in one sentence what it will make and that it's in the Builder (F6),
+  of..."). Then say in one sentence what it will make and that it's in Step by step (F6),
   where they can check it and press RUN. If you're not sure they want files made, ask.
 
 Mission block format (keys are UPPERCASE; values may continue on following lines):
@@ -189,7 +194,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     projects = sorted(p.stem for p in app.sb.projects.glob("*.md"))
     # The system prompt stays the same every turn, so Ollama can reuse its cache of the
     # conversation so far; the live status rides along with the newest message instead.
-    system = PERSONA
+    system = PERSONA + _tools_note()
     if projects:
         system += "\n\nProject profiles available: " + ", ".join(projects[:30])
     msgs = [{"role": "system", "content": system}]
@@ -197,6 +202,13 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:4000]})
     content = text + "\n\n[STATUS right now, for reference:\n" + status_text(app) + "]"
+    try:
+        from . import tools as tools_mod
+        waiting = tools_mod.inbox_media(app.sb)
+    except Exception:
+        waiting = []
+    if waiting:
+        content += "\n[Files waiting in Joe's Inbox (exact names for INPUT): " + ", ".join(waiting[:40]) + "]"
     sources: list[dict] = []
     if web_on(app) and not pics:
         from . import websearch
@@ -225,6 +237,17 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         user["images"] = images
     msgs.append(user)
     return {"msgs": msgs, "model": model, "sources": sources, "searched": web_results is not None}
+
+
+def _tools_note() -> str:
+    """The tools, the same list the planner sees (it never changes while Joe runs)."""
+    try:
+        from .tools import planner_lines
+        lines = planner_lines().replace("from the list below", "from the Inbox list")
+    except Exception:
+        return ""
+    return ("\n\nTOOLS that work on the person's own files (mission line TYPE: <tool>, plus INPUT, "
+            "OPTIONS, no SAVE):\n" + lines) if lines else ""
 
 
 def talk_model(app) -> str:
