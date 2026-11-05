@@ -286,7 +286,7 @@ def test_builtin_video_wan(env, tmp_path):
     g = fc.graphs[-1]
     assert g["55"]["inputs"]["width"] == 1280 and g["55"]["inputs"]["length"] == 121
     assert g["57"]["inputs"]["fps"] == 24.0 and "{{" not in json.dumps(g)
-    assert g["7"]["inputs"]["text"].startswith("static")                # video negative prompt
+    assert g["7"]["inputs"]["text"].startswith("色调艳丽")               # Wan's own negative prompt
     mp4s = list((sb.output / "clips" / "kiln2").glob("*.mp4"))
     assert len(mp4s) == 1 and mp4s[0].read_bytes()[4:8] == b"ftyp"
     # Setup > Quality: Turbo add-on installed + Low video = short, small, 4-step clip with the LoRA

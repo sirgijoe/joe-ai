@@ -313,9 +313,44 @@ WAN_VIDEO = {
          "vae/wan2.2_vae.safetensors"),
     ],
     "size": (1280, 704), "frames": 121, "fps": 24,      # about 5 seconds
-    "negative": ("static, frozen, blurry, low quality, jpeg artifacts, watermark, text, subtitles, "
-                 "deformed, extra fingers, bad hands, bad face, messy background, walking backwards"),
+    "negative": None,                                   # set below (WAN_NEGATIVE)
 }
+
+# Wan was trained with Chinese negative prompts; its own default list (as in the official Wan
+# and ComfyUI examples) works better than an English translation. It covers extra fingers,
+# fused fingers, malformed limbs, three legs and crowded backgrounds. English words added for
+# what came out wrong in testing (a background person with four arms).
+WAN_NEGATIVE = ("色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，"
+                "低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，"
+                "毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走, "
+                "extra arms, extra limbs, extra legs, extra hands, extra fingers, missing fingers, "
+                "fused fingers, malformed hands, deformed body, duplicate person, merged bodies, "
+                "watermark, text, subtitles")
+WAN_VIDEO["negative"] = WAN_NEGATIVE
+
+# Default "leave out" for pictures (Stable Diffusion 1.5 / SDXL models). Anatomy words first:
+# CLIP pays most attention to the start of the list.
+IMAGE_NEGATIVE = ("(mutated hands and fingers, extra fingers, too many fingers, fused fingers, missing fingers:1.4), "
+                  "(extra arms, extra legs, extra limbs, missing limbs, floating limbs, disconnected limbs, "
+                  "malformed limbs:1.3), (deformed, distorted, disfigured, bad anatomy, wrong anatomy, "
+                  "bad proportions:1.3), (deformed iris, deformed pupils, ugly eyes, fused lips and teeth:1.2), "
+                  "poorly drawn hands, poorly drawn face, cloned face, long neck, two heads, duplicate, "
+                  "mutation, body horror, worst quality, low quality, lowres, blurry, jpeg artifacts, "
+                  "cropped, out of frame, text, watermark, signature, username, logo")
+# Built from a widely shared community list, minus: embeddings (BadDream, easynegative...;
+# they're separate downloads), body-type words (fat, obese, masculine) that would push every
+# person one way, and odd extras (food, facebook) that would block real subjects.
+OLD_IMAGE_NEGATIVE = "blurry, low quality, watermark, text, logo, deformed"   # settings saved before dev95
+
+
+def negative_for(family: str, saved: str, task: str) -> str:
+    """The 'leave out' list for one picture/video: the task's own words come first, then
+    Joe's defaults (a task's NEGATIVE adds to the defaults; it no longer replaces them).
+    A Setup value still equal to the old short default counts as the new default."""
+    base = WAN_NEGATIVE if family == "wan" else \
+        (IMAGE_NEGATIVE if not (saved or "").strip() or saved.strip() == OLD_IMAGE_NEGATIVE else saved.strip())
+    task = (task or "").strip().strip(",")
+    return f"{task}, {base}" if task else base
 
 
 # Optional "Turbo" add-on for the same model: a LoRA from the Wan2.2-TI2V-5B-Turbo finetune

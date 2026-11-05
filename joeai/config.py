@@ -50,7 +50,7 @@ class ComfySettings:
     ffmpeg: str = ""             # blank = auto-detect
     timeout_s: int = 900         # per image/video
     default_workflow: str = ""   # file in Workflows/ used when a task has no WORKFLOW
-    negative: str = "blurry, low quality, watermark, text, logo, deformed"
+    negative: str = ""                 # empty = Joe's default list (comfy.IMAGE_NEGATIVE)
     output_dir: str = ""         # blank = auto (ComfyUI's own output folder)
     delete_copies: bool = True   # remove ComfyUI's copy of a picture once Joe has saved his
 

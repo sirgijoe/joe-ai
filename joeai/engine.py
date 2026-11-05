@@ -914,8 +914,8 @@ class Engine:
             w, h = quality_mod.pictures(self.s).size(*comfy_mod.default_size(family))
         else:
             w, h = None, None
-        negative = job.negative or ((comfy_mod.WAN_VIDEO["negative"] if family == "wan" else
-                                     self.s.comfy.negative) if builtin else "")
+        negative = comfy_mod.negative_for(family, self.s.comfy.negative, job.negative) if builtin \
+            else job.negative
         total = len(st.prompts) * job.variants
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
                  + (f", model {ckpt}" if ckpt else "") + f" -> {st.output}/")
