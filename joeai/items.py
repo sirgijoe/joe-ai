@@ -43,6 +43,27 @@ def split_items(text: str) -> list[Item]:
     return items
 
 
+_LOOSE_HEAD = re.compile(r"^\s*(?:\*\*(.+?)\*\*:?|\d+[.)]\s+(?:\*\*)?(.+?)(?:\*\*)?:?|#{1,6}\s+(.+?))\s*$")
+
+
+def loose_items(text: str) -> list[Item]:
+    """For replies without '## Title' lines: blocks that start with a bold line, a numbered
+    line or any heading count as items (a model asked for prompts sometimes writes
+    '1. **Title**' or '**Title**' instead)."""
+    items: list[Item] = []
+    for block in re.split(r"\n[ \t]*\n", text or ""):
+        lines = [x for x in block.strip().splitlines() if x.strip()]
+        if not lines:
+            continue
+        m = _LOOSE_HEAD.match(lines[0])
+        if m and len(lines) > 1:
+            title = _strip_md(next(g for g in m.groups() if g))
+            items.append(Item(title, "\n".join(lines[1:]).strip()))
+        elif items and not m:
+            items[-1] = Item(items[-1].title, (items[-1].body + "\n\n" + block.strip()).strip())
+    return items
+
+
 # Model control words that sometimes leak into a heading ("Stoneware Bowl /no_think", or
 # misspelled "/no_thing"). They'd end up in file names, so they're removed.
 _LEAK = re.compile(r"\s*/(?:no_?think\w*|no_?thing\w*|think\w*|nothink\w*)\b", re.I)

@@ -572,6 +572,15 @@ Bullet points with who and when if said, or "None mentioned."
 NOTES_CHUNK_WORDS = 2500
 
 
+def how_long(seconds: float) -> str:
+    """'33 s', '4 min', '1 h 20 min' (no more 'about 1 min' / '0.0 min' for short files)."""
+    s = max(0, round(seconds))
+    if s < 90:
+        return f"{max(1, s)} s"
+    m = round(s / 60)
+    return f"{m} min" if m < 90 else f"{m // 60} h" + (f" {m % 60} min" if m % 60 else "")
+
+
 def _ts(seconds: float, srt: bool = False) -> str:
     ms = int(round(max(0.0, seconds) * 1000))
     h, ms = divmod(ms, 3_600_000)
@@ -756,7 +765,7 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 failed.append(f"{src.name}: couldn't read the sound")
                 continue
             secs = _wav_seconds(wav)
-            engine.log(f"  {src.name}: transcribing about {max(1, round(secs / 60))} min of sound...")
+            engine.log(f"  {src.name}: transcribing {how_long(secs)} of sound...")
             t0 = datetime.now()
             r = worker.call({"cmd": "transcribe", "audio": str(wav), "stt_model": model,
                              "language": whisper_language(lang)},
@@ -807,7 +816,7 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             st.items += 1
             st.words += words
             engine._save_state(job, st)
-            engine.log(f"  {src.name}: {words} words in {round(took / 60, 1)} min -> {', '.join(made)}")
+            engine.log(f"  {src.name}: {words} words in {how_long(took)} -> {', '.join(made)}")
     except Stopped:
         st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} recording(s)"
         engine._save_state(job, st)
@@ -1073,7 +1082,7 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             total = sum(len(p) for _, p in plan)
             words = sum(count_words(x) for _, p in plan for x in p)
             engine.log(f"  {i + 1}/{len(files)} {src.name}: {words} words, about "
-                       f"{max(1, round(words / LISTEN_WPM))} min of listening"
+                       f"{how_long(words / LISTEN_WPM * 60)} of listening"
                        + (f" in {len(plan)} tracks" if len(plan) > 1 else ""))
             stem = slug(src.stem) or f"document-{i + 1}"
             sig = hashlib.sha1(f"{raw}|{voice}|{speed}|{sorted(opts)}".encode("utf-8", "replace")).hexdigest()[:10]
@@ -1128,7 +1137,7 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             st.items += 1
             st.words += words
             engine._save_state(job, st)
-            engine.log(f"  {src.name}: {round(audio / 60, 1)} min of speech in {round(took / 60, 1)} min "
+            engine.log(f"  {src.name}: {how_long(audio)} of speech in {how_long(took)} "
                        f"-> {', '.join(made)}")
     except Stopped:
         st.status, st.note = "stopped", (f"stopped after {len(st.titles)} of {len(files)} document(s); "
@@ -1194,6 +1203,27 @@ def parse_changes(raw: str) -> list[dict] | None:
             and isinstance(o.get("replace"), str) and o["find"].strip()]
 
 
+_QUOTES = {"'": "['‘’]", '"': "[\"“”]", "‘": "['‘’]",
+           "’": "['‘’]", "“": "[\"“”]", "”": "[\"“”]",
+           "-": "[-–—]", "–": "[-–—]", "—": "[-–—]"}
+
+
+def loose_find(text: str, find: str):
+    """Where `find` is in `text` when only spacing, line breaks, curly vs straight quotes
+    or dash kinds differ (the model retypes the words it quotes). One match only."""
+    parts = []
+    for ch in find.strip():
+        if ch.isspace():
+            if not parts or parts[-1] != r"\s+":
+                parts.append(r"\s+")
+        else:
+            parts.append(_QUOTES.get(ch, re.escape(ch)))
+    if not parts:
+        return None
+    found = list(re.finditer("".join(parts), text))
+    return found[0] if len(found) == 1 else None
+
+
 def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[str, list, list, list]:
     """Apply exact-match fixes. Returns (text, applied, noted, missed); each change gets a
     paragraph number ("par"). Nothing is changed that isn't on the applied list."""
@@ -1201,6 +1231,10 @@ def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[s
     for c in changes:
         f, r = c["find"], c["replace"]
         pos = text.find(f)
+        if pos < 0 and f != r:
+            m = loose_find(text, f)
+            if m:
+                pos, f = m.start(), m.group(0)
         par = first_par + (len(re.findall(r"\n[ \t]*\n", text[:pos])) if pos >= 0 else 0)
         c = dict(c, par=par if pos >= 0 else 0)
         if f == r:

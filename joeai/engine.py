@@ -29,7 +29,7 @@ from . import media as media_mod
 from .config import Settings
 from .fsutil import atomic_append_text, atomic_write_text
 from .http import HttpError
-from .items import Item, count_words, find_flags, is_duplicate, norm_title, split_items
+from .items import Item, count_words, find_flags, is_duplicate, norm_title, split_items, loose_items
 from .mission import Job, Mission, slug
 from .ollama import ChatResult, OllamaClient
 from .power import keep_awake, when_finished
@@ -126,6 +126,13 @@ class JobState:
     media_files: list[str] = field(default_factory=list)
     checkpoint: str = ""
     phase: str = ""                   # prompts | render
+
+
+def thin_reply_words(words_so_far: int, parts_done: int) -> int:
+    """A guided part with fewer words than this gets retried: 80 words, or a third of
+    what earlier parts averaged (FAQ part 2 came back with 21 words, a pack part with 0 items)."""
+    avg = words_so_far / parts_done if parts_done else 0
+    return int(max(80, min(avg / 3, 400)))
 
 
 class Engine:
@@ -333,6 +340,7 @@ class Engine:
         if not getattr(self, "_model_checked", False):
             from .doctor import resolve_text_model
             self.text_model = resolve_text_model(self.s, self.services, self.log)
+            self.best_text_model = self.text_model
             wp = quality_mod.writing(self.s)
             if wp.smaller_model and not self.s.ollama.text_model:
                 from .doctor import smaller_text_model
@@ -439,12 +447,24 @@ class Engine:
         return "\n".join(lines)
 
     # -- model calls ---------------------------------------------------------
+    # Thinking first only helps open writing. Exact jobs (fix lists, translations, JSON,
+    # image prompts) come back slower and often broken with it (stress test 2026-11-04:
+    # a 10-min proofread timeout, empty prompt lists), so they never think.
+    THINK_KINDS = frozenset({"write", "expand"})
+    # Jobs where a smaller model makes real mistakes: they always use the best model,
+    # even on Low quality.
+    BEST_MODEL_KINDS = frozenset({"proofread", "translate", "ask-files", "ask-summary"})
+
     def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState,
               images: list[str] | None = None, model: str = "") -> ChatResult:
         """One model call with retries. `images` (base64) go with the question to a vision
         `model` (tools that look at the person's photos)."""
+        if not model and kind in self.BEST_MODEL_KINDS and not job.model:
+            model = getattr(self, "best_text_model", "")
         model = model or (job.model if not job.media else "") or getattr(self, "text_model", "") \
             or self.s.ollama.text_model
+        think = None if images else ((quality_mod.writing(self.s).think or None)
+                                     if kind in self.THINK_KINDS else False)
         last_err = None
         for attempt in range(1, self.s.engine.max_retries + 1):
             if self.stop.is_set():
@@ -454,7 +474,7 @@ class Engine:
                 if images:
                     ask["images"] = images
                 r = self.client.chat([{"role": "system", "content": system}, ask], model=model,
-                                     think=None if images else (quality_mod.writing(self.s).think or None))
+                                     think=think)
                 st.tokens_in += r.prompt_tokens
                 st.tokens_out += r.output_tokens
                 st.model_seconds += r.seconds
@@ -474,7 +494,8 @@ class Engine:
                     raise Stopped()
         raise PartFailed(f"model unreachable after {self.s.engine.max_retries} tries: {last_err}")
 
-    def _run_part(self, job: Job, part: int, st: JobState, system: str) -> list[Item]:
+    def _run_part(self, job: Job, part: int, st: JobState, system: str,
+                  kind: str = "write") -> list[Item]:
         need = job.part_size
         got: list[Item] = []
         seen = [norm_title(t) for t in st.titles]
@@ -485,8 +506,8 @@ class Engine:
             if attempt:
                 st.retries += 1
             prompt = self._part_prompt(job, part, want, st.titles + [i.title for i in got])
-            r = self._chat(job, part, "write", system, prompt, st)
-            new = split_items(r.text)
+            r = self._chat(job, part, kind, system, prompt, st)
+            new = split_items(r.text) or loose_items(_clean_reply(r.text))
             if not new:
                 self.log(f"  part {part + 1}: reply had no '## title' items, retrying")
                 continue
@@ -548,7 +569,8 @@ class Engine:
     def _run_guided_part(self, job: Job, part: int, st: JobState, system: str) -> PartOut:
         best: tuple | None = None
         extra = ""
-        tries = 1 + (self.s.engine.short_item_retries if job.min_words else 0)
+        tries = 1 + self.s.engine.short_item_retries
+        thin = thin_reply_words(st.words, st.parts_done)
         empty = 0
         attempt = 0
         while attempt < tries:
@@ -566,6 +588,20 @@ class Engine:
             score = (len(short), -count_words(text))
             if best is None or score < best[0]:
                 best = (score, text, items, short)
+            words = count_words(text)
+            too_thin = not job.min_words and words < thin
+            if too_thin:
+                score = (1, -words)
+                if best is None or score < best[0]:
+                    best = (score, text, items, short)
+            if not short and not too_thin:
+                break
+            if attempt < tries and too_thin:
+                st.retries += 1
+                self.log(f"  part {part + 1}: only {words} words (earlier parts were longer), retrying")
+                extra = (f"Your last attempt was far too short ({words} words). Write this part "
+                         "fully, as long and detailed as the earlier parts.")
+                continue
             if not short:
                 break
             if attempt < tries:
@@ -721,7 +757,7 @@ class Engine:
                             raise Stopped()
                         self._progress(f"{job.name}: prompts part {part + 1}/{job.parts}")
                         try:
-                            items = self._run_part(pj, part, st, system)
+                            items = self._run_part(pj, part, st, system, kind="prompt")
                         except PartFailed as e:
                             self.log(f"  prompt part {part + 1} skipped: {e}")
                             continue
