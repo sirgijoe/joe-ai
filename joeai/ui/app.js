@@ -2451,3 +2451,18 @@ document.addEventListener("change", (ev) => {
   const c = ev.target; if (!c || !c.dataset || !c.dataset.wpick || !W.pick) return;
   W.pick[c.dataset.wpick] = c.checked; wRender();
 });
+
+
+// Setup > Images & video > Your own workflows: import a ComfyUI API-format workflow.
+(function wfImport() {
+  const sel = document.getElementById("wf-style"), go = document.getElementById("wf-go");
+  if (!sel || !go) return;
+  sel.innerHTML = `<option value="">(pick per task)</option>` +
+    PIC_STYLES.filter(([a]) => a).map(([a, b]) => `<option value="${a}">${b}</option>`).join("");
+  go.addEventListener("click", async () => {
+    const f = document.getElementById("wf-file").files[0], msg = document.getElementById("wf-msg");
+    if (!f) { msg.textContent = "Pick a workflow file first."; return; }
+    const r = await api("/api/workflow/import", { text: await f.text(), name: f.name, style: sel.value });
+    msg.textContent = r.ok ? r.message : "Not imported: " + r.error;
+  });
+})();

@@ -374,6 +374,14 @@ FORMAT: ...
                   <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" placeholder="blank = automatic"></label>
                   <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" placeholder="blank = automatic"></label>
                   <label title="A ComfyUI workflow file (in Workflows/) to use instead of Joe's built-in one.">Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
+                  <div class="wfimport">
+                    <b>Your own workflows</b> (advanced)
+                    <p class="dim small">In ComfyUI: Workflow &gt; Export (API). Pick that file here. Give it a style and Joe uses it for every picture of that style; leave the style blank to pick it per task. Put {{PROMPT}} in the positive prompt box if Joe can't find it.</p>
+                    <label>Workflow file <input type="file" id="wf-file" accept=".json,application/json"></label>
+                    <label>Use for <select id="wf-style"></select></label>
+                    <button id="wf-go" type="button">IMPORT WORKFLOW</button>
+                    <span id="wf-msg" class="dim small"></span>
+                  </div>
                   <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" placeholder="blank = automatic"></label>
                 </details>
               </fieldset>

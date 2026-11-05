@@ -24,6 +24,7 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from . import __version__
+from . import comfy as comfy_mod
 from .config import Settings, _merge, config_dir
 from .engine import Engine
 from .fsutil import atomic_write_text
@@ -1003,6 +1004,28 @@ class App:
                 pass
         return audio, err
 
+    def import_workflow(self, text: str, name: str, style: str) -> dict:
+        """Save a ComfyUI workflow (API format) into Workflows/. With a style it becomes
+        style-<style>.json, which Joe uses for every picture of that style."""
+        from . import styles
+        try:
+            g = comfy_mod.parse_template(text or "", name or "workflow")
+        except comfy_mod.WorkflowError as e:
+            return {"ok": False, "error": str(e)}
+        problem = comfy_mod.check_template(g)
+        if problem:
+            return {"ok": False, "error": problem}
+        style = (style or "").strip().lower()
+        if style and (style not in styles.STYLES or style == "general"):
+            return {"ok": False, "error": "unknown style"}
+        stem = f"style-{style}" if style else re.sub(r"[^\w\- ]+", "", Path(name or "workflow").stem).strip()[:60]
+        dest = self.sb.workflows / f"{stem or 'workflow'}.json"
+        self.sb.workflows.mkdir(parents=True, exist_ok=True)
+        dest.write_text(json.dumps(g, indent=2), encoding="utf-8")
+        what = f"used for {styles.STYLES[style].label} pictures" if style else "pick it per task (WORKFLOW line or Step by step)"
+        self.log(f"Workflow saved: Workflows/{dest.name} ({what}).")
+        return {"ok": True, "file": dest.name, "message": f"Saved as Workflows/{dest.name}: {what}."}
+
     def export(self, rel: str, formats: list[str]) -> dict:
         p = self.rel_path(rel)
         if not p.is_file() or p.suffix.lower() not in (".md", ".txt"):
@@ -1370,6 +1393,8 @@ def make_handler(app: App):
                     if was_current:
                         app.chat_history = []
                     return self._json({"ok": ok, "deleted": int(ok), "was_current": was_current})
+                if u.path == "/api/workflow/import":
+                    return self._json(app.import_workflow(b.get("text", ""), b.get("name", ""), b.get("style", "")))
                 if u.path == "/api/export":
                     return self._json(app.export(b.get("path", ""), b.get("formats") or ["docx", "pdf"]))
                 if u.path == "/api/check":

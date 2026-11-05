@@ -831,7 +831,14 @@ class Engine:
             raise comfy_mod.WorkflowError(f"ComfyUI doesn't list the model {m.name}. Restart ComfyUI "
                                           "so it sees new model files.")
 
-        wf = job.workflow or self.s.comfy.default_workflow
+        wf = job.workflow
+        if not wf and job.type == "image":
+            sid = styles_mod.pick(job).id
+            own = self.sb.workflows / f"style-{sid}.json"
+            if sid != "general" and own.is_file():
+                wf = own.name
+                self.log(f"  Style: {styles_mod.STYLES[sid].label}, using your workflow Workflows/{own.name}")
+        wf = wf or self.s.comfy.default_workflow
         if wf:
             name = wf if wf.lower().endswith(".json") else wf + ".json"
             path = self.sb.resolve(name, base="Workflows")

@@ -266,9 +266,22 @@ def output_files(entry: dict) -> list[dict]:
 # --------------------------------------------------------------------------- templates
 def load_template(path: Path) -> dict:
     try:
-        g = json.loads(path.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as e:
+        text = path.read_text(encoding="utf-8")
+    except OSError as e:
         raise WorkflowError(f"can't read workflow {path.name}: {e}") from e
+    return parse_template(text, path.name)
+
+
+def parse_template(text: str, name: str = "workflow") -> dict:
+    """An API-format graph from a workflow file's text (WorkflowError says what's wrong)."""
+    class _P:                                  # keeps the messages below naming the file
+        pass
+    path = _P()
+    path.name = name
+    try:
+        g = json.loads(text)
+    except ValueError as e:
+        raise WorkflowError(f"can't read workflow {name}: {e}") from e
     if isinstance(g, dict) and "nodes" in g and "links" in g:
         raise WorkflowError(f"{path.name} is a normal (UI) workflow. In ComfyUI use Workflow > "
                             "Export (API) and drop that file in Workflows/ instead.")
