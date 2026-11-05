@@ -333,7 +333,8 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   40 steps, much slower. Reads JPG, PNG and WebP.
 - **Restore old photos**: `method true` (the default) is true to the photo: it undoes fading
   and the pink/orange cast of old prints, smooths grain, resizes (`upscale`) and sharpens a
-  little, with FFmpeg only. Nothing is redrawn, so faces stay exactly theirs. `method ai` uses
+  little, with FFmpeg only (`strength strong` by default, `medium` or `light` for photos that
+  barely faded). Nothing is redrawn, so faces stay exactly theirs. `method ai` uses
   the picture editor to also mend scratches, tears and date stamps (and `colorize` adds color),
   but it can make someone look like a different person: compare with the original.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape

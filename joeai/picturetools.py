@@ -435,15 +435,28 @@ def _free(engine, client) -> None:
 # True to the photo: only what a darkroom would do. Each channel is stretched back to full range
 # (undoes fading and the pink/orange cast of old prints), a little contrast and color, light grain
 # smoothing, a plain resize and a mild sharpen. Nothing is redrawn, so faces stay exactly theirs.
-TRUE_FILTERS = "normalize=independence=1:strength=1,eq=contrast=1.06:saturation=1.12,hqdn3d=1.5:1.5:0:0"
+_FIX = "normalize=independence=1:strength=1"
+TRUE_LEVELS = {   # (color/tone, after-resize sharpening). Strong was picked on a real 1980 print.
+    "light": (_FIX + ",eq=contrast=1.06:saturation=1.12,hqdn3d=1.5:1.5:0:0", "unsharp=5:5:0.5:5:5:0"),
+    "medium": (_FIX + ",eq=contrast=1.15:gamma=0.92:saturation=1.3,hqdn3d=2:2:0:0", "cas=0.5"),
+    # Like a photographer in Photoshop: contrast first, then a few rounds of a little blur (hides
+    # paper grain) + sharpen + a small contrast/brightness nudge, and a touch of blue so the
+    # yellowed paper white turns white again.
+    "strong": (_FIX + ",curves=preset=increase_contrast,eq=gamma=0.97:saturation=1.2,"
+               + ",".join(["gblur=sigma=0.8,cas=0.6,eq=contrast=1.05:gamma=0.98:saturation=1.1"] * 2)
+               + ",colorbalance=bh=0.06:bm=0.03", "cas=0.3"),
+}
+TRUE_FILTERS = TRUE_LEVELS["strong"][0]
 
 
-def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0) -> list[str]:
+def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0,
+                         level: str = "strong") -> list[str]:
     from .tools import _TURN
-    chain = ([_TURN[turn]] if turn in _TURN else []) + [TRUE_FILTERS]
+    tone, sharpen = TRUE_LEVELS.get(level, TRUE_LEVELS["strong"])
+    chain = ([_TURN[turn]] if turn in _TURN else []) + [tone]
     if factor:
         chain.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
-    chain.append("unsharp=5:5:0.5:5:5:0")
+    chain.append(sharpen)
     return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-vf", ",".join(chain),
             "-frames:v", "1", "-pix_fmt", "rgb24", str(dest)]
 
@@ -483,7 +496,9 @@ def run_true_restore(engine, job, st, files, keys):
             dest = folder / f"{slug(src.stem) or f'photo-{i + 1}'}-restored.png"
             turn = jpeg_orientation(src) if src.suffix.lower() in (".jpg", ".jpeg") else 1
             try:
-                p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor), capture_output=True,
+                p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor,
+                                                        option_value(job, "strength") or "strong"),
+                                   capture_output=True,
                                    text=True, timeout=600, creationflags=no_window_flags())
                 ok = p.returncode == 0 and dest.exists()
                 err = (p.stderr or "").strip()[:200]
