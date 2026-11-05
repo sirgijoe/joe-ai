@@ -75,14 +75,19 @@ jobs:
         run: |
           $exe = Get-ChildItem dist\Joe-Setup-*.exe | Select-Object -First 1
           $dir = "$env:RUNNER_TEMP\JoeTest"
-          $p = Start-Process $exe.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/DIR=$dir","/TASKS=" -Wait -PassThru
+          # -Wait would also wait for the Joe the installer opens at the end, so wait on setup itself
+          $env:JOE_NO_WINDOW = "1"
+          $p = Start-Process $exe.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/DIR=$dir","/TASKS=" -PassThru
+          if (-not $p.WaitForExit(600000)) { throw "installer took over 10 min" }
           if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          Start-Sleep 5
           Get-Process pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
           if (-not (Test-Path "$dir\python\pythonw.exe")) { throw "pythonw.exe missing after install" }
           if (-not (Test-Path "$dir\joeai\_install.json")) { throw "_install.json missing" }
           & "$dir\python\python.exe" -c "import sys; sys.path.insert(0, r'$dir'); import joeai.update as u; assert u.install_kind() == 'windows-installer'; print('installed ok')"
-          $u = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait -PassThru
-          Start-Sleep 3
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -PassThru
+          [void]$u.WaitForExit(300000)
+          Start-Sleep 5
           if (Test-Path "$dir\joeai") { throw "uninstall left program files" }
 
       - uses: actions/upload-artifact@v4
