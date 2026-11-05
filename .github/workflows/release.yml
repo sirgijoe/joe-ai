@@ -1,0 +1,98 @@
+name: release
+# Builds the Windows installer. Push a tag like v2.0.0 to publish a GitHub release with
+# Joe-Setup-<version>-windows-x64.exe and SHA256SUMS.txt (the names update.py looks for).
+# "Run workflow" by hand builds the installer as a downloadable test file, no release.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Version
+        id: v
+        run: |
+          code=$(python -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            tag="${GITHUB_REF_NAME#v}"
+            [ "$tag" = "$code" ] || { echo "::error::tag v$tag doesn't match joeai/__init__.py ($code)"; exit 1; }
+          fi
+          echo "version=$code" >> "$GITHUB_OUTPUT"
+
+      - name: Private Python (python-build-standalone, checked against its SHA256SUMS)
+        run: |
+          rel=$(gh release view --repo astral-sh/python-build-standalone --json tagName,assets)
+          name=$(echo "$rel" | jq -r '.assets[].name' | grep -E '^cpython-3\.12\.[0-9]+\+[0-9]+-x86_64-pc-windows-msvc-install_only\.tar\.gz$' | head -1)
+          [ -n "$name" ] || { echo "::error::no Windows Python build found"; exit 1; }
+          tag=$(echo "$rel" | jq -r .tagName)
+          mkdir -p pbs && cd pbs
+          gh release download "$tag" --repo astral-sh/python-build-standalone -p "$name" -p SHA256SUMS
+          want=$(grep " $name\$" SHA256SUMS | cut -d' ' -f1)
+          got=$(sha256sum "$name" | cut -d' ' -f1)
+          [ -n "$want" ] && [ "$want" = "$got" ] || { echo "::error::checksum mismatch for $name"; exit 1; }
+          tar -xzf "$name"
+          echo "Using $name"
+
+      - name: Gather Joe's files
+        run: |
+          d=build/windows
+          mkdir -p "$d"
+          cp -r joeai docs Joe.pyw README.md LICENSE THIRD_PARTY.md "$d"/
+          cp -r pbs/python "$d"/python
+          find "$d/joeai" -name "__pycache__" -prune -exec rm -rf {} +
+          rm -f "$d/joeai/_install.json"
+          printf '{"kind": "windows-installer", "version": "%s"}\n' "${{ steps.v.outputs.version }}" > "$d/joeai/_install.json"
+          "$d/python/python.exe" -c "import ssl, sqlite3, json, urllib.request; print('python ok')"
+          JOE_OFFLINE=1 "$d/python/python.exe" -c "import sys; sys.path.insert(0, '$d'); import joeai.server, joeai.update; print('joe imports ok', joeai.update.install_kind())"
+
+      - name: Build installer (Inno Setup)
+        shell: pwsh
+        run: |
+          $v = "${{ steps.v.outputs.version }}"
+          $iscc = (Get-Command iscc -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) { $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress; $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" }
+          & $iscc "/DAppVersion=$v" "/DSourceDir=..\build\windows" "/DOutputName=Joe-Setup-$v-windows-x64" installer\joe.iss
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Checksums
+        run: cd dist && sha256sum Joe-Setup-*.exe > SHA256SUMS.txt && cat SHA256SUMS.txt
+
+      - name: Silent install test
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem dist\Joe-Setup-*.exe | Select-Object -First 1
+          $dir = "$env:RUNNER_TEMP\JoeTest"
+          $p = Start-Process $exe.FullName -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/DIR=$dir","/TASKS=" -Wait -PassThru
+          if ($p.ExitCode -ne 0) { throw "installer exit $($p.ExitCode)" }
+          Get-Process pythonw -ErrorAction SilentlyContinue | Stop-Process -Force
+          if (-not (Test-Path "$dir\python\pythonw.exe")) { throw "pythonw.exe missing after install" }
+          if (-not (Test-Path "$dir\joeai\_install.json")) { throw "_install.json missing" }
+          & "$dir\python\python.exe" -c "import sys; sys.path.insert(0, r'$dir'); import joeai.update as u; assert u.install_kind() == 'windows-installer'; print('installed ok')"
+          $u = Start-Process "$dir\unins000.exe" -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES" -Wait -PassThru
+          Start-Sleep 3
+          if (Test-Path "$dir\joeai") { throw "uninstall left program files" }
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: joe-windows
+          path: dist/*
+
+      - name: Publish release
+        if: github.ref_type == 'tag'
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* --title "Joe $GITHUB_REF_NAME" \
+            --notes "Windows: download Joe-Setup-${{ steps.v.outputs.version }}-windows-x64.exe and open it. It isn't code-signed, so Windows SmartScreen may say 'Windows protected your PC': click More info, then Run anyway. SHA256SUMS.txt lets you check the download." \
+            $( [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *rc* ]] && echo --prerelease )
