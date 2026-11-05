@@ -938,7 +938,7 @@ class Engine:
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
                  + (f", model {ckpt}" if ckpt else "") + f" -> {st.output}/")
         ffmpeg = None
-        if job.type == "video":
+        if job.type == "video" or style.id == "coloring":
             from .doctor import ffmpeg_exe
             ffmpeg = ffmpeg_exe(self.s.comfy.ffmpeg)
         fails_in_row = 0
@@ -961,6 +961,8 @@ class Engine:
                     try:
                         entry = client.wait(client.submit(g), stop=self.stop)
                         saved = self._save_outputs(client, entry, folder, stem, job, ffmpeg)
+                        if style.id == "coloring" and job.type == "image":
+                            saved = self._coloring_pages(folder, saved, ffmpeg)
                         break
                     except InterruptedError:
                         raise Stopped()
@@ -1016,6 +1018,28 @@ class Engine:
         self._save_state(job, st)
         self.log(f"Finished '{job.name}': {st.items} file(s) in {st.output}/ (AI-generated)")
         return st
+
+    def _coloring_pages(self, folder: Path, names: list[str], ffmpeg: str | None) -> list[str]:
+        """Coloring style: each picture becomes black outlines on white; the colored original
+        is kept next to it as '<name>_example.png' (a guide for colors)."""
+        if not ffmpeg:
+            self.log("  FFmpeg isn't installed, so the pages may have color (F10 > System check installs it).")
+            return names
+        out = []
+        for n in names:
+            src = folder / n
+            if src.suffix.lower() not in media_mod.STILL:
+                out.append(n)
+                continue
+            ex = src.with_name(f"{src.stem}_example{src.suffix}")
+            src.replace(ex)
+            if media_mod.line_art(ffmpeg, ex, src):
+                out += [n, ex.name]
+            else:
+                ex.replace(src)
+                self.log(f"  {n}: couldn't turn it into line art; kept the picture as it came out.")
+                out.append(n)
+        return out
 
     def _save_outputs(self, client, entry: dict, folder: Path, stem: str, job: Job,
                       ffmpeg: str | None) -> list[str]:

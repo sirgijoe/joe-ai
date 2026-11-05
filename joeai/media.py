@@ -87,6 +87,33 @@ def _run(cmd: list[str]) -> bool:
         return False
 
 
+# Coloring pages (models often add color or shading to a "line art" page anyway):
+#  - already mostly white with dark lines: every gray turns pure black or white (strips stray tint);
+#  - a filled-in picture: its outlines are found (color-aware), drawn black on white, thickened.
+LINES_VF = "format=gray,lut=c0='if(lt(val,140),0,255)'"
+EDGES_VF = ("format=gbrp,gblur=sigma=1.2,edgedetect=low=0.06:high=0.18,format=gray,"
+            "lut=c0='if(gt(val,30),0,255)',erosion")
+
+
+def white_share(ffmpeg: str, src: Path) -> float:
+    """How much of the picture is near-white (0-1), from a 64x64 gray copy."""
+    try:
+        p = subprocess.run([ffmpeg, "-v", "error", "-i", str(src), "-vf", "format=gray,scale=64:64",
+                            "-frames:v", "1", "-f", "rawvideo", "-"], capture_output=True, timeout=120,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        return 0.0
+    px = p.stdout or b""
+    return sum(1 for v in px if v > 200) / len(px) if px else 0.0
+
+
+def line_art(ffmpeg: str, src: Path, dest: Path) -> bool:
+    """Make a black-and-white coloring page from a picture with FFmpeg."""
+    vf = LINES_VF if white_share(ffmpeg, src) >= 0.55 else EDGES_VF
+    return _run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vf", vf, "-frames:v", "1", str(dest)]) \
+        and dest.exists()
+
+
 def to_mp4(ffmpeg: str, src: Path, dest: Path | None = None, fps: int = 16) -> Path | None:
     """Animated GIF/WebP or another video -> H.264 MP4 that plays everywhere."""
     dest = dest or src.with_suffix(".mp4")
