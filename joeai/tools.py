@@ -317,8 +317,9 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                       ("true", "True to the photo (no AI redraw, faces stay theirs)"),
                       ("ai", "AI repair (also scratches and tears; can change faces)")), value="true"),
                   Option("strength", "How strong (true to the photo)", choices=(
-                      ("strong", "Strong (most faded prints)"), ("medium", "Medium"),
-                      ("light", "Light (barely faded)")), value="strong")),
+                      ("auto", "Joe decides from how faded each photo is"),
+                      ("strong", "Strong (very faded)"), ("medium", "Medium"),
+                      ("light", "Light (barely faded)")), value="auto")),
          help="True to the photo (the usual choice) does only what a darkroom would: undoes fading "
               "and the pink or orange cast of old prints, smooths grain, makes it bigger and a little "
               "sharper. Nothing is redrawn, so faces stay exactly theirs; it needs FFmpeg only. AI "
@@ -327,7 +328,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
               "compare with the original before you share it. Your originals are never changed.",
          plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
                    "list below, OPTIONS: upscale none|2x|4x, method true (default) or ai (only if they ask to "
-                   "fix scratches/tears/stamps), strength strong (default)|medium|light, colorize (only "
+                   "fix scratches/tears/stamps), strength auto (default)|strong|medium|light, colorize (only "
                    "if they want color; uses ai). "
                    "No CHUNKS.",
          examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),

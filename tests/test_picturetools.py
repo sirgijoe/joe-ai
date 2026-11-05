@@ -245,3 +245,14 @@ def test_true_restore_redraws_nothing(studio, monkeypatch, tmp_path):
     assert (out / "faded-restored.png").exists()
     assert picturetools.picture_size(out / "faded-restored.png") == (640, 480)   # same shape, 2x
     assert "Nothing was redrawn" in (out / "about.txt").read_text(encoding="utf-8")
+
+
+def test_auto_strength_follows_how_faded_the_photo_is():
+    assert picturetools.auto_level({"YLOW": 91}) == "strong"      # 1980 lawn print: greyed blacks
+    assert picturetools.auto_level({"YLOW": 60}) == "medium"
+    assert picturetools.auto_level({"YLOW": 42}) == "light"       # tux print: still has its blacks
+    assert picturetools.auto_level({}) == "medium"
+    cmd = picturetools.true_restore_command("ffmpeg", Path("a.jpg"), Path("b.png"), 1, 2, "light")
+    chain = cmd[cmd.index("-filter_complex") + 1]
+    assert chain.count("gblur") == picturetools.ROUNDS and chain.count("eq=") == 1   # color once
+    assert "grayworld" in chain and "scale=iw*2" in chain

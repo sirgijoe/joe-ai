@@ -436,29 +436,53 @@ def _free(engine, client) -> None:
 # (undoes fading and the pink/orange cast of old prints), a little contrast and color, light grain
 # smoothing, a plain resize and a mild sharpen. Nothing is redrawn, so faces stay exactly theirs.
 _FIX = "normalize=independence=1:strength=1"
-TRUE_LEVELS = {   # (color/tone, after-resize sharpening). Strong was picked on a real 1980 print.
-    "light": (_FIX + ",eq=contrast=1.06:saturation=1.12,hqdn3d=1.5:1.5:0:0", "unsharp=5:5:0.5:5:5:0"),
-    "medium": (_FIX + ",eq=contrast=1.15:gamma=0.92:saturation=1.3,hqdn3d=2:2:0:0", "cas=0.5"),
-    # Like a photographer in Photoshop: contrast first, then a few rounds of a little blur (hides
-    # paper grain) + sharpen + a small contrast/brightness nudge, and a touch of blue so the
-    # yellowed paper white turns white again.
-    "strong": (_FIX + ",curves=preset=increase_contrast,eq=gamma=0.97:saturation=1.2,"
-               + ",".join(["gblur=sigma=0.8,cas=0.6,eq=contrast=1.05:gamma=0.98:saturation=1.1"] * 2)
-               + ",colorbalance=bh=0.06:bm=0.03", "cas=0.3"),
+# Half-strength gray-world white balance: takes out pink/orange/green casts without making the
+# photo cold (a full correction over-blues grass and sky).
+_CAST = ("split[ca][cb];[cb]format=gbrpf32le,grayworld,format=yuv444p[cg];[ca]format=yuv444p[cc];"
+         "[cc][cg]blend=all_mode=normal:all_opacity=0.5")
+_ROUND = "gblur=sigma=0.8,cas=0.5"           # one photographer's round: a little blur, then sharpen
+ROUNDS = 4
+TRUE_LEVELS = {   # contrast and color, applied ONCE (rounds repeat only blur + sharpen)
+    "strong": "curves=preset=increase_contrast,eq=gamma=0.97:saturation=1.3",   # faded prints
+    "medium": "eq=contrast=1.12:gamma=0.97:saturation=1.15",
+    "light": "eq=contrast=1.04:saturation=1.05",                                # still has its blacks
 }
-TRUE_FILTERS = TRUE_LEVELS["strong"][0]
+
+
+def measure(ffmpeg: str, src: Path) -> dict:
+    """Brightness numbers of the photo (FFmpeg signalstats): YLOW = how dark its darkest tenth is
+    (0-255; a faded print's blacks have turned grey, so it reads high). {} if unreadable."""
+    import subprocess
+    from .system import no_window_flags
+    try:
+        r = subprocess.run([ffmpeg, "-v", "info", "-noautorotate", "-i", str(src), "-frames:v", "1", "-vf",
+                            "signalstats,metadata=print", "-f", "null", "-"], capture_output=True,
+                           text=True, timeout=120, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return {}
+    import re as _re
+    return {k: float(v) for k, v in _re.findall(r"lavfi\.signalstats\.(\w+)=([\d.]+)", r.stderr or "")}
+
+
+def auto_level(stats: dict) -> str:
+    low = stats.get("YLOW")
+    if low is None:
+        return "medium"
+    return "strong" if low >= 75 else "medium" if low >= 55 else "light"
 
 
 def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0,
-                         level: str = "strong") -> list[str]:
+                         level: str = "strong", cast: bool = True) -> list[str]:
     from .tools import _TURN
-    tone, sharpen = TRUE_LEVELS.get(level, TRUE_LEVELS["strong"])
-    chain = ([_TURN[turn]] if turn in _TURN else []) + [tone]
+    parts = ([_TURN[turn]] if turn in _TURN else []) + [_FIX]
+    if cast:
+        parts.append(_CAST)
+    parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"])] + [_ROUND] * ROUNDS
     if factor:
-        chain.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
-    chain.append(sharpen)
-    return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-vf", ",".join(chain),
-            "-frames:v", "1", "-pix_fmt", "rgb24", str(dest)]
+        parts.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
+    parts += ["cas=0.3", "format=rgb24"]
+    return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-filter_complex", ",".join(parts),
+            "-frames:v", "1", str(dest)]
 
 
 def restore_is_true(job) -> bool:
@@ -495,15 +519,25 @@ def run_true_restore(engine, job, st, files, keys):
             engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
             dest = folder / f"{slug(src.stem) or f'photo-{i + 1}'}-restored.png"
             turn = jpeg_orientation(src) if src.suffix.lower() in (".jpg", ".jpeg") else 1
-            try:
-                p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor,
-                                                        option_value(job, "strength") or "strong"),
-                                   capture_output=True,
-                                   text=True, timeout=600, creationflags=no_window_flags())
-                ok = p.returncode == 0 and dest.exists()
-                err = (p.stderr or "").strip()[:200]
-            except (OSError, subprocess.SubprocessError) as e:
-                ok, err = False, str(e)
+            want = option_value(job, "strength") or "auto"
+            stats = measure(ffmpeg, src) if want == "auto" else {}
+            level = auto_level(stats) if want == "auto" else want
+            if want == "auto":
+                low = stats.get("YLOW")
+                engine.log(f"  {src.name}: darkest parts at {low:.0f} of 255 -> {level}"
+                           if low is not None else f"  {src.name}: couldn't measure it -> {level}")
+            ok, err = False, ""
+            for cast in (True, False):              # an older FFmpeg without grayworld: skip that step
+                try:
+                    p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast),
+                                       capture_output=True, text=True, timeout=600,
+                                       creationflags=no_window_flags())
+                    ok = p.returncode == 0 and dest.exists()
+                    err = (p.stderr or "").strip()[:200]
+                except (OSError, subprocess.SubprocessError) as e:
+                    ok, err = False, str(e)
+                if ok:
+                    break
             if not ok:
                 failed.append(f"{src.name}: {err or 'FFmpeg failed'}")
                 engine.log(f"  {src.name}: {err or 'FFmpeg failed'}")
@@ -515,7 +549,7 @@ def run_true_restore(engine, job, st, files, keys):
             engine.log(f"  {src.name} -> {dest.name}")
         atomic_write_text(folder / "about.txt",
                           f"# {job.name}\n\nRestored by Joe on {datetime.now():%Y-%m-%d %H:%M}, true to the photo:"
-                          "\nfading and color cast undone, light grain smoothing"
+                          "\nfading and color cast undone, a few rounds of light blur + sharpen"
                           + (f", {factor}x bigger" if factor else "") + ", mild sharpening.\nNothing was "
                           "redrawn by AI. Scratches, tears and date stamps stay: for those, run it again "
                           "with 'AI repair' (it can change faces).\n")
