@@ -46,11 +46,28 @@ def split_items(text: str) -> list[Item]:
 _LOOSE_HEAD = re.compile(r"^\s*(?:\*\*(.+?)\*\*:?|\d+[.)]\s+(?:\*\*)?(.+?)(?:\*\*)?:?|#{1,6}\s+(.+?))\s*$")
 
 
+_LIST_LINE = re.compile(r"^\s*(?:\d+[.)]|[-*\u2022])\s+\S")
+
+
+def _one_liner(line: str) -> Item:
+    """'1. **Bolt** - quick and strong' -> Item('Bolt', 'quick and strong')."""
+    s = re.sub(r"^\s*(?:\d+[.)]|[-*\u2022])\s+", "", line).strip()
+    m = re.match(r"^\*\*(.+?)\*\*\s*[:\-\u2013\u2014]?\s*(.*)$", s) or \
+        re.match(r"^(.{1,60}?)\s*(?::|\s[-\u2013\u2014]\s)\s*(.+)$", s)
+    if m:
+        return Item(_strip_md(m.group(1)), m.group(2).strip() or _strip_md(m.group(1)))
+    return Item(_strip_md(s)[:60], s)
+
+
 def loose_items(text: str) -> list[Item]:
     """For replies without '## Title' lines: blocks that start with a bold line, a numbered
     line or any heading count as items (a model asked for prompts sometimes writes
     '1. **Title**' or '**Title**' instead)."""
     items: list[Item] = []
+    lines = [x for x in (text or "").splitlines() if x.strip()]
+    listed = [x for x in lines if _LIST_LINE.match(x)]
+    if len(listed) >= 2 and len(listed) >= len(lines) - 2:
+        return [_one_liner(x) for x in listed]          # a plain list: one item per line
     for block in re.split(r"\n[ \t]*\n", text or ""):
         lines = [x for x in block.strip().splitlines() if x.strip()]
         if not lines:

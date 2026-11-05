@@ -1160,8 +1160,9 @@ For each fix, give one object:
   {"find": "the exact words from the text, copied exactly, enough words to be unique",
    "replace": "the corrected words",
    "why": "a few plain words, e.g. spelling"}
+Only list words that need changing: never list a sentence that is already correct.
 If something might be wrong but you aren't sure, put the same words in find and replace and say
-why in "why". If there is nothing to fix, reply [].
+in "why" what might be wrong, starting with "unsure:". If there is nothing to fix, reply [].
 """
 PROOF_WORDS = 600                     # words per model call
 MAX_FIND = 400                        # longer "find"s are rewrites, not fixes: never applied
@@ -1224,6 +1225,17 @@ def loose_find(text: str, find: str):
     return found[0] if len(found) == 1 else None
 
 
+_DOUBT = re.compile(r"unsure|not sure|might|maybe|possibly|check|unclear|ambiguous|confirm|verify|\?")
+_LABEL_ONLY = re.compile(r"^\s*(?:spelling|grammar|punctuation|capitali[sz]ation|typo|style|clarity|"
+                         r"wording|word choice|repeated words?|missing words?)\s*[.:]?\s*$", re.I)
+
+
+def is_doubt(why: str) -> bool:
+    """A no-change entry worth showing: it says what might be wrong (not just 'spelling')."""
+    why = (why or "").strip()
+    return bool(why) and not _LABEL_ONLY.match(why) and bool(_DOUBT.search(why.lower()) or len(why) > 25)
+
+
 def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[str, list, list, list]:
     """Apply exact-match fixes. Returns (text, applied, noted, missed); each change gets a
     paragraph number ("par"). Nothing is changed that isn't on the applied list."""
@@ -1238,7 +1250,9 @@ def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[s
         par = first_par + (len(re.findall(r"\n[ \t]*\n", text[:pos])) if pos >= 0 else 0)
         c = dict(c, par=par if pos >= 0 else 0)
         if f == r:
-            noted.append(c)
+            if is_doubt(c.get("why", "")):
+                noted.append(c)                   # a real question for the reader
+            # else: the model listed a correct sentence ("spelling") with nothing to change: drop it
         elif len(f) > MAX_FIND:
             missed.append(dict(c, reason="too much to change at once"))
         elif pos < 0:
