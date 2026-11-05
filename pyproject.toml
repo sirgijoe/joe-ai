@@ -21,7 +21,7 @@ dev = ["pytest>=8"]
 packages = ["joeai"]
 
 [tool.setuptools.package-data]
-joeai = ["ui/*.html", "ui/*.js", "ui/*.css", "ui/sounds/*.wav", "ui/fonts/*.ttf", "ui/fonts/*.txt", "ui/fonts/*.css"]
+joeai = ["model_picks.json", "ui/*.html", "ui/*.js", "ui/*.css", "ui/sounds/*.wav", "ui/fonts/*.ttf", "ui/fonts/*.txt", "ui/fonts/*.css"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
