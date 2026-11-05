@@ -5,15 +5,16 @@ from joeai.config import Settings
 
 def test_levels_and_fallback():
     s = Settings()
+    assert quality.level(s, "video") == "high"            # High by default (Joe mostly runs overnight)
+    s.quality.video = "MEDIUM"
     assert quality.level(s, "video") == "medium"
-    s.quality.video = "HIGH"
-    assert quality.level(s, "video") == "high"
     s.quality.video = "ultra"
-    assert quality.level(s, "video") == "medium"          # anything unknown = medium
+    assert quality.level(s, "video") == "high"            # anything unknown = the default
 
 
 def test_video_plans_use_turbo_only_below_high():
     s = Settings()
+    s.quality.video = s.quality.pictures = "medium"
     med = quality.video(s, turbo_installed=True)
     assert med.turbo and med.steps == 4 and med.cfg == 1.0 and med.size == (1280, 704) and med.frames == 121
     assert not quality.video(s, turbo_installed=False).turbo and quality.video(s, False).steps == 20
@@ -56,6 +57,7 @@ def test_picture_plans():
 def test_writing_plan_and_smaller_model():
     from joeai import doctor
     s = Settings()
+    s.quality.writing = "medium"
     assert quality.writing(s).think is False
     s.quality.writing = "high"
     assert quality.writing(s).think is True
@@ -137,6 +139,7 @@ def test_plan_recommends_turbo_for_video(tmp_path, monkeypatch):
     s.workspace = str(tmp_path / "ws")
     s.comfy.url = "http://127.0.0.1:9"
     s.comfy.models_dir = str(tmp_path / "models")
+    s.quality.video = "medium"
     for folder, name, _ in comfy.WAN_VIDEO["files"]:
         (tmp_path / "models" / folder).mkdir(parents=True, exist_ok=True)
         (tmp_path / "models" / folder / name).write_bytes(b"x")

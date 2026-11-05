@@ -121,9 +121,10 @@ class WebSettings:
 @dataclass
 class QualitySettings:
     # Setup > Writing / Images & video: low = fastest, rougher | medium = balanced | high = best, slowest
-    writing: str = "medium"
-    pictures: str = "medium"
-    video: str = "medium"
+    # High by default: Joe mostly works overnight, so best results beat speed (change it in Setup).
+    writing: str = "high"
+    pictures: str = "high"
+    video: str = "high"
 
 
 @dataclass

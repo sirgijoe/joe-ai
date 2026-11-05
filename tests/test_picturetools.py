@@ -45,6 +45,7 @@ def studio(tmp_path, monkeypatch):
     s.engine.retry_backoff_s = 0
     s.engine.gpu_temp_pause_c = 0
     s.engine.keep_awake = False
+    s.quality.pictures = "medium"                              # the tests check the 4-step add-on
     models = tmp_path / "models"
     for p in picturetools.PACKS.values():                      # every pack "downloaded"
         for folder, name, _, _ in p.files:
@@ -78,7 +79,7 @@ def test_all_five_are_ready_and_use_only_built_in_nodes(studio):
     png(app.sb.inbox / "mug.png")
     for text in ("TASK: Cut  TYPE: remove-bg\nINPUT: mug.png\nOPTIONS: background transparent, upscale 2x",
                  "TASK: Edit  TYPE: edit-picture\nINPUT: mug.png\nFORMAT: put it on a marble counter",
-                 "TASK: Old  TYPE: restore-photo\nINPUT: mug.png\nOPTIONS: colorize, upscale 2x",
+                 "TASK: Old  TYPE: restore-photo\nINPUT: mug.png\nOPTIONS: method ai, colorize, upscale 2x",
                  "TASK: Move  TYPE: animate-photo\nINPUT: mug.png\nFORMAT: steam rising",
                  "TASK: Tunes  TYPE: music\nOPTIONS: kind music, length 30\nFORMAT: calm guitar | upbeat ukulele",
                  "TASK: Bangs  TYPE: music\nOPTIONS: kind sfx, length 10\nFORMAT: a door creak"):
@@ -117,19 +118,12 @@ def test_animate_matches_the_photo_shape(studio):
 def test_restore_and_edit_prompts(studio):
     app, comfy, _ = studio
     png(app.sb.inbox / "nana.png")
-    run(app, "TASK: Old  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: upscale none")
+    run(app, "TASK: Old  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: method ai, upscale none")
     p = comfy.graphs[-1]["151"]["inputs"]["prompt"]
     assert "scratches" in p and "black and white" in p and "Do not redraw faces" in p
     assert comfy.graphs[-1]["169"]["inputs"]["steps"] == 4                # Lightning add-on
-    g = comfy.graphs[-1]                                                   # gentle: 3 small passes
-    assert g["169"]["inputs"]["denoise"] == 0.3 and g["169"]["inputs"]["latent_image"] == ["156", 0]
-    assert g["169_2"]["inputs"]["latent_image"] == ["169", 0]
-    assert g["169_3"]["inputs"]["latent_image"] == ["169_2", 0]
-    assert g["158"]["inputs"]["samples"] == ["169_3", 0]
-    run(app, "TASK: Torn  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: strength strong, upscale none")
-    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 1.0 and "169_2" not in comfy.graphs[-1]
     app.settings.quality.pictures = "high"
-    run(app, "TASK: Old2  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: colorize, upscale none")
+    run(app, "TASK: Old2  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: method ai, colorize, upscale none")
     g = comfy.graphs[-1]
     assert "colorize" in g["151"]["inputs"]["prompt"] and g["169"]["inputs"]["steps"] == 40
 
@@ -218,7 +212,7 @@ def test_out_of_memory_twice_says_so_plainly(studio, monkeypatch):
         raise comfy_mod.WorkflowError("ComfyUI error: Allocation on device")
     monkeypatch.setattr(comfy_mod.ComfyClient, "wait", wait)
     monkeypatch.setattr(picturetools.time, "sleep", lambda s: None)
-    _, st = run(app, "TASK: Old  TYPE: restore-photo\nINPUT: bowl.png\nOPTIONS: upscale none")
+    _, st = run(app, "TASK: Old  TYPE: restore-photo\nINPUT: bowl.png\nOPTIONS: method ai, upscale none")
     assert st.status == "failed"
     assert "ran out of memory" in st.note and "Allocation" not in st.note
 
@@ -228,3 +222,26 @@ def test_card_size_comes_from_comfyui_first(monkeypatch):
     monkeypatch.setattr(pt, "request_json", lambda *a, **k: {"devices": [
         {"name": "cuda:0 NVIDIA GeForce RTX 4070", "type": "cuda", "vram_total": 12878086144}]})
     assert pt.card_gb("http://x") == 12.0 and pt.small_card("http://x")
+
+
+def test_true_restore_redraws_nothing(studio, monkeypatch, tmp_path):
+    import shutil
+    import subprocess
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        pytest.skip("no ffmpeg here")
+    app, comfy, _ = studio
+    import joeai.doctor as doctor
+    monkeypatch.setattr(doctor, "ffmpeg_exe", lambda configured="": ff)
+    src = app.sb.inbox / "faded.jpg"
+    src.parent.mkdir(parents=True, exist_ok=True)
+    subprocess.run([ff, "-v", "error", "-f", "lavfi", "-i", "testsrc=s=320x240:d=1", "-frames:v", "1",
+                    "-vf", "eq=contrast=0.6:brightness=0.1", str(src)], check=True)
+    before = len(comfy.graphs)
+    _, st = run(app, "TASK: Old  TYPE: restore-photo\nINPUT: faded.jpg\nOPTIONS: upscale 2x")
+    assert st.status == "done", st.note
+    assert len(comfy.graphs) == before                         # ComfyUI not used at all
+    out = app.sb.output / st.output
+    assert (out / "faded-restored.png").exists()
+    assert picturetools.picture_size(out / "faded-restored.png") == (640, 480)   # same shape, 2x
+    assert "Nothing was redrawn" in (out / "about.txt").read_text(encoding="utf-8")

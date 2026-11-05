@@ -115,7 +115,7 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
 Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but
 careful pictures, or the other way round. The line under each choice says what it does.
 
-| | Low (fastest) | Medium (balanced, the default) | High (best, slowest) |
+| | Low (fastest) | Medium (balanced) | High (best, slowest, the default) |
 |---|---|---|---|
 | **Writing** | a smaller, quicker model if you have one installed | the best model for your PC | the best model, thinking each part through first (often 2-3x slower) |
 | **Pictures** | about half the drawing steps, slightly smaller pictures (about 2x faster, less detail) | the model's normal settings | more steps and a finer sampler (sharper, about 1.5x as long) |
@@ -318,7 +318,7 @@ the models used.
 ```
 TASK: Shop cutouts  TYPE: remove-bg        INPUT: tools/remove-bg     OPTIONS: background white, upscale 2x
 TASK: Marble        TYPE: edit-picture     INPUT: mug.jpg             FORMAT: put the mug on a white marble counter
-TASK: Old family    TYPE: restore-photo    INPUT: old-photos          OPTIONS: colorize, upscale 2x
+TASK: Old family    TYPE: restore-photo    INPUT: old-photos          OPTIONS: upscale 2x
 TASK: Steam         TYPE: animate-photo    INPUT: mug.jpg             FORMAT: steam rising, slow push-in
 TASK: Video music   TYPE: music            OPTIONS: kind music, length 60
 FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
@@ -331,11 +331,11 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   Lightning add-on): FORMAT is the change, made to every picture. Medium/Low picture quality = 4
   steps (about 1-3 minutes on a 12 GB card, the rest of the model waits in normal memory); High =
   40 steps, much slower. Reads JPG, PNG and WebP.
-- **Restore old photos**: the same editor told to remove damage and keep every face and detail;
-  `colorize` adds natural color, otherwise the photo keeps its own colors (faded color comes
-  back, black and white stays). `upscale` sharpens after. `strength gentle` (the default) makes
-  three small passes from your photo, like a photographer, so faces stay theirs; `strength strong` is for badly torn photos and can
-  change faces. AI can change small details: compare with the original.
+- **Restore old photos**: `method true` (the default) is true to the photo: it undoes fading
+  and the pink/orange cast of old prints, smooths grain, resizes (`upscale`) and sharpens a
+  little, with FFmpeg only. Nothing is redrawn, so faces stay exactly theirs. `method ai` uses
+  the picture editor to also mend scratches, tears and date stamps (and `colorize` adds color),
+  but it can make someone look like a different person: compare with the original.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
   1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
 - **Music and sound effects**: no files needed; one piece per line (in a mission, separate them

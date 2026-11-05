@@ -308,22 +308,23 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Swap the background of this photo for a beach", "Remove the cup from these pictures"),
          extra_label="What should change?", extra_hint="e.g. replace the background with a white marble counter"),
     Tool("restore-photo", "Restore old photos", "Pictures",
-         "Fix scratches and fading, add color.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         "Undo fading and color casts, true to the photo.", accepts=COMFY_PHOTO_EXT, needs=("ffmpeg",),
+         ready=True,
          options=(Option("colorize", "Add color", False, "Off keeps black and white or sepia."),
                   Option("upscale", "Make it bigger and sharper", choices=(
                       ("none", "No"), ("2x", "2x"), ("4x", "4x")), value="2x"),
-                  Option("strength", "How much to fix", choices=(
-                      ("gentle", "Gentle (keeps faces as they are)"),
-                      ("strong", "Strong (badly damaged photos; can change faces)")), value="gentle")),
-         help="Removes scratches, dust and stains and evens fading, keeping everyone and everything "
-              "as it was. Gentle (the usual choice) works like a photographer: three small passes, each "
-              "starting from the last and checked against your original, so faces stay theirs; "
-              "Strong redraws more and can make someone look like a different person. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
-              "offered once) plus Real-ESRGAN for sharpening. AI can change small details: compare "
-              "with the original before you share it. Your originals are never changed.",
+                  Option("method", "How to restore", choices=(
+                      ("true", "True to the photo (no AI redraw, faces stay theirs)"),
+                      ("ai", "AI repair (also scratches and tears; can change faces)")), value="true")),
+         help="True to the photo (the usual choice) does only what a darkroom would: undoes fading "
+              "and the pink or orange cast of old prints, smooths grain, makes it bigger and a little "
+              "sharper. Nothing is redrawn, so faces stay exactly theirs; it needs FFmpeg only. AI "
+              "repair uses the picture editor (about 31 GB, offered once) to also mend scratches, tears "
+              "and stamps, and to add color, but it can make someone look like a different person: "
+              "compare with the original before you share it. Your originals are never changed.",
          plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
-                   "list below, OPTIONS: colorize (only if they want color), upscale none|2x|4x, strength gentle "
-                   "(default) or strong (only for badly torn/damaged photos). "
+                   "list below, OPTIONS: upscale none|2x|4x, method true (default) or ai (only if they ask to "
+                   "fix scratches/tears/stamps), colorize (only if they want color; uses ai). "
                    "No CHUNKS.",
          examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),
          extra_hint="optional, e.g. the dress was blue"),
@@ -2867,8 +2868,14 @@ COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 120.0, "restore-photo": 150.0
 def needs_problem(settings, job: "Job") -> str:
     """Why this tool can't run on this PC yet ('' = fine)."""
     tool = TOOLS[job.type]
-    if "comfy" in tool.needs and tool.ready:
-        from . import picturetools
+    from . import picturetools
+    uses_comfy = "comfy" in tool.needs or (job.type == "restore-photo"
+                                           and not picturetools.restore_is_true(job))
+    if job.type == "restore-photo" and not uses_comfy:
+        from .doctor import ffmpeg_exe
+        if not ffmpeg_exe(settings.comfy.ffmpeg):
+            return f"Task '{job.name}': restoring photos needs FFmpeg. Setup (F10) > System check installs it."
+    if uses_comfy and tool.ready:
         from .doctor import comfy_models_dir
         try:
             mdir = comfy_models_dir(settings)

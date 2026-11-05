@@ -87,9 +87,7 @@ RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, s
                   "and fix faded and uneven areas. Keep every person's face, expression, hair, pose "
                   "and clothing, and the whole scene, exactly as they are in the photo. Do not redraw "
                   "faces or add detail that isn't there: a soft or blurry face stays the same face.")
-# (strength per pass, passes). Gentle works like a photographer: several small passes, each starting
-# from the last result and always checked against the original, so faces and details stay theirs.
-RESTORE_LEVELS = {"gentle": (0.3, 3), "strong": (1.0, 1)}
+
 COLORIZE = (" Then colorize it with natural, realistic colors that fit the time period, "
             "with true-to-life skin tones.")
 KEEP_BW = (" Keep its own colors: if it is black and white or sepia, keep it that way; if it is a "
@@ -434,6 +432,86 @@ def _free(engine, client) -> None:
         engine.log(f"  Couldn't ask ComfyUI to free memory: {e}")
 
 
+# True to the photo: only what a darkroom would do. Each channel is stretched back to full range
+# (undoes fading and the pink/orange cast of old prints), a little contrast and color, light grain
+# smoothing, a plain resize and a mild sharpen. Nothing is redrawn, so faces stay exactly theirs.
+TRUE_FILTERS = "normalize=independence=1:strength=1,eq=contrast=1.06:saturation=1.12,hqdn3d=1.5:1.5:0:0"
+
+
+def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0) -> list[str]:
+    from .tools import _TURN
+    chain = ([_TURN[turn]] if turn in _TURN else []) + [TRUE_FILTERS]
+    if factor:
+        chain.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
+    chain.append("unsharp=5:5:0.5:5:5:0")
+    return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-vf", ",".join(chain),
+            "-frames:v", "1", "-pix_fmt", "rgb24", str(dest)]
+
+
+def restore_is_true(job) -> bool:
+    from .tools import chosen_options, option_value
+    return (option_value(job, "method") or "true") != "ai" and "colorize" not in chosen_options(job)
+
+
+def run_true_restore(engine, job, st, files, keys):
+    import subprocess
+    from .doctor import ffmpeg_exe
+    from .engine import Stopped
+    from .system import no_window_flags
+    from .tools import _finish, jpeg_orientation, option_value, tool_dir
+    from .mission import slug
+    ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    if not ffmpeg:
+        st.status, st.note = "failed", "needs FFmpeg (Setup > System check installs it)"
+        engine.log(f"'{job.name}' failed: {st.note}")
+        return st
+    up = option_value(job, "upscale") or "none"
+    factor = int(up[0]) if up[:1] in ("2", "4") else 0
+    folder = tool_dir(engine, job, st)
+    st.status = "running"
+    st.started = st.started or datetime.now().isoformat(timespec="seconds")
+    engine._save_state(job, st)
+    engine.log(f"Starting '{job.name}': {len(files)} photo(s), true to the photo (no AI redraw) -> {st.output}")
+    failed: list[str] = []
+    try:
+        for i, (src, key) in enumerate(zip(files, keys)):
+            if key in st.titles:
+                continue
+            if engine.stop.is_set():
+                raise Stopped()
+            engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
+            dest = folder / f"{slug(src.stem) or f'photo-{i + 1}'}-restored.png"
+            turn = jpeg_orientation(src) if src.suffix.lower() in (".jpg", ".jpeg") else 1
+            try:
+                p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor), capture_output=True,
+                                   text=True, timeout=600, creationflags=no_window_flags())
+                ok = p.returncode == 0 and dest.exists()
+                err = (p.stderr or "").strip()[:200]
+            except (OSError, subprocess.SubprocessError) as e:
+                ok, err = False, str(e)
+            if not ok:
+                failed.append(f"{src.name}: {err or 'FFmpeg failed'}")
+                engine.log(f"  {src.name}: {err or 'FFmpeg failed'}")
+                continue
+            st.titles.append(key)
+            st.media_files.append(dest.name)
+            st.items += 1
+            engine._save_state(job, st)
+            engine.log(f"  {src.name} -> {dest.name}")
+        atomic_write_text(folder / "about.txt",
+                          f"# {job.name}\n\nRestored by Joe on {datetime.now():%Y-%m-%d %H:%M}, true to the photo:"
+                          "\nfading and color cast undone, light grain smoothing"
+                          + (f", {factor}x bigger" if factor else "") + ", mild sharpening.\nNothing was "
+                          "redrawn by AI. Scratches, tears and date stamps stay: for those, run it again "
+                          "with 'AI repair' (it can change faces).\n")
+    except Stopped:
+        st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)}"
+        engine._save_state(job, st)
+        engine.log(f"'{job.name}' {st.note}")
+        return st
+    return _finish(engine, job, st, len(files), failed)
+
+
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     """One runner for all five tools: inputs -> ComfyUI graph per item -> files in the task folder."""
     from .doctor import comfy_models_dir
@@ -460,6 +538,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
         items, keys = files, [_key(engine, f) for f in files]
+    if tid == "restore-photo" and restore_is_true(job):
+        return run_true_restore(engine, job, st, items, keys)
     if tid == "edit-picture" and not job.format.strip():
         st.status, st.note = "failed", "say what to change (for example: swap the background for a white wall)"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -633,10 +713,7 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
         if extra:
             prompt += " " + extra
-        level = option_value(job, "strength") or "gentle"
-        return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu,
-                           denoise=RESTORE_LEVELS.get(level, RESTORE_LEVELS["gentle"])[0],
-                           passes=RESTORE_LEVELS.get(level, RESTORE_LEVELS["gentle"])[1]),
+        return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu),
                 stem + "-restored", ".png")
     if tid == "animate-photo":
         w, h = video_size(*picture_size(src))

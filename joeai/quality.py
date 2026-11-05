@@ -1,6 +1,6 @@
 """Quality vs speed: one Low / Medium / High choice each for writing, pictures and video
 (Setup > Writing, Setup > Images & video). Low = fastest, rougher results. High = best results, takes longest.
-Medium = the balance most people want. Everything here is plain numbers handed to the
+Medium = the balance for daytime use. High is the default (Joe mostly runs overnight). Everything here is plain numbers handed to the
 models; nothing is downloaded or installed from this module.
 """
 from __future__ import annotations
@@ -12,8 +12,8 @@ NAMES = {"low": "Low (fastest)", "medium": "Medium (balanced)", "high": "High (b
 
 
 def level(settings, kind: str) -> str:
-    v = str(getattr(getattr(settings, "quality", None), kind, "medium") or "medium").lower()
-    return v if v in LEVELS else "medium"
+    v = str(getattr(getattr(settings, "quality", None), kind, "high") or "high").lower()
+    return v if v in LEVELS else "high"
 
 
 # --------------------------------------------------------------------------- writing
