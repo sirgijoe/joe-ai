@@ -579,3 +579,9 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .readybar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 12px; margin-bottom: 10px;
   border: 1px solid var(--warn, #c98a00); border-radius: var(--radius, 0); background: color-mix(in srgb, var(--warn, #c98a00) 12%, transparent); }
 .readybar span { flex: 1 1 14em; }
+
+/* a long NEXT UP list scrolls on its own instead of pushing the progress bars and log away */
+#queued { flex: 0 0 auto; max-height: 7.5em; overflow-y: auto; }
+#queued h2.sub { position: sticky; top: 0; background: var(--panel, var(--bg)); margin-top: 0; }
+#s-queue .jobs #joblist { flex: 0 1 auto; min-height: 4.5em; overflow-y: auto; }
+#s-queue .jobs #log { flex: 1 1 3em; min-height: 3em; }
