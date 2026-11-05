@@ -56,3 +56,9 @@ def test_suffix():
 def test_eight_common_styles(fmt, want):
     assert styles.pick(job("x", fmt)).id == want
     assert set(styles.NAMES) == set(styles.STYLES)
+
+
+def test_kid_safe_only_when_asked():
+    assert styles.for_kids(job("Coloring book", "farm animals for my toddler"))
+    assert styles.for_kids(job("Kids coloring book", "mermaids"))
+    assert not styles.for_kids(job("Coloring book", "art nouveau figure studies for adults"))

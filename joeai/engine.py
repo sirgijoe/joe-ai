@@ -709,6 +709,8 @@ class Engine:
         style = styles_mod.pick(job)
         if style.note:
             parts.append(style.note)
+        if styles_mod.for_kids(job):
+            parts.append(styles_mod.KID_NOTE)
         project = job.project or mission.project
         profile = self._load_profile(project)
         if profile:
@@ -931,7 +933,8 @@ class Engine:
         else:
             w, h = None, None
         style = styles_mod.pick(job)
-        extra = ", ".join(x for x in (job.negative.strip(), style.negative) if x)
+        extra = ", ".join(x for x in (job.negative.strip(), style.negative,
+                                      styles_mod.KID_NEGATIVE if styles_mod.for_kids(job) else "") if x)
         negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra) if builtin \
             else job.negative
         total = len(st.prompts) * job.variants

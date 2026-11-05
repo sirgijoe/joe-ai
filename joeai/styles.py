@@ -133,6 +133,20 @@ _WORDS = [
 ]
 
 
+# Only when the task says the pictures are for children: everyone fully clothed, nothing
+# suggestive. Nothing is filtered otherwise (not every coloring book is for kids).
+KIDS = re.compile(r"\b(?:kids?|child(?:ren|'s)?|toddlers?|preschool\w*|kindergarten|nursery|"
+                  r"family[- ]friendly|for (?:my )?(?:son|daughter|grandkids?)|baby|babies|young readers)\b", re.I)
+KID_NOTE = ("FOR CHILDREN: everything is family-friendly. Every person or creature is fully clothed or "
+            "covered (a mermaid wears a shell top), nothing scary, violent or suggestive.")
+KID_NEGATIVE = "(nsfw, nude, naked, topless, nipples, cleavage, lingerie, underwear, sexy, suggestive, gore:1.4)"
+
+
+def for_kids(job) -> bool:
+    return bool(KIDS.search(f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}\n"
+                            f"{getattr(job, 'rules', '')}"))
+
+
 def valid(name: str) -> bool:
     return (name or "").strip().lower() in NAMES
 
