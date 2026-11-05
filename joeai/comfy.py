@@ -279,8 +279,9 @@ def load_template(path: Path) -> dict:
     return g
 
 
-def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m") -> dict:
-    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Images & video)."""
+def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m", cfg_shift: float = 0.0) -> dict:
+    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Images & video;
+    cfg_shift: the picture style's nudge to how strictly the prompt is followed)."""
     sdxl = family != "sd15"
     return {
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": "{{CHECKPOINT}}"}},
@@ -289,7 +290,7 @@ def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m") -> dict:
         "5": {"class_type": "EmptyLatentImage",
               "inputs": {"width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": 1}},
         "3": {"class_type": "KSampler", "inputs": {
-            "seed": "{{SEED}}", "steps": steps or (28 if sdxl else 25), "cfg": 6.0 if sdxl else 7.0,
+            "seed": "{{SEED}}", "steps": steps or (28 if sdxl else 25), "cfg": max(2.0, (6.0 if sdxl else 7.0) + cfg_shift),
             "sampler_name": sampler, "scheduler": "karras", "denoise": 1.0,
             "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0]}},
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},

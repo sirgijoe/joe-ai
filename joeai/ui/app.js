@@ -1160,7 +1160,7 @@ function batches(n, media) {
 let bMore = false;
 const B = { project: "", rules: "", tasks: [], sel: 0, lists: { projects: [], workflows: [], inbox: [], image_models: [] } };
 const newTask = (n) => ({ name: `Task ${n}`, save: "", type: "text", project: "", parts: 4, part_size: 5, part_prompts: [],
-  format: "", rules: "", min_words: 0, header: "", inputs: [], export: [], model: "", notes: "", workflow: "", negative: "",
+  format: "", rules: "", min_words: 0, header: "", inputs: [], export: [], model: "", notes: "", workflow: "", negative: "", style: "",
   width: 0, height: 0, variants: 1, seed: "random", fps: 16, prompts_as_written: false, _kind: "list" });
 function kindOf(t) {
   if (t._kind) return t._kind;
@@ -1203,6 +1203,10 @@ function renderTasks() {
     `<span class="n">${i + 1}.</span><span class="t">${esc(t.name)} <span class="kind">(${KIND_SHORT[t._kind]})</span></span><span>${taskSize(t)}</span></div>`).join("")
     || '<div class="dim">Nothing yet. Press + ADD SOMETHING.</div>';
 }
+const PIC_STYLES = [["", "Joe decides"], ["photo", "Photo"], ["anime", "Anime / manga"], ["painting", "Painting"],
+  ["concept", "Concept art"], ["render3d", "3D render"], ["scifi", "Sci-fi / cyberpunk"], ["cartoon", "Cartoon / comic"],
+  ["pixel", "Pixel art"], ["surreal", "Surreal / abstract"], ["illustration", "Illustration / flat"],
+  ["character", "Mascot / character"], ["product", "Product shot"], ["coloring", "Coloring page"]];
 function field(label, html, hint, tip) {
   return `<label${tip ? ` title="${esc(tip)}"` : ""}>${label} ${html}</label>${hint ? `<div class="hint">${hint}</div>` : ""}`;
 }
@@ -1249,7 +1253,8 @@ function renderForm() {
   if (k === "image") {
     const sz = t.width && t.height ? `${t.width}x${t.height}` : "";
     h += field("Shape", `<select data-f="_size">${SIZES.map(([a, b]) => `<option value="${a}"${a === sz ? " selected" : ""}>${b}</option>`).join("")}${sz && !SIZES.some(([a]) => a === sz) ? `<option value="${sz}" selected>${sz}</option>` : ""}</select>`);
-    h += field("Leave out", `<input data-f="negative" value="${v(t.negative)}" placeholder="e.g. text, watermark, blurry">`);
+    h += field("Style", `<select data-f="style">${PIC_STYLES.map(([a, b]) => `<option value="${a}"${a === (t.style || "") ? " selected" : ""}>${b}</option>`).join("")}</select>`, "Joe picks a matching picture model and leaves out what doesn't fit the style.");
+    h += field("Leave out", `<input data-f="negative" value="${v(t.negative)}" placeholder="e.g. text, watermark, blurry">`, "Added to Joe's own list (extra fingers, extra arms, blurry...).");
   }
   // Everything below is optional; most people never open it.
   let m = field("Rules just for this one", `<textarea data-f="rules" rows="2" placeholder="optional">${v(t.rules)}</textarea>`);

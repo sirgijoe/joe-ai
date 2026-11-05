@@ -35,6 +35,7 @@ from .ollama import ChatResult, OllamaClient
 from .power import keep_awake, when_finished
 from .sandbox import Sandbox, SandboxError
 from . import quality as quality_mod
+from . import styles as styles_mod
 from .services import ServiceManager
 from .hardware import gpu_temperature_c, vram_total_gb
 
@@ -705,6 +706,9 @@ class Engine:
 
     def _image_system(self, mission: Mission, job: Job) -> str:
         parts = [IMAGE_SYSTEM + ("\n" + VIDEO_EXTRA if job.type == "video" else "")]
+        style = styles_mod.pick(job)
+        if style.note:
+            parts.append(style.note)
         project = job.project or mission.project
         profile = self._load_profile(project)
         if profile:
@@ -867,7 +871,19 @@ class Engine:
             return (comfy_mod.wan_video_graph(frames=vp.frames, fps=fps, steps=vp.steps, cfg=vp.cfg, turbo=vp.turbo),
                     "", "wan", f"built-in video ({comfy_mod.WAN_VIDEO['label']}{' Turbo' if vp.turbo else ''})")
         basic = [m for m in models if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
-        m = comfy_mod.best_image_model(basic, vram, "image", want=job.model)
+        style = styles_mod.pick(job)
+        m = None
+        if not job.model and style.id != "general":
+            try:
+                from .upkeep import picks as _picks
+                pk = _picks()
+            except Exception:                   # noqa: BLE001  (offline / no cache: built-in hints)
+                pk = None
+            suited = styles_mod.choose_model(basic, style.id, pk)
+            m = comfy_mod.best_image_model(suited, vram, "image") if suited else None
+            self.log(f"  Style: {style.label}" + (f" -> {m.name}" if m else " (no matching model installed; "
+                                                   "using the usual pick)"))
+        m = m or comfy_mod.best_image_model(basic, vram, "image", want=job.model)
         if not m and job.model:
             raise comfy_mod.WorkflowError(f"no SD1.5/SDXL checkpoint matches MODEL: {job.model} "
                                           "(Flux and video models need a WORKFLOW file).")
@@ -878,7 +894,7 @@ class Engine:
         lv = quality_mod.level(self.s, "pictures")
         if lv != "medium":
             self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({pp.steps(m.family)} steps)")
-        return (comfy_mod.basic_graph(m.family, pp.steps(m.family), pp.sampler), api_name(m), m.family,
+        return (comfy_mod.basic_graph(m.family, pp.steps(m.family), pp.sampler, style.cfg), api_name(m), m.family,
                 "built-in text-to-image")
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
@@ -914,7 +930,9 @@ class Engine:
             w, h = quality_mod.pictures(self.s).size(*comfy_mod.default_size(family))
         else:
             w, h = None, None
-        negative = comfy_mod.negative_for(family, self.s.comfy.negative, job.negative) if builtin \
+        style = styles_mod.pick(job)
+        extra = ", ".join(x for x in (job.negative.strip(), style.negative) if x)
+        negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra) if builtin \
             else job.negative
         total = len(st.prompts) * job.variants
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
@@ -933,7 +951,8 @@ class Engine:
                 p = st.prompts[pi]
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
-                g = comfy_mod.fill(graph, p["prompt"], negative, seed, w, h, ckpt,
+                g = comfy_mod.fill(graph, styles_mod.add(p["prompt"], style) if builtin else p["prompt"],
+                                   negative, seed, w, h, ckpt,
                                    prefix=f"Joe/{slug(job.name)}")
                 stem = f"{pi + 1:03d}_{slug(p['title'])[:40]}" + (f"_{v + 1}" if job.variants > 1 else "")
                 saved = None

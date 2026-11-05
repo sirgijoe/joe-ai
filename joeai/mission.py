@@ -44,7 +44,7 @@ from dataclasses import asdict, dataclass, field
 KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
         "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
-        "OPTIONS", "WATERMARK")
+        "OPTIONS", "WATERMARK", "STYLE")
 EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html")
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
@@ -78,6 +78,7 @@ class Job:
     # image / video tasks (TYPE: image|video)
     workflow: str = ""        # file in Workflows/ (blank = built-in / Setup default)
     negative: str = ""
+    style: str = ""           # one of styles.NAMES ("" = Joe guesses)
     width: int = 0            # 0 = model default
     height: int = 0
     variants: int = 1         # images per prompt (different seeds)
@@ -126,6 +127,8 @@ class Mission:
             for k in ("workflow", "negative", "width", "height", "variants", "seed", "fps",
                       "prompts_as_written"):
                 j.pop(k, None)
+        if not j.get("style"):     # keep hashes stable for tasks saved before STYLE existed
+            j.pop("style", None)
         j.pop("export", None)      # exporting copies doesn't change what gets written
         if not j.get("options"):   # keep hashes stable for tasks without OPTIONS
             j.pop("options", None)
@@ -306,7 +309,11 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
             raise MissionError(f"Task '{name}': PROMPTS: as written needs PART lines (one prompt each).")
         if d["SAVE"].strip().lower().endswith(".csv"):
             raise MissionError(f"Task '{name}': image/video SAVE is a folder, not a .csv.")
-        media = dict(workflow=d.get("WORKFLOW", "").strip(), negative=d.get("NEGATIVE", ""),
+        style = d.get("STYLE", "").strip().lower()
+        from .styles import NAMES as _STYLES
+        if style and style not in _STYLES:
+            raise MissionError(f"Task '{name}': STYLE can be {', '.join(_STYLES)}.")
+        media = dict(workflow=d.get("WORKFLOW", "").strip(), negative=d.get("NEGATIVE", ""), style=style,
                      width=w, height=h, variants=int(var), seed=seed, fps=int(fps),
                      prompts_as_written=pr == "as written")
     export = [x.strip().lower().lstrip(".") for x in re.split(r"[,\s]+", d.get("EXPORT", "")) if x.strip()]
@@ -332,7 +339,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
 # so nobody has to hand-edit a file. parse(to_text(...)) round-trips.
 TASK_FIELDS = ("name", "save", "type", "project", "parts", "part_size", "part_prompts", "format",
                "rules", "min_words", "header", "inputs", "model", "notes", "workflow",
-               "negative", "width", "height", "variants", "seed", "fps", "prompts_as_written",
+               "negative", "style", "width", "height", "variants", "seed", "fps", "prompts_as_written",
                "export", "options", "watermark")
 
 
@@ -404,6 +411,8 @@ def to_text(project: str, rules: str, tasks: list[dict]) -> str:
                 L.append(f"WORKFLOW: {_safe(t['workflow'])}")
             if str(t.get("negative") or "").strip():
                 L.append(f"NEGATIVE: {_safe(t['negative'])}")
+            if str(t.get("style") or "").strip():
+                L.append(f"STYLE: {_safe(t['style'])}")
             if int(t.get("width") or 0) and int(t.get("height") or 0):
                 L.append(f"SIZE: {int(t['width'])} x {int(t['height'])}")
             if int(t.get("variants") or 1) != 1:
