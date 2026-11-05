@@ -19,7 +19,7 @@ from fake_ollama import FakeOllama  # noqa: E402
 
 BUILT_IN = {"LoadImage", "SaveImage", "UpscaleModelLoader", "ImageUpscaleWithModel", "ImageScaleBy",
             "LoadBackgroundRemovalModel", "RemoveBackground", "InvertMask", "JoinImageWithAlpha",
-            "FluxKontextImageScale", "UNETLoader", "CLIPLoader", "VAELoader", "ModelSamplingAuraFlow",
+            "FluxKontextImageScale", "ImageScaleToTotalPixels", "UNETLoader", "CLIPLoader", "VAELoader", "ModelSamplingAuraFlow",
             "CFGNorm", "TextEncodeQwenImageEditPlus", "FluxKontextMultiReferenceLatentMethod",
             "VAEEncode", "KSampler", "VAEDecode", "LoraLoaderModelOnly", "ModelSamplingSD3",
             "CLIPTextEncode", "Wan22ImageToVideoLatent", "CreateVideo", "SaveVideo",
@@ -163,3 +163,39 @@ def test_pack_download_asks_first_and_skips_what_is_there(studio, monkeypatch, t
     monkeypatch.setattr(doctor, "_download", lambda url, dest, log, *a: got.append((url, dest)) or dest.write_bytes(b"x") or True)
     assert picturetools.download_pack(app.settings, "upscale", logs.append, approved=True)
     assert got[0][0].startswith("https://huggingface.co/Comfy-Org/") and got[0][1].parent.name == "upscale_models"
+
+
+def test_out_of_memory_frees_and_retries_smaller(studio, monkeypatch):
+    app, comfy, _ = studio
+    from joeai import comfy as comfy_mod
+    png(app.sb.inbox / "bowl.png")
+    real, calls = comfy_mod.ComfyClient.wait, []
+
+    def wait(self, pid, stop=None):
+        calls.append(pid)
+        if len(calls) == 1:
+            raise comfy_mod.WorkflowError("ComfyUI error: Allocation on device \nThis error means you ran out of memory on your GPU.")
+        return real(self, pid, stop=stop)
+    monkeypatch.setattr(comfy_mod.ComfyClient, "wait", wait)
+    monkeypatch.setattr(picturetools.time, "sleep", lambda s: None)
+    _, st = run(app, "TASK: Edit  TYPE: edit-picture\nINPUT: bowl.png\nFORMAT: white background")
+    assert st.status == "done", st.note
+    assert comfy.freed >= 2                                    # before the tool and before the retry
+    first, retry = comfy.graphs[-2], comfy.graphs[-1]
+    assert first["160"]["class_type"] == "FluxKontextImageScale"
+    assert retry["160"]["class_type"] == "ImageScaleToTotalPixels"
+    assert retry["160"]["inputs"]["megapixels"] == picturetools.SMALL_MP
+
+
+def test_out_of_memory_twice_says_so_plainly(studio, monkeypatch):
+    app, comfy, _ = studio
+    from joeai import comfy as comfy_mod
+    png(app.sb.inbox / "bowl.png")
+
+    def wait(self, pid, stop=None):
+        raise comfy_mod.WorkflowError("ComfyUI error: Allocation on device")
+    monkeypatch.setattr(comfy_mod.ComfyClient, "wait", wait)
+    monkeypatch.setattr(picturetools.time, "sleep", lambda s: None)
+    _, st = run(app, "TASK: Old  TYPE: restore-photo\nINPUT: bowl.png\nOPTIONS: upscale none")
+    assert st.status == "failed"
+    assert "ran out of memory" in st.note and "Allocation" not in st.note

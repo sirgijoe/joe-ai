@@ -224,12 +224,16 @@ def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict
 
 
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
-               prefix: str = "Joe/tool") -> dict:
-    """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1."""
+               prefix: str = "Joe/tool", megapixels: float = 0) -> dict:
+    """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1.
+    megapixels > 0 works on a smaller copy (used for the retry after the graphics card ran out
+    of memory)."""
     unet, clip, vae, lora = (f[1] for f in PACKS["edit"].files)
     g: dict = {
         "41": _load(image),
-        "160": {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}},
+        "160": ({"class_type": "ImageScaleToTotalPixels", "inputs": {
+            "image": ["41", 0], "upscale_method": "lanczos", "megapixels": megapixels}}
+            if megapixels else {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}}),
         "161": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
         "162": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "qwen_image", "device": "default"}},
         "146": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
@@ -367,6 +371,29 @@ def _seed(job: "Job", i: int) -> int:
 
 
 # --------------------------------------------------------------------------- runner
+BIG_TOOLS = ("edit-picture", "restore-photo", "animate-photo")
+SMALL_MP = 0.6          # retry size (megapixels) for edit/restore after running out of memory
+
+
+def out_of_memory(err: object) -> bool:
+    t = str(err).lower()
+    return "allocation on device" in t or "out of memory" in t or "outofmemory" in t
+
+
+OOM_HINT = ("The graphics card ran out of memory. Close games, video editors and other AI programs "
+            "and run it again. If it keeps happening, this tool needs more graphics memory than "
+            "this PC has free.")
+
+
+def _free(engine, client) -> None:
+    """Unload ComfyUI's cached models (a big tool after another needs the whole card)."""
+    try:
+        client.free()
+        time.sleep(3)
+    except Exception as e:                      # noqa: BLE001 (best effort)
+        engine.log(f"  Couldn't ask ComfyUI to free memory: {e}")
+
+
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     """One runner for all five tools: inputs -> ComfyUI graph per item -> files in the task folder."""
     from .doctor import comfy_models_dir
@@ -427,6 +454,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(items)} item(s) -> {st.output}")
     failed: list[str] = []
     prefix = f"Joe/{slug(job.name) or tid}"
+    if tid in BIG_TOOLS:
+        _free(engine, client)
     try:
         for i, (item, key) in enumerate(zip(items, keys)):
             if key in st.titles:
@@ -439,7 +468,23 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             t0 = time.monotonic()
             try:
                 graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client)
-                entry = client.wait(client.submit(graph), stop=engine.stop)
+                try:
+                    entry = client.wait(client.submit(graph), stop=engine.stop)
+                except comfy_mod.WorkflowError as e:
+                    if not out_of_memory(e):
+                        raise
+                    engine.log("  The graphics card ran out of memory; freeing it and trying once more"
+                               + (" on a smaller copy." if tid in ("edit-picture", "restore-photo") else "."))
+                    _free(engine, client)
+                    if tid in ("edit-picture", "restore-photo"):
+                        graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale,
+                                                      prefix, client, megapixels=SMALL_MP)
+                    try:
+                        entry = client.wait(client.submit(graph), stop=engine.stop)
+                    except comfy_mod.WorkflowError as e2:
+                        if out_of_memory(e2):
+                            raise comfy_mod.WorkflowError(OOM_HINT) from e2
+                        raise
                 outs = outputs_of(entry)
                 if not outs:
                     raise comfy_mod.WorkflowError("ComfyUI finished but saved nothing")
@@ -510,7 +555,7 @@ def _on_white(engine, folder: Path, name: str) -> str:
     return name
 
 
-def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client):
+def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, megapixels: float = 0):
     """(graph, output stem, fallback extension) for one item."""
     from .mission import slug
     from .tools import option_value
@@ -531,12 +576,12 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client):
         keep = option_value(job, "background") or "transparent"
         return bg_graph(name, keep, upscale, prefix), stem + "-cutout", ".png"
     if tid == "edit-picture":
-        return edit_graph(name, extra, seed, fast, 0, prefix), stem + "-edited", ".png"
+        return edit_graph(name, extra, seed, fast, 0, prefix, megapixels), stem + "-edited", ".png"
     if tid == "restore-photo":
         prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
         if extra:
             prompt += " " + extra
-        return edit_graph(name, prompt, seed, fast, upscale, prefix), stem + "-restored", ".png"
+        return edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels), stem + "-restored", ".png"
     if tid == "animate-photo":
         w, h = video_size(*picture_size(src))
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
