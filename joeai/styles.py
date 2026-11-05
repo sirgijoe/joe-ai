@@ -13,7 +13,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-NAMES = ("general", "photo", "anime", "manga", "painting", "watercolor", "concept", "fantasy", "render3d",
+NAMES = ("general", "photo", "bw", "anime", "manga", "painting", "watercolor", "concept", "fantasy", "render3d",
          "scifi", "cyberpunk", "cartoon", "comic", "pixel", "surreal", "abstract", "illustration", "character",
          "product", "coloring")
 
@@ -25,7 +25,7 @@ ART_HINTS = ["illustr", "anime", "animagine", "toon", "cartoon", "flat", "vector
 ANIME_HINTS = ["animagine", "anime", "pony", "meina", "counterfeit", "aam", "illustr"]
 TOON_HINTS = ["toon", "cartoon", "comic", "flat", "vector", "dreamshaper", "illustr"]
 PAINT_HINTS = ["dreamshaper", "paint", "art", "illustr", "sdxl_base", "sd_xl_base"]
-DEFAULT_HINTS = {"photo": PHOTO_HINTS, "product": PHOTO_HINTS, "illustration": ART_HINTS,
+DEFAULT_HINTS = {"photo": PHOTO_HINTS, "bw": PHOTO_HINTS, "product": PHOTO_HINTS, "illustration": ART_HINTS,
                  "character": ART_HINTS, "coloring": ART_HINTS, "anime": ANIME_HINTS, "cartoon": TOON_HINTS,
                  "painting": PAINT_HINTS, "concept": PAINT_HINTS, "surreal": PAINT_HINTS,
                  "pixel": ["pixel"] + TOON_HINTS, "render3d": ["3d", "render", "dreamshaper", "juggernaut"],
@@ -61,6 +61,11 @@ class Style:
 STYLES = {
     "general": Style("general", "Joe decides"),
     "photo": Style("photo", "Photo", PHOTO_NOTE, "", NEG_PHOTO, cfg=-1.5),
+    "bw": Style("bw", "Black and white photo",
+                "STYLE: black-and-white photograph. Rich blacks, bright highlights and a full range of grays; "
+                "describe light and shadow, contrast and texture instead of colors. Name the lens and the light.",
+                "black and white photograph, monochrome, high contrast, fine film grain",
+                NEG_PHOTO + ", color, colored, sepia, tinted", cfg=-1.5),
     "anime": Style("anime", "Anime / manga",
                    "STYLE: anime illustration. Cel shading, clean dynamic line work, expressive eyes and "
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
@@ -167,6 +172,7 @@ _WORDS = [
     ("abstract", r"\babstract\b|geometric art|color field"),
     ("comic", r"comic[- ]book|\bcomics?\b|halftone|superhero"),
     ("cartoon", r"cartoon"),
+    ("bw", r"black[- ]and[- ]white (?:photo\w*|portrait|picture)|\bb&w\b|monochrome|grayscale photo"),
     ("photo", r"\bphoto(?:s|graph\w*|real\w*)?\b|realistic|real[- ]life|portrait|candid|\bdslr\b|bokeh"),
     ("illustration", r"illustrat\w*|\bflat\b|vector|drawing|clip ?art|storybook|children'?s book|"
                      r"\bicons?\b"),

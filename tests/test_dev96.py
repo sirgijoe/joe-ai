@@ -81,3 +81,9 @@ def test_lora_pick_and_graph():
     g = comfy.with_lora(comfy.basic_graph("sdxl"), "pixel-art-xl.safetensors")
     assert g["3"]["inputs"]["model"] == ["10", 0] and g["6"]["inputs"]["clip"] == ["10", 1]
     assert g["8"]["inputs"]["vae"] == ["4", 2] and g["10"]["inputs"]["model"] == ["4", 0]
+
+
+def test_black_and_white_photo():
+    assert styles.pick(job("x", "black and white portrait of an old farmer")).id == "bw"
+    assert styles.pick(job("x", "monochrome street photo")).id == "bw"
+    assert "color" in styles.STYLES["bw"].negative
