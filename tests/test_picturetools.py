@@ -185,6 +185,22 @@ def test_out_of_memory_frees_and_retries_smaller(studio, monkeypatch):
     assert first["160"]["class_type"] == "FluxKontextImageScale"
     assert retry["160"]["class_type"] == "ImageScaleToTotalPixels"
     assert retry["160"]["inputs"]["megapixels"] == picturetools.SMALL_MP
+    assert retry["160"]["inputs"]["resolution_steps"] == 16           # newer ComfyUI requires it
+    assert first["162"]["inputs"]["device"] == "default"
+    assert retry["162"]["inputs"]["device"] == "cpu"
+
+
+def test_small_card_reads_the_request_on_the_processor(studio, monkeypatch):
+    app, comfy, _ = studio
+    import joeai.hardware as hw
+    monkeypatch.setattr(hw, "vram_total_gb", lambda: 12.0)
+    png(app.sb.inbox / "bowl.png")
+    _, st = run(app, "TASK: Edit  TYPE: edit-picture\nINPUT: bowl.png\nFORMAT: white background")
+    assert st.status == "done"
+    assert comfy.graphs[-1]["162"]["inputs"]["device"] == "cpu"
+    monkeypatch.setattr(hw, "vram_total_gb", lambda: 24.0)
+    run(app, "TASK: Edit2  TYPE: edit-picture\nINPUT: bowl.png\nFORMAT: white background")
+    assert comfy.graphs[-1]["162"]["inputs"]["device"] == "default"
 
 
 def test_out_of_memory_twice_says_so_plainly(studio, monkeypatch):

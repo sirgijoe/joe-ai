@@ -224,18 +224,21 @@ def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict
 
 
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
-               prefix: str = "Joe/tool", megapixels: float = 0) -> dict:
+               prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False) -> dict:
     """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1.
-    megapixels > 0 works on a smaller copy (used for the retry after the graphics card ran out
-    of memory)."""
+    megapixels > 0 works on a smaller copy; encoder_on_cpu keeps the 9 GB text encoder in normal
+    memory (slower to read the request, but the picture model gets the whole graphics card).
+    Both are used on cards under 16 GB and for the retry after running out of memory."""
     unet, clip, vae, lora = (f[1] for f in PACKS["edit"].files)
     g: dict = {
         "41": _load(image),
         "160": ({"class_type": "ImageScaleToTotalPixels", "inputs": {
-            "image": ["41", 0], "upscale_method": "lanczos", "megapixels": megapixels}}
+            "image": ["41", 0], "upscale_method": "lanczos", "megapixels": megapixels,
+            "resolution_steps": 16}}
             if megapixels else {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}}),
         "161": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
-        "162": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "qwen_image", "device": "default"}},
+        "162": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "qwen_image",
+                                              "device": "cpu" if encoder_on_cpu else "default"}},
         "146": {"class_type": "VAELoader", "inputs": {"vae_name": vae}},
         "145": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["161", 0], "shift": 3.1}},
         "152": {"class_type": "CFGNorm", "inputs": {"model": ["145", 0], "strength": 1.0}},
@@ -373,6 +376,16 @@ def _seed(job: "Job", i: int) -> int:
 # --------------------------------------------------------------------------- runner
 BIG_TOOLS = ("edit-picture", "restore-photo", "animate-photo")
 SMALL_MP = 0.6          # retry size (megapixels) for edit/restore after running out of memory
+BIG_CARD_GB = 16        # below this the editor's text encoder runs on the processor from the start
+
+
+def small_card() -> bool:
+    try:
+        from .hardware import vram_total_gb
+        gb = vram_total_gb()
+    except Exception:                           # noqa: BLE001 (unknown card: assume it's fine)
+        return False
+    return 0 < gb < BIG_CARD_GB
 
 
 def out_of_memory(err: object) -> bool:
@@ -456,6 +469,10 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     prefix = f"Joe/{slug(job.name) or tid}"
     if tid in BIG_TOOLS:
         _free(engine, client)
+    cpu_enc = tid in ("edit-picture", "restore-photo") and small_card()
+    if cpu_enc:
+        engine.log("  This graphics card has under 16 GB, so the picture editor reads your request on "
+                   "the processor (a little slower, but it fits).")
     try:
         for i, (item, key) in enumerate(zip(items, keys)):
             if key in st.titles:
@@ -467,7 +484,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             engine._progress(f"{job.name}: {i + 1}/{len(items)} {label}")
             t0 = time.monotonic()
             try:
-                graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client)
+                graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix,
+                                              client, cpu=cpu_enc)
                 try:
                     entry = client.wait(client.submit(graph), stop=engine.stop)
                 except comfy_mod.WorkflowError as e:
@@ -478,7 +496,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     _free(engine, client)
                     if tid in ("edit-picture", "restore-photo"):
                         graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale,
-                                                      prefix, client, megapixels=SMALL_MP)
+                                                      prefix, client, megapixels=SMALL_MP, cpu=True)
                     try:
                         entry = client.wait(client.submit(graph), stop=engine.stop)
                     except comfy_mod.WorkflowError as e2:
@@ -555,7 +573,8 @@ def _on_white(engine, folder: Path, name: str) -> str:
     return name
 
 
-def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, megapixels: float = 0):
+def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, megapixels: float = 0,
+               cpu: bool = False):
     """(graph, output stem, fallback extension) for one item."""
     from .mission import slug
     from .tools import option_value
@@ -576,12 +595,12 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         keep = option_value(job, "background") or "transparent"
         return bg_graph(name, keep, upscale, prefix), stem + "-cutout", ".png"
     if tid == "edit-picture":
-        return edit_graph(name, extra, seed, fast, 0, prefix, megapixels), stem + "-edited", ".png"
+        return edit_graph(name, extra, seed, fast, 0, prefix, megapixels, cpu), stem + "-edited", ".png"
     if tid == "restore-photo":
         prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
         if extra:
             prompt += " " + extra
-        return edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels), stem + "-restored", ".png"
+        return edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu), stem + "-restored", ".png"
     if tid == "animate-photo":
         w, h = video_size(*picture_size(src))
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
