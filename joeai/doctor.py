@@ -314,7 +314,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         basic = [m for m in comfy_mod.scan_models(mdir)
                  if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
         if basic:                                # no model at all: the starter model is offered instead
-            issues += stylemodels.offers(basic, _pk)
+            issues += stylemodels.offers(basic, _pk, comfy_mod.list_loras(mdir))
         waiting = stylemodels.found(mdir)
         if waiting:
             issues.append({"id": "style-import", "group": "styles", "optional": True, "action": "import-models",

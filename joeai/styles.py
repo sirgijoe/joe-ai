@@ -13,8 +13,9 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
-NAMES = ("general", "photo", "anime", "painting", "concept", "render3d", "scifi", "cartoon", "pixel",
-         "surreal", "illustration", "character", "product", "coloring")
+NAMES = ("general", "photo", "anime", "manga", "painting", "watercolor", "concept", "fantasy", "render3d",
+         "scifi", "cyberpunk", "cartoon", "comic", "pixel", "surreal", "abstract", "illustration", "character",
+         "product", "coloring")
 
 # words in a checkpoint's file name -> good for that style (first match wins)
 PHOTO_HINTS = ["juggernaut", "realvis", "realism", "realistic", "epicrealism", "photon", "absolutereality",
@@ -28,9 +29,12 @@ DEFAULT_HINTS = {"photo": PHOTO_HINTS, "product": PHOTO_HINTS, "illustration": A
                  "character": ART_HINTS, "coloring": ART_HINTS, "anime": ANIME_HINTS, "cartoon": TOON_HINTS,
                  "painting": PAINT_HINTS, "concept": PAINT_HINTS, "surreal": PAINT_HINTS,
                  "pixel": ["pixel"] + TOON_HINTS, "render3d": ["3d", "render", "dreamshaper", "juggernaut"],
-                 "scifi": ["dreamshaper", "juggernaut", "realvis"]}
+                 "scifi": ["dreamshaper", "juggernaut", "realvis"], "cyberpunk": ["dreamshaper", "juggernaut", "realvis"],
+                 "manga": ANIME_HINTS, "comic": TOON_HINTS, "watercolor": PAINT_HINTS, "fantasy": PAINT_HINTS,
+                 "abstract": PAINT_HINTS}
 # styles that should avoid photo-realism checkpoints when anything else is installed
-ART_STYLES = ("illustration", "character", "coloring", "anime", "cartoon", "painting", "pixel")
+ART_STYLES = ("illustration", "character", "coloring", "anime", "manga", "cartoon", "comic", "painting",
+              "watercolor", "pixel")
 
 PHOTO_NOTE = ("STYLE: real photograph. In every prompt name the lens (85mm portrait, 50mm, 35mm, 24mm wide), "
               "where the light comes from (soft window light, overcast daylight, golden hour from the left), "
@@ -49,6 +53,9 @@ class Style:
     suffix: str = ""        # added to every prompt
     negative: str = ""      # added to the leave-out list
     cfg: float = 0.0        # nudge to prompt strength: lower = more natural photos, higher = crisper flat art
+    lora: tuple = ()        # words in a LoRA file name that give this look (used when one is installed)
+    lora_strength: float = 0.8
+    sampler: str = ""       # "" = Setup's sampler
 
 
 STYLES = {
@@ -57,7 +64,7 @@ STYLES = {
     "anime": Style("anime", "Anime / manga",
                    "STYLE: anime illustration. Cel shading, clean dynamic line work, expressive eyes and "
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
-                   "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon", cfg=1.0),
+                   "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon", cfg=1.0, sampler="euler_ancestral"),
     "painting": Style("painting", "Painting (oil, watercolor...)",
                       "STYLE: traditional painting. Name the medium (oil on canvas, watercolor on paper, ink "
                       "wash, gouache) and describe brush strokes, paper or canvas texture and the color mixing. "
@@ -84,11 +91,38 @@ STYLES = {
                    "STYLE: retro pixel art like a 16-bit video game. Small limited palette, crisp square "
                    "pixels, simple readable shapes, no smooth gradients.",
                    "pixel art, 16-bit, limited palette, crisp pixels",
-                   NEG_ART + ", blurry, smooth gradients, soft shading, anti-aliasing, high detail", cfg=1.0),
+                   NEG_ART + ", blurry, smooth gradients, soft shading, anti-aliasing, high detail", cfg=1.0, lora=("pixel",)),
     "surreal": Style("surreal", "Surreal / abstract",
                      "STYLE: surreal or abstract art. Dreamlike impossible scenes, unexpected scale and "
                      "combinations, or non-representational shapes and color fields; still a clear focal point.",
                      "surreal art, dreamlike", "photo, ordinary, cluttered, low contrast", cfg=0.5),
+    "manga": Style("manga", "Manga (black and white)",
+                   "STYLE: black-and-white manga panel art. Crisp ink lines, screentone dot shading, speed lines "
+                   "for motion, expressive faces, strong blacks. No color. No camera or lens words.",
+                   "manga style, black and white, ink lines, screentone",
+                   NEG_ART + ", color, colored, western cartoon", sampler="euler_ancestral", cfg=1.0),
+    "watercolor": Style("watercolor", "Watercolor",
+                        "STYLE: watercolor painting on textured paper. Soft wet edges, colors bleeding into each "
+                        "other, light washes, white paper showing through, a few fine pencil lines. No camera words.",
+                        "watercolor painting, soft washes, paper texture",
+                        "photo, photograph, 3d render, cgi, hard edges, digital art, oversaturated",
+                        lora=("watercolor", "watercolour")),
+    "fantasy": Style("fantasy", "Fantasy art",
+                     "STYLE: epic fantasy art. Magical light, ancient places, rich costume and armor detail, "
+                     "sweeping landscapes, painterly lighting, a clear hero subject.",
+                     "fantasy art, epic, detailed", "photo, modern city, cars, phones, plain"),
+    "cyberpunk": Style("cyberpunk", "Cyberpunk",
+                       "STYLE: cyberpunk. Rainy night streets, neon signs and holograms, cyan and magenta light, "
+                       "wet reflections, dense city, cybernetic details, haze.",
+                       "cyberpunk, neon lights, rainy night, cinematic", "daylight, rural, medieval, pastel"),
+    "comic": Style("comic", "Comic book",
+                   "STYLE: American comic book art. Bold inked outlines, dramatic poses and angles, strong "
+                   "shadows, flat bright colors with halftone dots. No camera or lens words.",
+                   "comic book art, bold ink, halftone", NEG_ART + ", anime, soft painting", cfg=1.0),
+    "abstract": Style("abstract", "Abstract",
+                      "STYLE: abstract art. Non-representational shapes, lines and color fields, a clear "
+                      "composition and focal point, a chosen palette; no recognizable objects unless asked.",
+                      "abstract art, bold composition", "photo, realistic, people, faces, text, clutter", cfg=0.5),
     "illustration": Style("illustration", "Illustration / flat art",
                           "STYLE: illustration. Describe it as a drawn or painted illustration: simple clear "
                           "shapes, clean outlines, a limited color palette, soft even light. No camera or lens "
@@ -110,7 +144,7 @@ STYLES = {
                       "black and white line art, coloring book page, thick clean outlines, white background, "
                       "no shading",
                       "color, colored, shading, shadows, gray, grayscale, gradient, texture, photo, "
-                      "realistic, filled areas", cfg=1.0),
+                      "realistic, filled areas", cfg=1.0, lora=("coloring", "coloringbook", "lineart", "line_art", "line-art"), lora_strength=0.9),
 }
 
 # the style with the most matching words wins (ties: the earlier one here)
@@ -119,14 +153,20 @@ _WORDS = [
     ("character", r"mascot|character sheet|character design|sticker"),
     ("product", r"product (?:shot|photo|picture)|packshot|listing photo|studio shot"),
     ("pixel", r"pixel ?art|\b(?:8|16)[- ]bit\b|sprite"),
-    ("anime", r"\banime\b|manga|cel[- ]shad\w*"),
+    ("manga", r"\bmanga\b|screentone"),
+    ("anime", r"\banime\b|cel[- ]shad\w*"),
     ("render3d", r"\b3d\b|octane|unreal engine|\bcgi\b|blender render"),
-    ("scifi", r"sci[- ]?fi|cyberpunk|futuristic|\bneon\b|spaceship"),
-    ("concept", r"concept art|digital painting|matte painting|fantasy (?:art|landscape)"),
-    ("painting", r"oil painting|watercolou?r|ink wash|gouache|impressionis\w*|renaissance|cubis\w*|"
+    ("cyberpunk", r"cyberpunk|\bneon\b"),
+    ("scifi", r"sci[- ]?fi|futuristic|spaceship|space station"),
+    ("concept", r"concept art|digital painting|matte painting"),
+    ("fantasy", r"\bfantasy\b|dragons?\b|wizard|elves|\belf\b|castle"),
+    ("watercolor", r"watercolou?r"),
+    ("painting", r"oil painting|ink wash|gouache|impressionis\w*|renaissance|cubis\w*|"
                  r"\bpainted\b|on canvas"),
-    ("surreal", r"surreal\w*|\babstract\b|dreamlike"),
-    ("cartoon", r"cartoon|\bcomic\w*|halftone"),
+    ("surreal", r"surreal\w*|dreamlike"),
+    ("abstract", r"\babstract\b|geometric art|color field"),
+    ("comic", r"comic[- ]book|\bcomics?\b|halftone|superhero"),
+    ("cartoon", r"cartoon"),
     ("photo", r"\bphoto(?:s|graph\w*|real\w*)?\b|realistic|real[- ]life|portrait|candid|\bdslr\b|bokeh"),
     ("illustration", r"illustrat\w*|\bflat\b|vector|drawing|clip ?art|storybook|children'?s book|"
                      r"\bicons?\b"),
@@ -192,3 +232,12 @@ def choose_model(models: list, style: str, picks: dict | None = None):
 
 def add(prompt: str, style: Style) -> str:
     return f"{prompt.rstrip(' .,')}, {style.suffix}" if style.suffix else prompt
+
+
+def pick_lora(style: "Style", loras: list[str]) -> str:
+    """An installed LoRA whose file name matches the style's words ('' when none)."""
+    for word in style.lora:
+        for name in loras:
+            if word in name.lower().replace(" ", ""):
+                return name
+    return ""

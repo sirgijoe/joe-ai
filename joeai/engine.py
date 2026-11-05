@@ -908,8 +908,16 @@ class Engine:
         lv = quality_mod.level(self.s, "pictures")
         if lv != "medium":
             self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({pp.steps(m.family)} steps)")
-        return (comfy_mod.basic_graph(m.family, pp.steps(m.family), pp.sampler, style.cfg), api_name(m), m.family,
-                "built-in text-to-image")
+        g = comfy_mod.basic_graph(m.family, pp.steps(m.family), style.sampler or pp.sampler, style.cfg)
+        label = "built-in text-to-image"
+        if style.lora and m.family == "sdxl":
+            from .doctor import comfy_models_dir
+            lora = styles_mod.pick_lora(style, comfy_mod.list_loras(comfy_models_dir(self.s)))
+            if lora:
+                g = comfy_mod.with_lora(g, lora, style.lora_strength)
+                label += f" + {lora}"
+                self.log(f"  Style add-on: {lora}")
+        return g, api_name(m), m.family, label
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
         """Phase 2: ComfyUI renders every prompt (VARIANTS images each)."""

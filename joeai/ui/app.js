@@ -1205,9 +1205,10 @@ function renderTasks() {
     `<span class="n">${i + 1}.</span><span class="t">${esc(t.name)} <span class="kind">(${KIND_SHORT[t._kind]})</span></span><span>${taskSize(t)}</span></div>`).join("")
     || '<div class="dim">Nothing yet. Press + ADD SOMETHING.</div>';
 }
-const PIC_STYLES = [["", "Joe decides"], ["photo", "Photo"], ["anime", "Anime / manga"], ["painting", "Painting"],
-  ["concept", "Concept art"], ["render3d", "3D render"], ["scifi", "Sci-fi / cyberpunk"], ["cartoon", "Cartoon / comic"],
-  ["pixel", "Pixel art"], ["surreal", "Surreal / abstract"], ["illustration", "Illustration / flat"],
+const PIC_STYLES = [["", "Joe decides"], ["photo", "Photo"], ["anime", "Anime"], ["manga", "Manga (black and white)"],
+  ["painting", "Painting"], ["watercolor", "Watercolor"], ["concept", "Concept art"], ["fantasy", "Fantasy"],
+  ["render3d", "3D render"], ["scifi", "Sci-fi"], ["cyberpunk", "Cyberpunk"], ["cartoon", "Cartoon"], ["comic", "Comic book"],
+  ["pixel", "Pixel art"], ["surreal", "Surreal"], ["abstract", "Abstract"], ["illustration", "Illustration / flat"],
   ["character", "Mascot / character"], ["product", "Product shot"], ["coloring", "Coloring page"]];
 function field(label, html, hint, tip) {
   return `<label${tip ? ` title="${esc(tip)}"` : ""}>${label} ${html}</label>${hint ? `<div class="hint">${hint}</div>` : ""}`;

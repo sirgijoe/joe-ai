@@ -23,6 +23,7 @@ def test_bad_rows_ignored():
 
 def test_import_moves_big_model_files(tmp_path, monkeypatch):
     monkeypatch.setattr(sm, "MIN_BYTES", 10)
+    monkeypatch.setattr(sm, "LORA_BYTES", 5)
     dl, mdir = tmp_path / "Downloads", tmp_path / "models"
     dl.mkdir()
     (dl / "animagine-xl-4.0.safetensors").write_bytes(b"x" * 20)
@@ -39,3 +40,19 @@ def test_style_of():
     assert sm.style_of("juggernautXL_v9.safetensors") == "photo"
     assert sm.style_of("animagineXL.safetensors") == "anime"
     assert sm.style_of("mystery.safetensors") == "general"
+
+
+def test_lora_offer_and_move(tmp_path, monkeypatch):
+    have = [M("dreamshaperXL.safetensors"), M("juggernautXL.safetensors"), M("animagine.safetensors"),
+            M("realvisxl.safetensors")]
+    ids = {o["id"] for o in sm.offers(have, None, [])}
+    assert {"style-pixel", "style-coloring", "style-watercolor"} <= ids
+    assert "style-pixel" not in {o["id"] for o in sm.offers(have, None, ["pixel-art-xl.safetensors"])}
+    monkeypatch.setattr(sm, "LORA_BYTES", 5)
+    monkeypatch.setattr(sm, "MIN_BYTES", 50)
+    dl, mdir = tmp_path / "dl", tmp_path / "models"
+    dl.mkdir()
+    (dl / "pixel-art-xl.safetensors").write_bytes(b"x" * 10)
+    (dl / "random_embedding.safetensors").write_bytes(b"x" * 10)
+    assert sm.import_downloads(mdir, lambda m: None, dl) == 1
+    assert (mdir / "loras" / "pixel-art-xl.safetensors").exists()

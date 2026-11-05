@@ -50,7 +50,7 @@ def test_suffix():
 @pytest.mark.parametrize("fmt,want", [
     ("a knight, anime style, cel shaded", "anime"), ("oil painting of a harbor", "painting"),
     ("concept art of a ruined castle", "concept"), ("3d render of a robot toy", "render3d"),
-    ("cyberpunk street at night with neon", "scifi"), ("comic panel of a dog hero", "cartoon"),
+    ("cyberpunk street at night with neon", "cyberpunk"), ("comic panel of a dog hero", "comic"),
     ("16-bit pixel art forest", "pixel"), ("surreal melting clocks", "surreal"),
 ])
 def test_eight_common_styles(fmt, want):
@@ -62,3 +62,22 @@ def test_kid_safe_only_when_asked():
     assert styles.for_kids(job("Coloring book", "farm animals for my toddler"))
     assert styles.for_kids(job("Kids coloring book", "mermaids"))
     assert not styles.for_kids(job("Coloring book", "art nouveau figure studies for adults"))
+
+
+@pytest.mark.parametrize("fmt,want", [
+    ("manga panel with screentone", "manga"), ("watercolor of a barn", "watercolor"),
+    ("a dragon over a castle", "fantasy"), ("neon cyberpunk alley", "cyberpunk"),
+    ("comic book superhero", "comic"), ("abstract geometric art", "abstract"),
+])
+def test_more_styles(fmt, want):
+    assert styles.pick(job("x", fmt)).id == want
+
+
+def test_lora_pick_and_graph():
+    from joeai import comfy
+    assert styles.pick_lora(styles.STYLES["pixel"], ["foo.safetensors", "pixel-art-xl.safetensors"]) \
+        == "pixel-art-xl.safetensors"
+    assert styles.pick_lora(styles.STYLES["photo"], ["pixel-art-xl.safetensors"]) == ""
+    g = comfy.with_lora(comfy.basic_graph("sdxl"), "pixel-art-xl.safetensors")
+    assert g["3"]["inputs"]["model"] == ["10", 0] and g["6"]["inputs"]["clip"] == ["10", 1]
+    assert g["8"]["inputs"]["vae"] == ["4", 2] and g["10"]["inputs"]["model"] == ["4", 0]

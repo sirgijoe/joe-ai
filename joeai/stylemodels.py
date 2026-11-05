@@ -18,17 +18,30 @@ from . import styles
 
 Log = Callable[[str], None]
 MODEL_EXT = (".safetensors", ".ckpt")
-MIN_BYTES = 500 * 1024 * 1024          # smaller files are LoRAs/embeddings, not full models
+MIN_BYTES = 500 * 1024 * 1024          # full picture models are bigger than this
+LORA_BYTES = 8 * 1024 * 1024           # style add-ons (LoRAs): 8 MB up to MIN_BYTES
 PAGE_HOSTS = ("https://civitai.com/", "https://huggingface.co/")
 
 # Built-in recommendations (model_picks.json on GitHub replaces this list when it has one).
 BUILTIN = [
+    # full picture models (checkpoints, ~7 GB each, SDXL: fine on 8-12 GB cards)
     {"style": "photo", "name": "Juggernaut XL", "page": "https://civitai.com/models/133005/juggernaut-xl",
-     "base": "sdxl", "size_gb": 7, "note": "realistic photos and product shots"},
+     "kind": "model", "base": "sdxl", "size_gb": 7, "note": "realistic photos, people, places"},
+    {"style": "product", "name": "RealVisXL V5", "page": "https://huggingface.co/SG161222/RealVisXL_V5.0",
+     "kind": "model", "base": "sdxl", "size_gb": 7, "note": "clean realistic product and studio shots"},
     {"style": "illustration", "name": "DreamShaper XL", "page": "https://civitai.com/models/112902/dreamshaper-xl",
-     "base": "sdxl", "size_gb": 7, "note": "illustrations, painted and drawn looks, also decent photos"},
+     "kind": "model", "base": "sdxl", "size_gb": 7,
+     "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more"},
     {"style": "anime", "name": "Animagine XL 4.0", "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
-     "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
+     "kind": "model", "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
+    # style add-ons (LoRAs, small; they work on top of any SDXL model)
+    {"style": "pixel", "name": "Pixel Art XL", "page": "https://huggingface.co/nerijs/pixel-art-xl",
+     "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "retro pixel art"},
+    {"style": "coloring", "name": "ColoringBookRedmond V2",
+     "page": "https://huggingface.co/artificialguybr/ColoringBookRedmond-V2",
+     "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "clean coloring-book line art"},
+    {"style": "watercolor", "name": "Watercolor SDXL", "page": "https://huggingface.co/cbo305/Watercolor_SDXL",
+     "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "soft watercolor paintings"},
 ]
 
 
@@ -46,21 +59,28 @@ def recommendations(picks: dict | None = None) -> list[dict]:
     return [r for r in rows if _ok(r)]
 
 
-def offers(models: list, picks: dict | None = None) -> list[dict]:
+def offers(models: list, picks: dict | None = None, loras: list[str] | None = None) -> list[dict]:
     """System-check items: one per style that has a recommendation but no suitable model installed."""
     out, seen = [], set()
     for r in recommendations(picks):
         s = r["style"]
-        if s in seen or styles.choose_model(models, s, picks):
+        if s in seen:
+            continue
+        if r.get("kind") == "lora":
+            if loras is None or styles.pick_lora(styles.STYLES[s], loras):
+                continue
+        elif styles.choose_model(models, s, picks):
             continue
         seen.add(s)
         label = styles.STYLES[s].label
         out.append({"id": f"style-{s}", "group": "styles", "optional": True, "action": "import-models",
                     "page": r["page"], "style": s,
-                    "text": f"For {label} pictures: {r['name']} (about {r['size_gb']:g} GB, "
-                            f"{r.get('note') or 'free community model'}) draws them better than the model you "
-                            f"have. Its page has the license terms; you download it there and Joe moves it "
-                            f"into ComfyUI.",
+                    "text": f"For {label} pictures: {r['name']} ("
+                            + (f"about {r['size_gb']:g} GB" if r['size_gb'] >= 1 else "a small style add-on")
+                            + f", {r.get('note') or 'free community model'}) "
+                            + ("gives that look on top of your model. " if r.get("kind") == "lora"
+                               else "draws them better than the model you have. ")
+                            + "Its page has the license terms; you download it there and Joe moves it into ComfyUI.",
                     "what": f"{r['name']} (about {r['size_gb']:g} GB)"})
     return out
 
@@ -79,7 +99,17 @@ def found(models_dir: Path | None, folder: Path | None = None) -> list[Path]:
         files = [p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in MODEL_EXT]
     except OSError:
         return []
-    return [p for p in files if p.stat().st_size >= MIN_BYTES and p.name.lower() not in have]
+    if models_dir and (models_dir / "loras").is_dir():
+        have |= {p.name.lower() for p in (models_dir / "loras").rglob("*") if p.is_file()}
+    return [p for p in files if p.stat().st_size >= LORA_BYTES and p.name.lower() not in have
+            and (p.stat().st_size >= MIN_BYTES or is_lora_name(p.name))]
+
+
+def is_lora_name(name: str) -> bool:
+    """A small file Joe recognizes as a style add-on (by name: 'lora' or a recommended one)."""
+    n = name.lower()
+    words = ["lora"] + [w for r in BUILTIN if r.get("kind") == "lora" for w in styles.STYLES[r["style"]].lora]
+    return any(w in n for w in words)
 
 
 def style_of(name: str, picks: dict | None = None) -> str:
@@ -98,11 +128,11 @@ def import_downloads(models_dir: Path | None, log: Log, folder: Path | None = No
         log("Can't find ComfyUI's models folder. Set it in Setup (F10).")
         return 0
     files = found(models_dir, folder)
-    dest = models_dir / "checkpoints"
-    dest.mkdir(parents=True, exist_ok=True)
     moved = 0
     for f in files:
         size = round(f.stat().st_size / 1e9, 1)
+        dest = models_dir / ("checkpoints" if f.stat().st_size >= MIN_BYTES else "loras")
+        dest.mkdir(parents=True, exist_ok=True)
         try:
             shutil.move(str(f), str(dest / f.name))
         except OSError as e:

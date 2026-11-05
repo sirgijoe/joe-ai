@@ -311,6 +311,33 @@ def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m", cfg_shif
     }
 
 
+def with_lora(g: dict, lora: str, strength: float = 0.8) -> dict:
+    """The built-in picture graph with a LoRA (a small style add-on) between the checkpoint and
+    everything that uses it."""
+    g = copy.deepcopy(g)
+    g["10"] = {"class_type": "LoraLoader", "inputs": {"lora_name": lora, "strength_model": strength,
+                                                       "strength_clip": strength, "model": ["4", 0],
+                                                       "clip": ["4", 1]}}
+    for nid, node in g.items():
+        if nid == "10":
+            continue
+        for k, v in node["inputs"].items():
+            if v == ["4", 0] and k == "model":
+                node["inputs"][k] = ["10", 0]
+            elif v == ["4", 1] and k == "clip":
+                node["inputs"][k] = ["10", 1]
+    return g
+
+
+def list_loras(models_dir: Path | None) -> list[str]:
+    """LoRA files as ComfyUI names them (relative to models/loras, forward slashes)."""
+    root = (models_dir / "loras") if models_dir else None
+    if not root or not root.is_dir():
+        return []
+    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
+                  if p.suffix.lower() in (".safetensors", ".ckpt", ".pt"))
+
+
 # Built-in video: Wan 2.2 TI2V 5B (Apache 2.0), ComfyUI's own repackaged files.
 # Runs on ~8 GB+ graphics cards (ComfyUI offloads what doesn't fit).
 WAN_VIDEO = {

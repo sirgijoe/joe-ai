@@ -102,6 +102,116 @@
       "meina",
       "aam",
       "comic"
+    ],
+    "anime": [
+      "animagine",
+      "anime",
+      "pony",
+      "meina",
+      "counterfeit",
+      "aam",
+      "illustr"
+    ],
+    "cartoon": [
+      "toon",
+      "cartoon",
+      "comic",
+      "flat",
+      "vector",
+      "dreamshaper",
+      "illustr"
+    ],
+    "painting": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
+    ],
+    "concept": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
+    ],
+    "surreal": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
+    ],
+    "pixel": [
+      "pixel",
+      "toon",
+      "cartoon",
+      "comic",
+      "flat",
+      "vector",
+      "dreamshaper",
+      "illustr"
+    ],
+    "render3d": [
+      "3d",
+      "render",
+      "dreamshaper",
+      "juggernaut"
+    ],
+    "scifi": [
+      "dreamshaper",
+      "juggernaut",
+      "realvis"
+    ],
+    "cyberpunk": [
+      "dreamshaper",
+      "juggernaut",
+      "realvis"
+    ],
+    "manga": [
+      "animagine",
+      "anime",
+      "pony",
+      "meina",
+      "counterfeit",
+      "aam",
+      "illustr"
+    ],
+    "comic": [
+      "toon",
+      "cartoon",
+      "comic",
+      "flat",
+      "vector",
+      "dreamshaper",
+      "illustr"
+    ],
+    "watercolor": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
+    ],
+    "fantasy": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
+    ],
+    "abstract": [
+      "dreamshaper",
+      "paint",
+      "art",
+      "illustr",
+      "sdxl_base",
+      "sd_xl_base"
     ]
   },
   "style_models": [
@@ -109,25 +219,64 @@
       "style": "photo",
       "name": "Juggernaut XL",
       "page": "https://civitai.com/models/133005/juggernaut-xl",
+      "kind": "model",
       "base": "sdxl",
       "size_gb": 7,
-      "note": "realistic photos and product shots"
+      "note": "realistic photos, people, places"
+    },
+    {
+      "style": "product",
+      "name": "RealVisXL V5",
+      "page": "https://huggingface.co/SG161222/RealVisXL_V5.0",
+      "kind": "model",
+      "base": "sdxl",
+      "size_gb": 7,
+      "note": "clean realistic product and studio shots"
     },
     {
       "style": "illustration",
       "name": "DreamShaper XL",
       "page": "https://civitai.com/models/112902/dreamshaper-xl",
+      "kind": "model",
       "base": "sdxl",
       "size_gb": 7,
-      "note": "illustrations, painted and drawn looks, also decent photos"
+      "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more"
     },
     {
       "style": "anime",
       "name": "Animagine XL 4.0",
       "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
+      "kind": "model",
       "base": "sdxl",
       "size_gb": 7,
       "note": "anime and manga"
+    },
+    {
+      "style": "pixel",
+      "name": "Pixel Art XL",
+      "page": "https://huggingface.co/nerijs/pixel-art-xl",
+      "kind": "lora",
+      "base": "sdxl",
+      "size_gb": 0.2,
+      "note": "retro pixel art"
+    },
+    {
+      "style": "coloring",
+      "name": "ColoringBookRedmond V2",
+      "page": "https://huggingface.co/artificialguybr/ColoringBookRedmond-V2",
+      "kind": "lora",
+      "base": "sdxl",
+      "size_gb": 0.2,
+      "note": "clean coloring-book line art"
+    },
+    {
+      "style": "watercolor",
+      "name": "Watercolor SDXL",
+      "page": "https://huggingface.co/cbo305/Watercolor_SDXL",
+      "kind": "lora",
+      "base": "sdxl",
+      "size_gb": 0.2,
+      "note": "soft watercolor paintings"
     }
   ]
 }
