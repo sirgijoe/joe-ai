@@ -254,5 +254,5 @@ def test_auto_strength_follows_how_faded_the_photo_is():
     assert picturetools.auto_level({}) == "medium"
     cmd = picturetools.true_restore_command("ffmpeg", Path("a.jpg"), Path("b.png"), 1, 2, "light")
     chain = cmd[cmd.index("-filter_complex") + 1]
-    assert chain.count("gblur") == picturetools.ROUNDS and chain.count("eq=") == 1   # color once
+    assert chain.count("bilateral") == picturetools.ROUNDS and chain.count("eq=") == 1   # color once
     assert "grayworld" in chain and "scale=iw*2" in chain

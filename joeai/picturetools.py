@@ -440,8 +440,13 @@ _FIX = "normalize=independence=1:strength=1"
 # photo cold (a full correction over-blues grass and sky).
 _CAST = ("split[ca][cb];[cb]format=gbrpf32le,grayworld,format=yuv444p[cg];[ca]format=yuv444p[cc];"
          "[cc][cg]blend=all_mode=normal:all_opacity=0.5")
-_ROUND = "gblur=sigma=0.8,cas=0.5"           # one photographer's round: a little blur, then sharpen
-ROUNDS = 4
+# A photographer's rounds: one soft blur hides the print's dots and grain, then rounds of
+# edge-keeping smoothing (bilateral: smooths flat areas, leaves edges like hair and leaves) plus a
+# sharpen. Picked on a real 1980 print: sharper trees and face than blur-only, dots still gone.
+_FIRST = "gblur=sigma=1.0"
+_ROUND = "bilateral=sigmaS=1.5:sigmaR=0.06,cas=0.5"
+_ROUND_OLD = "gblur=sigma=0.8,cas=0.5"       # for an FFmpeg too old to have bilateral
+ROUNDS = 3
 TRUE_LEVELS = {   # contrast and color, applied ONCE (rounds repeat only blur + sharpen)
     "strong": "curves=preset=increase_contrast,eq=gamma=0.97:saturation=1.3",   # faded prints
     "medium": "eq=contrast=1.12:gamma=0.97:saturation=1.15",
@@ -477,7 +482,7 @@ def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, fact
     parts = ([_TURN[turn]] if turn in _TURN else []) + [_FIX]
     if cast:
         parts.append(_CAST)
-    parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"])] + [_ROUND] * ROUNDS
+    parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"]), _FIRST] + [_ROUND if cast else _ROUND_OLD] * ROUNDS
     if factor:
         parts.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
     parts += ["cas=0.3", "format=rgb24"]
@@ -527,7 +532,7 @@ def run_true_restore(engine, job, st, files, keys):
                 engine.log(f"  {src.name}: darkest parts at {low:.0f} of 255 -> {level}"
                            if low is not None else f"  {src.name}: couldn't measure it -> {level}")
             ok, err = False, ""
-            for cast in (True, False):              # an older FFmpeg without grayworld: skip that step
+            for cast in (True, False):              # an older FFmpeg: skip the newer filters
                 try:
                     p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast),
                                        capture_output=True, text=True, timeout=600,
@@ -549,7 +554,7 @@ def run_true_restore(engine, job, st, files, keys):
             engine.log(f"  {src.name} -> {dest.name}")
         atomic_write_text(folder / "about.txt",
                           f"# {job.name}\n\nRestored by Joe on {datetime.now():%Y-%m-%d %H:%M}, true to the photo:"
-                          "\nfading and color cast undone, a few rounds of light blur + sharpen"
+                          "\nfading and color cast undone, grain smoothed, rounds of edge-keeping smoothing + sharpen"
                           + (f", {factor}x bigger" if factor else "") + ", mild sharpening.\nNothing was "
                           "redrawn by AI. Scratches, tears and date stamps stay: for those, run it again "
                           "with 'AI repair' (it can change faces).\n")
