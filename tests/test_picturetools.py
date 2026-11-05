@@ -121,9 +121,13 @@ def test_restore_and_edit_prompts(studio):
     p = comfy.graphs[-1]["151"]["inputs"]["prompt"]
     assert "scratches" in p and "black and white" in p and "Do not redraw faces" in p
     assert comfy.graphs[-1]["169"]["inputs"]["steps"] == 4                # Lightning add-on
-    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 0.4            # gentle: faces stay
+    g = comfy.graphs[-1]                                                   # gentle: 3 small passes
+    assert g["169"]["inputs"]["denoise"] == 0.3 and g["169"]["inputs"]["latent_image"] == ["156", 0]
+    assert g["169_2"]["inputs"]["latent_image"] == ["169", 0]
+    assert g["169_3"]["inputs"]["latent_image"] == ["169_2", 0]
+    assert g["158"]["inputs"]["samples"] == ["169_3", 0]
     run(app, "TASK: Torn  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: strength strong, upscale none")
-    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 1.0
+    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 1.0 and "169_2" not in comfy.graphs[-1]
     app.settings.quality.pictures = "high"
     run(app, "TASK: Old2  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: colorize, upscale none")
     g = comfy.graphs[-1]

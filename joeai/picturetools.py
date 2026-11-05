@@ -87,7 +87,9 @@ RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, s
                   "and fix faded and uneven areas. Keep every person's face, expression, hair, pose "
                   "and clothing, and the whole scene, exactly as they are in the photo. Do not redraw "
                   "faces or add detail that isn't there: a soft or blurry face stays the same face.")
-RESTORE_DENOISE = {"gentle": 0.4, "strong": 1.0}   # gentle starts from the photo itself, so faces stay
+# (strength per pass, passes). Gentle works like a photographer: several small passes, each starting
+# from the last result and always checked against the original, so faces and details stay theirs.
+RESTORE_LEVELS = {"gentle": (0.3, 3), "strong": (1.0, 1)}
 COLORIZE = (" Then colorize it with natural, realistic colors that fit the time period, "
             "with true-to-life skin tones.")
 KEEP_BW = (" Keep its own colors: if it is black and white or sepia, keep it that way; if it is a "
@@ -228,7 +230,7 @@ def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict
 
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
                prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False,
-               denoise: float = 1.0) -> dict:
+               denoise: float = 1.0, passes: int = 1) -> dict:
     """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1.
     megapixels > 0 works on a smaller copy; encoder_on_cpu keeps the 9 GB text encoder in normal
     memory (slower to read the request, but the picture model gets the whole graphics card).
@@ -262,6 +264,13 @@ def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upsca
             "negative": ["147", 0], "latent_image": ["156", 0]}},
         "158": {"class_type": "VAEDecode", "inputs": {"samples": ["169", 0], "vae": ["146", 0]}},
     }
+    last = "169"
+    for n in range(2, max(1, passes) + 1):        # small passes, each starting from the last one
+        k = f"169_{n}"
+        g[k] = json.loads(json.dumps(g["169"]))
+        g[k]["inputs"].update(seed=seed + n, latent_image=[last, 0])
+        last = k
+    g["158"]["inputs"]["samples"] = [last, 0]
     if fast:
         g["153"] = {"class_type": "LoraLoaderModelOnly", "inputs": {
             "model": ["152", 0], "lora_name": lora, "strength_model": 1.0}}
@@ -626,7 +635,8 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
             prompt += " " + extra
         level = option_value(job, "strength") or "gentle"
         return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu,
-                           denoise=RESTORE_DENOISE.get(level, RESTORE_DENOISE["gentle"])),
+                           denoise=RESTORE_LEVELS.get(level, RESTORE_LEVELS["gentle"])[0],
+                           passes=RESTORE_LEVELS.get(level, RESTORE_LEVELS["gentle"])[1]),
                 stem + "-restored", ".png")
     if tid == "animate-photo":
         w, h = video_size(*picture_size(src))

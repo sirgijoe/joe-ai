@@ -316,8 +316,9 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                       ("gentle", "Gentle (keeps faces as they are)"),
                       ("strong", "Strong (badly damaged photos; can change faces)")), value="gentle")),
          help="Removes scratches, dust and stains and evens fading, keeping everyone and everything "
-              "as it was. Gentle (the usual choice) starts from your photo itself, so faces stay "
-              "theirs; Strong redraws more and can make someone look like a different person. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
+              "as it was. Gentle (the usual choice) works like a photographer: three small passes, each "
+              "starting from the last and checked against your original, so faces stay theirs; "
+              "Strong redraws more and can make someone look like a different person. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
               "offered once) plus Real-ESRGAN for sharpening. AI can change small details: compare "
               "with the original before you share it. Your originals are never changed.",
          plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
