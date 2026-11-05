@@ -202,10 +202,10 @@ async function poll() {
   const dd = doctorData;
   const plain = (up, inst, busy) => up ? "READY" : busy ? "BUSY" : (dd && !inst) ? "NOT SET UP" : "STARTS WHEN NEEDED";
   const parts = [
-    `WRITING ${plain(sv.ollama, dd && dd.ollama.installed, false)}`,
-    `PICTURES ${plain(sv.comfyui, dd && dd.comfyui.installed, state.running)}`,   // a big model loading can keep it from answering
+    `OLLAMA (WRITING) ${plain(sv.ollama, dd && dd.ollama.installed, false)}`,
+    `COMFYUI (PICTURES) ${plain(sv.comfyui, dd && dd.comfyui.installed, state.running)}`,   // a big model loading can keep it from answering
     `MODEL ${state.model}${loaded ? " " + loaded.gpu_pct + "% GPU" : ""}`,
-    state.running ? (state.stopping ? "STOPPING…" : `RUNNING ${done}/${total} ETA ${fmtEta(state.eta_s)}`) : (state.busy ? state.busy.toUpperCase() + (state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : "") + "…" : "IDLE"),
+    state.running ? (state.stopping ? "STOPPING…" : `RUNNING ${done}/${total} ETA ${fmtEta(state.eta_s)}` + (state.queued_eta_s ? ` · ALL ${(state.queued || []).length + 1} MISSIONS ~${fmtEta((state.eta_s || 0) + state.queued_eta_s)}` : "")) : (state.busy ? state.busy.toUpperCase() + (state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : "") + "…" : "IDLE"),
   ];
   const hw = state.hw;
   let gpuHtml = "";

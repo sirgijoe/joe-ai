@@ -307,7 +307,8 @@ class App:
                 return {"ok": False, "error": "Nothing left to do in that mission."}
         with self.lock:
             entry = {"file": self._save_mission_file(text), "label": self._label(mission),
-                     "tasks": [j.name for j in mission.jobs], "unfinished": [j.name for j in mission.jobs]}
+                     "tasks": [j.name for j in mission.jobs], "unfinished": [j.name for j in mission.jobs],
+                     "eta_min": chk.get("eta_min", 0)}
             from . import describe as describe_mod
             entry["chat"] = self.note_chat(
                 {"who": "joe", "kind": "run", "mission": text,
@@ -621,6 +622,7 @@ class App:
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
                 "attention": self.services.attention,
                 "queued": [e["label"] for _, _, e in self.queue],
+                "queued_eta_s": 60 * sum(int(e.get("eta_min") or 0) for _, _, e in self.queue),
                 "media": media[-12:][::-1],
                 "chain": len(self.chain),
                 "held_plan": {k: v for k, v in self.held_plan.items() if k != "thread"},
