@@ -88,7 +88,8 @@ RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, s
                   "person's face, expression, pose, clothing and the whole scene exactly the same.")
 COLORIZE = (" Then colorize it with natural, realistic colors that fit the time period, "
             "with true-to-life skin tones.")
-KEEP_BW = " Keep it in its original black and white or sepia tones."
+KEEP_BW = (" Keep its own colors: if it is black and white or sepia, keep it that way; if it is a "
+           "faded color photo, bring its colors back to how they looked when it was new.")
 
 
 # --------------------------------------------------------------------------- packs
