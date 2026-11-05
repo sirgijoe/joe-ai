@@ -66,6 +66,11 @@ Rules that always apply:
 - The task's brief is the SUBJECT. Every prompt must show that subject; never swap it for
   a different subject. Vary only the details: angle, framing, time of day, small props.
 - Never repeat or lightly reword a title or prompt you have already used.
+- The image model draws ONE scene. It can't draw steps, before/after, arrows, labels, numbered
+  parts, cut-away layers or diagrams, and it mixes up anything with many small parts. For a
+  how-to topic, show the single most telling moment: the finished thing (or hands doing the key
+  action) big and centered, few objects, plain background. Name objects plainly ("two plastic
+  water bottles", not "filtration apparatus").
 - Output only the requested content. No introductions, no closing remarks."""
 VIDEO_EXTRA = """- This is for a short VIDEO clip, so something must clearly MOVE the whole time.
   Start the prompt with the motion: what moves, how, and how the camera moves (slow push-in,

@@ -25,6 +25,8 @@ PAGE_HOSTS = ("https://civitai.com/", "https://huggingface.co/")
 BUILTIN = [
     {"style": "photo", "name": "Juggernaut XL", "page": "https://civitai.com/models/133005/juggernaut-xl",
      "base": "sdxl", "size_gb": 7, "note": "realistic photos and product shots"},
+    {"style": "illustration", "name": "DreamShaper XL", "page": "https://civitai.com/models/112902/dreamshaper-xl",
+     "base": "sdxl", "size_gb": 7, "note": "illustrations, painted and drawn looks, also decent photos"},
     {"style": "anime", "name": "Animagine XL 4.0", "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
      "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
 ]
