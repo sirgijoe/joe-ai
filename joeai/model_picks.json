@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-11-04",
-  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"styles\": words in picture-model file names that suit each picture style, best first.",
+  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI).",
   "writing": [
     {
       "min_vram": 22,
@@ -103,5 +103,23 @@
       "aam",
       "comic"
     ]
-  }
+  },
+  "style_models": [
+    {
+      "style": "photo",
+      "name": "Juggernaut XL",
+      "page": "https://civitai.com/models/133005/juggernaut-xl",
+      "base": "sdxl",
+      "size_gb": 7,
+      "note": "realistic photos and product shots"
+    },
+    {
+      "style": "anime",
+      "name": "Animagine XL 4.0",
+      "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
+      "base": "sdxl",
+      "size_gb": 7,
+      "note": "anime and manga"
+    }
+  ]
 }

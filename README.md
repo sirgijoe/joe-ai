@@ -242,6 +242,15 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
   terms, privacy rules and sometimes a price, and can change or stop working at any time. If you
   choose to connect a paid model, service or plugin, that's your decision, and any cost or
   agreement is between you and whoever provides it.
+- **What you make is yours to answer for.** Joe doesn't draw, film or write anything himself:
+  he writes instructions and hands them to the AI programs on your PC (Ollama for words,
+  ComfyUI and the models you install for pictures, video and sound). Those programs and models
+  make the result. You decide what to ask for and what to do with it, so follow each model's
+  license, don't present AI-made pictures or video as real photos or footage, and don't use
+  them to copy someone's work, pretend to be a real person, or mislead anyone.
+- **Models from other sites are your download.** When Joe recommends a community model
+  (Civitai or similar), he only opens its page: you read its terms and download it yourself,
+  then Joe moves the file into ComfyUI. Joe's makers don't make, check or vouch for those models.
 - **It's a hobby project** built by one person with help from AI, shared for free. It comes
   with no warranty.
 

@@ -686,7 +686,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   $("#issues").innerHTML = d.issues.length ? d.issues.map((it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
     : '<div class="dim">All good. Everything Joe needs is installed and running.</div>';
   return d;
 }
@@ -712,6 +712,8 @@ function askFix(it) {
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Your system may ask for permission.",
     "install-pandoc": viaPkg,
+    "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. Then press GET IT again: Joe moves it into ComfyUI."
+      : "Move it into ComfyUI's models folder now?",
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];
   confirmBox(`${it.text}\n\n${what}`, async () => {
     const r = await api("/api/doctor/fix", { ...it, approved: true });

@@ -755,6 +755,22 @@ class App:
                                                     approved=True, progress=prog)
                     if ok and self.services.comfy_up():
                         self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
+                elif action == "import-models":
+                    from . import stylemodels
+                    mdir = doctor.comfy_models_dir(self.settings)
+                    if stylemodels.found(mdir):
+                        ok = stylemodels.import_downloads(mdir, self.log) > 0
+                        if ok and self.services.comfy_up():
+                            self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
+                    elif b.get("page", "").startswith(stylemodels.PAGE_HOSTS):
+                        import webbrowser
+                        webbrowser.open(b["page"])
+                        self.log(f"Opened {b['page']}. Read its license, download the model file there "
+                                 "(into your Downloads folder), then press GET IT again and Joe moves it "
+                                 "into ComfyUI.")
+                    else:
+                        self.log("No picture model files found in your Downloads folder.")
+                        ok = False
                 elif action == "update-joe":
                     from . import update as update_mod
                     info = update_mod.check()
@@ -776,7 +792,8 @@ class App:
                   "download-video-turbo": "downloading the Turbo add-on",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
                   "install-clone": "setting up voice copy", "update-joe": "updating Joe",
-                  "download-pack": "downloading a picture/sound model"}
+                  "download-pack": "downloading a picture/sound model",
+                  "import-models": "getting a picture model"}
         if action == "download-pack":
             from . import picturetools
             if b.get("pack") not in picturetools.PACKS:

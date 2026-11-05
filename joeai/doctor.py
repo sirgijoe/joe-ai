@@ -306,6 +306,22 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                        "action": "download-video-turbo", "optional": True,
                        "what": f"the {t['label']} (under 1 GB)"})
     if (comfy_exe or comfy_up) and mdir:
+        from . import stylemodels, upkeep
+        try:
+            _pk = upkeep.picks()
+        except Exception:                        # noqa: BLE001  (offline: built-in list)
+            _pk = None
+        basic = [m for m in comfy_mod.scan_models(mdir)
+                 if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
+        if basic:                                # no model at all: the starter model is offered instead
+            issues += stylemodels.offers(basic, _pk)
+        waiting = stylemodels.found(mdir)
+        if waiting:
+            issues.append({"id": "style-import", "group": "styles", "optional": True, "action": "import-models",
+                           "text": f"{len(waiting)} picture model file(s) in your Downloads folder "
+                                   f"({', '.join(p.name for p in waiting[:3])}) can be moved into ComfyUI.",
+                           "what": "moving the downloaded model into ComfyUI"})
+    if (comfy_exe or comfy_up) and mdir:
         from . import picturetools
         for pid in ("bg", "upscale", "edit", "music", "sfx"):
             if not picturetools.pack_ready(mdir, pid):
