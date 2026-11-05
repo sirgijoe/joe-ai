@@ -557,5 +557,6 @@ def _print_pdf(edge: str, html: Path, out: Path, log: Log, timeout: int = 180) -
 
 
 def _edge() -> str | None:
-    from .app import _edge as find
-    return find()
+    """A Chromium-type browser to print the PDF with (Edge on every Windows PC)."""
+    from .system import app_browser
+    return app_browser()
