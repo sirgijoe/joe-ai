@@ -215,3 +215,10 @@ def test_out_of_memory_twice_says_so_plainly(studio, monkeypatch):
     _, st = run(app, "TASK: Old  TYPE: restore-photo\nINPUT: bowl.png\nOPTIONS: upscale none")
     assert st.status == "failed"
     assert "ran out of memory" in st.note and "Allocation" not in st.note
+
+
+def test_card_size_comes_from_comfyui_first(monkeypatch):
+    from joeai import picturetools as pt
+    monkeypatch.setattr(pt, "request_json", lambda *a, **k: {"devices": [
+        {"name": "cuda:0 NVIDIA GeForce RTX 4070", "type": "cuda", "vram_total": 12878086144}]})
+    assert pt.card_gb("http://x") == 12.0 and pt.small_card("http://x")

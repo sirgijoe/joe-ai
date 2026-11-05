@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from . import comfy as comfy_mod
 from .fsutil import atomic_write_text
-from .http import HttpError
+from .http import HttpError, request_json
 
 if TYPE_CHECKING:                                    # pragma: no cover
     from .engine import Engine, JobState
@@ -380,12 +380,26 @@ SMALL_MP = 0.6          # retry size (megapixels) for edit/restore after running
 BIG_CARD_GB = 16        # below this the editor's text encoder runs on the processor from the start
 
 
-def small_card() -> bool:
+def card_gb(base: str = "") -> float:
+    """Graphics memory in GB: ComfyUI's own answer first (the card it really uses), then Joe's."""
+    if base:
+        try:
+            devs = request_json("GET", f"{base}/system_stats", timeout=10).get("devices") or []
+            total = max((float(d.get("vram_total") or 0) for d in devs
+                         if str(d.get("type", "")).lower() != "cpu"), default=0)
+            if total:
+                return round(total / 1024 ** 3, 1)
+        except (HttpError, TypeError, ValueError, AttributeError):
+            pass
     try:
         from .hardware import vram_total_gb
-        gb = vram_total_gb()
-    except Exception:                           # noqa: BLE001 (unknown card: assume it's fine)
-        return False
+        return vram_total_gb()
+    except Exception:                           # noqa: BLE001 (unknown card)
+        return 0.0
+
+
+def small_card(base: str = "") -> bool:
+    gb = card_gb(base)
     return 0 < gb < BIG_CARD_GB
 
 
@@ -470,10 +484,16 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     prefix = f"Joe/{slug(job.name) or tid}"
     if tid in BIG_TOOLS:
         _free(engine, client)
-    cpu_enc = tid in ("edit-picture", "restore-photo") and small_card()
-    if cpu_enc:
-        engine.log("  This graphics card has under 16 GB, so the picture editor reads your request on "
-                   "the processor (a little slower, but it fits).")
+    cpu_enc = False
+    if tid in ("edit-picture", "restore-photo"):
+        gb = card_gb(client.base)
+        cpu_enc = 0 < gb < BIG_CARD_GB
+        if cpu_enc:
+            engine.log(f"  Graphics card: {gb:g} GB, under {BIG_CARD_GB} GB, so the picture editor reads your "
+                       "request on the processor (a little slower, but it fits). The graphics card "
+                       "sits nearly idle for the first few minutes.")
+        else:
+            engine.log(f"  Graphics card: {gb:g} GB." if gb else "  Graphics card size unknown.")
     try:
         for i, (item, key) in enumerate(zip(items, keys)):
             if key in st.titles:

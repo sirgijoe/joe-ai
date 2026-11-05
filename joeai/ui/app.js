@@ -199,7 +199,7 @@ async function poll() {
   const loaded = (sv.loaded || [])[0];
   const parts = [
     `OLLAMA ${sv.ollama ? "UP" : "DOWN"}`,
-    `COMFYUI ${sv.comfyui ? "UP" : "DOWN"}`,
+    `COMFYUI ${sv.comfyui ? "UP" : (state.running ? "BUSY" : "DOWN")}`,   // a big model loading can keep it from answering
     `MODEL ${state.model}${loaded ? " " + loaded.gpu_pct + "% GPU" : ""}`,
     state.running ? (state.stopping ? "STOPPING…" : `RUNNING ${done}/${total} ETA ${fmtEta(state.eta_s)}`) : (state.busy ? state.busy.toUpperCase() + (state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : "") + "…" : "IDLE"),
   ];
