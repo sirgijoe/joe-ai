@@ -84,8 +84,10 @@ OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",)}
 COMFY_TOOLS = tuple(TOOL_PACKS)
 
 RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, stains and creases, "
-                  "fix faded and uneven areas, sharpen the details and faces naturally. Keep every "
-                  "person's face, expression, pose, clothing and the whole scene exactly the same.")
+                  "and fix faded and uneven areas. Keep every person's face, expression, hair, pose "
+                  "and clothing, and the whole scene, exactly as they are in the photo. Do not redraw "
+                  "faces or add detail that isn't there: a soft or blurry face stays the same face.")
+RESTORE_DENOISE = {"gentle": 0.4, "strong": 1.0}   # gentle starts from the photo itself, so faces stay
 COLORIZE = (" Then colorize it with natural, realistic colors that fit the time period, "
             "with true-to-life skin tones.")
 KEEP_BW = (" Keep its own colors: if it is black and white or sepia, keep it that way; if it is a "
@@ -225,7 +227,8 @@ def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict
 
 
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
-               prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False) -> dict:
+               prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False,
+               denoise: float = 1.0) -> dict:
     """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1.
     megapixels > 0 works on a smaller copy; encoder_on_cpu keeps the 9 GB text encoder in normal
     memory (slower to read the request, but the picture model gets the whole graphics card).
@@ -233,10 +236,10 @@ def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upsca
     unet, clip, vae, lora = (f[1] for f in PACKS["edit"].files)
     g: dict = {
         "41": _load(image),
-        "160": ({"class_type": "ImageScaleToTotalPixels", "inputs": {
-            "image": ["41", 0], "upscale_method": "lanczos", "megapixels": megapixels,
-            "resolution_steps": 16}}
-            if megapixels else {"class_type": "FluxKontextImageScale", "inputs": {"image": ["41", 0]}}),
+        # about 1 megapixel in the photo's own shape (the template's preset sizes could squash it)
+        "160": {"class_type": "ImageScaleToTotalPixels", "inputs": {
+            "image": ["41", 0], "upscale_method": "lanczos", "megapixels": megapixels or 1.0,
+            "resolution_steps": 16}},
         "161": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
         "162": {"class_type": "CLIPLoader", "inputs": {"clip_name": clip, "type": "qwen_image",
                                               "device": "cpu" if encoder_on_cpu else "default"}},
@@ -254,7 +257,7 @@ def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upsca
         "156": {"class_type": "VAEEncode", "inputs": {"pixels": ["160", 0], "vae": ["146", 0]}},
         "169": {"class_type": "KSampler", "inputs": {
             "seed": seed, "steps": 4 if fast else 40, "cfg": 1.0 if fast else 3.0,
-            "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0,
+            "sampler_name": "euler", "scheduler": "simple", "denoise": denoise,
             "model": ["153", 0] if fast else ["152", 0], "positive": ["148", 0],
             "negative": ["147", 0], "latent_image": ["156", 0]}},
         "158": {"class_type": "VAEDecode", "inputs": {"samples": ["169", 0], "vae": ["146", 0]}},
@@ -621,7 +624,10 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
         if extra:
             prompt += " " + extra
-        return edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu), stem + "-restored", ".png"
+        level = option_value(job, "strength") or "gentle"
+        return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu,
+                           denoise=RESTORE_DENOISE.get(level, RESTORE_DENOISE["gentle"])),
+                stem + "-restored", ".png")
     if tid == "animate-photo":
         w, h = video_size(*picture_size(src))
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"

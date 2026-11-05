@@ -332,8 +332,10 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   steps (about 1-3 minutes on a 12 GB card, the rest of the model waits in normal memory); High =
   40 steps, much slower. Reads JPG, PNG and WebP.
 - **Restore old photos**: the same editor told to remove damage and keep every face and detail;
-  `colorize` adds natural color, otherwise black and white/sepia stays. `upscale` sharpens after.
-  AI can change small details: compare with the original.
+  `colorize` adds natural color, otherwise the photo keeps its own colors (faded color comes
+  back, black and white stays). `upscale` sharpens after. `strength gentle` (the default) starts
+  from your photo, so faces stay theirs; `strength strong` is for badly torn photos and can
+  change faces. AI can change small details: compare with the original.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
   1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
 - **Music and sound effects**: no files needed; one piece per line (in a mission, separate them

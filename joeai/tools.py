@@ -308,16 +308,21 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Swap the background of this photo for a beach", "Remove the cup from these pictures"),
          extra_label="What should change?", extra_hint="e.g. replace the background with a white marble counter"),
     Tool("restore-photo", "Restore old photos", "Pictures",
-         "Fix scratches and faces, add color.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         "Fix scratches and fading, add color.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          options=(Option("colorize", "Add color", False, "Off keeps black and white or sepia."),
                   Option("upscale", "Make it bigger and sharper", choices=(
-                      ("none", "No"), ("2x", "2x"), ("4x", "4x")), value="2x")),
-         help="Removes scratches, dust and stains, evens fading and sharpens faces, keeping everyone "
-              "and everything as it was. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
+                      ("none", "No"), ("2x", "2x"), ("4x", "4x")), value="2x"),
+                  Option("strength", "How much to fix", choices=(
+                      ("gentle", "Gentle (keeps faces as they are)"),
+                      ("strong", "Strong (badly damaged photos; can change faces)")), value="gentle")),
+         help="Removes scratches, dust and stains and evens fading, keeping everyone and everything "
+              "as it was. Gentle (the usual choice) starts from your photo itself, so faces stay "
+              "theirs; Strong redraws more and can make someone look like a different person. Uses the same picture editor as 'Edit a picture' (about 31 GB, "
               "offered once) plus Real-ESRGAN for sharpening. AI can change small details: compare "
               "with the original before you share it. Your originals are never changed.",
          plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
-                   "list below, OPTIONS: colorize (only if they want color), upscale none|2x|4x. "
+                   "list below, OPTIONS: colorize (only if they want color), upscale none|2x|4x, strength gentle "
+                   "(default) or strong (only for badly torn/damaged photos). "
                    "No CHUNKS.",
          examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),
          extra_hint="optional, e.g. the dress was blue"),

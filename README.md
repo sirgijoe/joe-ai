@@ -108,7 +108,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
     bigger and sharper (BiRefNet, MIT; Real-ESRGAN, BSD-3).
   - **Edit a picture by asking**: "swap the background for a marble counter", "remove the cup"
     (Qwen-Image-Edit 2511, Apache-2.0, about 31 GB; best with 12 GB graphics + 32 GB memory).
-  - **Restore old photos**: scratches, dust, fading, faces; color if you want it (same editor).
+  - **Restore old photos**: scratches, dust, fading; color if you want it; faces kept as they are (same editor).
   - **Animate a photo**: a 5-second clip that starts from your photo (Wan 2.2, the video model).
   - **Music and sound effects**: instrumental tracks (ACE-Step 1.5, MIT) or sound effects
     (Stable Audio Open 1.0: free under US$1 million revenue a year), one per line, as MP3.

@@ -119,8 +119,11 @@ def test_restore_and_edit_prompts(studio):
     png(app.sb.inbox / "nana.png")
     run(app, "TASK: Old  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: upscale none")
     p = comfy.graphs[-1]["151"]["inputs"]["prompt"]
-    assert "scratches" in p and "black and white" in p
+    assert "scratches" in p and "black and white" in p and "Do not redraw faces" in p
     assert comfy.graphs[-1]["169"]["inputs"]["steps"] == 4                # Lightning add-on
+    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 0.4            # gentle: faces stay
+    run(app, "TASK: Torn  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: strength strong, upscale none")
+    assert comfy.graphs[-1]["169"]["inputs"]["denoise"] == 1.0
     app.settings.quality.pictures = "high"
     run(app, "TASK: Old2  TYPE: restore-photo\nINPUT: nana.png\nOPTIONS: colorize, upscale none")
     g = comfy.graphs[-1]
@@ -182,8 +185,7 @@ def test_out_of_memory_frees_and_retries_smaller(studio, monkeypatch):
     assert st.status == "done", st.note
     assert comfy.freed >= 2                                    # before the tool and before the retry
     first, retry = comfy.graphs[-2], comfy.graphs[-1]
-    assert first["160"]["class_type"] == "FluxKontextImageScale"
-    assert retry["160"]["class_type"] == "ImageScaleToTotalPixels"
+    assert first["160"]["inputs"]["megapixels"] == 1.0                 # photo keeps its shape
     assert retry["160"]["inputs"]["megapixels"] == picturetools.SMALL_MP
     assert retry["160"]["inputs"]["resolution_steps"] == 16           # newer ComfyUI requires it
     assert first["162"]["inputs"]["device"] == "default"
