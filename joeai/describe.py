@@ -231,12 +231,140 @@ def plain_time(minutes: int) -> str:
     return f"about {hrs}" + (f" {m} min" if m >= 5 else "")
 
 
+# ---- "do that again": re-plan an earlier task exactly, no AI guessing --------------------------
+# People say "rerun the black and white videos" or "run it again". The planner AI can't know
+# what ran before, so it guessed (a rerun of style videos was planned as animate-photo). Joe
+# looks in his own records instead: runs saved with each chat, and mission files in Queue/done.
+_AGAIN = re.compile(r"\b(re-?run|re-?do|re-?make|again|one more time|same (?:\w+ )?as (?:before|last time))\b", re.I)
+_AGAIN_WORDS = re.compile(r"\b(re-?run|re-?do|re-?make|again|one more time|same|as|before|last|time|run|do|make|"
+                          r"please|joe|the|those|these|that|this|it|them|my|a|an|of|for|ones?|all|"
+                          r"can|you|could|would|just|now|and|with|from|test|tests)\b", re.I)
+
+
+def wants_again(request: str) -> bool:
+    return bool(_AGAIN.search(request or ""))
+
+
+def _stem(w: str) -> str:
+    w = w.lower()
+    if len(w) > 4 and w.endswith("ies"):
+        return w[:-3] + "y"
+    if len(w) > 3 and w.endswith("s") and not w.endswith("ss"):
+        return w[:-1]
+    return w
+
+
+_ALIASES = {"bw": "black white", "b&w": "black white", "monochrome": "black white",
+            "pics": "picture", "pictures": "picture", "images": "picture", "image": "picture",
+            "clip": "video", "clips": "video", "vid": "video", "vids": "video"}
+
+
+def _words(text: str) -> set[str]:
+    t = (text or "").lower()
+    for a, b in _ALIASES.items():
+        t = re.sub(rf"(?<![\w&]){re.escape(a)}(?![\w&])", b, t)
+    return {_stem(w) for w in re.findall(r"[a-z0-9]+", t) if len(w) > 1}
+
+
+def split_tasks(mission: str) -> tuple[str, list[str]]:
+    """Mission text -> (lines before the first TASK, [each TASK block])."""
+    head, blocks = [], []
+    for ln in (mission or "").splitlines():
+        if ln.strip().startswith("==="):
+            continue
+        if re.match(r"\s*TASK\s*:", ln, re.I):
+            blocks.append(ln)
+        elif blocks:
+            blocks[-1] += "\n" + ln
+        else:
+            head.append(ln)
+    return "\n".join(l for l in head if l.strip()), [b.strip() for b in blocks]
+
+
+def past_missions(app) -> list[tuple[str, str]]:
+    """(when, mission text) newest first: runs saved with chats, then Queue/done files."""
+    found: list[tuple[str, str]] = []
+    try:
+        for c in app.chats.list():
+            d = app.chats.get(c.get("id", "")) or {}
+            for m in d.get("messages", []):
+                if m.get("kind") == "run" and m.get("mission"):
+                    found.append((str(m.get("ts", "")), m["mission"]))
+    except Exception:          # noqa: BLE001 (records are a convenience, never a failure)
+        pass
+    try:
+        done = app.sb.missions / "Queue" / "done"
+        for f in done.glob("*.txt") if done.is_dir() else []:
+            if f.name.endswith(".problem.txt"):
+                continue
+            from datetime import datetime
+            found.append((datetime.fromtimestamp(f.stat().st_mtime).isoformat(timespec="seconds"),
+                          f.read_text(encoding="utf-8-sig", errors="replace")))
+    except OSError:
+        pass
+    found.sort(key=lambda x: x[0], reverse=True)
+    return found
+
+
+def _again_block(block: str) -> str:
+    """Same task, new name and folder, so the earlier results stay next to the new ones."""
+    lines = block.splitlines()
+    first = lines[0]
+    m = re.search(r"\bSAVE:\s*(\S+)", first)
+    if m:
+        save = m.group(1)
+        base, dot, ext = save.rpartition(".") if "." in save.rsplit("/", 1)[-1] else (save, "", "")
+        new = f"{base}-again.{ext}" if dot else f"{save}-again"
+        first = first[: m.start(1)] + new + first[m.end(1):]
+    first = re.sub(r"^(\s*TASK\s*:\s*)(.+?)(\s{2,}[A-Z ]+:|$)", lambda k: k.group(1) + k.group(2).rstrip()
+                   + " (again)" + k.group(3), first, count=1)
+    return "\n".join([first] + lines[1:])
+
+
+def rerun_plan(app, request: str) -> dict | None:
+    """A "do it again" request -> the earlier task(s) as a plan, or None when it isn't one."""
+    if not wants_again(request):
+        return None
+    want = _words(_AGAIN_WORDS.sub(" ", request))
+    for when, mission in past_missions(app):
+        head, blocks = split_tasks(mission)
+        if not blocks:
+            continue
+        if want:
+            picked = [b for b in blocks if want <= _words(b)]
+            if not picked:
+                continue
+        else:                                  # "run it again": the whole last mission
+            picked = blocks
+        text = "\n".join(x for x in [head] + [_again_block(b) for b in picked] if x)
+        names = [re.sub(r"^\s*TASK\s*:\s*", "", b.splitlines()[0]).split("  ")[0] for b in picked]
+        try:
+            parse(text)
+            chk = app.check(text)
+        except MissionError as e:
+            chk = {"ok": False, "error": str(e)}
+        if not chk.get("ok"):                  # found it, but it can't run as it is right now
+            return {"ok": False, "error": f"I found {', '.join(names)} from before, but it can't run "
+                    f"right now: {chk.get('error', 'unknown problem')}"}
+        warns = [f"Same as before ({when[:16].replace('T', ' ')}): " + ", ".join(names)
+                 + ". Saved next to the earlier results with '-again' on the folder name."]
+        return {"ok": True, "mission": text, "summary": plain_summary(chk),
+                "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
+                "eta_min": chk["eta_min"], "warnings": warns + list(chk.get("warnings", []))}
+    what = " ".join(sorted(want)) or "the last run"
+    return {"ok": False, "error": f"I couldn't find an earlier task matching \"{what}\". "
+            "Say what to make in your own words, or pick it from a past chat (Talk > PAST CHATS)."}
+
+
 def draft(app, request: str) -> dict:
     """Plain request -> {"ok", "mission", "summary", "time", "eta_min", "warnings"}."""
     request = (request or "").strip()
     if len(request) < 4:
         return {"ok": False, "error": "Tell Joe what you need first, in your own words."}
     request = request[:4000]
+    again = rerun_plan(app, request)          # "rerun the bw videos": no AI guessing needed
+    if again is not None:
+        return again
     from .chat import busy_drawing
     if busy_drawing(app):
         return {"ok": False, "error": "Joe is busy drawing right now. Try again when the pictures finish."}
