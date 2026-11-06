@@ -384,13 +384,17 @@ FORMAT: ...
                   <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
                 </div>
               </fieldset>
-              <fieldset><legend>WRITING MODEL (OLLAMA)</legend>
-                <label title="The Ollama model that writes. Blank = Joe picks the best one for this PC.">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
-                <div class="row"><button type="button" data-act="start-ollama" title="Start Ollama, the program that runs the writing models.">[ START OLLAMA ]</button></div>
+              <fieldset><legend>WRITING MODEL</legend>
+                <label title="The program that runs the writing models. Ollama is the easy choice: Joe installs, starts and fills it for you. Already use LM Studio, llama.cpp or LocalAI? Pick it and Joe writes with the models you have there (you add models in that program).">Writing program
+                  <select data-path="ollama.engine"><option value="ollama">Ollama (recommended: Joe sets it up)</option><option value="lmstudio">LM Studio</option><option value="llamacpp">llama.cpp (llama-server)</option><option value="localai">LocalAI</option></select></label>
+                <label title="The model that writes. Blank = Joe picks the best one for this PC.">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
+                <div class="row"><button type="button" data-act="start-ollama" title="Start the writing program.">[ START IT ]</button></div>
                 <details class="more"><summary>More options</summary>
                   <label title="How much text the model can keep in mind at once. 0 = Joe picks.">Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
                   <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
                   <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
+                  <label title="Only for LM Studio, llama.cpp or LocalAI. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
+                  <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" placeholder="blank = start it yourself"></label>
                 </details>
               </fieldset>
             </div>
@@ -450,6 +454,8 @@ FORMAT: ...
                 <label title="The key you hold while talking, when push-to-talk is on.">Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
                 <label title="Fastest hears quickly but makes more mistakes; Most accurate is slower.">Hearing
                   <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
+                <label title="For long recordings (Transcribe and Make shorts). Auto uses whisper.cpp when it's installed (faster, especially on Macs), otherwise the voice add-on.">Transcribe with
+                  <select data-path="voice.transcriber"><option value="auto">Auto (recommended)</option><option value="whisper.cpp">whisper.cpp</option><option value="faster-whisper">Voice add-on (faster-whisper)</option></select></label>
               </fieldset>
               <fieldset><legend>REPLIES &amp; CHATS</legend>
                 <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
@@ -528,6 +534,7 @@ FORMAT: ...
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
                   <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
+                  <li><b>whisper.cpp</b> (optional, System check): the small program from GitHub (Windows) or Homebrew (Mac), and its hearing model from Hugging Face, once. Never your recordings.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
                   <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Let Joe look things up online).</li>
                 </ul>

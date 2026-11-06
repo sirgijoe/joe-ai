@@ -213,6 +213,28 @@ a small model). Pictures and video: fine on NVIDIA, slower on Apple Silicon and 
 shaky on AMD under Windows (ComfyUI Desktop doesn't support AMD). The video model is only offered
 on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
 
+### Use the programs and models you already have
+
+- **Other writing programs**: Setup > Writing > Writing program picks Ollama (recommended: Joe
+  installs, starts and fills it), **LM Studio**, **llama.cpp** (llama-server) or **LocalAI**. With the
+  others, you add models in that program; Joe writes with whatever it has (the biggest one that fits
+  your card, or the one in Setup > Writing > Model). LM Studio: Joe starts its server himself with
+  its `lms` helper. llama.cpp and LocalAI: put the line that starts them in More options > Start
+  command (for example `llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192`), or
+  start them yourself. Joe only talks to programs on this PC or your home network. One catch:
+  llama.cpp and LocalAI keep their model in the graphics card, so pictures and video get less room
+  while they run (LM Studio's is unloaded for picture work, like Ollama's).
+- **AUTOMATIC1111 / Forge / reForge models**: when System check finds a Stable Diffusion WebUI folder,
+  SHARE THEM adds it to ComfyUI's extra model folders file (Desktop: `extra_models_config.yaml` in its
+  settings folder; portable and own installs: `extra_model_paths.yaml` next to ComfyUI). Checkpoints,
+  LoRAs, VAEs, upscalers, embeddings and ControlNets are used where they are: nothing is copied. The
+  old file is kept as `.joe-backup`; Joe's lines start with `# joe-ai`. Restart ComfyUI afterwards.
+  Joe also reads any extra folders you added yourself when he looks for picture models.
+- **whisper.cpp**: a faster transcriber (Transcribe, Make shorts), especially on Macs, and the
+  Transcribe tool then works without the voice add-on. System check offers it on Windows (a 4 MB
+  download into Joe's add-ons folder) and Macs (Homebrew). On Linux Joe uses `whisper-cli` if you
+  have it. Setup > Voice & Talk > Transcribe with: Auto uses it when it's there.
+
 ## Quality vs speed (Setup > Writing, and Setup > Images & video)
 
 Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but
@@ -492,6 +514,17 @@ itself):
   object out first. The result is a `.glb` shape (plain white, no colors) for Windows 3D Viewer,
   Blender, Unity, Unreal or a 3D printer's slicer. Hunyuan3D 2.1 (about 4.6 GB): Tencent's community
   license is free to use but does not apply in the European Union, the United Kingdom or South Korea.
+- **Make shorts from a long video**: add a video where people talk (a podcast, a class, a stream,
+  an interview). `count 3|5|8|12`, `length 30|45|60|90` (the most seconds per short; Joe aims for
+  at least 40% of that), `crop face|center|fit` (face: the tall frame follows the speaker, found by
+  the vision model; fit: the whole picture with blurred bars), `captions`, `title`, `posts`, and
+  `language` like Transcribe. What Joe does: writes down every word with its time (whisper.cpp or
+  the voice add-on), the writing model reads the transcript in pieces and picks moments that stand
+  on their own, each pick is moved to whole words and the end of a sentence, then FFmpeg cuts
+  1080x1920 clips with the captions burned in. `shorts.md` lists every clip with its times and why
+  it was picked. Tips: clear sound matters more than the picture; tell Joe in the box what you want
+  ("the funniest moments", "the best cooking tips"); always watch a clip before posting it, a moment
+  can still need context.
 - **Restyle a video**: add a video (and optionally one picture whose look to copy).
   `style anime|watercolor|oil|sketch|comic|cartoon|pixel|stained|vintage|coloring|own` (own = your
   words in the box), `length 5|10|20|30` seconds from the start, `follow close|loose`. Joe cuts
@@ -588,6 +621,12 @@ System check offers one that fits your graphics card.
 `EXPORT: docx, pdf, epub` on a writing task makes finished copies next to the .md when it's
 done (also `odt`, `html`). In F7, P makes Word + PDF copies of any .md file. Needs Pandoc
 (System check installs it); PDFs are printed by Microsoft Edge, so no LaTeX is needed.
+
+`EXPORT: social` on a list of posts (also on a `.csv` task) adds three files for posting tools:
+`<name>-social.csv` (one row per post: the text, how long it is, which sites it fits, and empty
+date/time/site/media columns to fill in), `<name>-social.json`, and `<name>-postiz.txt` (ready
+command lines for Postiz's free `postiz` helper: put in your channel id and date). Mixpost or a
+spreadsheet: copy from the CSV. Joe never posts by himself and never asks for your accounts.
 
 
 The smallest mission is one line:

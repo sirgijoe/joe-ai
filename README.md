@@ -121,6 +121,17 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   - **Restyle a video**: same motion, new look (anime, watercolor, your words), in 5-second
     pieces joined at the end, original sound kept (Wan 2.2 Fun Control 5B, Apache-2.0, about 10 GB
     more on top of the video model).
+  - **Make shorts**: a long talking video (podcast, class, stream) in, its best moments out as
+    vertical 1080x1920 clips with big word-by-word captions, a hook title, and a ready-to-post caption
+    for each. The writing model picks the moments, the vision model keeps the speaker's face in the
+    frame, FFmpeg does the cutting. Nothing is uploaded.
+- **Social posts for a scheduler**: add `EXPORT: social` to a list of posts (Joe adds it himself when you
+  ask for Facebook/Instagram/TikTok... posts) and he also writes a CSV, a JSON file and ready Postiz
+  command lines, for Postiz, Mixpost or a spreadsheet. Joe never posts for you.
+- **Use what you already have**: write with **LM Studio, llama.cpp or LocalAI** instead of Ollama
+  (Setup > Writing > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
+  folders without downloading them again (System check > SHARE THEM), and transcribe with
+  **whisper.cpp** (faster on Macs; offered in System check).
 - **Better words in pictures**: with FLUX.2 [klein] 4B installed (Apache-2.0, about 16 GB, offered
   in Setup > Models), Joe uses it by himself for pictures with words in them (a sign, a poster
   title), or for every picture when you pick it in Setup > Workflows.

@@ -650,6 +650,7 @@ class App:
                 "stopping": self.running and self.stop.is_set(),
                 "jobs": jobs, "eta_s": eta, "log": self.session_log(),
                 "services": self.services_status, "workspace": str(self.sb.root),
+                "engine_label": self.services.ollama.label if hasattr(self.services.ollama, "label") else "Ollama",
                 "model": (getattr(eng, "text_model", "") if eng else "") or s.ollama.text_model or "auto",
                 "ui": asdict(s.ui),
                 "report": (self.sb.output / "_REPORT.md").exists(),
@@ -790,6 +791,14 @@ class App:
                                                     approved=True, progress=prog)
                     if ok and self.services.comfy_up():
                         self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
+                elif action == "install-whispercpp":
+                    from . import whispercpp
+                    ok = whispercpp.install(self.log, approved=True, progress=prog)
+                    if ok:
+                        whispercpp.get_model(self.settings.voice.stt_model or "base.en", self.log, prog)
+                elif action == "share-models":
+                    from . import sharedmodels
+                    ok = bool(sharedmodels.share(self.services.comfy_install(), sharedmodels.find_webuis(), self.log))
                 elif action == "import-models":
                     from . import stylemodels
                     mdir = doctor.comfy_models_dir(self.settings)
@@ -1273,9 +1282,12 @@ def make_handler(app: App):
                     packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p, mdir),
                                  "short": picturetools.pack_short(p, mdir)} for p in picturetools.PACKS}
                     from .doctor import find_ollama_exe
+                    from . import whispercpp
                     have = {"voice": voice, "vision": vision,
+                            "whispercpp": tools_mod.hearing_backend(app.settings) == "whisper.cpp",
                             "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
-                            "ollama": app.services.ollama_up() or bool(find_ollama_exe(app.settings.ollama.exe)),
+                            "ollama": app.services.ollama_up() or bool(find_ollama_exe(app.settings.ollama.exe))
+                            or app.services.engine != "ollama",
                             "comfy": bool(mdir), "packs": packs,
                             "sdxl": tools_mod.sdxl_installed(mdir) if mdir else None}
                     return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),

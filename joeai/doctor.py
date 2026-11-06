@@ -127,6 +127,11 @@ def ffmpeg_exe(configured: str = "") -> str | None:
 
 # --------------------------------------------------------------------------- ollama models
 def ollama_models(sm: ServiceManager) -> list[dict]:
+    if hasattr(sm.ollama, "model_rows"):            # LM Studio / llama.cpp / LocalAI
+        try:
+            return sm.ollama.model_rows()
+        except (HttpError, OSError, ValueError):
+            return []
     try:
         r = request_json("GET", f"{sm.ollama.base}/api/tags", timeout=5)
     except HttpError:
@@ -200,6 +205,8 @@ def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
         log(f"Using {pick}, the best installed model for this PC." if not want else
             f"Model '{want}' isn't installed; using best fit '{pick}' instead.")
         return pick
+    if hasattr(sm.ollama, "model_rows"):     # other engines: blank = whatever model it has loaded
+        return want
     return want or recommended_download(hardware.vram_total_gb())["name"]
 
 
@@ -225,7 +232,9 @@ def addons_mod_voice_ready() -> bool:
 def check(settings: Settings, sm: ServiceManager) -> dict:
     g = hardware.gpu()
     vram = hardware.vram_total_gb()
-    oll_exe = find_ollama_exe(settings.ollama.exe)
+    from . import textengines
+    eng = textengines.engine_id(settings.ollama)
+    oll_exe = find_ollama_exe(settings.ollama.exe) if eng == "ollama" else textengines.installed(settings.ollama)
     oll_up = sm.ollama_up()
     omodels = ollama_models(sm) if oll_up else []
     comfy_exe = sm.comfy_exe()
@@ -359,14 +368,32 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         issues.append({"id": "install-clone", "text": "Voice copy isn't set up (optional: make Joe sound like "
                        "YOU, on this PC only). About 3 GB, uses the graphics card when he talks during the day.",
                        "action": "install-clone", "optional": True})
+    from . import whispercpp
+    if not whispercpp.exe() and whispercpp.can_install() and \
+            (_system.MAC or not (g and g.get("vendor") == "nvidia")):
+        issues.append({"id": "install-whispercpp", "text": "whisper.cpp isn't installed (optional: faster "
+                       "transcribing of long recordings" + (" on the Mac's graphics chip" if _system.MAC else
+                       " on this PC") + ", and the Transcribe tool works without the voice add-on). "
+                       + ("About 4 MB plus the hearing model." if _system.WINDOWS else "Installed with Homebrew."),
+                       "action": "install-whispercpp", "optional": True})
     if not addons_mod.pandoc_exe(settings.pandoc):
         issues.append({"id": "install-pandoc", "text": "Pandoc isn't installed (only needed for EXPORT: "
                        "finished Word, PDF and EPUB copies).", "action": "install-pandoc", "optional": True})
     if not ffmpeg_exe(settings.comfy.ffmpeg):
         issues.append({"id": "install-ffmpeg", "text": "FFmpeg not found (only needed to turn "
                        "frames/GIFs into MP4).", "action": "install", "tool": "ffmpeg", "optional": True})
+    if comfy_exe or comfy_up:
+        from . import sharedmodels
+        try:
+            sh = sharedmodels.offer(sm.comfy_install())
+        except OSError:
+            sh = None
+        if sh:
+            issues.append(sh)
+    if eng != "ollama":
+        issues = _engine_issues(issues, settings, oll_up, omodels)
     from . import upkeep
-    if oll_up:
+    if oll_up and eng == "ollama":
         upkeep.check_in_background(sm.ollama.base, omodels)
     installed = {m["name"] for m in omodels}
     for it in upkeep.known_updates():
@@ -385,6 +412,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         "gpu_advice": hardware.gpu_advice(g), "vendor": g.get("vendor") if g else "none",
         "os": _system.pretty_name(), "pkg": _system.manager_label(_system.package_manager())
         if _system.package_manager() else "",
+        "engine": {"id": eng, "label": textengines.engine_label(settings.ollama), "url": sm.ollama.base,
+                   "others": [] if oll_up else textengines.detect_running()},
         "ollama": {"installed": bool(oll_exe) or oll_up, "running": oll_up, "exe": oll_exe or "",
                    "models": omodels, "best": best_text,
                    "configured": settings.ollama.text_model or f"auto ({best_text or 'none yet'})",
@@ -401,6 +430,25 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         "voice": addons_mod.voice_ready(), "pandoc": addons_mod.pandoc_exe(settings.pandoc) or "",
         "issues": issues,
     }
+
+
+def _engine_issues(issues: list[dict], settings: Settings, up: bool, models: list[dict]) -> list[dict]:
+    """LM Studio / llama.cpp / LocalAI write instead of Ollama: drop the Ollama install/pull offers
+    (models are added in that program) and say plainly what's missing."""
+    from . import textengines
+    label = textengines.engine_label(settings.ollama)
+    how = textengines.ENGINES[textengines.engine_id(settings.ollama)]["how"]
+    keep = [i for i in issues if i.get("tool") != "ollama" and i.get("action") not in ("pull", "use")]
+    if not up:
+        keep.insert(0, {"id": "start-ollama", "text": f"{label} isn't answering at "
+                        f"{textengines.engine_url(settings.ollama)}. {how}", "action": "start", "tool": "ollama"})
+    elif not [m for m in models if m["writer"]]:
+        keep.insert(0, {"id": "engine-model", "text": f"{label} is running but has no writing model. Add one "
+                        f"in {label} (Joe can't download models into it).", "optional": False})
+    elif settings.ollama.text_model and settings.ollama.text_model not in {m["name"] for m in models}:
+        keep.insert(0, {"id": "engine-model", "text": f"Setup's model '{settings.ollama.text_model}' isn't in "
+                        f"{label}. Joe uses its best one instead.", "optional": True})
+    return keep
 
 
 # --------------------------------------------------------------------------- actions

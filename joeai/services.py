@@ -15,7 +15,7 @@ from typing import Callable
 
 from .config import Settings
 from .http import HttpError, request_json
-from .ollama import OllamaClient
+from .textengines import engine_id, engine_label, installed as engine_installed, make_client
 
 Log = Callable[[str], None]
 COMFY_START_WAIT_S = 300      # ComfyUI Desktop can be slow to open after an update or big download
@@ -36,7 +36,9 @@ class ServiceManager:
         self.s = settings
         self.log = log
         self.attention = ""          # a plain hint for the window when ComfyUI needs the person
-        self.ollama = OllamaClient(settings.ollama)
+        self.ollama = make_client(settings.ollama)     # Ollama, or LM Studio / llama.cpp / LocalAI
+        self.engine = engine_id(settings.ollama)
+        self._kept_note = False
         self.comfy_base = settings.comfy.url.rstrip("/")
         self._eased: set[int] = set()   # programs already set to below-normal priority
 
@@ -48,7 +50,36 @@ class ServiceManager:
         except HttpError:
             return False
 
+    def start_engine(self) -> bool:
+        """LM Studio / llama.cpp / LocalAI: start it with Setup's start line (or 'lms server start')."""
+        from .textengines import ENGINES, lms_cli
+        label = engine_label(self.s.ollama)
+        start = (self.s.ollama.engine_start or "").strip()
+        cmd: list[str] | str | None = None
+        if start:
+            cmd = start
+        elif self.engine == "lmstudio" and lms_cli():
+            cmd = [lms_cli(), "server", "start"]
+        if not cmd:
+            self.log(f"{label} isn't answering at {self.ollama.base}. {ENGINES[self.engine]['how']}")
+            self.attention = f"Start {label}, then press RUN (F5) again. {ENGINES[self.engine]['how']}"
+            return False
+        self.log(f"Starting {label}: {cmd if isinstance(cmd, str) else ' '.join(cmd)}")
+        try:
+            _popen(cmd)
+        except OSError as e:
+            self.log(f"Couldn't start {label}: {e}")
+            return False
+        if self._wait(self.ollama_up, 120, f"{label} to start", hint_after=30,
+                      hint=f"{label} is taking a while to start. Have a look at its window; Joe keeps waiting."):
+            self.attention = ""
+            return True
+        self.attention = f"{label} didn't start. {ENGINES[self.engine]['how']}"
+        return False
+
     def start_ollama(self) -> bool:
+        if self.engine != "ollama":
+            return self.start_engine()
         exe = find_ollama_exe(self.s.ollama.exe)
         if not exe:
             self.log("Ollama not found. Install it from ollama.com or set its path in Setup.")
@@ -159,10 +190,10 @@ class ServiceManager:
         if not getattr(self.s.engine, "keep_pc_usable", False):
             return []
         from . import system
-        url = self.s.ollama.url if which == "ollama" else self.comfy_base
+        url = self.ollama.base if which == "ollama" else self.comfy_base
         m = re.search(r":(\d+)(?:/|$)", url.rstrip("/") + "/")
         pids = system.pids_on_port(int(m.group(1))) if m else []
-        if which == "ollama":
+        if which == "ollama" and self.engine == "ollama":
             pids += system.pids_named("ollama")
         changed = []
         for pid in dict.fromkeys(pids):
@@ -172,7 +203,7 @@ class ServiceManager:
             if system.lower_priority(pid):
                 changed.append(pid)
         if changed:
-            self.log(f"Keep my PC usable: {'Ollama' if which == 'ollama' else 'ComfyUI'} set to "
+            self.log(f"Keep my PC usable: {engine_label(self.s.ollama) if which == 'ollama' else 'ComfyUI'} set to "
                      "below-normal priority, so the PC stays smooth.")
         return changed
 
@@ -196,6 +227,11 @@ class ServiceManager:
                 names = self.ollama.unload_all()
                 if names:
                     self.log(f"Unloaded {', '.join(names)} for {job_type} job.")
+                elif self.engine in ("llamacpp", "localai") and not self._kept_note:
+                    self._kept_note = True
+                    self.log(f"Note: {engine_label(self.s.ollama)} keeps its writing model in the graphics "
+                             "card, so pictures and video get less room. Close it during picture work "
+                             "if they fail for lack of memory.")
             except HttpError as e:
                 self.log(f"Could not unload Ollama models: {e}")
         return self.ensure_comfy()

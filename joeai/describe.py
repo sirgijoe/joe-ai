@@ -40,6 +40,8 @@ Kinds of task:
   products, places or people.
 - Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens. Add EXPORT: gif
   when they want a GIF.
+- Social media posts (a list of posts): add EXPORT: social so Joe also makes files a post
+  scheduler or spreadsheet can take (Joe never posts by himself).
 - When they ask to research, look things up, or want current facts, add RESEARCH: yes to that
   writing task (Joe searches online first and lists the sources).
 - Tasks can't see each other. When a spreadsheet or pictures must use the names from a list
@@ -161,6 +163,29 @@ def want_gif(request: str, block: str) -> str:
     if not re.search(r"\bgifs?\b", request or "", re.I) or re.search(r"(?m)^EXPORT:.*gif", block, re.I):
         return block
     return re.sub(r"(?m)^(TYPE:\s*video\b.*)$", r"\1\nEXPORT: gif", block, count=1)
+
+
+SOCIAL_WORDS = re.compile(r"\b(social[ -]?media|facebook|instagram|tiktok|twitter|linkedin|bluesky|threads|mastodon|"
+                          r"postiz|mixpost)\b", re.I)
+
+
+def want_social(request: str, block: str) -> str:
+    """'facebook posts for my shop' -> that list task also makes scheduler files (EXPORT: social)."""
+    if not SOCIAL_WORDS.search(request or "") or not re.search(r"\bposts?\b|\bcaptions?\b", request or "", re.I) \
+            or re.search(r"(?mi)^EXPORT:.*\bsocial\b", block):
+        return block
+    parts = re.split(r"(?m)^(?=TASK:)", block)
+    for i, part in enumerate(parts):
+        if not part.startswith("TASK:") or re.search(r"(?mi)^TYPE:\s*(?!text\b|list\b)\S", part):
+            continue
+        if not re.search(r"\bposts?\b|\bcaptions?\b|social", part, re.I):
+            continue
+        if re.search(r"(?mi)^EXPORT:", part):
+            parts[i] = re.sub(r"(?mi)^(EXPORT:.*?)\s*$", r"\1, social", part, count=1)
+        else:
+            parts[i] = re.sub(r"(?m)^(TASK:.*)$", r"\1\nEXPORT: social", part, count=1)
+        return "".join(parts)
+    return block
 
 
 def wants_high(request: str) -> bool:
@@ -517,7 +542,7 @@ def draft(app, request: str) -> dict:
             r = app.services.ollama.chat(msgs, model=model, max_tokens=1500, keep_alive="20m")
         except Exception as e:
             return {"ok": False, "error": f"Joe couldn't think: {e}"}
-        block = want_gif(request, one_picture(request, extract_block(r.text)))
+        block = want_social(request, want_gif(request, one_picture(request, extract_block(r.text))))
         if not block:
             problem = "there was no mission block in your reply"
         else:

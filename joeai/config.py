@@ -39,6 +39,9 @@ class OllamaSettings:
     think: bool = False
     temperature: float = 0.7
     request_timeout_s: int = 600
+    engine: str = "ollama"       # ollama | lmstudio | llamacpp | localai (textengines.ENGINES)
+    engine_url: str = ""         # blank = that engine's usual address
+    engine_start: str = ""       # blank = auto (LM Studio: lms server start); llama.cpp/LocalAI: your start line
 
 
 @dataclass
@@ -92,6 +95,7 @@ class VoiceSettings:
     ptt_key: str = "F4"              # push-to-talk key (any key; set in Setup > Voice & Talk)
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
+    transcriber: str = "auto"        # auto (whisper.cpp when installed) | faster-whisper | whisper.cpp
 
 
 @dataclass

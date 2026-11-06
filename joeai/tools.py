@@ -535,6 +535,36 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "follow close|loose, FORMAT: the look in their words (needed for own). No CHUNKS.",
          examples=("Make my dance video look like anime", "Turn this clip into a watercolor painting"),
          extra_label="The new look (optional)", extra_hint="e.g. a claymation world with soft colors"),
+    Tool("make-shorts", "Make shorts from a long video", "Video",
+         "The best moments as vertical clips with big captions.", accepts=VIDEO_IN_EXT,
+         needs=("voice", "ffmpeg", "ollama"), ready=True,
+         options=(Option("count", "How many shorts", choices=(("3", "3"), ("5", "5"), ("8", "8"), ("12", "12")),
+                         value="5"),
+                  Option("length", "Each one up to", choices=(("30", "30 seconds"), ("45", "45 seconds"),
+                                                              ("60", "60 seconds"), ("90", "90 seconds")), value="45"),
+                  Option("crop", "Fill the tall frame by", choices=(
+                      ("face", "Following the speaker's face"), ("center", "Keeping the middle"),
+                      ("fit", "Showing the whole picture (blurred bars)")), value="face"),
+                  Option("captions", "Big word-by-word captions", True, "Burned into the video, easy to read "
+                         "with the sound off."),
+                  Option("title", "Hook title at the top (first seconds)", True),
+                  Option("posts", "Social post for each short", True,
+                         "A caption with hashtags, plus files for a post scheduler (Postiz, Mixpost or a "
+                         "spreadsheet). Joe never posts for you."),
+                  Option("language", "Spoken in", choices=HEAR_LANGUAGES, value="english")),
+         help="Add a long video with talking in it (a podcast, a class, a stream). Joe writes down every word "
+              "with its time, the writing model picks the moments that stand on their own (a strong start, "
+              "one complete thought, a clean ending), and FFmpeg cuts each one as a 1080x1920 clip. With a "
+              "vision model, Joe finds the speaker's face so the tall frame follows the person. A shorts.md "
+              "list says why each moment was picked. About real time to listen, then a minute or two per "
+              "clip. Your original video is never changed. Check every clip before posting: the model can "
+              "pick a moment that needs context.",
+         plan_hint="Make shorts (long video -> vertical clips): TYPE: make-shorts, INPUT: the video file(s), "
+                   "OPTIONS: count 3|5|8|12, length 30|45|60|90, crop face|center|fit, captions, title, posts "
+                   "(leave out what they don't want), language <name> when not English. FORMAT: what kind of "
+                   "moments they want (optional). No CHUNKS.",
+         examples=("Cut my podcast into 5 shorts for TikTok", "Make YouTube Shorts from my class recording"),
+         extra_label="What moments to look for (optional)", extra_hint="e.g. funny moments, or the best tips"),
     Tool("music", "Music and sound effects", "Audio",
          "Background music and short jingles.", needs=("comfy",), ready=True,
          options=(Option("kind", "Make", choices=(("music", "Music (instrumental)"),
@@ -729,6 +759,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
           "translate": run_translate, "tidy-sheet": run_tidy_sheet,
           "photo-listing": run_photo_listing, "read-scans": run_read_scans,
           "sort-photos": run_sort_photos, "ask-files": run_ask_files}.get(job.type)
+    if job.type == "make-shorts":
+        from . import shorts
+        fn = shorts.run
     from . import picturetools
     if job.type in picturetools.COMFY_TOOLS:
         fn = picturetools.run
@@ -796,6 +829,42 @@ def hearing_model(stt_model: str, language: str) -> str:
     if language != "english" and name.endswith(".en"):
         return name[:-3]
     return name
+
+
+HEARING_TOOLS = ("transcribe", "make-shorts")
+
+
+def hearing_backend(settings) -> str:
+    """'whisper.cpp' or 'faster-whisper' for long recordings (Setup > Voice & Talk > Transcribe with)."""
+    from . import whispercpp
+    want = getattr(settings.voice, "transcriber", "auto") or "auto"
+    if want == "faster-whisper":
+        return "faster-whisper"
+    if whispercpp.exe():
+        return "whisper.cpp"
+    return "faster-whisper"
+
+
+def hear(engine, wav: Path, model: str, lang_code: str, words: bool = False, timeout: float = 3600) -> dict:
+    """One 16 kHz WAV -> timed segments (and word times when asked), with whichever transcriber is set."""
+    if hearing_backend(engine.s) == "whisper.cpp":
+        from . import whispercpp
+        return whispercpp.transcribe(wav, model, lang_code, words=words, log=engine.log, timeout=timeout)
+    from .addons import VoiceWorker
+    worker = engine.voice or VoiceWorker(engine.log)
+    req = {"cmd": "transcribe", "audio": str(wav), "stt_model": model, "language": lang_code}
+    if words:
+        req["words"] = True
+    return worker.call(req, timeout=timeout)
+
+
+def hearing_ready(settings, voice_ok: bool | None = None) -> bool:
+    if hearing_backend(settings) == "whisper.cpp":
+        return True
+    if voice_ok is None:
+        from .addons import voice_python
+        voice_ok = Path(voice_python()).exists()
+    return bool(voice_ok)
 
 
 def whisper_language(language: str) -> str:
@@ -921,8 +990,8 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                                         "; add them with INPUT: (files or a folder in Inbox)"))
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
-    if not Path(voice_python()).exists() and engine.voice is None:
-        st.status, st.note = "failed", "transcribing needs Joe's voice add-on (Setup > System check)"
+    if not hearing_ready(engine.s) and engine.voice is None:
+        st.status, st.note = "failed", "transcribing needs Joe's voice add-on or whisper.cpp (Setup > System check)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
@@ -965,9 +1034,8 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             secs = _wav_seconds(wav)
             engine.log(f"  {src.name}: transcribing {how_long(secs)} of sound...")
             t0 = datetime.now()
-            r = worker.call({"cmd": "transcribe", "audio": str(wav), "stt_model": model,
-                             "language": whisper_language(lang)},
-                            timeout=max(900.0, secs * 4 + 600) + (0 if model.endswith(".en") else 1800))
+            r = hear(engine, wav, model, whisper_language(lang),
+                     timeout=max(900.0, secs * 4 + 600) + (0 if model.endswith(".en") else 1800))
             if wav != src:
                 try:
                     wav.unlink()
@@ -3213,7 +3281,9 @@ def needs_problem(settings, job: "Job") -> str:
                     + ". Setup (F10) > System check > DOWNLOAD, or the button on the Tools form.")
     if "voice" in tool.needs:
         from .addons import voice_python
-        if not Path(voice_python()).exists():
+        if tool.id in HEARING_TOOLS and hearing_ready(settings):
+            pass
+        elif not Path(voice_python()).exists():
             return (f"Task '{job.name}': {tool.name.lower()} needs Joe's voice add-on first. "
                     "Setup (F10) > System check > \"Joe's voice\" > SET UP.")
     return ""
@@ -3235,7 +3305,7 @@ def tool_status(have: dict) -> list[dict]:
         if not t.ready:
             continue
         why = ""
-        if "voice" in t.needs and not have.get("voice"):
+        if "voice" in t.needs and not have.get("voice") and not (t.id in HEARING_TOOLS and have.get("whispercpp")):
             why = "needs Joe's voice add-on (about 500 MB)"
         elif "ollama" in t.needs and not have.get("ollama"):
             why = "needs Ollama and a writing model"

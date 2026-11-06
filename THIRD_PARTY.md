@@ -23,6 +23,21 @@ is, whether it ships inside Joe or Joe downloads it only after you say yes, and 
 | Pandoc | Word, PDF and EPUB copies | GPL-2.0-or-later |
 | uv (Astral) | sets up the private Python for the voice add-ons and Joe's own ComfyUI | MIT or Apache-2.0 |
 | Python (a private copy made by uv) | runs the voice add-ons | Python Software Foundation License |
+| whisper.cpp (ggml-org), optional | faster transcribing (Transcribe, Make shorts); Joe downloads its Windows CPU build or uses Homebrew's on a Mac | MIT |
+| Whisper ggml model files (huggingface.co/ggerganov/whisper.cpp) | the hearing model whisper.cpp uses | MIT |
+
+**Other writing programs you can pick instead of Ollama (Joe never installs these; you add models in them)**
+
+| What | License |
+|---|---|
+| LM Studio | free to use, **not open source** (its own terms; the `lms` helper is MIT) |
+| llama.cpp (llama-server) | MIT |
+| LocalAI | MIT |
+
+Joe only talks to these on this PC or your home network. There is no box for online keys, on purpose.
+
+**Social post files** (EXPORT: social, Make shorts): Joe writes plain CSV/JSON and command lines for
+Postiz (AGPL-3.0); he never installs or runs Postiz or Mixpost and never posts for you.
 
 **Voice add-ons (asks first)**
 

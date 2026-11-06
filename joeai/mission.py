@@ -45,7 +45,7 @@ KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
         "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
         "OPTIONS", "WATERMARK", "STYLE", "FROM", "RESEARCH")
-EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html")
+EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html", "social")   # social: posts for a scheduler (social.py)
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
 _BLOCK_RE = re.compile(r"===\s*JOE\s+MISSION\s*===(.*?)(?:===\s*END\s*===|\Z)", re.S | re.I)
@@ -350,8 +350,10 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
         if bad:
             raise MissionError(f"Task '{name}': EXPORT can be {', '.join(EXPORT_FORMATS)}"
                                + (" (gif is for video tasks)" if "gif" in bad else "") + f" (got {', '.join(bad)}).")
-        if export and (jtype == "image" or d["SAVE"].strip().lower().endswith(".csv")):
-            raise MissionError(f"Task '{name}': EXPORT works on writing tasks (not pictures or spreadsheets).")
+        if export and jtype == "image":
+            raise MissionError(f"Task '{name}': EXPORT works on writing tasks (not pictures).")
+        if d["SAVE"].strip().lower().endswith(".csv") and [x for x in export if x != "social"]:
+            raise MissionError(f"Task '{name}': a spreadsheet (.csv) task can only EXPORT: social.")
     watermark = " ".join(d.get("WATERMARK", "").split())[:120]
     if watermark:
         from .tools import TOOLS as _T

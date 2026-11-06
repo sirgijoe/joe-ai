@@ -4,7 +4,7 @@ Reads one JSON request per line on stdin, writes one JSON reply per line on stdo
   {"cmd": "warmup", "stt_model": "base.en"}
   {"cmd": "stt", "audio": "C:/.../clip.webm", "stt_model": "base.en"}  -> {"ok": true, "text": "..."}
   {"cmd": "tts", "text": "...", "out": "C:/.../reply.wav", "voice": "am_adam", "speed": 1.0}
-  {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base", "language": "es"}
+  {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base", "language": "es", "words": false}
       -> {"ok": true, "segments": [{"s": 0.0, "e": 2.5, "t": "..."}], "seconds": 63.2,
           "language": "es"}   (language "" = Whisper finds out; *.en models hear English only)
 Everything runs on the CPU so it never fights the night's work for the graphics card.
@@ -102,10 +102,19 @@ def handle(req):
         name = req.get("stt_model", "base.en")
         audio = read_wav16k(req["audio"])
         lang = "en" if name.endswith(".en") else (req.get("language") or None)
-        segs, info = stt_model(name).transcribe(audio, beam_size=5, vad_filter=True, language=lang)
-        out = [{"s": round(s.start, 2), "e": round(s.end, 2), "t": s.text.strip()} for s in segs]
-        return {"ok": True, "segments": out, "seconds": round(len(audio) / 16000, 1),
-                "language": getattr(info, "language", "")}
+        want_words = bool(req.get("words"))
+        segs, info = stt_model(name).transcribe(audio, beam_size=5, vad_filter=True, language=lang,
+                                                word_timestamps=want_words)
+        out, words = [], []
+        for s in segs:
+            out.append({"s": round(s.start, 2), "e": round(s.end, 2), "t": s.text.strip()})
+            for w in (getattr(s, "words", None) or []):
+                words.append({"s": round(w.start, 2), "e": round(w.end, 2), "t": w.word.strip()})
+        reply = {"ok": True, "segments": out, "seconds": round(len(audio) / 16000, 1),
+                 "language": getattr(info, "language", "")}
+        if want_words:
+            reply["words"] = words
+        return reply
     if cmd == "tts":
         import numpy as np
         import soundfile as sf

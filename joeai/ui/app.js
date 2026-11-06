@@ -205,7 +205,7 @@ async function poll() {
   const dd = doctorData;
   const plain = (up, inst, busy) => up ? "READY" : busy ? "BUSY" : (dd && !inst) ? "NOT SET UP" : "STARTS WHEN NEEDED";
   const parts = [
-    `OLLAMA (THINKING) ${plain(sv.ollama, dd && dd.ollama.installed, false)}`,
+    `${(state.engine_label || "Ollama").toUpperCase()} (THINKING) ${plain(sv.ollama, dd && dd.ollama.installed, false)}`,
     `COMFYUI (MEDIA) ${plain(sv.comfyui, dd && dd.comfyui.installed, state.running)}`,   // a big model loading can keep it from answering
     `MODEL ${state.model}${loaded ? " " + loaded.gpu_pct + "% GPU" : ""}`,
     state.running ? (state.stopping ? "STOPPING…" : `RUNNING ${done}/${total} ETA ${fmtEta(state.eta_s)}` + (state.queued_eta_s ? ` · ALL ${(state.queued || []).length + 1} MISSIONS ~${fmtEta((state.eta_s || 0) + state.queued_eta_s)}` : "")) : (state.busy ? state.busy.toUpperCase() + (state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : "") + "…" : "IDLE"),
@@ -781,7 +781,9 @@ async function loadDoctor() {
   $("#doctor").textContent =
     `GPU      ${g ? `${g.name}  ${d.vram_gb ? `${d.vram_gb} GB ${g.unified ? "shared memory" : "VRAM"}` : "(shares main memory)"}` : "no graphics card found"}   RAM ${d.ram_gb} GB   ${d.os || ""}  installs: ${d.pkg || "by hand"}\n` +
     (d.gpu_advice ? `         ${d.gpu_advice}\n` : "") +
-    `OLLAMA   installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
+    `WRITING  ${d.engine ? d.engine.label + "  " + d.engine.url : "Ollama"}\n` +
+    (d.engine && d.engine.others && d.engine.others.length ? `         also answering: ${d.engine.others.map((e) => e.label + " " + e.url).join(", ")} (pick it in Setup > Writing)\n` : "") +
+    `         installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
     `         best fit installed: ${o.best || "-"}   in use: ${o.configured}\n` +
     `COMFYUI  installed ${yes(c.installed)} running ${yes(c.running)}  ${c.url}\n` +
     (c.found ? `         found: ${c.found.label}  ${c.found.command}\n         models folder: ${c.found.models_dir || "not found"}\n` : "") +
@@ -790,7 +792,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT" }[it.action] || "DOWNLOAD"} ]</button></div>`;
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
   const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
   const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
   const needMods = mods.filter(([it]) => !it.optional).length;
@@ -828,6 +830,8 @@ function askFix(it) {
     "install-pandoc": viaPkg,
     "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. Then press GET IT again: Joe moves it into ComfyUI."
       : "Move it into ComfyUI's models folder now?",
+    "install-whispercpp": "Install it now? Joe downloads the small whisper.cpp program (MIT license) and the hearing model it uses. Only the program and the model, never your recordings.",
+    "share-models": "Let ComfyUI use them? Joe adds a few lines to ComfyUI's extra model folders file (a copy of the old file is kept next to it). Nothing is copied or moved. Restart ComfyUI afterwards.",
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];
   confirmBox(`${it.text}\n\n${what}`, async () => {
     const r = await api("/api/doctor/fix", { ...it, approved: true });
@@ -2175,10 +2179,10 @@ setTimeout(() => checkUpdate(false), 8000);
 // and one button; things that only appear after an install (the writing model once Ollama is
 // in, picture models once ComfyUI is in) are added to the same run by themselves.
 const W_GROUPS = [
-  { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"] },
-  { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d"] },
+  { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "engine-model", "pull-model", "use-model", "upgrade-model"] },
+  { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d", "share-models"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "pull-embed", "pack-music", "pack-sfx"] },
+  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
 ];
 const W_STEPS = [
   { id: "hello", name: "Hello" },

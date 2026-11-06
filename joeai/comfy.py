@@ -162,8 +162,12 @@ def scan_models(models_dir: Path | None) -> list[ImageModel]:
     out: list[ImageModel] = []
     if not models_dir or not models_dir.is_dir():
         return out
-    for folder in ("checkpoints", "diffusion_models", "unet"):
-        root = models_dir / folder
+    from .sharedmodels import extra_dirs
+    roots = [(folder, models_dir / folder) for folder in ("checkpoints", "diffusion_models", "unet")]
+    for folder in ("checkpoints", "diffusion_models", "unet"):       # A1111/Forge folders ComfyUI also reads
+        roots += [(folder, d) for d in extra_dirs(models_dir, folder)]
+    seen: set[tuple[str, str]] = set()
+    for folder, root in roots:
         if not root.is_dir():
             continue
         for f in root.rglob("*"):
@@ -174,6 +178,9 @@ def scan_models(models_dir: Path | None) -> list[ImageModel]:
             except OSError:
                 continue
             rel = str(f.relative_to(root)).replace("/", "\\" if sys.platform == "win32" else "/")
+            if (folder, rel.lower()) in seen:
+                continue
+            seen.add((folder, rel.lower()))
             gb = round(st.st_size / 2**30, 1)
             out.append(ImageModel(rel, folder, gb, family_of(rel, gb, f), st.st_mtime))
     return out
@@ -402,11 +409,15 @@ def flux2_graph(steps: int = 4) -> dict:
 
 def list_loras(models_dir: Path | None) -> list[str]:
     """LoRA files as ComfyUI names them (relative to models/loras, forward slashes)."""
-    root = (models_dir / "loras") if models_dir else None
-    if not root or not root.is_dir():
+    if not models_dir:
         return []
-    return sorted(p.relative_to(root).as_posix() for p in root.rglob("*")
-                  if p.suffix.lower() in (".safetensors", ".ckpt", ".pt"))
+    from .sharedmodels import extra_dirs
+    out: set[str] = set()
+    for root in [models_dir / "loras", *extra_dirs(models_dir, "loras")]:
+        if root.is_dir():
+            out |= {p.relative_to(root).as_posix() for p in root.rglob("*")
+                    if p.suffix.lower() in (".safetensors", ".ckpt", ".pt")}
+    return sorted(out)
 
 
 # Built-in video: Wan 2.2 TI2V 5B (Apache 2.0), ComfyUI's own repackaged files.

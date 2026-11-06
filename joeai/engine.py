@@ -330,22 +330,28 @@ class Engine:
         self.log(f"Finished '{job.name}': {st.items} items, {st.words} words, {st.retries} retries")
         if job.research:
             self._add_sources(job, out, self.research(mission, job))
-        if job.export and not job.is_csv:
+        if job.export:
             self._export(job, out, st)
         return st
 
     def _export(self, job: Job, out: Path, st: JobState) -> None:
         from .addons import export_document, pandoc_exe
+        if "social" in job.export:
+            from . import social
+            social.export(out, self.log)
+        docs = [x for x in job.export if x != "social"]
+        if not docs or job.is_csv:
+            return
         pandoc = pandoc_exe(self.s.pandoc)
         if not pandoc:
             st.note = (st.note + "; " if st.note else "") + "EXPORT skipped: Pandoc isn't installed (F10 > System check)"
             self.log(f"  {st.note}")
             self._save_state(job, st)
             return
-        made = export_document(out, job.export, pandoc, self.log)
+        made = export_document(out, docs, pandoc, self.log)
         if made:
             self.log("  Made " + ", ".join(p.name for p in made))
-        missing = set(job.export) - {p.suffix.lstrip(".") for p in made}
+        missing = set(docs) - {p.suffix.lstrip(".") for p in made}
         if missing:
             st.note = (st.note + "; " if st.note else "") + "couldn't make " + ", ".join(sorted(missing))
             self._save_state(job, st)
