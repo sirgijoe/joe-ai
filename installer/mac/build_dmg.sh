@@ -48,7 +48,7 @@ cat > "$app/Contents/Info.plist" <<PL
   <key>LSMinimumSystemVersion</key><string>${min}</string>
   <key>NSHighResolutionCapable</key><true/>
   <key>NSMicrophoneUsageDescription</key><string>Joe uses the microphone only when you talk to him (push to talk).</string>
-  <key>NSHumanReadableCopyright</key><string>GPL-3.0-or-later. Made by Joseph, Claude and Joe-ai.</string>
+  <key>NSHumanReadableCopyright</key><string>GPL-3.0-or-later. Joe contributors.</string>
 </dict></plist>
 PL
 
