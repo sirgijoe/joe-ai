@@ -863,6 +863,7 @@ async function loadSetup() {
   } catch (e) {}
   setTimeout(loadMyVoice, 0);
   await loadThemes().catch(() => {});
+  await loadSavers().catch(() => {});
   const s = await api("/api/settings");
   document.querySelectorAll("#setup [data-path]").forEach((el) => {
     const v = getPath(s, el.dataset.path);
@@ -1331,6 +1332,32 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (act === "test-hello") { await saveSetup(); startupSound(); return; }
+    if (act === "saver-preview") {
+      if (!saverList.length) await loadSavers();
+      const id = $("#saver-select").value, cfg = saverList.find((s) => s.id === id) || saverChosen();
+      saverPreview = Date.now(); $("#saver").hidden = false; saverStart(cfg);
+      $("#saver-line").textContent = "preview · move the mouse to stop";
+      return;
+    }
+    if (act === "saver-delete") {
+      const id = $("#saver-select").value;
+      if (!id.startsWith("custom:")) { toast("Joe's own screen savers can't be deleted; pick one of yours."); return; }
+      confirmBox("Delete this screen saver of yours?", async () => {
+        await api("/api/savers/delete", { id }); await loadSavers(); toast("Deleted");
+      });
+      return;
+    }
+    if (act === "make-saver") {
+      const desc = $("#saver-desc").value.trim();
+      if (!desc) { $("#saver-msg").textContent = "Describe it first."; return; }
+      $("#saver-msg").textContent = "Designing…";
+      const r = await api("/api/savers/make", { description: desc });
+      if (!r.ok) { $("#saver-msg").textContent = "ERROR: " + r.error; return; }
+      await loadSavers(); $("#saver-select").value = r.id;
+      $("#saver-select").dispatchEvent(new Event("change", { bubbles: true }));
+      $("#saver-msg").textContent = `Made "${r.saver.name}" (${r.saver.kind}). PREVIEW to see it; SAVE to use it.`;
+      return;
+    }
     if (act === "make-theme") {
       const desc = $("#theme-desc").value.trim();
       if (!desc) { $("#theme-msg").textContent = "Describe the look first."; return; }
@@ -2617,9 +2644,148 @@ function chime(ok) {
     });
   } catch (e) {}
 }
-let lastInput = Date.now(), saverMove = 0;
+let lastInput = Date.now(), saverMove = 0, saverPreview = false;
 ["mousemove", "mousedown", "keydown", "wheel", "touchstart"].forEach((e) =>
-  window.addEventListener(e, () => { lastInput = Date.now(); if (!$("#saver").hidden) $("#saver").hidden = true; }, { capture: true, passive: true }));
+  window.addEventListener(e, () => {
+    if (saverPreview && Date.now() - saverPreview < 800) return;          // the click that started PREVIEW
+    lastInput = Date.now(); saverPreview = false;
+    if (!$("#saver").hidden) { $("#saver").hidden = true; saverStop(); }
+  }, { capture: true, passive: true }));
+
+/* Screen savers (savers.py): a few checked settings, drawn here on a canvas. */
+let saverList = [], saverAnim = 0, saverCfg = null;
+async function loadSavers() {
+  try { saverList = (await api("/api/savers", {})).savers; } catch (e) { return; }
+  const sel = $("#saver-select"); if (!sel) return;
+  const cur = sel.value || ((state && state.comfort) || {}).screensaver || "joe";
+  sel.innerHTML = saverList.map((s) => `<option value="${esc(s.id)}">${esc(s.name)}${s.builtin ? "" : " (yours)"}</option>`).join("");
+  sel.value = saverList.some((s) => s.id === cur) ? cur : "joe";
+}
+function saverStop() { cancelAnimationFrame(saverAnim); saverAnim = 0; saverCfg = null; }
+function saverStart(cfg) {
+  saverStop(); saverCfg = cfg;
+  const cv = $("#saver-canvas"), ctx = cv.getContext("2d");
+  const W = () => cv.width, H = () => cv.height;
+  const fit = () => { cv.width = innerWidth; cv.height = innerHeight; };
+  fit();
+  const [bg, fg, ac] = cfg.colors, sp = cfg.speed / 3, n = cfg.density;
+  $("#saver").style.background = bg;
+  $("#saver-box").hidden = !(cfg.kind === "drift" || cfg.status);
+  $("#saver-box .saver-name").textContent = cfg.kind === "drift" ? (cfg.text || "JOE") : "";
+  const rnd = (a, b) => a + Math.random() * (b - a);
+  const mono = getComputedStyle(document.body).fontFamily;
+  let t = 0, parts = [];
+  const K = cfg.kind;
+  if (K === "binary") { const fs = 18; parts = Array.from({ length: Math.ceil(innerWidth / fs) }, (_, i) => ({ x: i * fs, y: rnd(-innerHeight, 0), v: rnd(2, 6) })); }
+  if (K === "stars") parts = Array.from({ length: 120 * n }, () => ({ x: rnd(-1, 1), y: rnd(-1, 1), z: rnd(0.1, 1) }));
+  if (K === "fireflies") parts = Array.from({ length: 12 * n }, () => ({ x: rnd(0, innerWidth), y: rnd(0, innerHeight), a: rnd(0, 6.28), p: rnd(0, 6.28) }));
+  if (K === "snow") parts = Array.from({ length: 60 * n }, () => ({ x: rnd(0, innerWidth), y: rnd(0, innerHeight), r: rnd(1, 4), d: rnd(0, 6.28) }));
+  if (K === "bounce") parts = [{ x: 100, y: 100, vx: 2.2, vy: 1.7, c: fg }];
+  if (K === "pipes") parts = [{ x: innerWidth / 2, y: innerHeight / 2, d: 0, c: fg }];
+  const word = cfg.text || "01000001 01001001";
+  ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+  function frame() {
+    if (!saverCfg) return;
+    if (cv.width !== innerWidth || cv.height !== innerHeight) fit();
+    t += sp;
+    if (K === "binary") {
+      ctx.fillStyle = bg + "22"; ctx.fillRect(0, 0, W(), H());
+      ctx.font = `18px ${mono}`;
+      parts.forEach((c, i) => {
+        const ch = word.replace(/ /g, "")[Math.floor(c.y / 18 + i) % word.replace(/ /g, "").length] || "0";
+        ctx.fillStyle = Math.random() < 0.05 ? ac : fg; ctx.fillText(ch, c.x, c.y);
+        c.y += c.v * sp * 2; if (c.y > H() + 20 && Math.random() < 0.05 * n) c.y = rnd(-200, 0);
+      });
+    } else if (K === "stars") {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+      parts.forEach((s) => {
+        s.z -= 0.004 * sp; if (s.z <= 0.02) { s.x = rnd(-1, 1); s.y = rnd(-1, 1); s.z = 1; }
+        const x = W() / 2 + s.x / s.z * W() / 2, y = H() / 2 + s.y / s.z * H() / 2, r = (1 - s.z) * 2.5;
+        ctx.fillStyle = s.z < 0.3 ? ac : fg; ctx.beginPath(); ctx.arc(x, y, Math.max(0.3, r), 0, 6.28); ctx.fill();
+      });
+    } else if (K === "bounce") {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+      const b = parts[0], txt = cfg.text || "JOE"; ctx.font = `bold ${Math.round(H() / 9)}px ${mono}`;
+      const tw = ctx.measureText(txt).width, th = H() / 9;
+      b.x += b.vx * sp * 2; b.y += b.vy * sp * 2;
+      if (b.x < 0 || b.x + tw > W()) { b.vx *= -1; b.x = Math.max(0, Math.min(W() - tw, b.x)); b.c = b.c === fg ? ac : fg; }
+      if (b.y < th || b.y > H()) { b.vy *= -1; b.y = Math.max(th, Math.min(H(), b.y)); b.c = b.c === fg ? ac : fg; }
+      ctx.fillStyle = b.c; ctx.fillText(txt, b.x, b.y);
+    } else if (K === "waves") {
+      ctx.fillStyle = bg + "33"; ctx.fillRect(0, 0, W(), H());
+      for (let k = 0; k < n + 1; k++) {
+        ctx.strokeStyle = k % 2 ? ac : fg; ctx.lineWidth = 2; ctx.shadowColor = ctx.strokeStyle; ctx.shadowBlur = 8; ctx.beginPath();
+        for (let x = 0; x <= W(); x += 6) {
+          const y = H() / 2 + Math.sin(x / (90 + k * 30) + t / 30 + k) * H() / (4 + k) * Math.sin(t / 200 + k);
+          x ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        ctx.stroke();
+      }
+      ctx.shadowBlur = 0;
+    } else if (K === "coffee") {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+      const cx = W() / 2, cy = H() / 2 + 40, s = Math.min(W(), H()) / 6;
+      ctx.strokeStyle = fg; ctx.lineWidth = 4;
+      ctx.strokeRect(cx - s / 2, cy - s / 2, s, s * 0.9);                       // mug
+      ctx.beginPath(); ctx.arc(cx + s / 2, cy, s / 4, -1.4, 1.4); ctx.stroke();  // handle
+      ctx.strokeStyle = ac; ctx.lineWidth = 3;
+      for (let k = -1; k <= 1; k++) {                                           // steam
+        ctx.globalAlpha = 0.4 + 0.3 * Math.sin(t / 20 + k); ctx.beginPath();
+        for (let y = 0; y < s; y += 4) { const x = cx + k * s / 4 + Math.sin(y / 12 + t / 15 + k) * 8; y ? ctx.lineTo(x, cy - s / 2 - 10 - y) : ctx.moveTo(x, cy - s / 2 - 10 - y); }
+        ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      const line = cfg.text || "brewing ideas...", shown = line.slice(0, Math.floor(t / 6) % (line.length + 30));
+      ctx.font = `${Math.round(s / 4)}px ${mono}`; ctx.fillStyle = fg; ctx.textAlign = "center";
+      ctx.fillText(shown + (Math.floor(t / 12) % 2 ? "_" : " "), cx, cy + s * 0.9); ctx.textAlign = "start";
+    } else if (K === "fireflies") {
+      ctx.fillStyle = bg + "40"; ctx.fillRect(0, 0, W(), H());
+      parts.forEach((f, i) => {
+        f.a += rnd(-0.2, 0.2); f.x = (f.x + Math.cos(f.a) * sp + W()) % W(); f.y = (f.y + Math.sin(f.a) * sp + H()) % H();
+        const glow = 0.5 + 0.5 * Math.sin(t / 15 + f.p);
+        const g = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 14); g.addColorStop(0, i % 3 ? fg : ac); g.addColorStop(1, "transparent");
+        ctx.globalAlpha = glow; ctx.fillStyle = g; ctx.beginPath(); ctx.arc(f.x, f.y, 14, 0, 6.28); ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+    } else if (K === "snow") {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+      parts.forEach((f, i) => {
+        f.y += f.r * 0.4 * sp; f.x += Math.sin(t / 40 + f.d) * 0.5;
+        if (f.y > H() + 5) { f.y = -5; f.x = rnd(0, W()); }
+        ctx.fillStyle = i % 5 ? fg : ac; ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, 6.28); ctx.fill();
+      });
+    } else if (K === "pipes") {
+      for (let k = 0; k < cfg.speed; k++) {
+        const p = parts[0], step = 8, dirs = [[1, 0], [0, 1], [-1, 0], [0, -1]];
+        if (Math.random() < 0.08) p.d = (p.d + (Math.random() < 0.5 ? 1 : 3)) % 4;
+        const nx = p.x + dirs[p.d][0] * step, ny = p.y + dirs[p.d][1] * step;
+        ctx.strokeStyle = p.c; ctx.lineWidth = 6 + n; ctx.lineCap = "round"; ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(nx, ny); ctx.stroke();
+        p.x = nx; p.y = ny;
+        if (p.x < 0 || p.y < 0 || p.x > W() || p.y > H() || Math.random() < 0.004) {
+          Object.assign(p, { x: rnd(0, W()), y: rnd(0, H()), d: Math.floor(rnd(0, 4)), c: Math.random() < 0.5 ? fg : ac });
+        }
+      }
+      if (t % 2400 < sp) { ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H()); }
+    } else if (K === "clock") {
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+      const d = new Date(), hm = d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+      ctx.textAlign = "center"; ctx.fillStyle = fg; ctx.shadowColor = fg; ctx.shadowBlur = 20;
+      ctx.font = `${Math.round(H() / 4)}px ${mono}`; ctx.fillText(hm, W() / 2 + Math.sin(t / 300) * W() / 6, H() / 2 + Math.cos(t / 400) * H() / 8);
+      ctx.shadowBlur = 0; ctx.fillStyle = ac; ctx.font = `${Math.round(H() / 18)}px ${mono}`;
+      ctx.fillText((cfg.text ? cfg.text + " · " : "") + d.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" }),
+        W() / 2 + Math.sin(t / 300) * W() / 6, H() / 2 + Math.cos(t / 400) * H() / 8 + H() / 9);
+      ctx.textAlign = "start";
+    } else {                                                   // drift: the classic, just the colors
+      ctx.fillStyle = bg; ctx.fillRect(0, 0, W(), H());
+    }
+    saverAnim = requestAnimationFrame(frame);
+  }
+  saverAnim = requestAnimationFrame(frame);
+}
+function saverChosen() {
+  const id = (((state && state.comfort) || {}).screensaver) || "joe";
+  return saverList.find((s) => s.id === id) || saverList[0] || { kind: "drift", colors: ["#000000", "#33ff66", "#ffb000"], speed: 2, density: 3, text: "JOE", status: true };
+}
 function comfortTick() {
   const f = state.finished || { n: 0 };
   if (lastFinished >= 0 && f.n > lastFinished) {
@@ -2631,7 +2797,7 @@ function comfortTick() {
   const saver = $("#saver");
   const busyWithUs = !$("#welcome").hidden || !$("#confirm").hidden || (typeof micStream !== "undefined" && micStream);
   if (mins > 0 && !busyWithUs && Date.now() - lastInput > mins * 60000) {
-    if (saver.hidden) { saver.hidden = false; saverMove = 0; }
+    if (saver.hidden) { saver.hidden = false; saverMove = 0; if (!saverList.length) loadSavers().then(() => saverStart(saverChosen())); else saverStart(saverChosen()); }
     const done = state.jobs.reduce((a, j) => a + j.parts_done, 0), total = state.jobs.reduce((a, j) => a + j.parts_total, 0);
     $("#saver-line").textContent = state.running ? `working · ${done}/${total}` + (state.eta_s != null ? ` · about ${fmtEta(state.eta_s)} left` : "")
       : "resting · move the mouse to wake me";

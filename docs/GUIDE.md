@@ -134,6 +134,10 @@ make, writes and queues the plan, makes pictures, runs Joe's tools on files in h
 the report, reads the results and looks at the pictures, then polishes them for you. It can't
 install anything, change settings, or reach outside Joe's folder.
 
+Claude Desktop on Windows (from claude.ai, the Store or WinGet) is installed as an MSIX package, so
+Windows keeps its settings file in `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`
+instead of `%APPDATA%\Claude`. Joe looks there first and writes his entry to both when both exist.
+
 Setup > General > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC with a
 **CONNECT** button each: Claude Desktop, ChatGPT desktop (shares its connector list with Codex),
 Gemini CLI, Cursor and LM Studio. CONNECT adds only Joe's own entry to that app's settings file
@@ -281,7 +285,14 @@ so after changing a level the first estimate may be off.
   hello needs Joe's voice set up; it's made once and kept, so it plays right away. Always silent
   during quiet hours.
 - **Screen saver**: after this many minutes without the mouse or keyboard (default 10, 0 = off)
-  the window goes dark with a small, slowly drifting status line. Any key or mouse move wakes it.
+  the screen saver starts; any key or mouse move wakes Joe. Setup > Display & sound > SCREEN SAVER
+  picks one: Joe (classic drifting status), Binary rain (Joe's real name, 01000001 01001001),
+  Coffee break (the mug that started it all), Starfield, Bouncing Joe, Phosphor waves, Fireflies,
+  Snowfall, Pipes or Retro clock. PREVIEW shows it now. Or describe one ("a calm night sky with slow
+  orange shooting stars that says GOOD NIGHT") and MAKE SCREEN SAVER: the local model picks the
+  animation, colors, speed, how busy it is and a short line of text, and Joe draws it. Like custom
+  themes, it's only those settings, never code, and colors are checked so it stays visible. Yours are
+  saved in Themes\savers and DELETE MINE removes one.
 - **Quiet hours** (e.g. 22:00 to 07:00): no chimes and no phone pings. A ping waits until they end.
 - **Phone ping when done** (off until you set it): install the free ntfy app, subscribe to a topic
   name only you know, type the same name in Setup and press SEND A TEST PING. Joe sends one short

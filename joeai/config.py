@@ -101,6 +101,7 @@ class VoiceSettings:
 @dataclass
 class ComfortSettings:
     screensaver_min: int = 10        # dim screen + slow-moving status after this many idle minutes (0 = off)
+    screensaver: str = "joe"         # which one (savers.BUILTIN id, or custom:<file> from Themes/savers)
     quiet_start: str = ""            # "22:00": no sounds or phone pings from here...
     quiet_end: str = ""              # ..."07:00" (a ping waits until quiet hours end)
     ntfy_topic: str = ""             # phone ping when a run is done (ntfy app); blank = off

@@ -510,6 +510,15 @@ FORMAT: ...
                 <label title="Atkinson Hyperlegible, a font made by the Braille Institute so letters like I, l and 1 never look alike. Works with every look.">Easy-to-read font <input type="checkbox" data-path="ui.easy_read"></label>
                 <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
               </fieldset>
+              <fieldset><legend>SCREEN SAVER</legend>
+                <div class="dim small">What Joe shows after the minutes set above. Move the mouse or press a key to wake him. Most show his work status too.</div>
+                <label>Screen saver <select id="saver-select" data-path="comfort.screensaver"></select></label>
+                <div class="row"><button type="button" data-act="saver-preview" title="See it now (move the mouse to stop).">[ PREVIEW ]</button>
+                  <button type="button" data-act="saver-delete" title="Delete the selected custom screen saver (yours only).">[ DELETE MINE ]</button></div>
+                <div class="dim small">Or describe one and the local model designs it (it picks the animation, colors, speed and words; Joe draws it).</div>
+                <textarea id="saver-desc" spellcheck="false" placeholder="e.g. a calm night sky with slow orange shooting stars that says GOOD NIGHT" aria-label="Describe a screen saver"></textarea>
+                <div class="row"><button type="button" data-act="make-saver" title="Joe designs a screen saver from your description.">[ MAKE SCREEN SAVER ]</button><span id="saver-msg" class="dim"></span></div>
+              </fieldset>
               <fieldset><legend>CUSTOM THEME</legend>
                 <div class="dim small">Describe a look and the local model designs it. Colors are checked so text stays readable.</div>
                 <textarea id="theme-desc" spellcheck="false" placeholder="e.g. deep ocean at night, teal text, warm orange highlights" aria-label="Describe a theme"></textarea>
@@ -844,7 +853,7 @@ FORMAT: ...
   <div class="row buttons wnav"><button id="w-back" title="Go back a step">[ ◂ BACK ]</button><span class="grow"></span>
     <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
-<div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
+<div id="saver" class="saver" hidden><canvas id="saver-canvas"></canvas><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
 <div id="maskbox" class="modal" hidden><div class="panel bigger"><h2>MARK THE SPOT</h2>
   <p class="small">Paint over what should change. Only the painted part is redrawn. <span id="mk-name" class="dim"></span></p>
   <div class="mkwrap"><img id="mk-img" alt=""><canvas id="mk-canvas"></canvas></div>

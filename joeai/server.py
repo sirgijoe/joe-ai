@@ -666,7 +666,7 @@ class App:
                 "chain": len(self.chain),
                 "held_plan": {k: v for k, v in self.held_plan.items() if k != "thread"},
                 "quiet": self.quiet(), "finished": self.finished,
-                "comfort": {"screensaver_min": s.comfort.screensaver_min}}
+                "comfort": {"screensaver_min": s.comfort.screensaver_min, "screensaver": s.comfort.screensaver}}
 
     def list_dir(self, rel: str) -> dict:
         p = self.rel_path(rel)
@@ -947,6 +947,25 @@ class App:
             if t["id"] == ph[7:]:
                 return t["vars"]
         return None
+
+    def make_saver(self, desc: str) -> dict:
+        """CUSTOM SCREEN SAVER: the local model picks an animation, colors, speed and words."""
+        if self.running:
+            return {"ok": False, "error": "Wait until the run finishes (the model is busy)."}
+        if not self.services.handoff("text"):
+            return {"ok": False, "error": "The writing program isn't running (F10 > System check)."}
+        from . import savers
+        from .doctor import resolve_text_model
+        model = resolve_text_model(self.settings, self.services, self.log)
+        try:
+            sv = savers.generate(self.services.ollama, model, desc)
+        except (ValueError, OSError) as e:
+            return {"ok": False, "error": str(e)}
+        except Exception as e:                       # noqa: BLE001
+            return {"ok": False, "error": f"model call failed: {e}"}
+        sid = savers.save(self.sb.themes, sv)
+        self.log(f"New screen saver '{sv['name']}' saved to Themes/savers/{sid[7:]}.json")
+        return {"ok": True, "id": sid, "saver": {**sv, "id": sid}}
 
     def make_theme(self, desc: str) -> dict:
         if self.running:
@@ -1813,6 +1832,19 @@ def make_handler(app: App):
                     return self._json({"ok": True, "path": str(p.relative_to(app.sb.root))})
                 if u.path == "/api/theme/make":
                     return self._json(app.make_theme(b.get("description", "")))
+                if u.path == "/api/savers":
+                    from . import savers
+                    return self._json({"ok": True, "savers": savers.list_savers(app.sb.themes),
+                                       "kinds": savers.KINDS})
+                if u.path == "/api/savers/make":
+                    return self._json(app.make_saver(b.get("description", "")))
+                if u.path == "/api/savers/delete":
+                    from . import savers
+                    ok = savers.delete(app.sb.themes, str(b.get("id", "")))
+                    if ok and app.settings.comfort.screensaver == b.get("id"):
+                        app.settings.comfort.screensaver = "joe"
+                        app.settings.save()
+                    return self._json({"ok": ok})
                 if u.path == "/api/theme/delete":
                     tid = re.sub(r"[^a-z0-9-]", "", b.get("id", ""))
                     f = app.sb.themes / f"{tid}.json"

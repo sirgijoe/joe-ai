@@ -149,3 +149,45 @@ def test_download_all_runs_each_model_once(tmp_path, monkeypatch):
     assert got == ["pull-model", "pack-bg"]
     assert app.dl_all["done"] == 1 and len(app.dl_all["failed"]) == 1
     assert "Restart" in app.restart_advice()
+
+
+def test_claude_desktop_msix_found_on_windows(tmp_path, monkeypatch):
+    from joeai import connect
+    monkeypatch.setattr(connect, "WINDOWS", True)
+    monkeypatch.setattr(connect, "MAC", False)
+    monkeypatch.setenv("JOE_HOME_OVERRIDE", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    pkg = tmp_path / "Local" / "Packages" / "Claude_pzs8sxrjxfjjc"
+    pkg.mkdir(parents=True)                               # app installed, never opened its settings
+    st = {a["id"]: a for a in connect.status()}
+    assert st["claude"]["installed"] and "Packages" in st["claude"]["file"]
+    r = connect.connect("claude", {"command": "python", "args": ["Joe.pyw", "mcp"]})
+    assert r["ok"]
+    f = pkg / "LocalCache" / "Roaming" / "Claude" / "claude_desktop_config.json"
+    assert "joe" in __import__("json").loads(f.read_text())["mcpServers"]
+    assert connect.status()[0]["connected"]
+    assert connect.disconnect("claude")["ok"] and not connect.status()[0]["connected"]
+
+
+def test_screen_savers_validate_save_list(tmp_path):
+    from joeai import savers
+    s = savers.validate({"name": "Night <b>sky</b>", "kind": "STARS", "colors": ["#000", "#010101", "bad"],
+                         "speed": 9, "density": "2", "text": "GOOD NIGHT {x} and more words here!!", "status": False})
+    assert s["kind"] == "stars" and s["colors"][0] == "#000000" and s["colors"][1] == "#ffffff"   # unreadable fixed
+    assert s["colors"][2] == "#7fb2ff" and s["speed"] == 5 and s["density"] == 2 and len(s["text"]) <= 24
+    assert "<" not in s["name"] and "{" not in s["text"]
+    import pytest
+    with pytest.raises(ValueError):
+        savers.validate({"kind": "flash-code"})
+    sid = savers.save(tmp_path, s)
+    ids = [x["id"] for x in savers.list_savers(tmp_path)]
+    assert ids[0] == "joe" and sid in ids and len(ids) == len(savers.BUILTIN) + 1
+    assert savers.delete(tmp_path, sid) and not savers.delete(tmp_path, "joe")
+
+    class C:
+        def chat(self, msgs, model=None, think=None):
+            from joeai.ollama import ChatResult
+            return ChatResult('Sure! {"name": "Ocean", "kind": "waves", "colors": ["#001020", "#55ddff", "#ffcc66"], '
+                              '"speed": 2, "density": 3, "text": "", "status": true}', 1, 1, 0.1)
+    assert savers.generate(C(), "m", "calm ocean")["kind"] == "waves"

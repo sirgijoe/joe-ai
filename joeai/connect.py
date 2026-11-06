@@ -23,12 +23,32 @@ def _home() -> Path:
     return Path(os.environ.get("JOE_HOME_OVERRIDE") or Path.home())
 
 
+def claude_windows_files() -> list[Path]:
+    """Claude Desktop's settings file(s) on Windows, the one the app really reads first.
+    The installer from claude.ai (and the Store / WinGet) installs it as an MSIX package, and
+    Windows quietly keeps its AppData\\Roaming\\Claude inside
+    %LOCALAPPDATA%\\Packages\\Claude_<id>\\LocalCache\\Roaming\\Claude. Older installs use
+    %APPDATA%\\Claude itself."""
+    h = _home()
+    local = Path(os.environ.get("LOCALAPPDATA") or h / "AppData" / "Local")
+    appdata = Path(os.environ.get("APPDATA") or h / "AppData" / "Roaming")
+    msix = []
+    try:
+        msix = sorted((d / "LocalCache" / "Roaming" / "Claude" / "claude_desktop_config.json"
+                       for d in (local / "Packages").glob("Claude_*") if d.is_dir()),
+                      key=lambda f: -(f.parent.stat().st_mtime if f.parent.exists() else 0))
+    except OSError:
+        msix = []
+    classic = appdata / "Claude" / "claude_desktop_config.json"
+    have = [f for f in msix if f.parent.exists()] or msix
+    return have + [classic]
+
+
 def app_paths() -> dict[str, tuple[str, Path]]:
     """app id -> (name shown, settings file)."""
     h = _home()
     if WINDOWS:
-        appdata = Path(os.environ.get("APPDATA") or h / "AppData" / "Roaming")
-        claude = appdata / "Claude" / "claude_desktop_config.json"
+        claude = claude_windows_files()[0]
     elif MAC:
         claude = h / "Library" / "Application Support" / "Claude" / "claude_desktop_config.json"
     else:
@@ -87,6 +107,17 @@ def _read(p: Path) -> dict | None:
     return d if isinstance(d, dict) else None
 
 
+def _installed(app_id: str, p: Path) -> bool:
+    if p.parent.exists():
+        return True
+    if app_id == "claude" and WINDOWS and "Packages" in p.parts:   # MSIX app, settings folder not made yet
+        try:
+            return p.parents[3].is_dir()
+        except (IndexError, OSError):
+            return False
+    return False
+
+
 def status() -> list[dict]:
     out = []
     for app_id, (name, p) in app_paths().items():
@@ -99,7 +130,7 @@ def status() -> list[dict]:
                         "connected": _toml_has_joe(text), "readable": True})
             continue
         d = _read(p)
-        installed = p.parent.exists()
+        installed = _installed(app_id, p)
         out.append({"id": app_id, "name": name, "installed": installed, "file": str(p),
                     "connected": bool(d and isinstance(d.get("mcpServers"), dict) and ENTRY in d["mcpServers"]),
                     "readable": d is not None})
@@ -111,8 +142,9 @@ def connect(app_id: str, entry: dict) -> dict:
     if app_id not in apps:
         return {"ok": False, "error": "Joe doesn't know that app."}
     name, p = apps[app_id]
-    if not p.parent.exists():
+    if not _installed(app_id, p):
         return {"ok": False, "error": f"{name} doesn't seem to be installed on this PC (no {p.parent})."}
+    p.parent.mkdir(parents=True, exist_ok=True)
     if p.suffix == ".toml":
         text = p.read_text(encoding="utf-8") if p.exists() else ""
         if p.exists():
@@ -131,6 +163,17 @@ def connect(app_id: str, entry: dict) -> dict:
     servers[ENTRY] = entry
     d["mcpServers"] = servers
     _write(p, json.dumps(d, indent=2))
+    if app_id == "claude" and WINDOWS:                # MSIX + old-style copies: keep both in step
+        for other in claude_windows_files():
+            if other != p and other.parent.exists():
+                od = _read(other)
+                if od is not None:
+                    if other.exists():
+                        shutil.copy2(other, other.with_name(other.name + ".before-joe"))
+                    osv = od.get("mcpServers") if isinstance(od.get("mcpServers"), dict) else {}
+                    osv[ENTRY] = entry
+                    od["mcpServers"] = osv
+                    _write(other, json.dumps(od, indent=2))
     return {"ok": True, "say": f"Joe is connected to {name}. Restart {name} to see him."}
 
 
@@ -152,6 +195,13 @@ def disconnect(app_id: str) -> dict:
     shutil.copy2(p, p.with_name(p.name + ".before-joe"))
     del d["mcpServers"][ENTRY]
     _write(p, json.dumps(d, indent=2))
+    if app_id == "claude" and WINDOWS:
+        for other in claude_windows_files():
+            od = _read(other) if other != p else None
+            if od and isinstance(od.get("mcpServers"), dict) and ENTRY in od["mcpServers"]:
+                shutil.copy2(other, other.with_name(other.name + ".before-joe"))
+                del od["mcpServers"][ENTRY]
+                _write(other, json.dumps(od, indent=2))
     return {"ok": True, "say": f"Joe is disconnected from {name}. Restart {name}."}
 
 

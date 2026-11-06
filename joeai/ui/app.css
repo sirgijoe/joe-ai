@@ -458,6 +458,9 @@ body:not(.modern) button.primary:hover, body:not(.modern) button.primary:focus-v
 .saver[hidden] { display: none; }
 #saver-box { position: absolute; transition: left 3s ease, top 3s ease; text-align: center; color: var(--ph-dim); }
 .saver-name { font-size: 3em; letter-spacing: .2em; opacity: .5; color: var(--accent); }
+#saver-canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+#saver-box { z-index: 1; }
+#saver-desc { width: 100%; box-sizing: border-box; min-height: 3em; }
 
 .netlist { margin: 2px 0; padding-left: 1.3em; display: flex; flex-direction: column; gap: 3px; color: var(--ph-dim); }
 .netlist b { color: var(--ph); font-weight: normal; }
