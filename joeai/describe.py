@@ -45,6 +45,8 @@ Kinds of task:
 {tools}
 
 Rules:
+- "a picture" / "an image" / "a drawing" (one, no number) = CHUNKS: 1 x 1 with VARIANTS: 4, so
+  they get 4 versions of that one picture to pick from.
 - Match the numbers the person asked for exactly. If they gave none, pick a sensible small
   amount (10-20 items, 4-8 pictures).
 - Do NOT write SAVE lines except for spreadsheets; Joe picks the file names.
@@ -77,6 +79,31 @@ def kind_mismatch(request: str, mission_text: str) -> str:
         return ("the person asked for pictures, but your mission has no TYPE: image task (it only "
                 "writes text). Make it a TYPE: image task: CHUNKS: parts x pictures, FORMAT: subject and style")
     return ""
+
+
+_ONE_PIC = re.compile(r"\b(a|an|one|single)\s+(\w+\s+){0,4}?(picture|image|drawing|illustration|painting|"
+                      r"photo|render|artwork|wallpaper|poster|logo)\b", re.I)
+
+
+def one_picture(request: str, block: str) -> str:
+    """'make me a super cool image of a raccoon' -> one picture, 4 versions to pick from (the
+    planner sometimes makes 8 different pictures). Only when the person gave no number."""
+    if not _ONE_PIC.search(request) or re.search(r"\d|\b(two|three|four|five|six|eight|ten|dozen|"
+                                                 r"several|some|few|many|pictures|images|drawings)\b", request, re.I):
+        return block
+    tasks = re.split(r"(?m)^(?=TASK:)", block)
+    if sum(1 for t in tasks if re.search(r"(?m)^TYPE:\s*image\b", t)) != 1:
+        return block
+    out = []
+    for t in tasks:
+        if re.search(r"(?m)^TYPE:\s*image\b", t) and not re.search(r"(?m)^PART:", t):
+            t = re.sub(r"(?m)^CHUNKS:.*$", "CHUNKS: 1 x 1", t)
+            if not re.search(r"(?m)^CHUNKS:", t):
+                t = re.sub(r"(?m)^(TYPE:\s*image.*)$", r"\1\nCHUNKS: 1 x 1", t, count=1)
+            t = re.sub(r"(?m)^VARIANTS:.*\n?", "", t)
+            t = re.sub(r"(?m)^(CHUNKS: 1 x 1)$", r"\1\nVARIANTS: 4", t, count=1)
+        out.append(t)
+    return "".join(out)
 
 
 def wants_high(request: str) -> bool:
@@ -396,7 +423,7 @@ def draft(app, request: str) -> dict:
             r = app.services.ollama.chat(msgs, model=model, max_tokens=1500, keep_alive="20m")
         except Exception as e:
             return {"ok": False, "error": f"Joe couldn't think: {e}"}
-        block = extract_block(r.text)
+        block = one_picture(request, extract_block(r.text))
         if not block:
             problem = "there was no mission block in your reply"
         else:

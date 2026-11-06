@@ -351,3 +351,13 @@ def test_matching_words_add_from(app):
     plain = bigger.read_answer(app, "=== JOE MISSION ===\nTASK: Blurbs\nCHUNKS: 2 x 5\nTASK: Prices\n"
                                     "CHUNKS: 2 x 5\nHEADER: Name,Price\nSAVE: p.csv\nFORMAT: one row each\n=== END ===")
     assert "FROM:" not in plain["mission"]
+
+
+def test_one_picture_request_gives_four_versions_of_one():
+    from joeai.describe import one_picture
+    from joeai.mission import parse
+    b = "=== JOE MISSION ===\nTASK: Raccoon\nTYPE: image\nCHUNKS: 2 x 4\nFORMAT: raccoon eating a turtle\n=== END ==="
+    j = parse(one_picture("make me a super cool high quality image of a racoon eating a turtle", b)).jobs[0]
+    assert (j.parts, j.part_size, j.variants) == (1, 1, 4)
+    for keep in ("8 images of raccoons", "some pictures of raccoons", "a few drawings of a raccoon"):
+        assert one_picture(keep, b) == b
