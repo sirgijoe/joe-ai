@@ -121,6 +121,43 @@ def style_of(name: str, picks: dict | None = None) -> str:
     return "general"
 
 
+def hf_repo(page: str) -> str:
+    """'https://huggingface.co/owner/name' -> 'owner/name' ('' for other sites)."""
+    if not page.startswith("https://huggingface.co/"):
+        return ""
+    parts = page[len("https://huggingface.co/"):].split("/")
+    return "/".join(parts[:2]) if len(parts) >= 2 and all(parts[:2]) else ""
+
+
+def hf_pick_file(siblings: list[dict]) -> str:
+    """The model file to download from a Hugging Face repo listing: the biggest .safetensors in the
+    top folder (sub-folders hold the split 'diffusers' copy ComfyUI doesn't use)."""
+    files = [s for s in siblings or [] if isinstance(s, dict)
+             and str(s.get("rfilename", "")).lower().endswith(".safetensors") and "/" not in s["rfilename"]]
+    files.sort(key=lambda s: s.get("size") or 0, reverse=True)
+    return files[0]["rfilename"] if files else ""
+
+
+def download_link(page: str, timeout: float = 15) -> str:
+    """A direct download link for a Hugging Face pick (the browser saves it to Downloads), or the
+    repo's file list when the file can't be found; other sites: the page itself."""
+    repo = hf_repo(page)
+    if not repo:
+        return page
+    import json
+    import urllib.parse
+    import urllib.request
+    try:
+        with urllib.request.urlopen(f"https://huggingface.co/api/models/{repo}?blobs=true",
+                                    timeout=timeout) as r:
+            name = hf_pick_file(json.loads(r.read().decode("utf-8")).get("siblings", []))
+    except (OSError, ValueError):
+        name = ""
+    if not name:
+        return f"https://huggingface.co/{repo}/tree/main"
+    return f"https://huggingface.co/{repo}/resolve/main/{urllib.parse.quote(name)}?download=true"
+
+
 def import_downloads(models_dir: Path | None, log: Log, folder: Path | None = None,
                      picks: dict | None = None) -> int:
     """Move the waiting model files into ComfyUI's checkpoints folder. Returns how many."""

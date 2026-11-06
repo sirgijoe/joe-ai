@@ -765,10 +765,18 @@ class App:
                             self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
                     elif b.get("page", "").startswith(stylemodels.PAGE_HOSTS):
                         import webbrowser
-                        webbrowser.open(b["page"])
-                        self.log(f"Opened {b['page']}. Read its license, download the model file there "
-                                 "(into your Downloads folder), then press GET IT again and Joe moves it "
-                                 "into ComfyUI.")
+                        link = stylemodels.download_link(b["page"])
+                        if link != b["page"]:
+                            webbrowser.open(b["page"])          # the license and model card
+                        webbrowser.open(link)
+                        if "/resolve/" in link:
+                            self.log(f"Opened the model's page (license) and started the download in your "
+                                     f"browser. When it's finished, press GET IT again and Joe moves it "
+                                     f"into ComfyUI.")
+                        else:
+                            self.log(f"Opened {link}. Read its license, download the .safetensors file "
+                                     "there (into your Downloads folder), then press GET IT again and Joe "
+                                     "moves it into ComfyUI.")
                     else:
                         self.log("No picture model files found in your Downloads folder.")
                         ok = False

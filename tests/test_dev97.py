@@ -56,3 +56,16 @@ def test_lora_offer_and_move(tmp_path, monkeypatch):
     (dl / "random_embedding.safetensors").write_bytes(b"x" * 10)
     assert sm.import_downloads(mdir, lambda m: None, dl) == 1
     assert (mdir / "loras" / "pixel-art-xl.safetensors").exists()
+
+
+
+def test_hf_direct_link_pick():
+    assert sm.hf_repo("https://huggingface.co/nerijs/pixel-art-xl") == "nerijs/pixel-art-xl"
+    assert sm.hf_repo("https://civitai.com/models/1/x") == ""
+    sib = [{"rfilename": "unet/diffusion_pytorch_model.safetensors", "size": 9e9},
+           {"rfilename": "README.md", "size": 10},
+           {"rfilename": "pixel-art-xl.safetensors", "size": 1.7e8},
+           {"rfilename": "small.safetensors", "size": 1e6}]
+    assert sm.hf_pick_file(sib) == "pixel-art-xl.safetensors"
+    assert sm.hf_pick_file([]) == ""
+    assert sm.download_link("https://civitai.com/models/1/x") == "https://civitai.com/models/1/x"
