@@ -5,6 +5,10 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+if sys.argv[1:2] in (["mcp"], ["tonight"]):     # connector for AI apps / the night shift
+    from joeai.cli import main  # noqa: E402
+    sys.exit(main(sys.argv[1:]))
+
 from joeai.app import run_logged  # noqa: E402
 
 run_logged()

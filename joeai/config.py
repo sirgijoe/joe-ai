@@ -63,6 +63,7 @@ class EngineSettings:
     keep_awake: bool = True
     when_finished: str = "nothing"   # nothing | sleep | shutdown
     gpu_temp_pause_c: int = 85       # pause between parts above this (0 = off)
+    keep_pc_usable: bool = False     # Ollama/ComfyUI at below-normal priority + smaller videos
 
 
 @dataclass
@@ -121,6 +122,14 @@ class WebSettings:
 
 
 @dataclass
+class ScheduleSettings:
+    # Night shift: plans put in Missions/Tonight start at this time (Setup > General). The
+    # computer's own scheduler (Task Scheduler, launchd, cron) starts Joe; Joe keeps nothing running.
+    enabled: bool = False
+    time: str = "23:00"              # 24-hour clock, the PC's own time zone
+
+
+@dataclass
 class QualitySettings:
     # Setup > Writing / Images & video: low = fastest, rougher | medium = balanced | high = best, slowest
     # High by default: Joe mostly works overnight, so best results beat speed (change it in Setup).
@@ -141,6 +150,7 @@ class Settings:
     comfort: ComfortSettings = field(default_factory=ComfortSettings)
     quality: QualitySettings = field(default_factory=QualitySettings)
     web: WebSettings = field(default_factory=WebSettings)
+    schedule: ScheduleSettings = field(default_factory=ScheduleSettings)
     pandoc: str = ""                 # blank = auto-detect
 
     @property

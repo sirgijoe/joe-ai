@@ -62,5 +62,9 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\Joe.pyw"""; WorkingDi
 ; an update started from inside Joe runs /SILENT: open Joe again afterwards
 Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\Joe.pyw"""; WorkingDir: "{app}"; Flags: nowait; Check: WizardSilent
 
+[UninstallRun]
+; the night shift's Task Scheduler entry (Setup > General), if it was ever turned on
+Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""Joe night shift"""; Flags: runhidden; RunOnceId: "JoeNightShift"
+
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}"

@@ -5,6 +5,8 @@
     python -m joeai doctor              (system check; asks before installing anything)
     python -m joeai check  MISSION      (dry run: validate + plan + estimate)
     python -m joeai run    MISSION      (MISSION = file in Missions/, or '-' to paste)
+    python -m joeai mcp                 (Joe as a connector for Claude Desktop and other MCP apps)
+    python -m joeai tonight             (the night shift: what the computer's scheduler runs)
 """
 from __future__ import annotations
 
@@ -45,7 +47,15 @@ def main(argv: list[str] | None = None) -> int:
     for name in ("check", "run"):
         p = sub.add_parser(name)
         p.add_argument("mission")
+    sub.add_parser("mcp", help="talk MCP on stdin/stdout (for Claude Desktop and other AI apps)")
+    sub.add_parser("tonight", help="start the plans saved for tonight (run by the night shift)")
     a = ap.parse_args(argv)
+    if a.cmd == "mcp":
+        from .mcp import serve
+        return serve()
+    if a.cmd == "tonight":
+        from .schedule import tonight
+        return tonight()
 
     s = Settings.load()
     if a.cmd == "init":

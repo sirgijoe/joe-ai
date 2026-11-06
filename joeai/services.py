@@ -38,6 +38,7 @@ class ServiceManager:
         self.attention = ""          # a plain hint for the window when ComfyUI needs the person
         self.ollama = OllamaClient(settings.ollama)
         self.comfy_base = settings.comfy.url.rstrip("/")
+        self._eased: set[int] = set()   # programs already set to below-normal priority
 
     # -- Ollama -------------------------------------------------------------
     def ollama_up(self) -> bool:
@@ -67,8 +68,12 @@ class ServiceManager:
         if self.ollama_up():
             if "Ollama" in self.attention:
                 self.attention = ""
+            self.ease("ollama")
             return True
-        return self.start_ollama()
+        ok = self.start_ollama()
+        if ok:
+            self.ease("ollama")
+        return ok
 
     # -- ComfyUI ------------------------------------------------------------
     def _probe(self, base: str) -> bool:
@@ -140,8 +145,36 @@ class ServiceManager:
         if self.comfy_up():
             if "ComfyUI" in self.attention:
                 self.attention = ""
+            self.ease("comfy")
             return True
-        return self.start_comfy()
+        ok = self.start_comfy()
+        if ok:
+            self.ease("comfy")
+        return ok
+
+    # -- Keep my PC usable --------------------------------------------------
+    def ease(self, which: str) -> list[int]:
+        """Setup > General > Keep my PC usable: the server (and Ollama's model runners) at
+        below-normal priority, once per program. Returns the process ids changed now."""
+        if not getattr(self.s.engine, "keep_pc_usable", False):
+            return []
+        from . import system
+        url = self.s.ollama.url if which == "ollama" else self.comfy_base
+        m = re.search(r":(\d+)(?:/|$)", url.rstrip("/") + "/")
+        pids = system.pids_on_port(int(m.group(1))) if m else []
+        if which == "ollama":
+            pids += system.pids_named("ollama")
+        changed = []
+        for pid in dict.fromkeys(pids):
+            if pid in self._eased:
+                continue
+            self._eased.add(pid)
+            if system.lower_priority(pid):
+                changed.append(pid)
+        if changed:
+            self.log(f"Keep my PC usable: {'Ollama' if which == 'ollama' else 'ComfyUI'} set to "
+                     "below-normal priority, so the PC stays smooth.")
+        return changed
 
     def comfy_free(self) -> None:
         request_json("POST", f"{self.comfy_base}/free",

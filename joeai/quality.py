@@ -76,7 +76,18 @@ class VideoPlan:
                 f"about {secs} s")
 
 
+GENTLE_VIDEO_SIZE = (960, 544)       # "Keep my PC usable": smaller frames, far less memory
+
+
 def video(settings, turbo_installed: bool) -> VideoPlan:
+    plan = _video(settings, turbo_installed)
+    if getattr(getattr(settings, "engine", None), "keep_pc_usable", False) and \
+            plan.size[0] * plan.size[1] > GENTLE_VIDEO_SIZE[0] * GENTLE_VIDEO_SIZE[1]:
+        plan.size = GENTLE_VIDEO_SIZE
+    return plan
+
+
+def _video(settings, turbo_installed: bool) -> VideoPlan:
     lv = level(settings, "video")
     if lv == "high":
         return VideoPlan((1280, 704), 121, 30, 5.0, False)

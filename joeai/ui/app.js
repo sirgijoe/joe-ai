@@ -299,6 +299,33 @@ function takePlan(r) {
     $("#describe-msg").textContent = "Here's the plan. Change it, or press RUN IT.";
     loadChats();
 }
+/* ---------------- ASK A BIGGER AI: paste-ready message out, answer back in ---------------- */
+async function biggerLoad() {
+  const r = await api("/api/bigger", { text: $("#describe").value, mission: $("#mission").value,
+    report: $("#bg-report").checked });
+  $("#bg-msg").value = r.text || "";
+}
+async function biggerOpen() {
+  $("#bigger").hidden = false; $("#bg-err").textContent = ""; $("#bg-copied").textContent = "";
+  $("#bg-msg").value = "Making the message…";
+  await biggerLoad();
+}
+async function biggerCopy() {
+  const t = $("#bg-msg");
+  try { await navigator.clipboard.writeText(t.value); }
+  catch (e) { t.focus(); t.select(); try { document.execCommand("copy"); } catch (e2) {} }
+  $("#bg-copied").textContent = "Copied. Paste it into the chatbot.";
+}
+async function biggerUse() {
+  const text = $("#bg-answer").value.trim();
+  if (!text) { $("#bg-err").textContent = "Paste the AI's answer first."; return; }
+  const r = await api("/api/bigger/answer", { text });
+  if (!r.ok) { $("#bg-err").textContent = r.error; return; }
+  $("#bigger").hidden = true; $("#bg-answer").value = "";
+  takePlan(r);
+  $("#describe-msg").textContent = "Here's the bigger AI's plan. Change it, or press RUN IT.";
+}
+$("#bg-report").addEventListener("change", () => biggerLoad().catch(() => {}));
 function heldPlanTick() {                        // a request held while Joe was drawing is ready
   const h = state && state.held_plan;
   if (!h || h.status !== "ready") return;
@@ -840,6 +867,24 @@ document.addEventListener("click", async (ev) => {
   const act = b.dataset.act;
   try {
     if (act === "describe") await describeIt();
+    if (act === "tonight-add") {
+      const r = await api("/api/tonight/add", { text: $("#mission").value });
+      if (!r.ok) toast(r.error);
+      else toast(r.on ? `Saved for tonight: Joe starts at ${r.time} (${r.waiting} waiting)`
+                      : `Saved for tonight (${r.waiting} waiting). Turn the night shift on in Setup > General.`);
+    }
+    if (act === "mcp-show") {
+      const r = await api("/api/mcp-config", {});
+      $("#mcp-lines").textContent = r.text || ""; $("#mcp-lines").hidden = false; $("#mcp-copy").hidden = false;
+    }
+    if (act === "mcp-copy") {
+      try { await navigator.clipboard.writeText($("#mcp-lines").textContent); $("#mcp-msg").textContent = "Copied."; }
+      catch (e) { $("#mcp-msg").textContent = "Select the lines and copy them by hand."; }
+    }
+    if (act === "bigger-open") await biggerOpen();
+    if (act === "bigger-copy") await biggerCopy();
+    if (act === "bigger-use") await biggerUse();
+    if (act === "bigger-close") $("#bigger").hidden = true;
     if (act === "finish-setup") {
       if ($("#readybar").dataset.mode === "updates") show("setup", "system");
       else { await loadThemes().catch(() => {}); welcomeOpen(2); }
@@ -986,6 +1031,11 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
+    return;
+  }
+  if (!$("#bigger").hidden) {                  // ASK A BIGGER AI is open: Esc closes it, F-keys wait
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); $("#bigger").hidden = true; }
     return;
   }
   if (!$("#welcome").hidden) {                 // the setup helper is up: only Esc (close) works

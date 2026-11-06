@@ -61,6 +61,7 @@
 fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
       <div class="row buttons">
         <button data-act="describe" id="btn-describe" class="primary" title="Joe answers, does it, or makes a plan. Nothing big runs until you press RUN IT. (Ctrl+Enter)">[ ASK JOE ]</button>
+        <button data-act="bigger-open" title="Joe's own model is small. This makes one message you paste into any chatbot (ChatGPT, Claude, Gemini...); paste its answer back and Joe uses the plan. Free, no keys.">[ ASK A BIGGER AI ]</button>
         <span id="describe-msg" class="dim"></span>
       </div>
       <div id="plancard" class="plancard" hidden>
@@ -70,6 +71,7 @@ fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
         <div class="row buttons">
           <button data-act="plan-run" class="primary" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
           <button data-act="queue-add" title="Put this plan in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
+          <button data-act="tonight-add" title="Joe starts it at the night-shift time (Setup > General), even with his window closed.">[ SAVE FOR TONIGHT ]</button>
           <button data-act="to-builder" title="Change the numbers, style or details with simple forms.">[ CHANGE IT <span class="k">F6</span> ]</button>
           <button data-act="clear" title="Throw this plan away and start fresh.">[ START OVER ]</button>
         </div>
@@ -307,6 +309,10 @@ FORMAT: ...
               <fieldset><legend>JOE'S FOLDER</legend>
                 <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace"></label>
               </fieldset>
+              <fieldset><legend>WHILE JOE WORKS</legend>
+                <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
+                <div class="dim small">Turn this on when you use the PC while Joe works. Leave it off overnight for the fastest runs and the biggest videos.</div>
+              </fieldset>
               <fieldset><legend>WHEN A RUN ENDS</legend>
                 <label>When finished
                   <select data-path="engine.when_finished">
@@ -324,6 +330,17 @@ FORMAT: ...
                 <details class="more"><summary>More options</summary>
                   <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
                 </details>
+              </fieldset>
+              <fieldset><legend>NIGHT SHIFT</legend>
+                <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. The PC has to be on and signed in (not asleep) at that time.</div>
+                <label title="Start the plans saved for tonight at the time below.">Night shift on <input type="checkbox" data-path="schedule.enabled"></label>
+                <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
+              </fieldset>
+              <fieldset><legend>USE JOE FROM ANOTHER AI APP</legend>
+                <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, and read his reports and the text files he made. They can't run programs, change settings, or touch anything outside Joe's folder. Paste these lines into the app's connector settings (Claude Desktop: Settings &gt; Developer &gt; Edit Config, inside the file's outer { }), then restart that app.</div>
+                <div class="row"><button type="button" data-act="mcp-show">[ SHOW THE CONNECTOR LINES ]</button>
+                  <button type="button" data-act="mcp-copy" hidden id="mcp-copy">[ COPY ]</button><span id="mcp-msg" class="dim"></span></div>
+                <pre id="mcp-lines" class="out" hidden></pre>
               </fieldset>
               <fieldset><legend>UPDATES</legend>
                 <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
@@ -775,6 +792,17 @@ FORMAT: ...
     <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
+<div id="bigger" class="modal" hidden><div class="panel bigger"><h2>ASK A BIGGER AI</h2>
+  <p class="small">1. Copy this message and paste it into any chatbot you like (ChatGPT, Claude, Gemini...). Read it first: nothing leaves your PC unless you paste it. Folder paths and your user name are hidden.</p>
+  <textarea id="bg-msg" readonly spellcheck="false" rows="9"></textarea>
+  <div class="row buttons"><button type="button" data-act="bigger-copy" class="primary">[ COPY MESSAGE ]</button>
+    <label class="inline" title="Adds Joe's last report and the problems from his log, so the AI can fix what went wrong.">Include the last report and problems <input type="checkbox" id="bg-report" checked></label>
+    <span id="bg-copied" class="dim"></span></div>
+  <p class="small">2. Paste the whole answer here. Joe finds the plan in it and checks it.</p>
+  <textarea id="bg-answer" spellcheck="false" rows="7" placeholder="Paste the AI's answer here"></textarea>
+  <div id="bg-err" class="small warn"></div>
+  <div class="row buttons"><button type="button" data-act="bigger-use" class="primary">[ USE THIS PLAN ]</button>
+    <button type="button" data-act="bigger-close">[ CLOSE ]</button></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
 <div id="confirm" class="modal" hidden><div class="panel"><h2>CONFIRM</h2><p id="confirm-text"></p>
   <p class="row"><button id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>

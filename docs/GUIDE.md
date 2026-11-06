@@ -35,6 +35,40 @@ Time estimates learn from your own runs; until then they're marked as a rough gu
 SPEED (in the setup helper or Setup > System check) times one small batch to get them right at once. The mission text itself is under
 **ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
 
+### Ask a bigger AI (free, any chatbot, no keys)
+
+Joe's own model is small. **ASK A BIGGER AI** (next to ASK JOE) makes one message you paste into
+any chatbot you like (ChatGPT, Claude, Gemini...): what Joe is, the exact mission format, the
+tools on your PC, what you typed in the box, and (if you leave the tick on) Joe's last report and
+the problems from his log. Read it first: nothing leaves your PC unless you paste it, and folder
+paths and your user name are hidden. Paste the chatbot's whole answer into the second box and
+press **USE THIS PLAN**: Joe finds the mission in it, checks it, and shows it like his own plan.
+
+### Night shift (Setup > General)
+
+**SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >
+General and pick a time (24-hour clock, e.g. 23:00): Joe asks your computer's own scheduler to
+start him then (Task Scheduler on Windows, launchd on a Mac, cron on Linux). If his window is open
+he just runs them; if not, he starts without a window, works through them (keep-awake, "when
+finished", phone ping all apply) and closes when done. Open Joe during the night to watch. The PC
+has to be on and signed in (not asleep) at that time. Turning it off, or uninstalling Joe, removes
+the scheduler entry. Plans saved for tonight sit in `Missions\Tonight`.
+
+### Keep my PC usable (Setup > General)
+
+For using the PC while Joe works: Ollama and ComfyUI run at below-normal priority (so the mouse,
+browser and games stay smooth) and videos are made smaller (960x544 instead of 1280x704). Runs
+take a little longer. Leave it off overnight.
+
+### Use Joe from another AI app (MCP)
+
+Apps that take MCP connectors, like Claude Desktop, can use Joe: see his status, read the mission
+format, check and queue plans (now or for tonight), and read his reports, log and the text files
+he made. They can't run programs, install anything, change settings, or reach outside Joe's
+folder. Setup > General > **SHOW THE CONNECTOR LINES** gives the lines to paste into the app's
+connector settings (Claude Desktop: Settings > Developer > Edit Config), then restart that app.
+Queued plans run when Joe's window is open, or at the night-shift time.
+
 ## Building it step by step (F6)
 
 The Builder makes the mission for you with simple forms:
@@ -337,6 +371,10 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   faded each photo is and picks strong, medium or light; you can pick one yourself). Nothing is redrawn, so faces stay exactly theirs. `method ai` uses
   the picture editor to also mend scratches, tears and date stamps (and `colorize` adds color),
   but it can make someone look like a different person: compare with the original.
+  `sepia` (**Keep sepia tone**) is for brown-toned prints: the fixes above can turn them grey,
+  so Joe restores the photo and then puts the warm tone back. Scanning tips: 300 dpi (600 for
+  small prints), in color even for black-and-white photos, with the scanner's own auto-correct,
+  auto-color and dust removal off, and the glass wiped clean.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
   1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
 - **Music and sound effects**: no files needed; one piece per line (in a mission, separate them
@@ -548,6 +586,8 @@ python -m joeai doctor               # system check; asks before installing anyt
 python -m joeai check my-mission.txt # validate + time estimate, writes nothing
 python -m joeai run my-mission.txt   # go (Ctrl+C stops cleanly; run again to resume)
 python -m joeai run -                # paste a mission instead of using a file
+python -m joeai mcp                  # Joe as an MCP connector on stdin/stdout
+python -m joeai tonight              # start the plans saved for tonight (what the night shift runs)
 ```
 
 Mission files are read from `Missions\`. In the morning, open `Output\_REPORT.md`.

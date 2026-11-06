@@ -1064,11 +1064,19 @@ class App:
         if self.running:
             return {"ok": False, "error": "Can't change settings during a run."}
         old_ws = self.settings.workspace_path
+        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time)
         _merge(self.settings, data)
         self.settings.save()
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()
         self.services = ServiceManager(self.settings, log=self.log)
+        if (self.settings.schedule.enabled, self.settings.schedule.time) != old_sched:
+            from . import schedule
+            r = schedule.apply(self.settings, self.log)
+            if not r.get("ok"):
+                self.settings.schedule.enabled = False
+                self.settings.save()
+                return {"ok": False, "error": r.get("error", "Couldn't set the night shift.")}
         return {"ok": True}
 
 
@@ -1474,6 +1482,28 @@ def make_handler(app: App):
                     if busy_drawing(app):              # hold it: plan once the pictures finish
                         return self._json(app.hold_plan(str(b.get("text", ""))))
                     return self._json(app.plan_now(str(b.get("text", ""))))
+                if u.path == "/api/tonight/add":       # save a plan for the night shift
+                    from .mcp import Joe
+                    j = Joe(app.settings)
+                    j.sb = app.sb
+                    ok, msg = j.check(str(b.get("text", "")))
+                    if not ok:
+                        return self._json({"ok": False, "error": msg})
+                    j.queue(str(b.get("text", "")), str(b.get("name", "")), tonight=True)
+                    from .mcp import _mission_files
+                    return self._json({"ok": True, "waiting": len(_mission_files(app.sb.missions / "Tonight")),
+                                       "on": app.settings.schedule.enabled, "time": app.settings.schedule.time})
+                if u.path == "/api/mcp-config":        # the lines for Claude Desktop's settings file
+                    from .mcp import client_config
+                    return self._json({"ok": True, "text": json.dumps(client_config(), indent=2)})
+                if u.path == "/api/bigger":            # ASK A BIGGER AI: the paste-ready message
+                    from . import bigger
+                    return self._json({"ok": True, "text": bigger.message(
+                        app, str(b.get("text", ""))[:4000], bool(b.get("report", True)),
+                        str(b.get("mission", ""))[:8000])})
+                if u.path == "/api/bigger/answer":     # the chatbot's answer pasted back
+                    from . import bigger
+                    return self._json(bigger.read_answer(app, str(b.get("text", ""))[:60000]))
                 if u.path == "/api/describe/held":     # the UI took the held plan (or dropped it)
                     app.held_plan = {}
                     return self._json({"ok": True})

@@ -476,13 +476,21 @@ def auto_level(stats: dict) -> str:
     return "strong" if low >= 75 else "medium" if low >= 55 else "light"
 
 
+# "Keep sepia tone": the per-channel stretch and the cast fix can turn a sepia print grey, so
+# the photo is restored as black and white and the warm brown tone is put back at the end (on
+# grey, red stays, green and blue drop a little). Auto-detecting sepia wasn't reliable.
+SEPIA_TONE = "hue=s=0,colorchannelmixer=rr=1:rg=0:rb=0:gr=0:gg=0.89:gb=0:br=0:bg=0:bb=0.72"
+
+
 def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0,
-                         level: str = "strong", cast: bool = True) -> list[str]:
+                         level: str = "strong", cast: bool = True, sepia: bool = False) -> list[str]:
     from .tools import _TURN
     parts = ([_TURN[turn]] if turn in _TURN else []) + [_FIX]
-    if cast:
+    if cast and not sepia:
         parts.append(_CAST)
     parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"]), _FIRST] + [_ROUND if cast else _ROUND_OLD] * ROUNDS
+    if sepia:
+        parts.append(SEPIA_TONE)
     if factor:
         parts.append(f"scale=iw*{factor}:ih*{factor}:flags=lanczos")
     parts += ["cas=0.3", "format=rgb24"]
@@ -500,7 +508,7 @@ def run_true_restore(engine, job, st, files, keys):
     from .doctor import ffmpeg_exe
     from .engine import Stopped
     from .system import no_window_flags
-    from .tools import _finish, jpeg_orientation, option_value, tool_dir
+    from .tools import _finish, chosen_options, jpeg_orientation, option_value, tool_dir
     from .mission import slug
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg:
@@ -532,9 +540,11 @@ def run_true_restore(engine, job, st, files, keys):
                 engine.log(f"  {src.name}: darkest parts at {low:.0f} of 255 -> {level}"
                            if low is not None else f"  {src.name}: couldn't measure it -> {level}")
             ok, err = False, ""
+            sepia = "sepia" in chosen_options(job)
             for cast in (True, False):              # an older FFmpeg: skip the newer filters
                 try:
-                    p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast),
+                    p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast,
+                                                            sepia),
                                        capture_output=True, text=True, timeout=600,
                                        creationflags=no_window_flags())
                     ok = p.returncode == 0 and dest.exists()
@@ -555,7 +565,9 @@ def run_true_restore(engine, job, st, files, keys):
         atomic_write_text(folder / "about.txt",
                           f"# {job.name}\n\nRestored by Joe on {datetime.now():%Y-%m-%d %H:%M}, true to the photo:"
                           "\nfading and color cast undone, grain smoothed, rounds of edge-keeping smoothing + sharpen"
-                          + (f", {factor}x bigger" if factor else "") + ", mild sharpening.\nNothing was "
+                          + (f", {factor}x bigger" if factor else "")
+                          + (", warm sepia tone put back" if "sepia" in chosen_options(job) else "")
+                          + ", mild sharpening.\nNothing was "
                           "redrawn by AI. Scratches, tears and date stamps stay: for those, run it again "
                           "with 'AI repair' (it can change faces).\n")
     except Stopped:

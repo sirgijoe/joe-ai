@@ -371,3 +371,95 @@ def font_file() -> Path | None:
             except OSError:
                 pass
     return next((p for p in spots if p.is_file()), None)
+
+
+# --------------------------------------------------------------------------- priority
+# "Keep my PC usable" (Setup > General): the programs that do the heavy work run at below-normal
+# priority, so the mouse, browser and games stay smooth. They still use the whole graphics card
+# when nothing else wants it; a run only takes a little longer.
+_BELOW_NORMAL = 0x00004000            # Windows BELOW_NORMAL_PRIORITY_CLASS
+_NICE = 10                            # Mac/Linux: 0 = normal, 19 = lowest
+
+
+def pids_on_port(port: int) -> list[int]:
+    """Process ids listening on a local TCP port (the Ollama or ComfyUI server). [] if unknown."""
+    import re as _re
+    try:
+        if WINDOWS:
+            out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True,
+                                 timeout=15, creationflags=no_window_flags()).stdout
+            pids = {int(m.group(1)) for m in _re.finditer(rf"[:.]{port}\s+\S+\s+LISTENING\s+(\d+)", out)}
+        elif shutil.which("lsof"):
+            out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
+                                 capture_output=True, text=True, timeout=15).stdout
+            pids = {int(x) for x in out.split() if x.isdigit()}
+        elif shutil.which("ss"):
+            out = subprocess.run(["ss", "-ltnpH", f"sport = :{port}"], capture_output=True, text=True,
+                                 timeout=15).stdout
+            pids = {int(x) for x in _re.findall(r"pid=(\d+)", out)}
+        else:
+            return []
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return []
+    return sorted(p for p in pids if p > 4)
+
+
+def pids_named(prefix: str) -> list[int]:
+    """Running programs whose name starts with prefix (e.g. 'ollama': its model runners too)."""
+    try:
+        if WINDOWS:
+            out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True,
+                                 timeout=15, creationflags=no_window_flags()).stdout
+            pids = []
+            for line in out.splitlines():
+                cells = [c.strip('"') for c in line.split('","')]
+                if len(cells) > 1 and cells[0].lower().startswith(prefix.lower()) and cells[1].isdigit():
+                    pids.append(int(cells[1]))
+            return pids
+        if shutil.which("pgrep"):
+            out = subprocess.run(["pgrep", "-i", f"^{prefix}"], capture_output=True, text=True,
+                                 timeout=15).stdout
+            return [int(x) for x in out.split() if x.isdigit()]
+    except (OSError, subprocess.SubprocessError, ValueError):
+        pass
+    return []
+
+
+def lower_priority(pid: int) -> bool:
+    """Below-normal priority for one running program. Programs it starts later inherit it."""
+    if pid <= 4:
+        return False
+    if WINDOWS:
+        k32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
+        h = k32.OpenProcess(0x0200 | 0x0400, False, pid)   # SET_INFORMATION | QUERY_INFORMATION
+        if not h:
+            return False
+        try:
+            return bool(k32.SetPriorityClass(h, _BELOW_NORMAL))
+        finally:
+            k32.CloseHandle(h)
+    try:
+        if os.getpriority(os.PRIO_PROCESS, pid) >= _NICE:
+            return True
+        os.setpriority(os.PRIO_PROCESS, pid, _NICE)
+        return True
+    except (OSError, AttributeError):
+        return False
+
+
+def joe_command(sub: str, console: bool = True) -> list[str]:
+    """How another program starts Joe with a command (mcp, tonight): the AppImage itself on
+    Linux (its inside path changes every start), else this Python with Joe.pyw. console=False
+    picks pythonw on Windows, so nothing flashes up at night."""
+    appimage = os.environ.get("APPIMAGE")
+    if appimage and Path(appimage).is_file():
+        return [appimage, sub]
+    exe = Path(sys.executable)
+    if WINDOWS:
+        want = "python.exe" if console else "pythonw.exe"
+        if (exe.parent / want).exists():
+            exe = exe.parent / want
+    pyw = Path(__file__).resolve().parent.parent / "Joe.pyw"
+    if pyw.exists():
+        return [str(exe), str(pyw), sub]
+    return [str(exe), "-m", "joeai", sub]

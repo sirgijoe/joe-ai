@@ -311,6 +311,9 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "Undo fading and color casts, true to the photo.", accepts=COMFY_PHOTO_EXT, needs=("ffmpeg",),
          ready=True,
          options=(Option("colorize", "Add color", False, "Off keeps black and white or sepia."),
+                  Option("sepia", "Keep sepia tone", False,
+                         "For brown-toned old prints: Joe restores it, then puts the warm tone back "
+                         "(otherwise it can come out grey)."),
                   Option("upscale", "Make it bigger and sharper", choices=(
                       ("none", "No"), ("2x", "2x"), ("4x", "4x")), value="2x"),
                   Option("method", "How to restore", choices=(
@@ -325,10 +328,14 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
               "sharper. Nothing is redrawn, so faces stay exactly theirs; it needs FFmpeg only. AI "
               "repair uses the picture editor (about 31 GB, offered once) to also mend scratches, tears "
               "and stamps, and to add color, but it can make someone look like a different person: "
-              "compare with the original before you share it. Your originals are never changed.",
+              "compare with the original before you share it. Your originals are never changed. "
+              "Scanning tips: scan at 300 dpi (600 dpi for small prints and wallet photos), in color "
+              "even for black-and-white photos, with the scanner's auto-correct, auto-color and "
+              "dust removal turned off (Joe does that part), and wipe the glass first.",
          plan_hint="Restore old photos: TYPE: restore-photo, INPUT: the photo file(s)/folder from the "
                    "list below, OPTIONS: upscale none|2x|4x, method true (default) or ai (only if they ask to "
-                   "fix scratches/tears/stamps), strength auto (default)|strong|medium|light, colorize (only "
+                   "fix scratches/tears/stamps), strength auto (default)|strong|medium|light, sepia (only if they "
+                   "say the photo is sepia or brown-toned and want to keep that), colorize (only "
                    "if they want color; uses ai). "
                    "No CHUNKS.",
          examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),
