@@ -111,10 +111,20 @@ def message(app, request: str = "", with_report: bool = True, mission: str = "")
     return _scrub("\n\n".join(parts))
 
 
+def unflatten(block: str) -> str:
+    """Chat windows often lose line breaks when an answer is copied ('TASK: x CHUNKS: 5 x 6
+    FORMAT: ...' on one line). Put each UPPERCASE key back at the start of its own line."""
+    from .mission import KEYS
+    keys = "|".join(re.escape(k) for k in sorted(KEYS, key=len, reverse=True))
+    block = re.sub(r"(===\s*JOE\s+MISSION\s*===)[ \t]*", r"\1\n", block, flags=re.I)
+    block = re.sub(r"[ \t]*(===\s*END\s*===)", r"\n\1", block, flags=re.I)
+    return re.sub(rf"(?<=\S)[ \t]+(?=(?:{keys})[ \t]*:)", "\n", block)
+
+
 def read_answer(app, answer: str) -> dict:
     """The chatbot's answer -> the same result as Joe's own planner (mission + plain summary)."""
     from . import describe as d
-    block = d.extract_block(answer or "")
+    block = unflatten(d.extract_block(answer or ""))
     if not block:
         return {"ok": False, "error": "There's no mission block in that answer. Ask the AI to reply with "
                                       "the block between === JOE MISSION === and === END ===."}

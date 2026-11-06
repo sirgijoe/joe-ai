@@ -252,3 +252,16 @@ def test_settings_save_sets_and_removes_schedule(app, monkeypatch):
     monkeypatch.setattr(schedule, "apply", lambda s, log=None: {"ok": False, "error": "nope"})
     r = app.save_settings({"schedule": {"enabled": True}})
     assert not r["ok"] and not app.settings.schedule.enabled
+
+
+def test_bigger_answer_with_lost_line_breaks(app):
+    flat = ("=== JOE MISSION === RULES: cozy. TASK: Blurbs CHUNKS: 5 x 6 FORMAT: under 40 words.\n"
+            "TASK: Care guide PART: ## First burn. Melt to the edges. PART: ## Safety. Away from pets.\n"
+            "TASK: Prices CHUNKS: 1 x 30 HEADER: Name,Scent,Size SAVE: prices.csv\n"
+            "TASK: Shelf art TYPE: image CHUNKS: 2 x 4 STYLE: watercolor FORMAT: candles, no text. === END ===")
+    r = bigger.read_answer(app, flat)
+    assert r["ok"], r
+    assert "\nTASK: Blurbs\nCHUNKS: 5 x 6\n" in r["mission"] and "\nSAVE: prices.csv\n" in r["mission"]
+    from joeai.mission import parse
+    names = [j.name for j in parse(r["mission"]).jobs]
+    assert names == ["Blurbs", "Care guide", "Prices", "Shelf art"]
