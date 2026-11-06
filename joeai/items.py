@@ -59,6 +59,13 @@ def _one_liner(line: str) -> Item:
     return Item(_strip_md(s)[:60], s)
 
 
+def split_title_line(line: str) -> Item:
+    """A heading that holds a whole item ('Bolt - quick and strong'): name and text split apart;
+    a bare name becomes its own text."""
+    it = _one_liner(line)
+    return it if it.body != it.title else Item(it.title, it.title)
+
+
 def loose_items(text: str) -> list[Item]:
     """For replies without '## Title' lines: blocks that start with a bold line, a numbered
     line or any heading count as items (a model asked for prompts sometimes writes

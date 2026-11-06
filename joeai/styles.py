@@ -226,13 +226,18 @@ def choose_model(models: list, style: str, picks: dict | None = None):
     h = hints(style, picks)
     if not h:
         return []
+    if style in ART_STYLES:
+        # a realism model whose name also says 'pony' or 'anime' (CyberRealistic Pony) draws photos
+        photo = hints("photo", picks)
+        models = [m for m in models if not any(w in m.name.lower() for w in photo)]
+        if not models:
+            return []
     for word in h:
         hit = [m for m in models if word in m.name.lower()]
         if hit:
             return hit
     if style in ART_STYLES:
-        rest = [m for m in models if not any(w in m.name.lower() for w in hints("photo", picks))]
-        return rest if rest and len(rest) < len(models) else []
+        return models                    # no art model installed: anything that isn't a photo model
     return []
 
 

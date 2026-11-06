@@ -29,7 +29,7 @@ from . import media as media_mod
 from .config import Settings
 from .fsutil import atomic_append_text, atomic_write_text
 from .http import HttpError
-from .items import Item, count_words, find_flags, is_duplicate, norm_title, split_items, loose_items
+from .items import Item, count_words, find_flags, is_duplicate, norm_title, split_items, loose_items, split_title_line
 from .mission import Job, Mission, slug
 from .ollama import ChatResult, OllamaClient
 from .power import keep_awake, when_finished
@@ -526,7 +526,9 @@ class Engine:
                         self.log(f"  part {part + 1}: dropped a repeat: {it.title[:80]}")
                     continue
                 if not it.body:
-                    continue
+                    it = split_title_line(it.title)      # '## Bolt - quick and strong' (one-line items)
+                    if not it.body:
+                        continue
                 seen.append(norm_title(it.title))
                 got.append(it)
         if not got:
@@ -985,7 +987,7 @@ class Engine:
                         entry = client.wait(client.submit(g), stop=self.stop)
                         saved = self._save_outputs(client, entry, folder, stem, job, ffmpeg)
                         if style.id == "coloring" and job.type == "image":
-                            saved = self._coloring_pages(folder, saved, ffmpeg)
+                            saved = self._coloring_pages(folder, saved, ffmpeg, styles_mod.for_kids(job))
                         break
                     except InterruptedError:
                         raise Stopped()
@@ -1042,7 +1044,8 @@ class Engine:
         self.log(f"Finished '{job.name}': {st.items} file(s) in {st.output}/ (AI-generated)")
         return st
 
-    def _coloring_pages(self, folder: Path, names: list[str], ffmpeg: str | None) -> list[str]:
+    def _coloring_pages(self, folder: Path, names: list[str], ffmpeg: str | None,
+                        simple: bool = False) -> list[str]:
         """Coloring style: each picture becomes black outlines on white; the colored original
         is kept next to it as '<name>_example.png' (a guide for colors)."""
         if not ffmpeg:
@@ -1056,7 +1059,7 @@ class Engine:
                 continue
             ex = src.with_name(f"{src.stem}_example{src.suffix}")
             src.replace(ex)
-            if media_mod.line_art(ffmpeg, ex, src):
+            if media_mod.line_art(ffmpeg, ex, src, simple):
                 out += [n, ex.name]
             else:
                 ex.replace(src)

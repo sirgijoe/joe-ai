@@ -1185,6 +1185,26 @@ def proof_chunks(text: str, words: int = PROOF_WORDS) -> list[str]:
     return out
 
 
+def proof_halves(engine, job, ci: int, system: str, wish: str, chunk: str, st) -> list[dict] | None:
+    """Proofread a part that keeps failing as two smaller halves (split at a paragraph)."""
+    paras = chunk.strip().split("\n\n")
+    if len(paras) < 2:
+        return None
+    mid = len(paras) // 2
+    out: list[dict] = []
+    for half in ("\n\n".join(paras[:mid]), "\n\n".join(paras[mid:])):
+        try:
+            r = engine._chat(job, ci, "proofread", system,
+                             f"{wish}{PROOF_ASK}\n<<<\n{half}\n>>>\n\nReply with ONLY the JSON array.", st)
+        except PartFailed:
+            return None
+        got = parse_changes(r.text)
+        if got is None:
+            return None
+        out += got
+    return out
+
+
 def parse_changes(raw: str) -> list[dict] | None:
     """The model's JSON list of fixes, or None if the reply isn't one."""
     import json
@@ -1193,10 +1213,23 @@ def parse_changes(raw: str) -> list[dict] | None:
     a, b = raw.find("["), raw.rfind("]")
     if a < 0 or b < a:
         return None
-    try:
-        arr = json.loads(raw[a:b + 1])
-    except json.JSONDecodeError:
-        return None
+    body = raw[a:b + 1]
+    arr = None
+    for text in (body, re.sub(r'\\(?![\\"/bfnrtu])', r"\\\\", body)):   # stray backslashes (C:\Users)
+        try:
+            arr = json.loads(text, strict=False)
+            break
+        except json.JSONDecodeError:
+            continue
+    if arr is None:                                # one broken entry: keep the ones that parse
+        arr = []
+        for m in re.finditer(r"\{[^{}]*\}", body):
+            try:
+                arr.append(json.loads(re.sub(r'\\(?![\\"/bfnrtu])', r"\\\\", m.group(0)), strict=False))
+            except json.JSONDecodeError:
+                pass
+        if not arr and re.search(r"\{", body):
+            return None
     if not isinstance(arr, list):
         return None
     return [{"find": o["find"], "replace": o["replace"], "why": str(o.get("why") or "").strip()[:120]}
@@ -1353,6 +1386,8 @@ def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                             st.retries += 1
                     except PartFailed as e:
                         engine.log(f"  {src.name} part {ci + 1}: {e}")
+                    if changes is None:                  # last try: the part in two halves
+                        changes = proof_halves(engine, job, ci, system, wish, chunk, st)
                     if changes is None:
                         skipped.append(ci + 1)
                         changes = []

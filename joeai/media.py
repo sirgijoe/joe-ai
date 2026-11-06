@@ -107,9 +107,14 @@ def white_share(ffmpeg: str, src: Path) -> float:
     return sum(1 for v in px if v > 200) / len(px) if px else 0.0
 
 
-def line_art(ffmpeg: str, src: Path, dest: Path) -> bool:
-    """Make a black-and-white coloring page from a picture with FFmpeg."""
-    vf = LINES_VF if white_share(ffmpeg, src) >= 0.55 else EDGES_VF
+# Kids' pages: blur more first so only the big shapes get outlines (no speckle and grass noise).
+EDGES_SIMPLE_VF = ("format=gbrp,gblur=sigma=3.5,edgedetect=low=0.12:high=0.30,format=gray,"
+                   "lut=c0='if(gt(val,30),0,255)',erosion,erosion")
+
+
+def line_art(ffmpeg: str, src: Path, dest: Path, simple: bool = False) -> bool:
+    """Make a black-and-white coloring page from a picture with FFmpeg (simple: kids' pages)."""
+    vf = LINES_VF if white_share(ffmpeg, src) >= 0.55 else (EDGES_SIMPLE_VF if simple else EDGES_VF)
     return _run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vf", vf, "-frames:v", "1", str(dest)]) \
         and dest.exists()
 
