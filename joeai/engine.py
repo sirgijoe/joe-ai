@@ -75,6 +75,10 @@ Rules that always apply:
 VIDEO_EXTRA = """- This is for a short VIDEO clip, so something must clearly MOVE the whole time.
   Start the prompt with the motion: what moves, how, and how the camera moves (slow push-in,
   orbit, pan, rising crane). Use moving verbs: drifting, swaying, rippling, turning, opening.
+- ONE main subject doing ONE clear motion with its whole body (walking, flying across,
+  spinning, pouring), plus one slow camera move so the background moves too. Never list several
+  separate things that each move a little: the video model moves one of them and freezes the rest.
+  Keep the scene simple: few objects, no crowds, no small busy details.
 - Avoid words that make the clip freeze: still, static, calm, motionless, frozen, painting,
   illustration, watercolor, photo, portrait. Ask for a cinematic, realistic look instead."""
 IMAGE_FORMAT = "## <short title>, then ONE paragraph that is the image prompt itself."
@@ -460,6 +464,10 @@ class Engine:
     # Jobs where a smaller model makes real mistakes: they always use the best model,
     # even on Low quality.
     BEST_MODEL_KINDS = frozenset({"proofread", "translate", "ask-files", "ask-summary"})
+    # Jobs whose reply can't be much longer than the text sent: the reply is capped, so a model
+    # that starts repeating itself stops in a few minutes instead of hitting the 10-min timeout
+    # (big test 2026-11-05: one proofread call still hung 10 min with thinking off).
+    CAPPED_KINDS = frozenset({"proofread", "translate"})
 
     def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState,
               images: list[str] | None = None, model: str = "") -> ChatResult:
@@ -471,6 +479,7 @@ class Engine:
             or self.s.ollama.text_model
         think = None if images else ((quality_mod.writing(self.s).think or None)
                                      if kind in self.THINK_KINDS else False)
+        cap = len(user) // 2 + 2048 if kind in self.CAPPED_KINDS else None
         last_err = None
         for attempt in range(1, self.s.engine.max_retries + 1):
             if self.stop.is_set():
@@ -480,7 +489,7 @@ class Engine:
                 if images:
                     ask["images"] = images
                 r = self.client.chat([{"role": "system", "content": system}, ask], model=model,
-                                     think=think)
+                                     think=think, **({"max_tokens": cap} if cap else {}))
                 st.tokens_in += r.prompt_tokens
                 st.tokens_out += r.output_tokens
                 st.model_seconds += r.seconds
@@ -942,7 +951,8 @@ class Engine:
                         ks[key] = ls[k]
                 self._lora_used = True
                 label += f" + {lora}"
-                self.log(f"  Style add-on: {lora}")
+                self.log(f"  Style add-on: {lora}" + (f" (its own settings: {ks['steps']} steps)"
+                                                       if "steps" in ls else ""))
         return g, api_name(m), m.family, label
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:

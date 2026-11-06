@@ -132,12 +132,18 @@ STYLES = {
                           "STYLE: illustration. Describe it as a drawn or painted illustration: simple clear "
                           "shapes, clean outlines, a limited color palette, soft even light. No camera or lens "
                           "words.", "illustration, clean shapes", NEG_ART),
-    "character": Style("character", "Mascot / character",
-                       "STYLE: character design. One character, full body, plain light background, the same "
-                       "design in every prompt (repeat its colors and features exactly), friendly simple "
-                       "shapes, clean outlines. No camera or lens words.",
-                       "character design, full body, plain background",
-                       NEG_ART + ", busy background, multiple characters, crowd"),
+    "character": Style("character", "Mascot (brand character)",
+                       "STYLE: mascot, a brand's own cartoon character with a personality. One original "
+                       "character, full body, DOING something with a clear expression (waving, cheering, "
+                       "jumping, thumbs up, holding or using the thing the task is about). A different pose "
+                       "and action in every prompt, but the same design: repeat its body shape, colors, "
+                       "outfit and features exactly. Bold simple shapes, thick clean outlines, flat bright "
+                       "colors, plain light background. Not an icon, badge, logo or head-only avatar. If the "
+                       "task asks for a character sheet or turnaround, show the same character three times "
+                       "side by side: front, side and back view. No camera or lens words.",
+                       "mascot character, full body, dynamic pose, expressive, cartoon",
+                       NEG_ART + ", busy background, crowd, icon, badge, logo, emblem, avatar, head only, "
+                       "portrait crop, circle frame"),
     "product": Style("product", "Product shot",
                      "STYLE: studio product photo. The item alone, centered, on a clean seamless background, "
                      "softbox lighting with a gentle shadow, sharp focus, 70-100mm lens, true colors.",

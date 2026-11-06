@@ -1242,7 +1242,7 @@ _QUOTES = {"'": "['‘’]", '"': "[\"“”]", "‘": "['‘’]",
            "-": "[-–—]", "–": "[-–—]", "—": "[-–—]"}
 
 
-def loose_find(text: str, find: str):
+def loose_find(text: str, find: str, ignore_case: bool = False):
     """Where `find` is in `text` when only spacing, line breaks, curly vs straight quotes
     or dash kinds differ (the model retypes the words it quotes). One match only."""
     parts = []
@@ -1254,7 +1254,7 @@ def loose_find(text: str, find: str):
             parts.append(_QUOTES.get(ch, re.escape(ch)))
     if not parts:
         return None
-    found = list(re.finditer("".join(parts), text))
+    found = list(re.finditer("".join(parts), text, re.I if ignore_case else 0))
     return found[0] if len(found) == 1 else None
 
 
@@ -1263,10 +1263,25 @@ _LABEL_ONLY = re.compile(r"^\s*(?:spelling|grammar|punctuation|capitali[sz]ation
                          r"wording|word choice|repeated words?|missing words?)\s*[.:]?\s*$", re.I)
 
 
+# "unsure: possibly missing word" with no word named: noise (big test: 3 of 3 were fine sentences)
+_VAGUE_MISSING = re.compile(r"^\s*(?:unsure:\s*)?(?:possibly|maybe|perhaps|might be|could be)?\s*"
+                            r"(?:an?\s+)?missing\s+(?:an?\s+)?words?\b(?!\s*['\"‘“])", re.I)
+
+
 def is_doubt(why: str) -> bool:
     """A no-change entry worth showing: it says what might be wrong (not just 'spelling')."""
     why = (why or "").strip()
+    if _VAGUE_MISSING.match(why):
+        return False
     return bool(why) and not _LABEL_ONLY.match(why) and bool(_DOUBT.search(why.lower()) or len(why) > 25)
+
+
+def _same_case(original: str, new: str) -> str:
+    """`new` with its first letter in the case `original` has (the model often lowercases the
+    start of what it quotes)."""
+    if original[:1].isalpha() and new[:1].isalpha():
+        return (new[0].upper() if original[0].isupper() else new[0].lower()) + new[1:]
+    return new
 
 
 def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[str, list, list, list]:
@@ -1280,6 +1295,15 @@ def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[s
             m = loose_find(text, f)
             if m:
                 pos, f = m.start(), m.group(0)
+        if pos < 0 and f != r:
+            m = loose_find(text, f, ignore_case=True)
+            if m:
+                found = m.group(0)
+                rest = text[m.start():m.start() + len(r)]
+                if found.lower() == r.lower() or " ".join(rest.split()).lower() == " ".join(r.split()).lower():
+                    continue                      # the text already says that: nothing to fix
+                pos, f, r = m.start(), found, _same_case(found, r)
+                c = dict(c, replace=r)
         par = first_par + (len(re.findall(r"\n[ \t]*\n", text[:pos])) if pos >= 0 else 0)
         c = dict(c, par=par if pos >= 0 else 0)
         if f == r:

@@ -112,9 +112,38 @@ EDGES_SIMPLE_VF = ("format=gbrp,gblur=sigma=3.5,edgedetect=low=0.12:high=0.30,fo
                    "lut=c0='if(gt(val,30),0,255)',erosion,erosion")
 
 
+def color_share(ffmpeg: str, src: Path) -> tuple[float, float]:
+    """(near-white share 0-1, average color strength 0-255) from a 256x256 copy. At 64x64 thin
+    lines blur into gray, so a finished line drawing looked 'filled in' (big test 2026-11-05:
+    the outline step then drew lines around every line: far too heavy)."""
+    try:
+        p = subprocess.run([ffmpeg, "-v", "error", "-i", str(src), "-vf", "scale=256:256,format=rgb24",
+                            "-frames:v", "1", "-f", "rawvideo", "-"], capture_output=True, timeout=120,
+                           creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
+    except (OSError, subprocess.SubprocessError):
+        return 0.0, 255.0
+    px = p.stdout or b""
+    n = len(px) // 3
+    if not n:
+        return 0.0, 255.0
+    white = sat = 0
+    for i in range(0, n * 3, 3):
+        r, g, b = px[i], px[i + 1], px[i + 2]
+        if r * 299 + g * 587 + b * 114 > 200_000:
+            white += 1
+        sat += max(r, g, b) - min(r, g, b)
+    return white / n, sat / n
+
+
+def is_line_drawing(ffmpeg: str, src: Path) -> bool:
+    """Already black lines on white (keep its lines, only strip gray/tint)."""
+    white, sat = color_share(ffmpeg, src)
+    return white >= 0.55 or (white >= 0.35 and sat < 12)
+
+
 def line_art(ffmpeg: str, src: Path, dest: Path, simple: bool = False) -> bool:
     """Make a black-and-white coloring page from a picture with FFmpeg (simple: kids' pages)."""
-    vf = LINES_VF if white_share(ffmpeg, src) >= 0.55 else (EDGES_SIMPLE_VF if simple else EDGES_VF)
+    vf = LINES_VF if is_line_drawing(ffmpeg, src) else (EDGES_SIMPLE_VF if simple else EDGES_VF)
     return _run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vf", vf, "-frames:v", "1", str(dest)]) \
         and dest.exists()
 

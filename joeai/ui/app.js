@@ -1211,7 +1211,7 @@ const PIC_STYLES = [["", "Joe decides"], ["photo", "Photo"], ["bw", "Black and w
   ["painting", "Painting"], ["watercolor", "Watercolor"], ["concept", "Concept art"], ["fantasy", "Fantasy"],
   ["render3d", "3D render"], ["scifi", "Sci-fi"], ["cyberpunk", "Cyberpunk"], ["cartoon", "Cartoon"], ["comic", "Comic book"],
   ["pixel", "Pixel art"], ["surreal", "Surreal"], ["abstract", "Abstract"], ["illustration", "Illustration / flat"],
-  ["character", "Mascot / character"], ["product", "Product shot"], ["coloring", "Coloring page"]];
+  ["character", "Mascot (brand character)"], ["product", "Product shot"], ["coloring", "Coloring page"]];
 function field(label, html, hint, tip) {
   return `<label${tip ? ` title="${esc(tip)}"` : ""}>${label} ${html}</label>${hint ? `<div class="hint">${hint}</div>` : ""}`;
 }
