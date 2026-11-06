@@ -224,6 +224,16 @@ def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = 
                 except OSError:
                     gb = 0.0
                 other.append({"name": f.relative_to(root).as_posix(), "what": what, "size_gb": gb})
+    ck = (models_dir / "checkpoints") if models_dir else None
+    if ck and ck.is_dir():                       # music, sound and 3D models live with the checkpoints
+        for f in sorted(ck.rglob("*")):
+            if f.is_file() and comfy.is_tool_model(f.name):
+                try:
+                    gb = round(f.stat().st_size / 2**30, 2)
+                except OSError:
+                    gb = 0.0
+                other.append({"name": f.relative_to(ck).as_posix(), "what": "Tool model (music, sound or 3D)",
+                              "size_gb": gb})
     unsafe = [x["name"] for x in pics + addons + other if comfy.is_pickle(x["name"])]
     return {"unsafe": unsafe,
             "writing": [{"name": m["name"], "size_gb": m["size_gb"], "params": m.get("params", ""),

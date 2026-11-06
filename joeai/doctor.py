@@ -323,13 +323,18 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                            "what": "moving the downloaded model into ComfyUI"})
     if (comfy_exe or comfy_up) and mdir:
         from . import picturetools
-        for pid in ("bg", "upscale", "edit", "music", "sfx"):
+        for pid in ("bg", "upscale", "edit", "music", "sfx", "flux2", "sketch", "illusion",
+                    "video-restyle", "3d"):
             if not picturetools.pack_ready(mdir, pid):
                 used = {"bg": "Remove background", "upscale": "sharper, bigger pictures",
                         "edit": "Edit a picture, AI photo repair and the other picture tools",
-                        "music": "music", "sfx": "sound effects"}[pid]
-                issues.append({"id": f"pack-{pid}", "text": f"For {used} (Tools tab): "
-                               f"{picturetools.pack_offer(pid)}.", "action": "download-pack",
+                        "music": "music", "sfx": "sound effects",
+                        "flux2": "better hands, faces and words in Joe's pictures",
+                        "sketch": "Sketch to picture", "illusion": "Hidden-picture illusions",
+                        "video-restyle": "Restyle a video", "3d": "Picture to 3D model"}[pid]
+                where = "" if pid == "flux2" else " (Tools tab)"
+                issues.append({"id": f"pack-{pid}", "text": f"For {used}{where}: "
+                               f"{picturetools.pack_offer(pid, mdir)}.", "action": "download-pack",
                                "pack": pid, "optional": True, "what": picturetools.PACKS[pid].label})
     from . import addons as addons_mod
     if oll_up and omodels:
@@ -600,6 +605,10 @@ def model_kind(issue_id: str) -> str:
         return "video"
     if i in ("pack-music", "pack-sfx"):
         return "sound"
+    if i == "pack-flux2":
+        return "pictures"
+    if i == "pack-video-restyle":
+        return "video"
     if i.startswith("pack-"):
         return "tools"
     if i.startswith("refresh-"):

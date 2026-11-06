@@ -55,6 +55,7 @@ WHISPER_CODES = {"spanish": "es", "french": "fr", "german": "de", "italian": "it
 HEAR_LANGUAGES = (("english", "English"), ("auto", "Find out by itself")) + tuple(
     (v, n) for v, n in LANGUAGES if v != "english")
 COMFY_PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp")     # what ComfyUI's LoadImage reads
+VIDEO_TOOL_EXT = (".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v")
 UPLOAD_MAX_BYTES = 8 * 1024 ** 3                  # 8 GB per file for the Tools form
 
 
@@ -89,6 +90,8 @@ class Tool:
     mark: bool = False                   # takes WATERMARK: (text or a logo .png), only if asked
     extra_label: str = ""                # the form's "Anything else?" box, named for this tool
 
+
+from .makers import LOOKS, NO_INPUT_OK, PATTERNS as ILLUSION_PATTERNS  # noqa: E402  (batch 3 tools' choices)
 
 # light name -> (label, words for the editor)
 RELIGHTS = {
@@ -448,6 +451,55 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          plan_hint="Character turnaround (front/side/back views): TYPE: character-spin, INPUT: one "
                    "picture of the character. No CHUNKS, no OPTIONS.",
          examples=("Make a turnaround sheet of my mascot", "Show my character from every side")),
+    Tool("sketch-to-picture", "Sketch to picture", "Pictures",
+         "Your drawing, finished by the AI.", accepts=COMFY_PHOTO_EXT, needs=("comfy", "sdxl"), ready=True,
+         options=(Option("look", "Look", choices=tuple((k, v[0]) for k, v in LOOKS.items()), value="auto"),
+                  Option("follow", "How closely to follow your lines", choices=(
+                      ("close", "Closely"), ("some", "Some freedom"), ("loose", "Loosely (just the idea)")),
+                         value="some"),
+                  Option("lines", "Your drawing is", choices=(
+                      ("rough", "A rough sketch or doodle"), ("clean", "Clean line art")), value="rough")),
+         help="Add a drawing (a photo or scan of paper is fine) and say what it is. Joe keeps your "
+              "shapes and layout and paints a finished picture over them. Uses ControlNet Union SDXL "
+              "(Apache-2.0, about 2.5 GB, offered once) with the SDXL picture models Joe already uses; "
+              "about 30 seconds a picture. Your originals are never changed.",
+         plan_hint="Finish a sketch or drawing into a picture: TYPE: sketch-to-picture, INPUT: the drawing "
+                   "file(s), OPTIONS: look auto|" + "|".join(k for k in LOOKS if k != "auto")
+                   + ", follow close|some|loose, lines rough|clean, FORMAT: what the drawing shows. No CHUNKS.",
+         examples=("Turn my sketch of a castle into a real painting", "Finish my kid's drawing as a cartoon"),
+         extra_label="What does the drawing show?", extra_hint="e.g. a red dragon sleeping on a pile of gold"),
+    Tool("illusion-art", "Hidden-picture illusion", "Pictures",
+         "A scene with a shape or word hidden in it.", accepts=COMFY_PHOTO_EXT, needs=("comfy", "sdxl"),
+         ready=True,
+         options=(Option("hidden", "Hide", choices=tuple((k, v[0]) for k, v in ILLUSION_PATTERNS.items()),
+                         value="spiral"),
+                  Option("show", "How easy to see", choices=(
+                      ("hidden", "Hidden (squint to see it)"), ("clear", "Clear"), ("bold", "Bold")), value="clear"),
+                  Option("look", "Look", choices=tuple((k, v[0]) for k, v in LOOKS.items()), value="auto"),
+                  Option("versions", "Versions", choices=(("1", "1"), ("2", "2"), ("4", "4")), value="2")),
+         help="Write the scene (a village, a forest, clouds). Joe hides a spiral, circles, a word or "
+              "your own black-and-white shape or logo in it, so it pops out when you squint or step "
+              "back. For a word, add a line like  word: JOE  (14 letters at most). Uses QR Code Monster "
+              "SDXL (OpenRAIL++, about 5 GB, offered once) with the SDXL picture models Joe already "
+              "uses; about 30 seconds a picture. Every version looks different: pick the best one.",
+         plan_hint="Hidden-picture illusion art: TYPE: illusion-art, INPUT: a black-and-white shape/logo "
+                   "picture (only for hidden picture), OPTIONS: hidden " + "|".join(ILLUSION_PATTERNS)
+                   + ", show hidden|clear|bold, versions 1|2|4, FORMAT: the scene, plus a line 'word: TEXT' "
+                     "for a hidden word. No CHUNKS.",
+         examples=("Hide the word JOE in a forest picture", "Make a spiral illusion of a medieval village"),
+         extra_label="The scene (and word: TEXT to hide a word)",
+         extra_hint="e.g. a cozy mountain village in winter\nword: JOE"),
+    Tool("make-3d", "Picture to 3D model", "Pictures",
+         "One picture in, a 3D model (.glb) out.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         help="Works best with one object or character, whole and in the middle, on a plain "
+              "background (Joe cuts it out when the background remover is installed). Makes the shape "
+              "only: a plain white model, ready to paint or print. Opens in Windows 3D Viewer, Blender, "
+              "Unity and Unreal. Uses Hunyuan3D 2.1 (about 4.6 GB, offered once; Tencent's community "
+              "license, which does not cover the European Union, the United Kingdom or South Korea); "
+              "about 1-2 minutes a model. Your originals are never changed.",
+         plan_hint="Turn pictures of an object/character into 3D models (.glb): TYPE: make-3d, INPUT: the "
+                   "picture file(s). No CHUNKS, no OPTIONS, no FORMAT.",
+         examples=("Make a 3D model from my mascot drawing", "Turn this photo of my mug into a 3D model")),
     Tool("animate-photo", "Animate a photo", "Video",
          "Turn one of your photos into a short clip.", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
          ready=True,
@@ -459,6 +511,30 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "list below, FORMAT: the motion they want (optional). No CHUNKS, no OPTIONS.",
          examples=("Make this photo move", "Animate my product photo with a slow turn"),
          extra_label="What should move? (optional)", extra_hint="e.g. steam rising from the mug, slow camera push-in"),
+    Tool("restyle-video", "Restyle a video", "Video",
+         "Same motion, new look: anime, watercolor...", accepts=VIDEO_TOOL_EXT + COMFY_PHOTO_EXT,
+         needs=("comfy", "ffmpeg"), ready=True,
+         options=(Option("style", "New look", choices=tuple((k, v[0]) for k, v in RESTYLES.items()
+                                                             if k != "picture") + (("own", "My words below"),),
+                         value="anime"),
+                  Option("length", "How much of the video", choices=(
+                      ("5", "First 5 seconds"), ("10", "First 10 seconds"), ("20", "First 20 seconds"),
+                      ("30", "First 30 seconds")), value="5"),
+                  Option("follow", "Follow the original", choices=(
+                      ("close", "Closely (every outline)"), ("loose", "Loosely (main shapes only)")),
+                         value="close")),
+         help="Add a video (and, if you like, one picture whose look it should take). Joe traces the "
+              "outlines of every frame and the AI paints a new video over them: same moves, new look. "
+              "Works in 5-second pieces that are joined at the end; the original sound is put back. "
+              "Uses Wan 2.2 Fun Control 5B (Apache-2.0, about 10 GB more when Joe's video model is "
+              "installed, offered once). Slow: several minutes for every 5 seconds. Your originals are "
+              "never changed.",
+         plan_hint="Restyle a video (keep its motion, change its look): TYPE: restyle-video, INPUT: the video "
+                   "file (+ optional picture to copy the look from), OPTIONS: style "
+                   + "|".join(k for k in RESTYLES if k != "picture") + "|own, length 5|10|20|30, "
+                   "follow close|loose, FORMAT: the look in their words (needed for own). No CHUNKS.",
+         examples=("Make my dance video look like anime", "Turn this clip into a watercolor painting"),
+         extra_label="The new look (optional)", extra_hint="e.g. a claymation world with soft colors"),
     Tool("music", "Music and sound effects", "Audio",
          "Background music and short jingles.", needs=("comfy",), ready=True,
          options=(Option("kind", "Make", choices=(("music", "Music (instrumental)"),
@@ -494,6 +570,7 @@ def catalog() -> list[dict]:
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
              "needs": list(t.needs), "extra_hint": t.extra_hint, "mark": t.mark,
              "packs": list(_packs_for(t.id)),
+             "no_input": t.id in NO_INPUT_OK,
              "extra_label": t.extra_label,
              "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint,
                           "choices": [list(c) for c in o.choices], "value": o.value, "multi": o.multi}
@@ -3090,6 +3167,10 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type in COMFY_GUESS_S:
         from .picturetools import pieces_from
         n = len(pieces_from(job.format)) if job.type == "music" else len(files)
+        if job.type == "illusion-art":
+            n = max(1, n) * int(option_value(job, "versions") or 2)
+        elif job.type == "restyle-video":
+            n = max(1, n) * max(1, int(option_value(job, "length") or 5) // 5)
         secs += n * speeds.get(job.type, COMFY_GUESS_S[job.type])
     return {"files": len(files), "seconds": secs, "problems": problems}
 
@@ -3097,7 +3178,8 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
 COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 120.0, "restore-photo": 150.0,
                  "animate-photo": 240.0, "music": 60.0, "fix-spot": 120.0, "merge-pictures": 150.0,
                  "relight": 120.0, "restyle": 120.0, "redraw": 120.0, "make-bigger": 150.0,
-                 "character-scenes": 120.0, "character-spin": 720.0}
+                 "character-scenes": 120.0, "character-spin": 720.0, "sketch-to-picture": 40.0,
+                 "illusion-art": 40.0, "make-3d": 120.0, "restyle-video": 600.0}
 
 
 def needs_problem(settings, job: "Job") -> str:
@@ -3120,11 +3202,14 @@ def needs_problem(settings, job: "Job") -> str:
         if not mdir:
             return (f"Task '{job.name}': {tool.name.lower()} needs ComfyUI. Setup (F10) > "
                     "System check installs it.")
+        if "sdxl" in tool.needs and not sdxl_installed(mdir):
+            return (f"Task '{job.name}': {tool.name.lower()} needs an SDXL picture model. Setup (F10) > "
+                    "Models offers one.")
         missing = [p for p in picturetools.needed_packs(job.type, {kind} if kind else set())
                    if not picturetools.pack_ready(mdir, p)]
         if missing:
             return (f"Task '{job.name}': {tool.name.lower()} needs "
-                    + " and ".join(picturetools.pack_offer(p) for p in missing)
+                    + " and ".join(picturetools.pack_offer(p, mdir) for p in missing)
                     + ". Setup (F10) > System check > DOWNLOAD, or the button on the Tools form.")
     if "voice" in tool.needs:
         from .addons import voice_python
@@ -3132,6 +3217,11 @@ def needs_problem(settings, job: "Job") -> str:
             return (f"Task '{job.name}': {tool.name.lower()} needs Joe's voice add-on first. "
                     "Setup (F10) > System check > \"Joe's voice\" > SET UP.")
     return ""
+
+
+def sdxl_installed(mdir) -> bool:
+    from . import comfy
+    return any(m.family == "sdxl" and m.folder == "checkpoints" for m in comfy.scan_models(mdir))
 
 
 # --------------------------------------------------------------------------- readiness
@@ -3157,6 +3247,10 @@ def tool_status(have: dict) -> list[dict]:
         elif "comfy" in t.needs:
             if not have.get("comfy"):
                 why = "needs ComfyUI"
+            elif "sdxl" in t.needs and have.get("sdxl") is False:
+                why = "needs an SDXL picture model"
+            elif "ffmpeg" in t.needs and not have.get("ffmpeg"):
+                why = "needs FFmpeg"
             else:
                 missing = [p for p in needed_packs(t.id) if not (packs.get(p) or {}).get("ready")]
                 if missing:

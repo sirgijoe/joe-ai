@@ -112,6 +112,18 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   - **Animate a photo**: a 5-second clip that starts from your photo (Wan 2.2, the video model).
   - **Music and sound effects**: instrumental tracks (ACE-Step 1.5, MIT) or sound effects
     (Stable Audio Open 1.0: free under US$1 million revenue a year), one per line, as MP3.
+  - **Sketch to picture**: your drawing (a phone photo of paper is fine) finished as a photo,
+    painting, anime, cartoon... keeping your shapes (ControlNet Union SDXL, Apache-2.0, 2.5 GB).
+  - **Hidden-picture illusion**: a scene with a spiral, a word or your own logo hidden in it
+    (QR Code Monster SDXL, OpenRAIL++, 5 GB).
+  - **Picture to 3D model**: one picture of an object or character in, a `.glb` shape out
+    (Hunyuan3D 2.1, about 4.6 GB; Tencent's community license, not for the EU, UK or South Korea).
+  - **Restyle a video**: same motion, new look (anime, watercolor, your words), in 5-second
+    pieces joined at the end, original sound kept (Wan 2.2 Fun Control 5B, Apache-2.0, about 10 GB
+    more on top of the video model).
+- **Better words in pictures**: with FLUX.2 [klein] 4B installed (Apache-2.0, about 16 GB, offered
+  in Setup > Models), Joe uses it by himself for pictures with words in them (a sign, a poster
+  title), or for every picture when you pick it in Setup > Workflows.
 - Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
   website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".

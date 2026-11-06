@@ -15,11 +15,16 @@ FIELDS = ("model", "add", "avoid", "steps")
 # id -> (group, label, what it covers, can pick a model, can set steps)
 BUILTIN = {
     "pictures": ("Joe's built-in", "Pictures (every style)", "Joe's own text-to-picture graph, used by every picture task "
-                 "that has no workflow file. A picture style's own settings below come first.", True, True),
+                 "that has no workflow file. A picture style's own settings below come first. Pick the "
+                 "FLUX.2 klein model to use it for every picture.", True, True),
     "video": ("Joe's built-in", "Video clips", "Wan 2.2 video tasks (and black-and-white video).", False, False),
     "editor": ("Joe's built-in", "Picture editor tools", "Edit a picture, AI photo repair, Fix one spot, Put pictures "
                "together, Change the lighting, Redraw, Make it bigger, character tools.", False, False),
     "animate": ("Joe's built-in", "Animate a photo", "Photo-to-clip (Wan 2.2).", False, False),
+    "controlnet": ("Joe's built-in", "Sketch to picture and illusions", "The SDXL model and steps for Sketch to "
+                   "picture and Hidden-picture illusion (ControlNet).", True, True),
+    "restyle-video": ("Joe's built-in", "Restyle a video", "Wan 2.2 Fun Control: keeps a video's motion, "
+                      "changes its look.", False, False),
     "music": ("Joe's built-in", "Music", "ACE-Step music tracks.", False, False),
     "sfx": ("Joe's built-in", "Sound effects", "Stable Audio Open sound effects.", False, False),
 }
@@ -78,7 +83,7 @@ def with_avoid(text: str, prefs: dict) -> str:
 def entries(settings, sb, models_dir: Path | None) -> dict:
     """Everything Setup > Workflows shows."""
     from . import comfy, styles
-    pics = [m.name for m in comfy.scan_models(models_dir) if m.folder == "checkpoints"]
+    pics = [m.name for m in comfy.scan_models(models_dir) if m.folder == "checkpoints" or m.family == "flux2"]
     rows = []
     for wid, (group, label, about, can_model, can_steps) in BUILTIN.items():
         rows.append({"id": wid, "group": group, "label": label, "about": about, "model_ok": can_model,

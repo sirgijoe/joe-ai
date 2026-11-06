@@ -72,14 +72,14 @@ def kind_mismatch(request: str, mission_text: str) -> str:
     types = {t.lower() for t in types}
     if _ABOUT_MEDIA.search(request):
         return ""
-    if _WANTS_VIDEO.search(request) and not types & {"video", "animate-photo"}:
+    if _WANTS_VIDEO.search(request) and not types & {"video", "animate-photo", "restyle-video"}:
         return ("the person asked for a video, but your mission has no TYPE: video task (it only "
                 "writes text). Make it a TYPE: video task: CHUNKS: 1 x clips (1 unless they asked "
                 "for more), FORMAT: what happens in the clip")
     if _WANTS_PICS.search(request) and not _WANTS_VIDEO.search(request) and not types & {
             "image", "remove-bg", "edit-picture", "restore-photo", "photo-batch", "photo-listing",
             "fix-spot", "merge-pictures", "relight", "restyle", "redraw", "make-bigger", "character-scenes",
-            "character-spin",
+            "character-spin", "sketch-to-picture", "illusion-art", "make-3d",
             "sort-photos", "read-scans"}:
         return ("the person asked for pictures, but your mission has no TYPE: image task (it only "
                 "writes text). Make it a TYPE: image task: CHUNKS: parts x pictures, FORMAT: subject and style")
@@ -125,9 +125,10 @@ def quality_offer(settings, request: str, block: str) -> dict | None:
         m = re.search(r"(?m)^TYPE:\s*([\w-]+)", t)
         typ = (m.group(1).lower() if m else "text")
         if typ in ("image", "edit-picture", "remove-bg", "restore-photo", "fix-spot", "merge-pictures",
-                   "relight", "restyle", "redraw", "make-bigger", "character-scenes", "character-spin"):
+                   "relight", "restyle", "redraw", "make-bigger", "character-scenes", "character-spin",
+                   "sketch-to-picture", "illusion-art", "make-3d"):
             kinds.append("pictures")
-        elif typ in ("video", "animate-photo"):
+        elif typ in ("video", "animate-photo", "restyle-video"):
             kinds.append("video")
         elif typ in ("text", "code"):
             kinds.append("writing")
@@ -294,6 +295,24 @@ def _plain_summary(chk: dict) -> list[str]:
                     "make-bigger": f"Make {_n(n, 'picture', 'pictures')} {pick('shape', 'wider')}",
                     "character-scenes": f"The same character in {_n(len(scenes), 'scene', 'scenes')}",
                     "character-spin": f"{len(SPIN_VIEWS)} views of the character + a sheet",
+                }[t]
+                out.append(f"{line}: {name}")
+            elif t in ("sketch-to-picture", "illusion-art", "make-3d", "restyle-video"):
+                o = j.get("options") or []
+                pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731
+                from .makers import LOOKS, PATTERNS
+                from .tools import RESTYLES
+                look = LOOKS.get(pick("look", "auto"), ("",))[0].lower()
+                line = {
+                    "sketch-to-picture": f"Finish {_n(n, 'drawing', 'drawings')} into pictures"
+                                         + (f" ({look})" if pick("look", "auto") != "auto" else ""),
+                    "illusion-art": f"{pick('versions', '2')} hidden-picture illusion(s): "
+                                    + PATTERNS.get(pick("hidden", "spiral"), ("spiral",))[0].split(" (")[0].lower(),
+                    "make-3d": f"Turn {_n(n, 'picture', 'pictures')} into 3D models (.glb)",
+                    "restyle-video": f"Restyle {_n(n, 'file', 'files')} as "
+                                     + (RESTYLES.get(pick("style", "anime"), ("your look",))[0].lower()
+                                        if pick("style", "anime") != "own" else "your look")
+                                     + f" (first {pick('length', '5')} s)",
                 }[t]
                 out.append(f"{line}: {name}")
             elif t == "sort-photos":

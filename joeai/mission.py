@@ -284,7 +284,8 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     if options and jtype not in TOOLS:
         raise MissionError(f"Task '{name}': OPTIONS is for tools (like TYPE: transcribe).")
     if jtype in TOOLS:
-        if not inputs and TOOLS[jtype].accepts:
+        from .makers import NO_INPUT_OK
+        if not inputs and TOOLS[jtype].accepts and jtype not in NO_INPUT_OK:
             raise MissionError(f"Task '{name}': say which files to use with INPUT: (files or a "
                                "folder in Inbox).")
         if jtype == "music" and not d.get("FORMAT", "").strip():

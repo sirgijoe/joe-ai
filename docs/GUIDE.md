@@ -476,6 +476,35 @@ On High quality, Joe's own pictures also get a second, 1.5x bigger detail pass.
   and businesses under US$1 million revenue a year), up to about 47 seconds. `length 10|30|60|120|180`.
   Saved as MP3.
 
+**New model families** (each one offered once with its size and license; nothing downloads by
+itself):
+- **Sketch to picture**: add a drawing (a scan or phone photo of paper is fine) and say what it
+  shows. `look auto|photo|illustration|anime|cartoon|painting|watercolor|render3d|fantasy|pixel|coloring`,
+  `follow close|some|loose` (how strictly your lines are kept), `lines rough|clean`. Uses ControlNet
+  Union SDXL ProMax (Apache-2.0, about 2.5 GB) with the SDXL picture model that suits the look; about
+  30 seconds a picture. Needs an SDXL picture model.
+- **Hidden-picture illusion**: write the scene; Joe hides `hidden spiral|circles|checker|waves|word|picture`
+  in it. For a word add a line `word: JOE` (14 letters at most); for `picture` add a black-and-white
+  shape or logo. `show hidden|clear|bold`, `versions 1|2|4` (each one looks different: keep the
+  best). QR Code Monster SDXL (OpenRAIL++, about 5 GB). Needs an SDXL picture model.
+- **Picture to 3D model**: one object or character, whole and centered, on a plain background works
+  best. Joe pads it to a square on white and, when the background remover is installed, cuts the
+  object out first. The result is a `.glb` shape (plain white, no colors) for Windows 3D Viewer,
+  Blender, Unity, Unreal or a 3D printer's slicer. Hunyuan3D 2.1 (about 4.6 GB): Tencent's community
+  license is free to use but does not apply in the European Union, the United Kingdom or South Korea.
+- **Restyle a video**: add a video (and optionally one picture whose look to copy).
+  `style anime|watercolor|oil|sketch|comic|cartoon|pixel|stained|vintage|coloring|own` (own = your
+  words in the box), `length 5|10|20|30` seconds from the start, `follow close|loose`. Joe cuts
+  5-second pieces, traces every frame's outlines, Wan 2.2 Fun Control 5B (Apache-2.0, about 10 GB
+  when the video model is already there) paints the new look over them, then the pieces are joined
+  and the original sound is put back. Slow: several minutes for every 5 seconds on a 12 GB card.
+- **FLUX.2 [klein] 4B** (Apache-2.0, about 16 GB, Setup > Models > Pictures): a newer picture model
+  that draws hands, faces and words far better, in 4 steps. When it's installed Joe uses it by
+  himself for pictures with words in them ("a sign that says OPEN", "a poster with the title..."),
+  when there's no SDXL model, or when a task says `MODEL: flux2`. To use it for every picture, pick
+  it in Setup > Workflows > Pictures (or for one style only). Style add-ons (LoRAs) and the High
+  quality second pass are for SDXL models, so they're skipped with it.
+
 ## Talking to Joe (F4)
 
 Press **F4** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):

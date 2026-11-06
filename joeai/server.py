@@ -1270,13 +1270,14 @@ def make_handler(app: App):
                         mdir = comfy_models_dir(app.settings)
                     except Exception:                   # noqa: BLE001
                         mdir = None
-                    packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p),
-                                 "short": picturetools.pack_short(p)} for p in picturetools.PACKS}
+                    packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p, mdir),
+                                 "short": picturetools.pack_short(p, mdir)} for p in picturetools.PACKS}
                     from .doctor import find_ollama_exe
                     have = {"voice": voice, "vision": vision,
                             "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
                             "ollama": app.services.ollama_up() or bool(find_ollama_exe(app.settings.ollama.exe)),
-                            "comfy": bool(mdir), "packs": packs}
+                            "comfy": bool(mdir), "packs": packs,
+                            "sdxl": tools_mod.sdxl_installed(mdir) if mdir else None}
                     return self._json({"tools": tools_mod.catalog(), "groups": list(tools_mod.GROUPS),
                                        "have": have, "status": tools_mod.tool_status(have)})
                 if u.path == "/api/update":
@@ -1405,7 +1406,7 @@ def make_handler(app: App):
                 if tid not in tools_mod.TOOLS or not tools_mod.TOOLS[tid].ready:
                     return self._json({"ok": False, "error": "unknown tool"})
                 files = [str(x) for x in (b.get("files") or []) if str(x).strip()][:200]
-                if not files and tools_mod.TOOLS[tid].accepts:
+                if not files and tools_mod.TOOLS[tid].accepts and tid not in tools_mod.NO_INPUT_OK:
                     return self._json({"ok": False, "error": "Add at least one file first."})
                 text = tools_mod.mission_for(tid, files, [str(x) for x in b.get("options") or []],
                                              str(b.get("name") or ""), str(b.get("extra") or ""),

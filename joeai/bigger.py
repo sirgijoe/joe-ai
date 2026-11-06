@@ -37,7 +37,8 @@ def extra_keys() -> str:
   Joe then hands over the finished items in order. Use the same item count in both tasks.
 - RESEARCH: yes (Joe looks the task up online first and lists sources; only when I want
   current facts or research)
-- MODEL: an exact installed model name (only if I ask for one)"""
+- MODEL: flux2 on an image task whose pictures need readable words or lettering (Joe uses
+  FLUX.2 klein when it's installed); otherwise an exact installed model name, only if I ask"""
 
 
 HOW_TO_ANSWER = """How to write the answer (Joe reads it word for word):

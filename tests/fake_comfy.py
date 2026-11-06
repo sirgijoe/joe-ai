@@ -54,8 +54,9 @@ class FakeComfy:
                 if u.path == "/view":
                     q = parse_qs(u.query)
                     name = q["filename"][0]
-                    assert name.endswith((".png", ".mp4", ".mp3"))
-                    body = MP4 if name.endswith(".mp4") else (b"ID3fake-mp3" if name.endswith(".mp3") else PNG)
+                    assert name.endswith((".png", ".mp4", ".mp3", ".glb"))
+                    body = MP4 if name.endswith(".mp4") else (b"ID3fake-mp3" if name.endswith(".mp3") else
+                                                              b"glTFfake" if name.endswith(".glb") else PNG)
                     self.send_response(200)
                     self.send_header("Content-Type", "video/mp4" if name.endswith(".mp4") else "image/png")
                     self.send_header("Content-Length", str(len(body)))
@@ -89,7 +90,10 @@ class FakeComfy:
                              "type": "output"} for i in range(fake.frames)]
                     out = {"9": {"images": imgs}}
                     kinds = {n.get("class_type") for n in g.values()}
-                    if "SaveAudioMP3" in kinds:
+                    if "SaveGLB" in kinds:
+                        out = {"9": {"3d": [{"filename": f"Joe_{len(fake.graphs):05d}_.glb",
+                                             "subfolder": "Joe", "type": "output"}]}}
+                    elif "SaveAudioMP3" in kinds:
                         out = {"9": {"audio": [{"filename": f"Joe_{len(fake.graphs):05d}_.mp3",
                                                 "subfolder": "Joe", "type": "output"}]}}
                     elif "SaveVideo" in kinds and not fake.video:

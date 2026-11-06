@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import comfy as comfy_mod
+from . import makers
 from .fsutil import atomic_write_text
 from .http import HttpError, request_json
 
@@ -76,13 +77,47 @@ PACKS: dict[str, Pack] = {p.id: p for p in (
            HF + "ComfyUI-Wiki/t5-base/resolve/main/t5-base.safetensors", 0.45)),
          note="Free for people and businesses under US$1 million a year in revenue; bigger "
               "businesses need Stability AI's paid license."),
+    # ---- batch 3: new model families (dev123). URLs as in ComfyUI's official workflow templates.
+    Pack("flux2", "FLUX.2 [klein] 4B picture model", "Apache-2.0", 16.0,
+         (("diffusion_models", "flux-2-klein-4b.safetensors",
+           HF + "Comfy-Org/flux2-klein/resolve/main/split_files/diffusion_models/flux-2-klein-4b.safetensors", 7.8),
+          ("text_encoders", "qwen_3_4b.safetensors",
+           HF + "Comfy-Org/flux2-klein/resolve/main/split_files/text_encoders/qwen_3_4b.safetensors", 8.0),
+          ("vae", "flux2-vae.safetensors",
+           HF + "Comfy-Org/flux2-dev/resolve/main/split_files/vae/flux2-vae.safetensors", 0.3)),
+         note="Draws hands, faces and words in pictures far better than the older models, in about "
+              "4 steps. Comfortable on 12 GB graphics cards; smaller cards work but slower."),
+    Pack("sketch", "ControlNet Union SDXL ProMax (sketch to picture)", "Apache-2.0", 2.5,
+         (("controlnet", "controlnet-union-sdxl-promax.safetensors",
+           HF + "xinsir/controlnet-union-sdxl-1.0/resolve/main/diffusion_pytorch_model_promax.safetensors", 2.5),),
+         note="Works with the SDXL picture models Joe already uses."),
+    Pack("illusion", "QR Code Monster SDXL (hidden-picture illusions)", "OpenRAIL++", 5.0,
+         (("controlnet", "control_v1p_sdxl_qrcode_monster.safetensors",
+           HF + "monster-labs/control_v1p_sdxl_qrcode_monster/resolve/main/diffusion_pytorch_model.safetensors", 5.0),),
+         note="Works with the SDXL picture models Joe already uses. Its license forbids harmful or "
+              "deceptive uses."),
+    Pack("video-restyle", "Wan 2.2 Fun Control 5B (restyle a video)", "Apache-2.0", 17.5,
+         (("diffusion_models", "wan2.2_fun_control_5B_bf16.safetensors",
+           HF + "Comfy-Org/Wan_2.2_ComfyUI_Repackaged/resolve/main/split_files/diffusion_models/"
+                "wan2.2_fun_control_5B_bf16.safetensors", 10.0),
+          comfy_mod.WAN_VIDEO["files"][1] + (6.3,), comfy_mod.WAN_VIDEO["files"][2] + (1.3,)),
+         note="Shares its text reader and decoder with Joe's video model, so it's about 10 GB when "
+              "that one is already installed."),
+    Pack("3d", "Hunyuan3D 2.1 (picture to 3D model)", "Tencent Hunyuan 3D 2.1 Community License", 4.6,
+         (("checkpoints", "hunyuan_3d_v2.1.safetensors",
+           HF + "Comfy-Org/hunyuan3D_2.1_repackaged/resolve/main/hunyuan_3d_v2.1.safetensors", 4.6),),
+         note="Makes the shape only (a plain white model, no colors). Free to use, but its license "
+              "does not cover the European Union, the United Kingdom or South Korea; check the "
+              "license before selling what you make."),
 )}
 
 # Which packs each tool needs (all of them), and which it can use if they're there.
 TOOL_PACKS = {"remove-bg": ("bg",), "edit-picture": ("edit",), "restore-photo": ("edit",),
               "animate-photo": ("video",), "music": (), "fix-spot": ("edit",), "merge-pictures": ("edit",),
               "relight": ("edit",), "restyle": ("edit",), "redraw": ("edit",), "make-bigger": ("edit",),
-              "character-scenes": ("edit",), "character-spin": ("edit",)}
+              "character-scenes": ("edit",), "character-spin": ("edit",),
+              "sketch-to-picture": ("sketch",), "illusion-art": ("illusion",),
+              "restyle-video": ("video-restyle",), "make-3d": ("3d",)}
 # the tools that run the Qwen picture editor (big: free the card first, text encoder on the CPU
 # under 16 GB, a smaller retry after running out of memory)
 EDITORS = ("edit-picture", "restore-photo", "fix-spot", "merge-pictures", "relight", "restyle", "redraw",
@@ -96,7 +131,7 @@ SPIN_VIEWS = (("front", "front view, facing the viewer"),
               ("three-quarter-right", "three-quarter view, turned to the right"))
 SAME_CHARACTER = ("the exact same character as in the picture: same face, hair, body shape, outfit, colors "
                   "and art style")
-OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",)}
+OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",), "make-3d": ("bg",)}
 COMFY_TOOLS = tuple(TOOL_PACKS)
 
 RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, stains and creases, "
@@ -134,17 +169,29 @@ def needed_packs(tool_id: str, options: set[str] | None = None) -> tuple[str, ..
     return TOOL_PACKS.get(tool_id, ())
 
 
-def pack_offer(pack_id: str) -> str:
+def pack_size(pack_id: str, models_dir: Path | None = None) -> float:
+    """GB still to download: the whole pack, or (models folder known) only the missing files,
+    so a pack that shares files with one already installed says its real size."""
     p = PACKS[pack_id]
-    size = f"about {p.size_gb:.0f} GB" if p.size_gb >= 1 else f"about {round(p.size_gb * 1000)} MB"
-    return f"{p.label} ({size}, {p.license})" + (f". {p.note}" if p.note else "")
+    if not models_dir:
+        return p.size_gb
+    missing = pack_missing(models_dir, pack_id)
+    return p.size_gb if len(missing) == len(p.files) else round(sum(f[3] for f in missing), 2)
 
 
-def pack_short(pack_id: str) -> str:
+def _size_words(gb: float) -> str:
+    return f"about {gb:.0f} GB" if gb >= 1 else f"about {max(1, round(gb * 1000))} MB"
+
+
+def pack_offer(pack_id: str, models_dir: Path | None = None) -> str:
+    p = PACKS[pack_id]
+    return f"{p.label} ({_size_words(pack_size(pack_id, models_dir))}, {p.license})" + (f". {p.note}" if p.note else "")
+
+
+def pack_short(pack_id: str, models_dir: Path | None = None) -> str:
     """'the Qwen-Image-Edit picture editor, about 31 GB' style, for one-line hints."""
     p = PACKS[pack_id]
-    size = f"about {p.size_gb:.0f} GB" if p.size_gb >= 1 else f"about {round(p.size_gb * 1000)} MB"
-    return f"{p.label.split(' (')[0]} ({size})"
+    return f"{p.label.split(' (')[0]} ({_size_words(pack_size(pack_id, models_dir))})"
 
 
 def download_pack(settings, pack_id: str, log, approved: bool = False, progress=None) -> bool:
@@ -161,7 +208,7 @@ def download_pack(settings, pack_id: str, log, approved: bool = False, progress=
     if not missing:
         log(f"{p.label} is already installed.")
         return True
-    log(f"Downloading {pack_offer(pack_id)}. From Hugging Face; nothing about you is sent.")
+    log(f"Downloading {pack_offer(pack_id, mdir)}. From Hugging Face; nothing about you is sent.")
     all_b = sum(f[3] for f in missing) * 2**30
     done = 0.0
     for folder, name, url, gb in missing:
@@ -199,7 +246,7 @@ def outputs_of(entry: dict) -> list[dict]:
     """Saved files in a history entry, audio included."""
     files = comfy_mod.output_files(entry)
     for node_out in (entry.get("outputs") or {}).values():
-        for f in node_out.get("audio") or []:
+        for f in (node_out.get("audio") or []) + (node_out.get("3d") or []):
             if isinstance(f, dict) and f.get("filename") and f.get("type", "output") == "output":
                 files.append(f)
     return files
@@ -408,7 +455,8 @@ def _seed(job: "Job", i: int) -> int:
 
 
 # --------------------------------------------------------------------------- runner
-BIG_TOOLS = EDITORS + ("animate-photo",)
+BIG_TOOLS = EDITORS + ("animate-photo", "restyle-video", "make-3d")
+LONG_TOOLS = ("animate-photo", "restyle-video")      # at least an hour before ComfyUI is given up on
 SMALL_MP = 0.6          # retry size (megapixels) for edit/restore after running out of memory
 BIG_CARD_GB = 16        # below this the editor's text encoder runs on the processor from the start
 
@@ -622,15 +670,15 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         files, problems = resolve_inputs(engine, job)
         for pr in problems:
             engine.log(f"  INPUT: {pr}")
-        if not files:
+        if not files and tid not in makers.NO_INPUT_OK:
             st.status, st.note = "failed", "no pictures to use" + (f" ({problems[0]})" if problems else "")
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
         items, keys = files, [_key(engine, f) for f in files]
     if tid == "restore-photo" and restore_is_true(job):
         return run_true_restore(engine, job, st, items, keys)
-    if tid in NEW_EDITORS:
-        items, keys, why = plan_items(engine, job, tid, items)
+    if tid in NEW_EDITORS or tid in makers.TOOLS:
+        items, keys, why = (makers.plan_items if tid in makers.TOOLS else plan_items)(engine, job, tid, items)
         if not items:
             st.status, st.note = "failed", why
             engine.log(f"'{job.name}' failed: {why}")
@@ -647,7 +695,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     missing = [p for p in need if not pack_ready(mdir, p)]
     if missing:
         st.status = "failed"
-        st.note = ("needs " + " and ".join(pack_offer(p) for p in missing) +
+        st.note = ("needs " + " and ".join(pack_offer(p, mdir) for p in missing) +
                    ": Setup (F10) > System check offers it")
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
@@ -667,7 +715,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         engine.log(f"'{job.name}' failed: {st.note}")
         engine._save_state(job, st)
         return st
-    limit = engine.s.comfy.timeout_s if tid != "animate-photo" else max(engine.s.comfy.timeout_s, 3600)
+    limit = engine.s.comfy.timeout_s if tid not in LONG_TOOLS else max(engine.s.comfy.timeout_s, 3600)
     client = comfy_mod.ComfyClient(engine.services.comfy_base, limit)
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(items)} item(s) -> {st.output}")
     failed: list[str] = []
@@ -726,7 +774,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     made.append(name)
                 if tid == "remove-bg" and option_value(job, "background") == "white":
                     made = [_on_white(engine, folder, m) for m in made]
-                made = after_edit(engine, job, tid, item, folder, made, faces)
+                made = (makers.after(engine, job, tid, item, folder, made) if tid in makers.TOOLS
+                        else after_edit(engine, job, tid, item, folder, made, faces))
                 try:
                     from .storage import delete_comfy_copies
                     delete_comfy_copies(engine.s, outs)
@@ -754,6 +803,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             engine.log(f"  {label} -> {', '.join(made)} ({took:.0f} s)")
         if tid == "character-spin":
             spin_sheet(engine, folder, st)
+        if tid in makers.TOOLS:
+            makers.finish(engine, job, tid, folder, st)
         atomic_write_text(folder / "about.txt", _about(tid, job, opts, kind, upscale))
     except Stopped:
         st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(items)}"
@@ -804,6 +855,8 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
     epref = wfp.get(engine.s, "editor")
     from . import quality as quality_mod
     fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
+    if isinstance(item, dict) and item.get("maker"):               # batch 3 (makers.py)
+        return makers.graph_for(engine, job, tid, item, i, prefix, client)
     if isinstance(item, dict):                                     # the newer editor tools
         name = upload_image(client.base, item["src"])
         extras = [upload_image(client.base, p) for p in item.get("images", [])]
@@ -845,6 +898,11 @@ def _about(tid, job, opts, kind, upscale) -> str:
     lines = [f"# {job.name}", "", f"Made by Joe with ComfyUI on {datetime.now():%Y-%m-%d %H:%M}.", ""]
     for p in packs:
         lines.append(f"- Model: {PACKS[p].label} ({PACKS[p].license})")
+    if "3d" in packs:
+        lines += ["", "Tencent Hunyuan 3D 2.1 is licensed under the Tencent Hunyuan 3D 2.1 Community License "
+                  "Agreement, Copyright (c) 2025 Tencent. All Rights Reserved. The license does not apply "
+                  "in the European Union, the United Kingdom or South Korea.",
+                  "The .glb files open in Windows 3D Viewer, Blender, Unity, Unreal and most 3D programs."]
     lines += ["", "Check each model's license before using these commercially.",
               "AI pictures and sound can contain mistakes: look and listen before you publish."]
     return "\n".join(lines) + "\n"

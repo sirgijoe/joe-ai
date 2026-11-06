@@ -52,6 +52,11 @@ is, whether it ships inside Joe or Joe downloads it only after you say yes, and 
 | Qwen-Image-Edit 2511 Lightning 4-step LoRA (lightx2v) | faster picture edits | Apache-2.0 |
 | ACE-Step 1.5 Turbo (ACE Studio / StepFun) | music | MIT |
 | Stable Audio Open 1.0 + T5-base (Stability AI; Google) | sound effects | Stability AI Community License (free under US$1M annual revenue; paid license above that); T5: Apache-2.0 |
+| FLUX.2 [klein] 4B + Qwen3 4B text encoder + FLUX.2 VAE (Black Forest Labs; Alibaba Qwen) | pictures with words, optional picture model | Apache-2.0 |
+| ControlNet Union SDXL 1.0 ProMax (xinsir) | Sketch to picture | Apache-2.0 |
+| QR Code Monster SDXL (Monster Labs) | Hidden-picture illusion | CreativeML Open RAIL++-M |
+| Wan 2.2 Fun Control 5B (Alibaba PAI, repackaged by Comfy-Org) | Restyle a video | Apache-2.0 |
+| Hunyuan3D 2.1 (Tencent, repackaged by Comfy-Org) | Picture to 3D model | Tencent Hunyuan 3D 2.1 Community License (does not apply in the EU, UK or South Korea) |
 
 Models you install yourself, ComfyUI workflows and custom nodes keep their own licenses; Joe
 doesn't check them. If you want to use what Joe makes commercially, read the license of the

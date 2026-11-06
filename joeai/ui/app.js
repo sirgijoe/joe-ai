@@ -2176,7 +2176,7 @@ setTimeout(() => checkUpdate(false), 8000);
 // in, picture models once ComfyUI is in) are added to the same run by themselves.
 const W_GROUPS = [
   { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "pull-model", "use-model", "upgrade-model"] },
-  { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit"] },
+  { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
   { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "pull-embed", "pack-music", "pack-sfx"] },
 ];
@@ -2529,6 +2529,8 @@ function toolNeeds() {
   if (needs.includes("comfy")) {
     if (!toolHave.comfy) html += (html ? "<br>" : "") + esc("This runs in ComfyUI, which isn't installed yet. Setup (F10) > System check installs it.");
     else {
+      if (needs.includes("sdxl") && toolHave.sdxl === false) html += (html ? "<br>" : "") + esc("This works with an SDXL picture model, and none is installed yet. Setup (F10) > Models offers one.");
+      if (needs.includes("ffmpeg") && !toolHave.ffmpeg) html += (html ? "<br>" : "") + esc("This needs FFmpeg to cut and join video. Setup (F10) > System check installs it.");
       const kind = (document.querySelector('#tf-options [data-pick="kind"]') || {}).value || "";
       const want = t.id === "music" ? [kind === "sfx" ? "sfx" : "music"] : (t.packs || []);
       const packs = toolHave.packs || {};
@@ -2666,7 +2668,7 @@ function toolRequest() {
 async function toolPlan(run) {
   if (toolFiles.some((f) => f.busy)) { toast("Still adding files…"); return; }
   const req = toolRequest();
-  if (!req.files.length) { toast("Add at least one file first"); return; }
+  if (!req.files.length && toolOpen.accepts.length && !toolOpen.no_input) { toast("Add at least one file first"); return; }
   if (!req.options.length && toolOpen.options.length) req.options = ["none"];
   let r;
   try { r = await api("/api/tools/mission", req); } catch (e) { r = { ok: false, error: e.message }; }

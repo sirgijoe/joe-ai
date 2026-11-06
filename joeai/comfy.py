@@ -43,7 +43,7 @@ class ImageModel:
     name: str          # as ComfyUI names it, e.g. "SDXL\\sd_xl_base_1.0.safetensors"
     folder: str        # checkpoints | diffusion_models | unet
     size_gb: float
-    family: str        # sdxl | sd15 | flux | sd3 | svd | video | other
+    family: str        # sdxl | sd15 | flux | flux2 | sd3 | svd | video | other
     mtime: float = 0.0
 
     @property
@@ -56,6 +56,7 @@ class ImageModel:
 _FAMILIES = [  # (family, pattern) — first match wins; checked against the lowercased path
     ("svd", r"(^|[\\/_-])svd|stable[-_ ]?video"),
     ("video", r"wan2|wan[-_]?\d|ltx|hunyuan.*video|cogvideo|mochi|cosmos"),
+    ("flux2", r"flux[-_. ]?2|klein"),
     ("flux", r"flux"),
     ("sd3", r"sd3|sd_3|stable[-_]?diffusion[-_]?3"),
     ("sd15", r"v1-5|sd15|sd-?1\.5|sd_1\.5"),
@@ -112,16 +113,27 @@ def arch_of_file(path: Path) -> str:
     _arch_cache[key] = found
     return found
 # Rough VRAM (GB) each family needs to run comfortably at default settings.
-FAMILY_VRAM = {"sd15": 4, "sdxl": 8, "sd3": 10, "flux": 12, "svd": 10, "video": 12, "other": 8}
-FAMILY_RANK = {"flux": 5, "sd3": 4, "sdxl": 3, "sd15": 1, "other": 0, "svd": 2, "video": 4}
+FAMILY_VRAM = {"sd15": 4, "sdxl": 8, "sd3": 10, "flux": 12, "flux2": 8, "svd": 10, "video": 12, "other": 8}
+FAMILY_RANK = {"flux2": 6, "flux": 5, "sd3": 4, "sdxl": 3, "sd15": 1, "other": 0, "svd": 2, "video": 4}
+# Model files that sit in the picture-model folders but aren't for making pictures from words
+# (music, sound, 3D, video-restyle): never offered as a picture or video model.
+TOOL_MODEL_FILES = {"ace_step_1.5_turbo_aio.safetensors", "stable-audio-open-1.0.safetensors",
+                    "hunyuan_3d_v2.1.safetensors", "hunyuan3d-dit-v2_fp16.safetensors",
+                    "wan2.2_fun_control_5b_bf16.safetensors"}
+
+
+def is_tool_model(name: str) -> bool:
+    return name.replace("\\", "/").split("/")[-1].lower() in TOOL_MODEL_FILES
 
 
 def family_of(path: str, size_gb: float = 0, file: Path | None = None) -> str:
+    low = path.lower()
     if file is not None:
         arch = arch_of_file(file)
+        if arch == "flux" and re.search(r"flux[-_. ]?2|klein", low):
+            return "flux2"                  # FLUX.2 has the same block names as FLUX.1
         if arch:
             return arch
-    low = path.lower()
     for fam, pat in _FAMILIES:
         if re.search(pat, low):
             return fam
@@ -155,7 +167,7 @@ def scan_models(models_dir: Path | None) -> list[ImageModel]:
         if not root.is_dir():
             continue
         for f in root.rglob("*"):
-            if f.suffix.lower() not in MODEL_EXTS or not f.is_file():
+            if f.suffix.lower() not in MODEL_EXTS or not f.is_file() or is_tool_model(f.name):
                 continue
             try:
                 st = f.stat()
@@ -354,6 +366,40 @@ def with_lora(g: dict, lora: str, strength: float = 0.8) -> dict:
     return g
 
 
+# Built-in FLUX.2 [klein] 4B (Apache 2.0): the distilled model, 4 steps, no CFG (ComfyUI's
+# official "FLUX.2 Klein 4B Distilled" template). Used for pictures with words in them, when the
+# task or Setup > Workflows asks for it, or when no SD1.5/SDXL checkpoint is installed.
+FLUX2 = {"unet": "flux-2-klein-4b.safetensors", "clip": "qwen_3_4b.safetensors", "vae": "flux2-vae.safetensors",
+         "label": "FLUX.2 [klein] 4B"}
+FLUX2_WANT = re.compile(r"flux|klein", re.I)
+# readable words in the picture: older models can't spell
+WORDS_IN_PICTURE = re.compile(r"\b(that|which) (says|reads)\b|\bsays ['\"\u201c]|\b(lettering|typography|"
+                              r"headline|text that|with (the )?(words?|text|title|caption|name)|"
+                              r"(words?|text|title|caption) (on|across) (it|the))\b", re.I)
+
+
+def flux2_graph(steps: int = 4) -> dict:
+    return {
+        "70": {"class_type": "UNETLoader", "inputs": {"unet_name": FLUX2["unet"], "weight_dtype": "default"}},
+        "71": {"class_type": "CLIPLoader", "inputs": {"clip_name": FLUX2["clip"], "type": "flux2", "device": "default"}},
+        "72": {"class_type": "VAELoader", "inputs": {"vae_name": FLUX2["vae"]}},
+        "74": {"class_type": "CLIPTextEncode", "inputs": {"text": "{{PROMPT}}", "clip": ["71", 0]}},
+        "76": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["74", 0]}},
+        "66": {"class_type": "EmptyFlux2LatentImage",
+               "inputs": {"width": "{{WIDTH}}", "height": "{{HEIGHT}}", "batch_size": 1}},
+        "62": {"class_type": "Flux2Scheduler", "inputs": {"steps": steps, "width": "{{WIDTH}}", "height": "{{HEIGHT}}"}},
+        "61": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+        "73": {"class_type": "RandomNoise", "inputs": {"noise_seed": "{{SEED}}"}},
+        "63": {"class_type": "CFGGuider", "inputs": {"model": ["70", 0], "positive": ["74", 0],
+                                                     "negative": ["76", 0], "cfg": 1.0}},
+        "64": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["73", 0], "guider": ["63", 0],
+                                                                 "sampler": ["61", 0], "sigmas": ["62", 0],
+                                                                 "latent_image": ["66", 0]}},
+        "65": {"class_type": "VAEDecode", "inputs": {"samples": ["64", 0], "vae": ["72", 0]}},
+        "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "{{PREFIX}}", "images": ["65", 0]}},
+    }
+
+
 def list_loras(models_dir: Path | None) -> list[str]:
     """LoRA files as ComfyUI names them (relative to models/loras, forward slashes)."""
     root = (models_dir / "loras") if models_dir else None
@@ -486,7 +532,7 @@ def wan_video_graph(frames: int = 0, fps: int = 0, steps: int = 20, cfg: float =
 def default_size(family: str) -> tuple[int, int]:
     if family == "wan":
         return WAN_VIDEO["size"]
-    return (512, 512) if family == "sd15" else (1024, 1024)
+    return (512, 512) if family == "sd15" else (1024, 1024)       # flux2 too
 
 
 def _has_placeholders(g: dict) -> bool:

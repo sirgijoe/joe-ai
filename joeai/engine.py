@@ -974,7 +974,8 @@ class Engine:
         from .doctor import image_models
         api_names = client.checkpoints()
         disk = image_models(self.s)
-        models = disk or [comfy_mod.ImageModel(n, "checkpoints", 0, comfy_mod.family_of(n)) for n in api_names]
+        models = disk or [comfy_mod.ImageModel(n, "checkpoints", 0, comfy_mod.family_of(n)) for n in api_names
+                          if not comfy_mod.is_tool_model(n)]
         vram = vram_total_gb()
 
         def api_name(m: comfy_mod.ImageModel) -> str:
@@ -1048,6 +1049,14 @@ class Engine:
         m = None
         from . import workflowprefs as wfp
         wpref = wfp.merged(self.s, [f"style:{style.id}", "pictures"])
+        use_flux2, why = self._use_flux2(job, basic, wpref)
+        if use_flux2:
+            self.log(f"  Picture model: {comfy_mod.FLUX2['label']} ({why})")
+            return comfy_mod.flux2_graph(), "", "flux2", f"built-in {comfy_mod.FLUX2['label']}"
+        if comfy_mod.FLUX2_WANT.search(job.model or ""):
+            self.log(f"  MODEL: {job.model} asks for the FLUX.2 [klein] picture model, which isn't installed "
+                     "(Setup > Models offers it); using the usual picture model.")
+            job = dc_replace(job, model="")
         if not job.model and wpref.get("model"):
             m = comfy_mod.best_image_model(basic, vram, "image", want=wpref["model"])
             self.log(f"  Your workflow setting: model {wpref['model']}" + ("" if m else " (not installed; using "
@@ -1101,6 +1110,30 @@ class Engine:
                 self._hires_said = True
         return g, api_name(m), m.family, label
 
+    def _use_flux2(self, job: Job, basic: list, wpref: dict) -> tuple[bool, str]:
+        """FLUX.2 [klein] instead of an SD1.5/SDXL checkpoint? (True, why) when it's installed and
+        the task or Setup > Workflows asks for it, the pictures need readable words, or there's no
+        SD checkpoint at all."""
+        if job.type != "image":
+            return False, ""
+        from . import picturetools
+        from .doctor import comfy_models_dir
+        try:
+            ready = picturetools.pack_ready(comfy_models_dir(self.s), "flux2")
+        except Exception:                       # noqa: BLE001  (finder trouble = not installed)
+            ready = False
+        if not ready:
+            return False, ""
+        if job.model:
+            return bool(comfy_mod.FLUX2_WANT.search(job.model)), "the task asks for it"
+        if wpref.get("model"):
+            return bool(comfy_mod.FLUX2_WANT.search(wpref["model"])), "your Setup > Workflows choice"
+        if not basic:
+            return True, "no SD1.5/SDXL picture model is installed"
+        if comfy_mod.WORDS_IN_PICTURE.search(f"{job.name}\n{job.format}"):
+            return True, "the pictures have words in them, and it spells far better"
+        return False, ""
+
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
         """Phase 2: ComfyUI renders every prompt (VARIANTS images each)."""
         if not st.prompts_ready:
@@ -1134,6 +1167,8 @@ class Engine:
             w, h = quality_mod.pictures(self.s).size(*comfy_mod.default_size(family))
         else:
             w, h = None, None
+        if family == "flux2" and w and h:
+            w, h = max(256, w // 16 * 16), max(256, h // 16 * 16)     # FLUX.2 wants sizes in 16s
         rec = styles_mod.recipe(job, self._picks())
         style = rec.style
         # Black-and-white video: Wan makes it in color (asking Wan for monochrome fought its own
