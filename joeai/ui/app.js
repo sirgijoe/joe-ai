@@ -503,7 +503,9 @@ async function loadStats() {
     [n(s.words), "words written"], [n(s.items), "items"], [n(s.files), "files"],
     [n(s.code_lines), "lines of code"], [n(s.tasks), "tasks"], [n(s.parts), "parts done"],
     [n(s.retries), "retries"], [n(s.nights), "nights run"], [s.model_hours + " h", "model run time"],
-    [n(s.tokens_in + s.tokens_out), "local tokens"], ["$" + s.cloud_cost_avoided.toFixed(2), `est. cloud cost avoided (words $${s.cloud_cost_parts.text.toFixed(2)}, ${n(s.pictures)} pictures $${s.cloud_cost_parts.pictures.toFixed(2)}, ${n(s.video_seconds)} s of video $${s.cloud_cost_parts.video.toFixed(2)})`],
+    [n(s.tokens_in + s.tokens_out), "local tokens"], ["$" + s.cloud_cost_avoided.toFixed(2), s.cloud_cost_parts   // older Joe (still running) sends no breakdown
+      ? `est. cloud cost avoided (words $${s.cloud_cost_parts.text.toFixed(2)}, ${n(s.pictures)} pictures $${s.cloud_cost_parts.pictures.toFixed(2)}, ${n(s.video_seconds)} s of video $${s.cloud_cost_parts.video.toFixed(2)})`
+      : "est. cloud cost avoided"],
     ["$" + s.electricity_cost.toFixed(2), "est. electricity"],
   ];
   $("#stats").innerHTML = cards.map(([v, l]) => `<div class="stat"><div class="v">${esc(v)}</div><div class="l">${esc(l)}</div></div>`).join("") +
