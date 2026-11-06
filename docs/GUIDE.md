@@ -421,6 +421,30 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
   so Joe restores the photo and then puts the warm tone back. Scanning tips: 300 dpi (600 for
   small prints), in color even for black-and-white photos, with the scanner's own auto-correct,
   auto-color and dust removal off, and the glass wiped clean.
+  **AI repair keeps the real faces**: before the editor starts, the vision model finds the faces;
+  afterwards Joe puts them back from a true-to-the-photo copy, so nobody turns into a stranger.
+  Tick **Let AI repair redraw faces too** to skip that (with Add color it's skipped too).
+- **Fix one spot**: add a picture, press **MARK THE SPOT**, paint over what to fix (a date stamp, a
+  scratch, a stranger). Only the painted part is redrawn; the rest stays pixel for pixel. Leave
+  the box empty to remove what's there, or say what goes there. The mark is saved next to the
+  picture as `<name>-mask.png`.
+- **Put pictures together**: 2 or 3 pictures plus how to combine them, called picture 1, 2 and 3
+  in the order you added them.
+- **Change the lighting**: golden hour, studio, soft window light, night, dramatic, candlelight or
+  a cloudy day. Only the light and shadows change.
+- **Redraw in a new style**: watercolor, oil painting, pencil sketch, anime, comic book, 3D cartoon,
+  pixel art, stained glass, old photo or coloring page, or **Like my last picture** (the last picture
+  you add is the style example for the others).
+- **Change a picture a little or a lot**: say what it should look like and how much may change.
+- **Make a picture wider or taller**: wider, taller, square or bigger all around. Your picture stays
+  untouched in the middle and the AI paints the new parts around it.
+- **Same character, new scenes**: one picture of a character plus one scene per line (or separated
+  by ;). Same face, outfit and colors in every picture.
+- **Character turnaround**: six views (front, three-quarter, sides, back) and a
+  `character-sheet.png` with all of them side by side.
+
+All of these use the Qwen picture editor that Edit a picture uses (offered once, about 31 GB).
+On High quality, Joe's own pictures also get a second, 1.5x bigger detail pass.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
   1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
 - **Music and sound effects**: no files needed; one piece per line (in a mission, separate them

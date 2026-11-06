@@ -195,3 +195,115 @@ def frames_to_mp4(ffmpeg: str, frames: list[Path], dest: Path, fps: int = 16) ->
                "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-c:v", "libx264",
                "-preset", "veryfast", "-crf", "20", str(dest)]
         return dest if _run(cmd) and dest.exists() else None
+
+
+# --------------------------------------------------------------------------- masks and blending
+# Used by the picture tools so the AI only changes what it should: "fix one spot" keeps
+# everything outside the marked area, "keep faces" puts the real faces back, "make it bigger"
+# keeps the original picture untouched in the middle. White in a mask = take the new picture.
+def size_of(ffmpeg: str, p: Path) -> tuple[int, int] | None:
+    import re as _re
+    try:
+        r = subprocess.run([ffmpeg, "-hide_banner", "-i", str(p)], capture_output=True, text=True, timeout=60,
+                           creationflags=_flags())
+    except (OSError, subprocess.SubprocessError):
+        return None
+    m = _re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", r.stderr or "")
+    return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+def _flags() -> int:
+    from .system import no_window_flags
+    return no_window_flags()
+
+
+def box_mask(ffmpeg: str, size: tuple[int, int], boxes: list[tuple[float, float, float, float]],
+             dest: Path, grow: float = 0.25) -> Path | None:
+    """A black picture with white boxes (x, y, w, h as 0-1 fractions), each grown by `grow`."""
+    w, h = size
+    draws = []
+    for x, y, bw, bh in boxes:
+        gx, gy = bw * grow, bh * grow
+        x0, y0 = max(0, int((x - gx) * w)), max(0, int((y - gy) * h))
+        x1, y1 = min(w, int((x + bw + gx) * w)), min(h, int((y + bh + gy) * h))
+        if x1 > x0 and y1 > y0:
+            draws.append(f"drawbox=x={x0}:y={y0}:w={x1 - x0}:h={y1 - y0}:color=white:t=fill")
+    if not draws:
+        return None
+    cmd = [ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", f"color=black:s={w}x{h}", "-vf",
+           ",".join(draws) + ",format=gray", "-frames:v", "1", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
+def rect_mask(ffmpeg: str, size: tuple[int, int], inner: tuple[int, int, int, int], dest: Path) -> Path | None:
+    """White everywhere except a black rectangle (x, y, w, h in pixels): the part to keep."""
+    w, h = size
+    x, y, iw, ih = inner
+    cmd = [ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", f"color=white:s={w}x{h}", "-vf",
+           f"drawbox=x={x}:y={y}:w={iw}:h={ih}:color=black:t=fill,format=gray", "-frames:v", "1", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
+def blend(ffmpeg: str, base: Path, new: Path, mask: Path, dest: Path, feather: float = 0.0) -> Path | None:
+    """base where the mask is black, new where it's white, soft edges (feather in pixels; 0 =
+    about 1% of the picture). Everything is sized to `base`."""
+    size = size_of(ffmpeg, base)
+    if not size:
+        return None
+    w, h = size
+    f = feather or max(2.0, min(w, h) / 100)
+    fc = (f"[1]scale={w}:{h}:flags=lanczos,format=gbrp[n];[0]format=gbrp[b];"
+          f"[2]scale={w}:{h},format=gray,gblur=sigma={f:.1f},format=gbrp[m];[b][n][m]maskedmerge,format=rgb24")
+    cmd = [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(base), "-i", str(new), "-i", str(mask),
+           "-filter_complex", fc, "-frames:v", "1", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
+def pad_for_outpaint(ffmpeg: str, src: Path, dest: Path, shape: str) -> tuple[Path, tuple[int, int, int, int]] | None:
+    """A bigger canvas with the picture in the middle and a blurred stretch of it around (a
+    head start for the editor). Returns (file, where the original sits: x, y, w, h)."""
+    size = size_of(ffmpeg, src)
+    if not size:
+        return None
+    w, h = size
+    if shape == "taller":
+        W, H = w, int(h * 1.5)
+    elif shape == "square":
+        W = H = max(w, h)
+    elif shape == "around":
+        W, H = int(w * 1.5), int(h * 1.5)
+    else:                                           # wider
+        W, H = int(w * 1.5), h
+    W, H = W // 2 * 2, H // 2 * 2
+    x, y = (W - w) // 2, (H - h) // 2
+    fc = (f"[0]scale={W}:{H},boxblur=luma_radius=40:luma_power=2[bg];[bg][0]overlay={x}:{y},format=rgb24")
+    cmd = [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-filter_complex", fc,
+           "-frames:v", "1", str(dest)]
+    return (dest, (x, y, w, h)) if _run(cmd) and dest.exists() else None
+
+
+def outline_spot(ffmpeg: str, src: Path, mask: Path, dest: Path) -> Path | None:
+    """The picture with the marked spot tinted red, so the editor can see where to work."""
+    size = size_of(ffmpeg, src)
+    if not size:
+        return None
+    w, h = size
+    fc = (f"[0]format=gbrp[b];color=red:s={w}x{h},format=gbrp[r];[1]scale={w}:{h},format=gray,"
+          f"geq=lum='p(X,Y)*0.55',format=gbrp[m];[b][r][m]maskedmerge,format=rgb24")
+    cmd = [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-i", str(mask), "-filter_complex", fc,
+           "-frames:v", "1", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
+def side_by_side(ffmpeg: str, pictures: list[Path], dest: Path, height: int = 768) -> Path | None:
+    """Pictures in one row, all the same height (a character sheet)."""
+    if not pictures:
+        return None
+    ins = []
+    for p in pictures:
+        ins += ["-i", str(p)]
+    fc = "".join(f"[{i}]scale=-2:{height},setsar=1[v{i}];" for i in range(len(pictures)))
+    fc += "".join(f"[v{i}]" for i in range(len(pictures))) + f"hstack=inputs={len(pictures)}" \
+        if len(pictures) > 1 else "[v0]null"
+    cmd = [ffmpeg, "-y", "-v", "error", *ins, "-filter_complex", fc, "-frames:v", "1", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None

@@ -90,6 +90,32 @@ class Tool:
     extra_label: str = ""                # the form's "Anything else?" box, named for this tool
 
 
+# light name -> (label, words for the editor)
+RELIGHTS = {
+    "golden": ("Golden hour", "warm golden-hour sunlight low from the side, long soft shadows"),
+    "studio": ("Studio", "clean, even studio lighting with a soft key light and gentle fill"),
+    "soft": ("Soft window light", "soft, diffused window light"),
+    "night": ("Night", "night time: cool moonlight with warm lamp light"),
+    "dramatic": ("Dramatic", "dramatic side light with deep shadows and strong contrast"),
+    "candle": ("Candlelight", "warm, flickering candlelight glow"),
+    "overcast": ("Cloudy day", "even, soft overcast daylight with no harsh shadows"),
+}
+# style name -> (label, words for the editor)
+RESTYLES = {
+    "watercolor": ("Watercolor", "a soft watercolor painting on textured paper"),
+    "oil": ("Oil painting", "a classic oil painting with visible brush strokes"),
+    "sketch": ("Pencil sketch", "a detailed graphite pencil sketch on white paper"),
+    "anime": ("Anime", "a clean anime illustration with cel shading"),
+    "comic": ("Comic book", "a comic book panel with bold ink lines and flat colors"),
+    "cartoon": ("3D cartoon", "a cute 3D animated movie style render"),
+    "pixel": ("Pixel art", "detailed 16-bit pixel art"),
+    "stained": ("Stained glass", "a stained glass window with dark lead lines"),
+    "vintage": ("Old photo", "a faded vintage photograph from the 1960s"),
+    "coloring": ("Coloring page", "a black and white coloring page with clean outlines, no shading"),
+    "picture": ("Like my last picture", ""),
+}
+
+
 TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("transcribe", "Transcribe a recording", "Audio",
          "Turn audio or video into text, subtitles and short notes.",
@@ -319,6 +345,10 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                   Option("method", "How to restore", choices=(
                       ("true", "True to the photo (no AI redraw, faces stay theirs)"),
                       ("ai", "AI repair (also scratches and tears; can change faces)")), value="true"),
+                  Option("change-faces", "Let AI repair redraw faces too", False,
+                         "Off (the usual): with AI repair, Joe finds the faces first and puts the real "
+                         "ones back afterwards, so nobody turns into a stranger (needs a vision model; "
+                         "System check offers one)."),
                   Option("strength", "How strong (true to the photo)", choices=(
                       ("auto", "Joe decides from how faded each photo is"),
                       ("strong", "Strong (very faded)"), ("medium", "Medium"),
@@ -340,6 +370,84 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "No CHUNKS.",
          examples=("Restore my grandparents' old photos", "Fix and colorize this old picture"),
          extra_hint="optional, e.g. the dress was blue"),
+    Tool("fix-spot", "Fix one spot", "Pictures",
+         "Mark a spot; only that spot changes.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         help="Add the picture, press MARK THE SPOT and paint over what to fix (a date stamp, a "
+              "scratch, a stranger, a cup). Only the painted part is redrawn; everything else stays "
+              "exactly as it was. Leave the box below empty to remove what's there, or say what "
+              "should go there instead. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Fix one marked spot in a picture (needs a mask painted in the Tools tab): TYPE: "
+                   "fix-spot, INPUT: the picture file(s), FORMAT: what goes there (empty = remove it). "
+                   "No CHUNKS, no OPTIONS.",
+         examples=("Remove the date stamp from this photo", "Take the cup off the table in this picture"),
+         extra_label="What goes there? (optional)", extra_hint="empty = remove it; or e.g. a vase of flowers"),
+    Tool("merge-pictures", "Put pictures together", "Pictures",
+         "Two or three pictures into one.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         help="Add 2 or 3 pictures and say how to combine them, calling them picture 1, 2 and 3 in "
+              "the order you added them (\"put the mug from picture 2 on the table in picture 1\"). "
+              "Makes one new picture. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Combine 2-3 pictures into one: TYPE: merge-pictures, INPUT: the picture files in "
+                   "order, FORMAT: how to combine them, naming them picture 1, 2, 3. No CHUNKS, no OPTIONS.",
+         examples=("Put my dog from this photo into the beach picture", "Place my mug on this kitchen counter"),
+         extra_label="How should they go together?",
+         extra_hint="e.g. put the mug from picture 2 on the table in picture 1"),
+    Tool("relight", "Change the lighting", "Pictures",
+         "Golden hour, studio light, night...", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         options=(Option("light", "Light", choices=tuple((k, v[0]) for k, v in RELIGHTS.items()), value="golden"),),
+         help="Changes only the light and shadows; people, things and the scene stay the same. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Change the lighting of pictures: TYPE: relight, INPUT: the picture file(s), "
+                   "OPTIONS: light " + "|".join(RELIGHTS) + ", FORMAT: extra wishes (optional). No CHUNKS.",
+         examples=("Make this photo look like golden hour", "Give my product photo studio lighting"),
+         extra_label="Anything else? (optional)", extra_hint="e.g. light coming from the window on the left"),
+    Tool("restyle", "Redraw in a new style", "Pictures",
+         "Your picture as watercolor, anime, a sketch...", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         options=(Option("style", "Style", choices=tuple((k, v[0]) for k, v in RESTYLES.items()), value="watercolor"),),
+         help="Keeps what's in the picture and how it's laid out; changes how it's drawn. \"Like my "
+              "last picture\" copies the look of the LAST picture you add onto the others. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Redraw pictures in another art style: TYPE: restyle, INPUT: the picture file(s) "
+                   "(for 'picture', the last file is the style example), OPTIONS: style "
+                   + "|".join(RESTYLES) + ". No CHUNKS.",
+         examples=("Turn this photo of my house into a watercolor", "Make my dog photo look like anime"),
+         extra_label="Anything else? (optional)", extra_hint="e.g. soft pastel colors"),
+    Tool("redraw", "Change a picture a little or a lot", "Pictures",
+         "Same picture, new take: you pick how much changes.", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
+         ready=True,
+         options=(Option("change", "How much may change", choices=(
+             ("little", "A little (stays close)"), ("some", "Some"), ("lots", "A lot (freer)")), value="some"),),
+         help="Say what it should look like; a little keeps it close to your picture, a lot gives the "
+              "AI more freedom. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Redraw pictures with a chosen amount of change: TYPE: redraw, INPUT: the picture "
+                   "file(s), OPTIONS: change little|some|lots, FORMAT: what it should look like. No CHUNKS.",
+         examples=("Make this sketch look finished", "Turn my rough drawing into a clean picture"),
+         extra_label="What should it look like?", extra_hint="e.g. a clean, colorful finished illustration"),
+    Tool("make-bigger", "Make a picture wider or taller", "Pictures",
+         "AI fills in more of the scene around it.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         options=(Option("shape", "Make it", choices=(
+             ("wider", "Wider (for a banner or desktop)"), ("taller", "Taller (for a phone or story)"),
+             ("square", "Square (for a post)"), ("around", "Bigger all around")), value="wider"),),
+         help="Your picture stays untouched in the middle; the AI paints the new parts around it to "
+              "match. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Extend pictures (outpaint): TYPE: make-bigger, INPUT: the picture file(s), OPTIONS: "
+                   "shape wider|taller|square|around. No CHUNKS.",
+         examples=("Make this photo wide enough for a banner", "Make my picture tall for a phone wallpaper"),
+         extra_label="What's around it? (optional)", extra_hint="e.g. more beach and sky"),
+    Tool("character-scenes", "Same character, new scenes", "Pictures",
+         "One character, many pictures that match.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         help="Add one picture of your character (a mascot, a drawing, a toy) and write one scene per "
+              "line, or separate them with ;. Each scene gets its own picture with the same face, "
+              "outfit and colors. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="The same character in new scenes: TYPE: character-scenes, INPUT: one picture of the "
+                   "character, FORMAT: one scene per line. No CHUNKS, no OPTIONS.",
+         examples=("Put my mascot in 5 different scenes", "Show my dragon drawing at the beach and in space"),
+         extra_label="Scenes (one per line, or separated by ;)",
+         extra_hint="e.g. waving at the beach; reading a book; riding a bike"),
+    Tool("character-spin", "Character turnaround", "Pictures",
+         "Front, side and back views, plus a sheet.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
+         help="Add one picture of a character; Joe makes six views (front, three-quarter, sides, back) "
+              "and puts them side by side on one sheet. Handy for drawing, 3D and games. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         plan_hint="Character turnaround (front/side/back views): TYPE: character-spin, INPUT: one "
+                   "picture of the character. No CHUNKS, no OPTIONS.",
+         examples=("Make a turnaround sheet of my mascot", "Show my character from every side")),
     Tool("animate-photo", "Animate a photo", "Video",
          "Turn one of your photos into a short clip.", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
          ready=True,
@@ -385,11 +493,17 @@ def catalog() -> list[dict]:
     return [{"id": t.id, "name": t.name, "group": t.group, "blurb": t.blurb, "ready": t.ready,
              "accepts": list(t.accepts), "help": t.help, "examples": list(t.examples),
              "needs": list(t.needs), "extra_hint": t.extra_hint, "mark": t.mark,
+             "packs": list(_packs_for(t.id)),
              "extra_label": t.extra_label,
              "options": [{"key": o.key, "label": o.label, "default": o.default, "hint": o.hint,
                           "choices": [list(c) for c in o.choices], "value": o.value, "multi": o.multi}
                          for o in t.options]}
             for t in TOOLS.values()]
+
+
+def _packs_for(tid: str) -> tuple[str, ...]:
+    from .picturetools import TOOL_PACKS
+    return TOOL_PACKS.get(tid, ())
 
 
 def planner_lines() -> str:
@@ -2981,7 +3095,9 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
 
 
 COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 120.0, "restore-photo": 150.0,
-                 "animate-photo": 240.0, "music": 60.0}
+                 "animate-photo": 240.0, "music": 60.0, "fix-spot": 120.0, "merge-pictures": 150.0,
+                 "relight": 120.0, "restyle": 120.0, "redraw": 120.0, "make-bigger": 150.0,
+                 "character-scenes": 120.0, "character-spin": 720.0}
 
 
 def needs_problem(settings, job: "Job") -> str:

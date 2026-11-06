@@ -595,3 +595,7 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .pklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 8px 0; }
 .pklist .pk { text-align: left; white-space: normal; padding: 8px 10px; }
 .pklist .pk.on { outline: 2px solid var(--fg); }
+
+.mkwrap { position: relative; display: inline-block; max-width: 100%; line-height: 0; }
+.mkwrap img { max-width: min(820px, 90vw); max-height: 62vh; display: block; }
+.mkwrap canvas { opacity: 0.5; position: absolute; left: 0; top: 0; width: 100%; height: 100%; cursor: crosshair; touch-action: none; }

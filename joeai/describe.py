@@ -78,6 +78,8 @@ def kind_mismatch(request: str, mission_text: str) -> str:
                 "for more), FORMAT: what happens in the clip")
     if _WANTS_PICS.search(request) and not _WANTS_VIDEO.search(request) and not types & {
             "image", "remove-bg", "edit-picture", "restore-photo", "photo-batch", "photo-listing",
+            "fix-spot", "merge-pictures", "relight", "restyle", "redraw", "make-bigger", "character-scenes",
+            "character-spin",
             "sort-photos", "read-scans"}:
         return ("the person asked for pictures, but your mission has no TYPE: image task (it only "
                 "writes text). Make it a TYPE: image task: CHUNKS: parts x pictures, FORMAT: subject and style")
@@ -122,7 +124,8 @@ def quality_offer(settings, request: str, block: str) -> dict | None:
     for t in re.split(r"(?m)^(?=TASK:)", block)[1:]:
         m = re.search(r"(?m)^TYPE:\s*([\w-]+)", t)
         typ = (m.group(1).lower() if m else "text")
-        if typ in ("image", "edit-picture", "remove-bg", "restore-photo"):
+        if typ in ("image", "edit-picture", "remove-bg", "restore-photo", "fix-spot", "merge-pictures",
+                   "relight", "restyle", "redraw", "make-bigger", "character-scenes", "character-spin"):
             kinds.append("pictures")
         elif typ in ("video", "animate-photo"):
             kinds.append("video")
@@ -274,6 +277,25 @@ def _plain_summary(chk: dict) -> list[str]:
                     k = len(pieces_from(j.get("format", "")))
                     what = ("sound effect", "sound effects") if pick("kind", "music") == "sfx" else ("music track", "music tracks")
                     out.append(f"Make {_n(k, *what)} ({pick('length', '30')} s each): {name}")
+            elif t in ("fix-spot", "merge-pictures", "relight", "restyle", "redraw", "make-bigger",
+                       "character-scenes", "character-spin"):
+                o = j.get("options") or []
+                pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731
+                from .picturetools import SPIN_VIEWS
+                from .tools import RELIGHTS, RESTYLES
+                scenes = [x for x in re.split(r"[\n;]+", j.get("format", "")) if x.strip()]
+                line = {
+                    "fix-spot": f"Fix the marked spot in {_n(n, 'picture', 'pictures')}",
+                    "merge-pictures": f"Put {_n(n, 'picture', 'pictures')} together into one",
+                    "relight": f"Relight {_n(n, 'picture', 'pictures')} ({RELIGHTS.get(pick('light', 'golden'), ('',))[0].lower()})",
+                    "restyle": f"Redraw {_n(n, 'picture', 'pictures')} as "
+                               + RESTYLES.get(pick('style', 'watercolor'), ('watercolor',))[0].lower(),
+                    "redraw": f"Redraw {_n(n, 'picture', 'pictures')} (change {pick('change', 'some')})",
+                    "make-bigger": f"Make {_n(n, 'picture', 'pictures')} {pick('shape', 'wider')}",
+                    "character-scenes": f"The same character in {_n(len(scenes), 'scene', 'scenes')}",
+                    "character-spin": f"{len(SPIN_VIEWS)} views of the character + a sheet",
+                }[t]
+                out.append(f"{line}: {name}")
             elif t == "sort-photos":
                 tail = " into folders" if not j.get("options") or "folders" in j["options"] else ""
                 out.append(f"Sort and tag {_n(n, 'photo', 'photos')}{tail}: {name}")

@@ -795,6 +795,13 @@ FORMAT: ...
     <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
+<div id="maskbox" class="modal" hidden><div class="panel bigger"><h2>MARK THE SPOT</h2>
+  <p class="small">Paint over what should change. Only the painted part is redrawn. <span id="mk-name" class="dim"></span></p>
+  <div class="mkwrap"><img id="mk-img" alt=""><canvas id="mk-canvas"></canvas></div>
+  <div class="row buttons"><label class="inline">Brush <input type="range" id="mk-size" min="4" max="160" value="40"></label>
+    <button type="button" data-act="mask-clear">[ CLEAR ]</button><span class="grow"></span>
+    <button type="button" data-act="mask-save" class="primary">[ SAVE THE MARK ]</button>
+    <button type="button" data-act="mask-close">[ CANCEL ]</button></div></div></div>
 <div id="packs" class="modal" hidden><div class="panel bigger"><h2>STARTER PACKS</h2>
   <p class="small">Pick one, answer one question, and Joe makes a plan for all of it. You see the plan before anything runs.</p>
   <div id="pk-list" class="pklist"></div>

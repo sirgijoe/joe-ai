@@ -1090,6 +1090,11 @@ document.addEventListener("keydown", (ev) => {
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
     return;
   }
+  if (!$("#maskbox").hidden) {
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); $("#maskbox").hidden = true; }
+    return;
+  }
   if (!$("#packs").hidden) {
     if (/^F\d+$/.test(ev.key)) ev.preventDefault();
     if (ev.key === "Escape") { ev.preventDefault(); $("#packs").hidden = true; }
@@ -2407,8 +2412,7 @@ function toolNeeds() {
     if (!toolHave.comfy) html += (html ? "<br>" : "") + esc("This runs in ComfyUI, which isn't installed yet. Setup (F10) > System check installs it.");
     else {
       const kind = (document.querySelector('#tf-options [data-pick="kind"]') || {}).value || "";
-      const want = { "remove-bg": ["bg"], "edit-picture": ["edit"], "restore-photo": ["edit"],
-        "animate-photo": ["video"], music: [kind === "sfx" ? "sfx" : "music"] }[t.id] || [];
+      const want = t.id === "music" ? [kind === "sfx" ? "sfx" : "music"] : (t.packs || []);
       const packs = toolHave.packs || {};
       want.filter((p) => packs[p] && !packs[p].ready).forEach((p) => {
         html += (html ? "<br>" : "") + esc(`This needs ${packs[p].offer}, once. It comes from Hugging Face and goes into ComfyUI's models folder.`) +
@@ -2446,9 +2450,55 @@ function openTool(id) {
   $("#toolgrid").hidden = true; $("#toolform").hidden = false;
 }
 function renderToolFiles() {
+  const marking = toolOpen && toolOpen.id === "fix-spot";
   $("#tf-files").innerHTML = toolFiles.map((f, i) =>
     `<span class="chip${f.busy ? " busy" : ""}">${esc(f.name)}${f.busy ? ` … ${f.pct || 0}%` : f.err ? " ✗" : ""}` +
+    (marking && !f.busy && f.input ? ` <button type="button" data-tfmark="${i}" title="Paint over the spot to fix.">[ ${f.marked ? "✓ MARKED" : "MARK THE SPOT"} ]</button>` : "") +
     (f.busy ? "" : ` <button type="button" data-tfrm="${i}" title="Remove from this job (the file stays in Inbox).">×</button>`) + `</span>`).join("");
+}
+/* Fix one spot: paint a mask over the picture (white = change it), saved next to it in Inbox. */
+let maskFile = null, maskCtx = null, maskShow = null, maskDraw = false, maskLast = null;
+function maskOpen(i) {
+  const f = toolFiles[i]; if (!f || !f.input) return;
+  maskFile = f; $("#mk-name").textContent = f.name;
+  const img = $("#mk-img"), cv = $("#mk-canvas");
+  img.onload = () => {
+    cv.width = img.naturalWidth; cv.height = img.naturalHeight;
+    maskShow = cv.getContext("2d"); maskShow.clearRect(0, 0, cv.width, cv.height);
+    const m = document.createElement("canvas"); m.width = cv.width; m.height = cv.height;
+    maskCtx = m.getContext("2d"); maskCtx.fillStyle = "#000"; maskCtx.fillRect(0, 0, m.width, m.height);
+  };
+  img.src = `/raw?t=${encodeURIComponent(TOKEN)}&path=${encodeURIComponent("Inbox/" + f.input)}`;
+  $("#maskbox").hidden = false;
+}
+function maskPoint(ev) {
+  const cv = $("#mk-canvas"), r = cv.getBoundingClientRect();
+  return [(ev.clientX - r.left) * cv.width / r.width, (ev.clientY - r.top) * cv.height / r.height,
+    (+$("#mk-size").value) * cv.width / r.width];
+}
+function maskPaint(ev) {
+  if (!maskDraw || !maskCtx) return;
+  const [x, y, size] = maskPoint(ev);
+  const [px, py] = maskLast || [x, y];
+  for (const [ctx, color] of [[maskCtx, "#fff"], [maskShow, "#ff2828"]]) {
+    ctx.strokeStyle = color; ctx.lineWidth = size; ctx.lineCap = "round"; ctx.lineJoin = "round";
+    ctx.beginPath(); ctx.moveTo(px, py); ctx.lineTo(x, y); ctx.stroke();
+  }
+  maskLast = [x, y];
+}
+(() => {
+  const cv = $("#mk-canvas");
+  cv.addEventListener("pointerdown", (ev) => { maskDraw = true; maskLast = null; cv.setPointerCapture(ev.pointerId); maskPaint(ev); });
+  cv.addEventListener("pointermove", maskPaint);
+  const up = () => { maskDraw = false; maskLast = null; };
+  cv.addEventListener("pointerup", up); cv.addEventListener("pointercancel", up);
+})();
+async function maskSave() {
+  if (!maskCtx || !maskFile) return;
+  const r = await api("/api/tools/mask", { input: maskFile.input, png: maskCtx.canvas.toDataURL("image/png") });
+  if (!r.ok) { toast(r.error); return; }
+  maskFile.marked = true; $("#maskbox").hidden = true; renderToolFiles();
+  toast("Spot marked. Only that part will change.");
 }
 function uploadOne(file, f) {      // XHR so a big recording shows progress
   return new Promise((resolve) => {
@@ -2531,6 +2581,10 @@ document.addEventListener("click", (ev) => {
     const waiting = toolPending; toolPending = null;
     if (waiting && toolOpen) toolsDrop(waiting);
   }
+  else if (b.dataset.tfmark !== undefined) maskOpen(+b.dataset.tfmark);
+  else if (b.dataset.act === "mask-save") maskSave();
+  else if (b.dataset.act === "mask-clear") { if (maskCtx) { maskCtx.fillStyle = "#000"; maskCtx.fillRect(0, 0, maskCtx.canvas.width, maskCtx.canvas.height); maskShow.clearRect(0, 0, maskShow.canvas.width, maskShow.canvas.height); } }
+  else if (b.dataset.act === "mask-close") $("#maskbox").hidden = true;
   else if (b.dataset.act === "tool-back") { toolOpen = null; toolPending = null; renderToolGrid(); }
   else if (b.dataset.act === "tool-logo") $("#tf-logo").click();
   else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));

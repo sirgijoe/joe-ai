@@ -321,6 +321,21 @@ def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m", cfg_shif
     }
 
 
+def with_hires(g: dict, scale: float = 1.5, denoise: float = 0.35, steps: int = 14) -> dict:
+    """Two-pass "hi-res fix" for the built-in graph: make the picture, enlarge it 1.5x, then a
+    short second pass adds real fine detail at the bigger size (Quality > High)."""
+    g = copy.deepcopy(g)
+    first = g["3"]["inputs"]
+    g["11"] = {"class_type": "LatentUpscaleBy", "inputs": {"samples": ["3", 0], "upscale_method": "bislerp",
+                                                           "scale_by": scale}}
+    g["12"] = {"class_type": "KSampler", "inputs": {
+        "seed": first["seed"], "steps": steps, "cfg": first["cfg"], "sampler_name": first["sampler_name"],
+        "scheduler": first["scheduler"], "denoise": denoise, "model": first["model"],
+        "positive": first["positive"], "negative": first["negative"], "latent_image": ["11", 0]}}
+    g["8"]["inputs"]["samples"] = ["12", 0]
+    return g
+
+
 def with_lora(g: dict, lora: str, strength: float = 0.8) -> dict:
     """The built-in picture graph with a LoRA (a small style add-on) between the checkpoint and
     everything that uses it."""

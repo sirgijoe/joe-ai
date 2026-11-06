@@ -1081,6 +1081,12 @@ class Engine:
                 label += f" + {lora}"
                 self.log(f"  Style add-on: {lora}" + (f" (its own settings: {ks['steps']} steps)"
                                                        if "steps" in ls else ""))
+        if lv == "high" and job.type == "image":
+            g = comfy_mod.with_hires(g)
+            label += " + hi-res second pass"
+            if not getattr(self, "_hires_said", False):
+                self.log("  High quality: each picture gets a second, 1.5x bigger detail pass.")
+                self._hires_said = True
         return g, api_name(m), m.family, label
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:

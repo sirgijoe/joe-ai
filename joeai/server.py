@@ -1516,6 +1516,25 @@ def make_handler(app: App):
                     if busy_drawing(app):              # hold it: plan once the pictures finish
                         return self._json(app.hold_plan(str(b.get("text", ""))))
                     return self._json(app.plan_now(str(b.get("text", ""))))
+                if u.path == "/api/tools/mask":        # Fix one spot: the painted spot, as <picture>-mask.png
+                    import base64 as _b64
+                    rel = str(b.get("input", ""))
+                    data = str(b.get("png", ""))
+                    if data.startswith("data:"):
+                        data = data.split(",", 1)[-1]
+                    try:
+                        raw = _b64.b64decode(data, validate=False)
+                    except ValueError:
+                        raw = b""
+                    if not raw.startswith(b"\x89PNG") or len(raw) > 40_000_000:
+                        return self._json({"ok": False, "error": "That mark couldn't be read. Try again."})
+                    pic = app.sb.resolve(rel, base="Inbox")
+                    if not pic.is_file():
+                        return self._json({"ok": False, "error": "That picture isn't in Inbox any more."})
+                    from .picturetools import MASK_SUFFIX
+                    target = app.sb.check(pic.with_name(pic.stem + MASK_SUFFIX))
+                    target.write_bytes(raw)
+                    return self._json({"ok": True, "mask": target.name})
                 if u.path == "/api/packs":             # STARTER PACKS: the list
                     from . import packs
                     return self._json({"ok": True, "packs": [{k: p[k] for k in ("id", "name", "about", "ask", "own")}

@@ -11,6 +11,7 @@ import json
 import mimetypes
 import random
 import time
+import re
 import urllib.error
 import urllib.request
 import uuid
@@ -79,7 +80,22 @@ PACKS: dict[str, Pack] = {p.id: p for p in (
 
 # Which packs each tool needs (all of them), and which it can use if they're there.
 TOOL_PACKS = {"remove-bg": ("bg",), "edit-picture": ("edit",), "restore-photo": ("edit",),
-              "animate-photo": ("video",), "music": ()}
+              "animate-photo": ("video",), "music": (), "fix-spot": ("edit",), "merge-pictures": ("edit",),
+              "relight": ("edit",), "restyle": ("edit",), "redraw": ("edit",), "make-bigger": ("edit",),
+              "character-scenes": ("edit",), "character-spin": ("edit",)}
+# the tools that run the Qwen picture editor (big: free the card first, text encoder on the CPU
+# under 16 GB, a smaller retry after running out of memory)
+EDITORS = ("edit-picture", "restore-photo", "fix-spot", "merge-pictures", "relight", "restyle", "redraw",
+           "make-bigger", "character-scenes", "character-spin")
+MASK_SUFFIX = "-mask.png"          # Tools tab > MARK THE SPOT saves <picture>-mask.png next to it
+SPIN_VIEWS = (("front", "front view, facing the viewer"),
+              ("three-quarter-left", "three-quarter view, turned to the left"),
+              ("left", "left side profile view"),
+              ("back", "back view, facing away from the viewer"),
+              ("right", "right side profile view"),
+              ("three-quarter-right", "three-quarter view, turned to the right"))
+SAME_CHARACTER = ("the exact same character as in the picture: same face, hair, body shape, outfit, colors "
+                  "and art style")
 OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",)}
 COMFY_TOOLS = tuple(TOOL_PACKS)
 
@@ -228,7 +244,7 @@ def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict
 
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
                prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False,
-               denoise: float = 1.0, passes: int = 1) -> dict:
+               denoise: float = 1.0, passes: int = 1, extra_images: list[str] | None = None) -> dict:
     """Qwen-Image-Edit 2511 (ComfyUI's template). fast = Lightning add-on: 4 steps, cfg 1.
     megapixels > 0 works on a smaller copy; encoder_on_cpu keeps the 9 GB text encoder in normal
     memory (slower to read the request, but the picture model gets the whole graphics card).
@@ -262,6 +278,13 @@ def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upsca
             "negative": ["147", 0], "latent_image": ["156", 0]}},
         "158": {"class_type": "VAEDecode", "inputs": {"samples": ["169", 0], "vae": ["146", 0]}},
     }
+    for n, extra in enumerate((extra_images or [])[:2], start=2):     # picture 2 and 3 (merge, style example)
+        g[f"41_{n}"] = _load(extra)
+        g[f"160_{n}"] = {"class_type": "ImageScaleToTotalPixels", "inputs": {
+            "image": [f"41_{n}", 0], "upscale_method": "lanczos", "megapixels": megapixels or 1.0,
+            "resolution_steps": 16}}
+        g["151"]["inputs"][f"image{n}"] = [f"160_{n}", 0]
+        g["149"]["inputs"][f"image{n}"] = [f"160_{n}", 0]
     last = "169"
     for n in range(2, max(1, passes) + 1):        # small passes, each starting from the last one
         k = f"169_{n}"
@@ -385,7 +408,7 @@ def _seed(job: "Job", i: int) -> int:
 
 
 # --------------------------------------------------------------------------- runner
-BIG_TOOLS = ("edit-picture", "restore-photo", "animate-photo")
+BIG_TOOLS = EDITORS + ("animate-photo",)
 SMALL_MP = 0.6          # retry size (megapixels) for edit/restore after running out of memory
 BIG_CARD_GB = 16        # below this the editor's text encoder runs on the processor from the start
 
@@ -606,6 +629,15 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         items, keys = files, [_key(engine, f) for f in files]
     if tid == "restore-photo" and restore_is_true(job):
         return run_true_restore(engine, job, st, items, keys)
+    if tid in NEW_EDITORS:
+        items, keys, why = plan_items(engine, job, tid, items)
+        if not items:
+            st.status, st.note = "failed", why
+            engine.log(f"'{job.name}' failed: {why}")
+            return st
+    faces: dict = {}
+    if tid == "restore-photo" and "change-faces" not in opts and "colorize" not in opts:
+        faces = find_faces(engine, job, st, [f for f, k in zip(items, keys) if k not in st.titles])
     if tid == "edit-picture" and not job.format.strip():
         st.status, st.note = "failed", "say what to change (for example: swap the background for a white wall)"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -643,7 +675,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     if tid in BIG_TOOLS:
         _free(engine, client)
     cpu_enc = False
-    if tid in ("edit-picture", "restore-photo"):
+    if tid in EDITORS:
         gb = card_gb(client.base)
         cpu_enc = 0 < gb < BIG_CARD_GB
         if cpu_enc:
@@ -659,7 +691,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             if engine.stop.is_set():
                 raise Stopped()
             engine._cool_down()
-            label = item.name if isinstance(item, Path) else item[:50]
+            label = item["label"] if isinstance(item, dict) else item.name if isinstance(item, Path) else item[:50]
             engine._progress(f"{job.name}: {i + 1}/{len(items)} {label}")
             t0 = time.monotonic()
             try:
@@ -671,9 +703,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     if not out_of_memory(e):
                         raise
                     engine.log("  The graphics card ran out of memory; freeing it and trying once more"
-                               + (" on a smaller copy." if tid in ("edit-picture", "restore-photo") else "."))
+                               + (" on a smaller copy." if tid in EDITORS else "."))
                     _free(engine, client)
-                    if tid in ("edit-picture", "restore-photo"):
+                    if tid in EDITORS:
                         graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale,
                                                       prefix, client, megapixels=SMALL_MP, cpu=True)
                     try:
@@ -694,6 +726,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     made.append(name)
                 if tid == "remove-bg" and option_value(job, "background") == "white":
                     made = [_on_white(engine, folder, m) for m in made]
+                made = after_edit(engine, job, tid, item, folder, made, faces)
                 try:
                     from .storage import delete_comfy_copies
                     delete_comfy_copies(engine.s, outs)
@@ -719,6 +752,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             st.items += 1
             engine._save_state(job, st)
             engine.log(f"  {label} -> {', '.join(made)} ({took:.0f} s)")
+        if tid == "character-spin":
+            spin_sheet(engine, folder, st)
         atomic_write_text(folder / "about.txt", _about(tid, job, opts, kind, upscale))
     except Stopped:
         st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(items)}"
@@ -765,11 +800,17 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         if kind == "sfx":
             return sfx_graph(item, secs, seed, prefix), stem, ".mp3"
         return music_graph(item, secs, seed, prefix=prefix), stem, ".mp3"
+    from . import quality as quality_mod
+    fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
+    if isinstance(item, dict):                                     # the newer editor tools
+        name = upload_image(client.base, item["src"])
+        extras = [upload_image(client.base, p) for p in item.get("images", [])]
+        return (edit_graph(name, item["prompt"], seed, fast, 0, prefix, megapixels, cpu,
+                           denoise=item.get("denoise", 1.0), extra_images=extras),
+                item["stem"], ".png")
     src: Path = item
     name = upload_image(client.base, src)
     stem = slug(src.stem) or f"picture-{i + 1}"
-    from . import quality as quality_mod
-    fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
     if tid == "remove-bg":
         keep = option_value(job, "background") or "transparent"
         return bg_graph(name, keep, upscale, prefix), stem + "-cutout", ".png"
@@ -802,3 +843,256 @@ def _about(tid, job, opts, kind, upscale) -> str:
     lines += ["", "Check each model's license before using these commercially.",
               "AI pictures and sound can contain mistakes: look and listen before you publish."]
     return "\n".join(lines) + "\n"
+
+
+
+# --------------------------------------------------------------------------- the newer editor tools
+NEW_EDITORS = ("fix-spot", "merge-pictures", "relight", "restyle", "redraw", "make-bigger",
+               "character-scenes", "character-spin")
+KEEP_REST = (" Keep everything else in the picture exactly as it is: the same people, faces, objects, "
+             "colors, framing and detail.")
+DENOISE = {"little": 0.45, "some": 0.65, "lots": 0.85}
+
+
+def _ffmpeg(engine) -> str | None:
+    from .doctor import ffmpeg_exe
+    return ffmpeg_exe(engine.s.comfy.ffmpeg)
+
+
+def _work_dir(engine) -> Path:
+    d = engine.sb.meta / "work"
+    d.mkdir(parents=True, exist_ok=True)
+    return d
+
+
+def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], list[str], str]:
+    """Files -> one dict per picture to make: src, prompt, extra images, stem, label, key and
+    what to do afterwards. ([], [], why) when it can't run."""
+    from .mission import slug
+    from .tools import TOOLS, RELIGHTS, RESTYLES, option_value
+    from . import media
+    extra = (job.format or "").strip()
+    items: list[dict] = []
+    if tid == "fix-spot":
+        pics = [f for f in files if not f.name.lower().endswith(MASK_SUFFIX)]
+        missing = []
+        for f in pics:
+            mask = f.with_name(f.stem + MASK_SUFFIX)
+            if not mask.exists():
+                missing.append(f.name)
+                continue
+            ff = _ffmpeg(engine)
+            if not ff:
+                return [], [], "needs FFmpeg to mark the spot (Setup > System check installs it)"
+            orig, f = f, _upright(engine, ff, f)      # phone photos: the mark was painted on the upright view
+            marked = media.outline_spot(ff, f, mask, _work_dir(engine) / f"{slug(f.stem)}-marked.png")
+            if not marked:
+                return [], [], f"couldn't read {f.name} or its marked spot"
+            what = extra or "remove what is there and fill it in so it matches the surroundings naturally"
+            items.append({"src": f, "images": [marked], "stem": slug(orig.stem) + "-fixed", "label": orig.name,
+                          "key": f"fix {orig.name}", "mask": mask,
+                          "prompt": ("Picture 2 is picture 1 with one spot tinted red. In picture 1, in that "
+                                     f"spot only: {what}. The result must not contain any red tint." + KEEP_REST)})
+        if not items:
+            return [], [], ("mark the spot first: Tools (F3) > Fix one spot > MARK THE SPOT"
+                            + (f" (no mark for {', '.join(missing[:3])})" if missing else ""))
+        if missing:
+            engine.log(f"  No marked spot for {', '.join(missing)}; skipped (Tools > Fix one spot > MARK THE SPOT).")
+    elif tid == "merge-pictures":
+        if len(files) < 2:
+            return [], [], "add 2 or 3 pictures to put together"
+        if len(files) > 3:
+            engine.log(f"  Using the first 3 of {len(files)} pictures.")
+        if not extra:
+            return [], [], "say how the pictures go together (picture 1, picture 2...)"
+        names = " + ".join(f.name for f in files[:3])
+        items.append({"src": files[0], "images": files[1:3], "stem": slug(job.name) or "together",
+                      "label": names[:60], "key": f"merge {names}",
+                      "prompt": f"{extra}. Make it one natural, believable picture with matching light, "
+                                "shadows and perspective."})
+    elif tid == "relight":
+        light = RELIGHTS.get(option_value(job, "light") or "golden", RELIGHTS["golden"])[1]
+        for f in files:
+            items.append({"src": f, "stem": slug(f.stem) + "-relit", "label": f.name, "key": f"relight {f.name}",
+                          "prompt": f"Relight this picture with {light}." + (f" {extra}." if extra else "")
+                                    + " Change only the lighting, shadows and color of the light." + KEEP_REST})
+    elif tid == "restyle":
+        want = option_value(job, "style") or "watercolor"
+        if want == "picture":
+            if len(files) < 2:
+                return [], [], "add your picture(s) and, last, the picture whose style to copy"
+            ref, pics = files[-1], files[:-1]
+            for f in pics:
+                items.append({"src": f, "images": [ref], "stem": slug(f.stem) + "-restyled", "label": f.name,
+                              "key": f"restyle {f.name} like {ref.name}",
+                              "prompt": "Redraw picture 1 in the art style of picture 2: its medium, colors, "
+                                        "brushwork, line work and texture. Keep the content, people, pose and "
+                                        "layout of picture 1. Do not copy anything else from picture 2."
+                                        + (f" {extra}." if extra else "")})
+        else:
+            look = RESTYLES.get(want, RESTYLES["watercolor"])[1]
+            for f in files:
+                items.append({"src": f, "stem": slug(f.stem) + f"-{want}", "label": f.name,
+                              "key": f"restyle {f.name} {want}",
+                              "prompt": f"Redraw this picture as {look}. Keep the same people, objects, pose "
+                                        "and layout." + (f" {extra}." if extra else "")})
+    elif tid == "redraw":
+        if not extra:
+            return [], [], "say what the picture should look like"
+        amount = option_value(job, "change") or "some"
+        for f in files:
+            items.append({"src": f, "stem": slug(f.stem) + "-redrawn", "label": f.name, "key": f"redraw {f.name}",
+                          "denoise": DENOISE.get(amount, 0.65),
+                          "prompt": f"Redraw this picture: {extra}. Keep its overall layout."})
+    elif tid == "make-bigger":
+        ff = _ffmpeg(engine)
+        if not ff:
+            return [], [], "needs FFmpeg (Setup > System check installs it)"
+        shape = option_value(job, "shape") or "wider"
+        for f in files:
+            pad = media.pad_for_outpaint(ff, f, _work_dir(engine) / f"{slug(f.stem)}-padded.png", shape)
+            if not pad:
+                engine.log(f"  Couldn't read {f.name}; skipped.")
+                continue
+            items.append({"src": pad[0], "stem": slug(f.stem) + f"-{shape}", "label": f.name,
+                          "key": f"bigger {f.name} {shape}", "padded": pad[0], "inner": pad[1],
+                          "prompt": "The sharp middle of this picture is the real photo; the blurry parts around "
+                                    "it are empty space to fill. Replace every blurry part with sharp, detailed "
+                                    "scenery that continues the middle naturally, with the same light, style, "
+                                    "colors and perspective, and no visible seams or frames."
+                                    + (f" Around it: {extra}." if extra else "") +
+                                    " Keep the sharp middle exactly as it is."})
+        if not items:
+            return [], [], "couldn't read the pictures"
+    elif tid == "character-scenes":
+        scenes = [x.strip(" -•\t") for x in re.split(r"[\n;]+", extra) if x.strip(" -•\t")]
+        if not scenes:
+            return [], [], "write the scenes, one per line (or separated by ;)"
+        src = files[0]
+        for n, scene in enumerate(scenes[:40], 1):
+            items.append({"src": src, "stem": f"{n:02d}-{slug(scene)[:40] or 'scene'}", "label": scene[:50],
+                          "key": f"scene {n} {scene[:60]}",
+                          "prompt": f"Show {SAME_CHARACTER}, {scene}. A complete, well-composed picture."})
+    elif tid == "character-spin":
+        src = files[0]
+        for n, (vid, view) in enumerate(SPIN_VIEWS, 1):
+            items.append({"src": src, "stem": f"{n}-{vid}", "label": vid.replace("-", " "),
+                          "key": f"spin {src.name} {vid}",
+                          "prompt": f"Show {SAME_CHARACTER}, full body, {view}, standing in a relaxed neutral "
+                                    "pose on a plain light grey background, evenly lit, nothing else in the picture."})
+    if tid not in TOOLS:
+        return [], [], f"unknown tool {tid}"
+    return items, [it["key"] for it in items], ""
+
+
+def _upright(engine, ff: str, f: Path) -> Path:
+    """A phone photo stored sideways (EXIF turn) -> an upright copy in Joe's work folder."""
+    from .tools import _TURN, jpeg_orientation
+    turn = jpeg_orientation(f) if f.suffix.lower() in (".jpg", ".jpeg") else 1
+    if turn not in _TURN:
+        return f
+    import subprocess
+    from .mission import slug
+    from .system import no_window_flags
+    dest = _work_dir(engine) / f"{slug(f.stem)}-upright.png"
+    try:
+        subprocess.run([ff, "-y", "-v", "error", "-noautorotate", "-i", str(f), "-vf", _TURN[turn],
+                        "-frames:v", "1", str(dest)], capture_output=True, timeout=300,
+                       creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return f
+    return dest if dest.exists() else f
+
+
+def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces: dict) -> list[str]:
+    """Put back what must not change: outside the marked spot, the original middle of a bigger
+    picture, the real faces after an AI repair."""
+    from . import media
+    ff = _ffmpeg(engine)
+    if not ff or not made:
+        return made
+    out = folder / made[0]
+    try:
+        if tid == "fix-spot" and isinstance(item, dict):
+            if media.blend(ff, item["src"], out, item["mask"], out.with_suffix(".tmp.png")):
+                out.with_suffix(".tmp.png").replace(out)
+                engine.log("  Only the marked spot was changed.")
+        elif tid == "make-bigger" and isinstance(item, dict):
+            size = media.size_of(ff, item["padded"])
+            keep = _work_dir(engine) / f"{out.stem}-keep.png"
+            x, y, w, h = item["inner"]
+            edge = max(4, min(w, h) // 40)                        # blend a little inside the edge
+            if size and media.rect_mask(ff, size, (x + edge, y + edge, w - 2 * edge, h - 2 * edge), keep) and \
+                    media.blend(ff, item["padded"], out, keep, out.with_suffix(".tmp.png"), feather=edge / 2):
+                out.with_suffix(".tmp.png").replace(out)
+                engine.log("  Your picture is untouched in the middle; the AI filled in around it.")
+        elif tid == "restore-photo" and isinstance(item, Path) and faces.get(item):
+            truer = _work_dir(engine) / f"{out.stem}-true.png"
+            import subprocess
+            from .system import no_window_flags
+            subprocess.run(true_restore_command(ff, item, truer, 1, 0, auto_level(measure(ff, item))),
+                           capture_output=True, timeout=600, creationflags=no_window_flags())
+            size = media.size_of(ff, out)
+            mask = _work_dir(engine) / f"{out.stem}-faces.png"
+            if truer.exists() and size and media.box_mask(ff, size, faces[item], mask) and \
+                    media.blend(ff, out, truer, mask, out.with_suffix(".tmp.png")):
+                out.with_suffix(".tmp.png").replace(out)
+                engine.log(f"  Kept the real face{'s' if len(faces[item]) > 1 else ''} "
+                           f"({len(faces[item])}), restored true to the photo.")
+    except (OSError, ValueError) as e:
+        engine.log(f"  Couldn't finish {out.name}: {e}")
+    return made
+
+
+def find_faces(engine, job, st, files: list[Path]) -> dict:
+    """Faces in each photo, as (x, y, w, h) fractions, found by the vision model before the
+    picture editor starts. {} when there's no vision model (Joe says so and carries on)."""
+    from .tools import find_vision_model, picture_b64, _look
+    if not files or not engine.services.handoff("text"):
+        return {}
+    model = find_vision_model(engine)
+    if not model:
+        engine.log("  Keep the real faces needs a vision model (Setup > System check offers one); "
+                   "the AI repair may change faces.")
+        return {}
+    ff = _ffmpeg(engine)
+    out: dict = {}
+    system = ("You find human faces in photos. Reply with JSON only: {\"faces\": [{\"x\": left, \"y\": top, "
+              "\"w\": width, \"h\": height}]} where each number is a fraction of the picture's width or "
+              "height from 0 to 1. Include every face, even small or blurry ones. No faces: {\"faces\": []}.")
+    for n, f in enumerate(files):
+        try:
+            img = picture_b64(ff, f, _work_dir(engine) / f"face-{n}.jpg", 1024)
+        except ValueError as e:
+            engine.log(f"  {f.name}: {e}")
+            continue
+        o = _look(engine, job, st, n, "faces", system, "Find every face in this photo.", img, model) or {}
+        boxes = []
+        for b in o.get("faces") or []:
+            try:
+                x, y, w, h = (float(b[k]) for k in ("x", "y", "w", "h"))
+            except (KeyError, TypeError, ValueError):
+                continue
+            if max(x, y, w, h) > 1.5:                 # the model answered in pixels or per mille
+                x, y, w, h = (v / 1000 for v in (x, y, w, h))
+            if 0 <= x < 1 and 0 <= y < 1 and 0.01 < w <= 1 and 0.01 < h <= 1:
+                boxes.append((x, y, w, h))
+        if boxes:
+            out[f] = boxes
+        engine.log(f"  {f.name}: {len(boxes)} face(s) to keep")
+    return out
+
+
+def spin_sheet(engine, folder: Path, st) -> None:
+    """The six views side by side: one character sheet."""
+    from . import media
+    ff = _ffmpeg(engine)
+    views = []
+    for n, (vid, _) in enumerate(SPIN_VIEWS, 1):
+        hit = sorted(folder.glob(f"{n}-{vid}.*"))
+        if hit:
+            views.append(hit[0])
+    if ff and len(views) >= 2 and media.side_by_side(ff, views, folder / "character-sheet.png"):
+        if "character-sheet.png" not in st.media_files:
+            st.media_files.append("character-sheet.png")
+        engine.log("  Character sheet: character-sheet.png")
