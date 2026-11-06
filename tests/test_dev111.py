@@ -48,7 +48,7 @@ def test_mascot_is_a_brand_character_not_an_icon():
 
 
 def test_video_prompt_asks_for_one_subject_one_motion():
-    assert "ONE main subject" in VIDEO_EXTRA
+    assert "ONE main motion" in VIDEO_EXTRA and "Keep EVERY subject" in VIDEO_EXTRA
 
 
 @pytest.mark.skipif(not FF, reason="needs ffmpeg")

@@ -75,10 +75,13 @@ Rules that always apply:
 VIDEO_EXTRA = """- This is for a short VIDEO clip, so something must clearly MOVE the whole time.
   Start the prompt with the motion: what moves, how, and how the camera moves (slow push-in,
   orbit, pan, rising crane). Use moving verbs: drifting, swaying, rippling, turning, opening.
-- ONE main subject doing ONE clear motion with its whole body (walking, flying across,
-  spinning, pouring), plus one slow camera move so the background moves too. Never list several
-  separate things that each move a little: the video model moves one of them and freezes the rest.
-  Keep the scene simple: few objects, no crowds, no small busy details.
+- Keep EVERY subject and the setting the request names, at the shot size it implies: "three
+  customers at a diner counter" means three people, the counter and the diner in a medium or
+  wide shot, not a close-up of cups or hands. Don't zoom in on a detail unless asked.
+- ONE main motion: one subject doing one clear whole-body action (walking, turning, pouring,
+  laughing), the others moving only gently, plus one slow camera move so the background moves
+  too. Never list several separate things that each move a little: the video model moves one
+  of them and freezes the rest. Don't add people or objects the request didn't ask for.
 - Avoid words that make the clip freeze: still, static, calm, motionless, frozen, painting,
   illustration, watercolor, photo, portrait. Ask for a cinematic, realistic look instead."""
 IMAGE_FORMAT = "## <short title>, then ONE paragraph that is the image prompt itself."

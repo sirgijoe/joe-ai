@@ -161,8 +161,10 @@ def to_mp4(ffmpeg: str, src: Path, dest: Path | None = None, fps: int = 16) -> P
 
 # Black-and-white video look, applied by FFmpeg after Wan makes the clip in color: no color
 # at all, a gentle contrast curve (deeper blacks, brighter highlights) and fine moving grain.
-BW_VIDEO_VF = ("format=yuv420p,hue=s=0,curves=preset=increase_contrast,"
-               "eq=contrast=1.06:brightness=-0.01,noise=c0s=7:c0f=t+u")
+BW_VIDEO_VF = ("format=yuv420p,hue=s=0,curves=all='0/0.03 0.25/0.24 0.5/0.52 0.75/0.79 1/1',"
+               "noise=c0s=6:c0f=t+u")
+# A gentle S-curve: mids and highlights get a little more snap, the deepest shadows are lifted a
+# touch so dark scenes keep their detail (dev112's increase_contrast crushed them to black).
 
 
 def video_bw(ffmpeg: str, src: Path, dest: Path) -> Path | None:
