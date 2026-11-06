@@ -711,11 +711,28 @@ class Engine:
         st.output = str(cand.relative_to(self.sb.output)).replace("\\", "/")
         return cand
 
+    def _picks(self) -> dict | None:
+        """model_picks.json (GitHub copy when fresh); None offline -> built-in data."""
+        if not hasattr(self, "_picks_cache"):
+            try:
+                from .upkeep import picks
+                self._picks_cache = picks()
+            except Exception:                       # noqa: BLE001
+                self._picks_cache = None
+        return self._picks_cache
+
+    def _styled(self, prompt: str, rec) -> str:
+        """The prompt plus the style's words (and an add-on's trigger words first, if one is used)."""
+        out = prompt.rstrip(" .,")
+        if rec.words:
+            out += ", " + rec.words
+        if rec.trigger and getattr(self, "_lora_used", False):
+            out = f"{rec.trigger}, {out}"
+        return out
+
     def _image_system(self, mission: Mission, job: Job) -> str:
         parts = [IMAGE_SYSTEM + ("\n" + VIDEO_EXTRA if job.type == "video" else "")]
-        style = styles_mod.pick(job)
-        if style.note:
-            parts.append(style.note)
+        parts += styles_mod.recipe(job, self._picks()).notes
         if styles_mod.for_kids(job):
             parts.append(styles_mod.KID_NOTE)
         project = job.project or mission.project
@@ -910,13 +927,20 @@ class Engine:
         lv = quality_mod.level(self.s, "pictures")
         if lv != "medium":
             self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({pp.steps(m.family)} steps)")
+        self._lora_used = False
         g = comfy_mod.basic_graph(m.family, pp.steps(m.family), style.sampler or pp.sampler, style.cfg)
         label = "built-in text-to-image"
         if style.lora and m.family == "sdxl":
             from .doctor import comfy_models_dir
             lora = styles_mod.pick_lora(style, comfy_mod.list_loras(comfy_models_dir(self.s)))
             if lora:
-                g = comfy_mod.with_lora(g, lora, style.lora_strength)
+                ls = styles_mod.recipe(job, self._picks()).lora_settings
+                g = comfy_mod.with_lora(g, lora, float(ls.get("strength", style.lora_strength)))
+                ks = g["3"]["inputs"]
+                for k, key in (("steps", "steps"), ("cfg", "cfg"), ("sampler", "sampler_name")):
+                    if k in ls:
+                        ks[key] = ls[k]
+                self._lora_used = True
                 label += f" + {lora}"
                 self.log(f"  Style add-on: {lora}")
         return g, api_name(m), m.family, label
@@ -954,11 +978,14 @@ class Engine:
             w, h = quality_mod.pictures(self.s).size(*comfy_mod.default_size(family))
         else:
             w, h = None, None
-        style = styles_mod.pick(job)
-        extra = ", ".join(x for x in (job.negative.strip(), style.negative,
+        rec = styles_mod.recipe(job, self._picks())
+        style = rec.style
+        extra = ", ".join(x for x in (job.negative.strip(), rec.negative,
                                       styles_mod.KID_NEGATIVE if styles_mod.for_kids(job) else "") if x)
-        negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra) if builtin \
+        negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra, rec.anatomy) if builtin \
             else job.negative
+        if rec.look and builtin and job.type == "image":
+            self.log(f"  Look: {style.label} > {rec.look.get('label', '')}")
         total = len(st.prompts) * job.variants
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
                  + (f", model {ckpt}" if ckpt else "") + f" -> {st.output}/")
@@ -976,7 +1003,7 @@ class Engine:
                 p = st.prompts[pi]
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
-                g = comfy_mod.fill(graph, styles_mod.add(p["prompt"], style) if builtin else p["prompt"],
+                g = comfy_mod.fill(graph, self._styled(p["prompt"], rec) if builtin else p["prompt"],
                                    negative, seed, w, h, ckpt,
                                    prefix=f"Joe/{slug(job.name)}")
                 stem = f"{pi + 1:03d}_{slug(p['title'])[:40]}" + (f"_{v + 1}" if job.variants > 1 else "")

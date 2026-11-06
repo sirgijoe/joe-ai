@@ -127,7 +127,7 @@ STYLES = {
     "abstract": Style("abstract", "Abstract",
                       "STYLE: abstract art. Non-representational shapes, lines and color fields, a clear "
                       "composition and focal point, a chosen palette; no recognizable objects unless asked.",
-                      "abstract art, bold composition", "photo, realistic, people, faces, text, clutter", cfg=0.5),
+                      "abstract art, bold composition", "photo, realistic, people, faces, text, clutter", cfg=-2.5),
     "illustration": Style("illustration", "Illustration / flat art",
                           "STYLE: illustration. Describe it as a drawn or painted illustration: simple clear "
                           "shapes, clean outlines, a limited color palette, soft even light. No camera or lens "
@@ -252,3 +252,62 @@ def pick_lora(style: "Style", loras: list[str]) -> str:
             if word in name.lower().replace(" ", ""):
                 return name
     return ""
+
+
+# ---- sub-looks (model_picks.json "looks"; GitHub copy wins, so they can change without a release)
+_BUNDLED: dict | None = None
+
+
+def _looks(picks: dict | None) -> dict:
+    global _BUNDLED
+    got = (picks or {}).get("looks")
+    if isinstance(got, dict) and got:
+        return got
+    if _BUNDLED is None:
+        import json
+        from pathlib import Path
+        try:
+            _BUNDLED = json.loads((Path(__file__).parent / "model_picks.json").read_text(encoding="utf-8")).get("looks") or {}
+        except (OSError, ValueError):
+            _BUNDLED = {}
+    return _BUNDLED
+
+
+@dataclass
+class Recipe:
+    style: Style
+    look: dict
+    notes: list
+    words: str          # added after the prompt
+    negative: str       # targeted leave-out words (go first)
+    anatomy: bool       # use Joe's general anatomy leave-out list
+    trigger: str        # words a style add-on (LoRA) needs, used only when one is installed
+    lora_settings: dict
+
+
+def recipe(job, picks: dict | None = None) -> Recipe:
+    """Everything one picture task gets from its style and sub-look."""
+    st = pick(job)
+    data = _looks(picks).get(st.id) or {}
+    text = f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}".lower()
+    looks = [l for l in data.get("looks") or [] if isinstance(l, dict)]
+    look = next((l for l in looks if l.get("match") and _safe_search(l["match"], text)), None) \
+        or next((l for l in looks if not l.get("match")), None) or (looks[0] if looks else {})
+    notes = [st.note] if st.note else []
+    if data.get("note"):
+        notes.append(str(data["note"]))
+    if look.get("example"):
+        how = "comma-separated tags" if data.get("prompt_style") == "tags" else "the same pattern"
+        notes.append(f"LOOK: {look.get('label', '')}. Write each prompt in {how}, like this example "
+                     f"(change the subject, keep the kind of detail): {look['example']}")
+    words = ", ".join(x for x in (st.suffix, look.get("words", "")) if x)
+    neg = ", ".join(x for x in (look.get("negative", ""), data.get("negative", ""), st.negative) if x)
+    return Recipe(st, look, notes, words, neg, not data.get("no_anatomy"), str(data.get("trigger") or ""),
+                  data.get("lora_settings") if isinstance(data.get("lora_settings"), dict) else {})
+
+
+def _safe_search(pattern: str, text: str) -> bool:
+    try:
+        return bool(re.search(pattern, text))
+    except re.error:
+        return False

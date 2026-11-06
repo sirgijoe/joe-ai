@@ -1,7 +1,7 @@
 {
   "version": 1,
   "updated": "2026-11-04",
-  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI).",
+  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
   "writing": [
     {
       "min_vram": 22,
@@ -258,6 +258,7 @@
       "style": "anime",
       "name": "Animagine XL 4.0",
       "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
+      "file": "animagine-xl-4.0.safetensors",
       "kind": "model",
       "base": "sdxl",
       "size_gb": 7,
@@ -276,6 +277,7 @@
       "style": "coloring",
       "name": "ColoringBookRedmond V2",
       "page": "https://huggingface.co/artificialguybr/ColoringBookRedmond-V2",
+      "file": "ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors",
       "kind": "lora",
       "base": "sdxl",
       "size_gb": 0.2,
@@ -290,5 +292,448 @@
       "size_gb": 0.2,
       "note": "soft watercolor paintings"
     }
-  ]
+  ],
+  "looks": {
+    "photo": {
+      "looks": [
+        {
+          "id": "portrait",
+          "label": "Portrait",
+          "match": "portrait|headshot|\\bface\\b|close-?up of (?:a|an|the) (?:man|woman|person|girl|boy)",
+          "words": "35mm lens, f/1.8, soft side light, detailed skin texture, natural color grading",
+          "example": "A candid, sharp-focused professional portrait of a 30-year-old woman with a warm natural smile, soft morning side-lighting, detailed skin texture, realistic pores, fine stray hair, simple linen shirt, shot on 35mm lens, f/1.8, bokeh background, natural color grading.",
+          "negative": "plastic skin, airbrushed, poreless, deformed face, asymmetrical face, bad teeth, dead eyes, crossed eyes"
+        },
+        {
+          "id": "landscape",
+          "label": "Landscape",
+          "match": "landscape|mountain|lake|forest|valley|coast|sunrise over|sunset over|vista|countryside",
+          "words": "wide-angle 16mm, f/8, natural light, hyper-detailed",
+          "example": "A breathtaking wide-angle landscape photograph of a misty alpine lake at sunrise, snow-capped peaks reflecting on calm water, golden sun rays through low fog, rich pine forests, 16mm, f/8, natural lighting.",
+          "negative": "oversaturated, underexposed, overexposed, power lines, distortion, painting, drawing"
+        }
+      ]
+    },
+    "bw": {
+      "looks": [
+        {
+          "id": "studio",
+          "label": "Studio",
+          "match": "studio|headshot|portrait",
+          "words": "mid-grey backdrop, soft even light, catchlight in the eyes, rich tonal range, Kodak Tri-X grain, 85mm, f/2.8",
+          "example": "A timeless black-and-white studio headshot, smooth mid-grey backdrop, soft even lighting, gentle catchlight in the eyes, rich tonal range from deep blacks to clean whites, subtle Kodak Tri-X film grain, 85mm lens, f/2.8.",
+          "negative": "waxy texture, over-smoothed, artificial AI look, harsh digital HDR"
+        },
+        {
+          "id": "noir",
+          "label": "Film noir",
+          "match": "noir|detective|1940s|dramatic|moody|night",
+          "words": "hard side light, deep crushed blacks, bright highlights, silver gelatin grain, 35mm",
+          "example": "Dramatic high-contrast film noir black-and-white scene, hard window light beam from the side, deep crushed blacks, bright highlights, moody atmosphere, silver gelatin film grain, 1940s cinema style, 35mm lens.",
+          "negative": "flat lighting, low contrast, grey mush, soft shadows, modern digital noise"
+        },
+        {
+          "id": "fineart",
+          "label": "Fine art",
+          "match": "fine.?art|dreamy|soft|gentle|ethereal",
+          "words": "low contrast, lifted blacks, soft diffused window light, delicate grain, gentle vignette",
+          "example": "Luminous fine-art black-and-white portrait, low contrast, lifted blacks, soft diffused window light, dreamy hazy glow, plain pale backdrop, delicate film grain, gentle vignette.",
+          "negative": "harsh shadows, high contrast, pure black background, over-sharpened halos"
+        }
+      ]
+    },
+    "product": {
+      "looks": [
+        {
+          "id": "hero",
+          "label": "Studio hero",
+          "match": "",
+          "words": "light gray seamless background, soft diffused light, realistic reflections, crisp focus, 50mm, f/4",
+          "example": "Commercial studio product photograph of a minimalist ceramic coffee mug, light gray seamless background, soft diffused side lighting, realistic reflections, crisp focus, high-end editorial look, 50mm lens, f/4.",
+          "negative": "shadows on product, distorted product, wrong colors, multiple products, text overlay, altered packaging, fake logos"
+        },
+        {
+          "id": "flatlay",
+          "label": "Flat lay",
+          "match": "flat ?lay|overhead|top.?down|from above",
+          "words": "top-down flat lay, warm linen surface, minimal props, neutral warm palette",
+          "example": "Overhead flat lay of handmade soaps on warm linen, minimal props, soft even light, neutral warm color palette.",
+          "negative": "tilted camera angle, cluttered messy arrangement, products falling over"
+        },
+        {
+          "id": "botanical",
+          "label": "Moody botanical",
+          "match": "luxury|marble|botanical|perfume|moody",
+          "words": "marble surface, fresh and dried botanicals, clean studio light, luxury mood",
+          "example": "A perfume bottle on a white marble surface surrounded by dried botanicals, clean studio light, luxury editorial mood.",
+          "negative": "cluttered, cheap plastic look"
+        },
+        {
+          "id": "floating",
+          "label": "Floating tech",
+          "match": "floating|levitat|tech|gadget|headphones|phone",
+          "words": "floating mid-air, dark background, subtle reflections, glowing accent light",
+          "example": "Wireless earbuds floating mid-air against a black background, subtle reflections, glowing cyan accent lighting.",
+          "negative": "table, hands, busy background"
+        }
+      ],
+      "negative": "dark shadows, harsh directional lighting, overlapping products blocking labels, hands in frame, grain"
+    },
+    "anime": {
+      "looks": [
+        {
+          "id": "modern",
+          "label": "Modern anime",
+          "match": "",
+          "words": "masterpiece, best quality, absurdres, anime style, cel shading, sharp line-art, vibrant colors",
+          "example": "(masterpiece, best quality), 1girl, short pink hair, school uniform, cherry blossoms background, cel shading, sharp line-art, bold contour, vibrant colors, anime style",
+          "negative": "worst quality, low quality, realistic, photo, 3d render, western cartoon"
+        },
+        {
+          "id": "retro",
+          "label": "80s-90s anime",
+          "match": "retro|80s|90s|vintage|classic anime",
+          "words": "1990s anime, cel animation, film grain, muted colors",
+          "example": "1990s retro anime still, cel animation, hand-painted background, film grain, muted colors.",
+          "negative": "modern digital look, 3d, photo"
+        }
+      ],
+      "prompt_style": "tags"
+    },
+    "manga": {
+      "looks": [
+        {
+          "id": "action",
+          "label": "Action panel",
+          "match": "action|fight|run|toss|jump|clash|motion",
+          "words": "manga panel, high-contrast black ink, screentone shading, speed lines, impact lines",
+          "example": "manga panel, two fighters clashing fists mid-air, explosive impact lines radiating outward, cracked ground, screentone shading, high-contrast ink.",
+          "negative": "color, photorealistic, 3d render, soft gradients, watercolor, gray wash"
+        },
+        {
+          "id": "closeup",
+          "label": "Close-up",
+          "match": "close.?up|eyes|face|portrait|emotion",
+          "words": "manga panel, extreme close-up, thick ink lines, screentone under the brow",
+          "example": "manga panel, extreme close-up of eyes, intense focused gaze, thick ink eyelashes, screentone shading under the brow.",
+          "negative": "color, photorealistic, 3d render, soft gradients"
+        },
+        {
+          "id": "quiet",
+          "label": "Quiet scene",
+          "match": "",
+          "words": "manga panel, black and white, clean ink lines, classic dot screentone",
+          "example": "manga panel, a man standing in the rain, classic circular dot-pattern screentone on background and clothing shadows, clean ink lines.",
+          "negative": "color, photorealistic, 3d render, soft gradients, watercolor"
+        }
+      ]
+    },
+    "painting": {
+      "looks": [
+        {
+          "id": "classical",
+          "label": "Classical",
+          "match": "classical|old master|renaissance|baroque|portrait|rembrandt|chiaroscuro",
+          "words": "oil on canvas, old masters technique, chiaroscuro, glazing, dark ground",
+          "example": "oil on canvas, a portrait in the old masters tradition, chiaroscuro lighting, layered glazes, dark warm ground, visible canvas weave.",
+          "negative": "photo, modern, digital, flat colors"
+        },
+        {
+          "id": "impressionist",
+          "label": "Impressionist",
+          "match": "impressionis|monet|plein air|garden|field|meadow",
+          "words": "impressionist oil painting, broken color, visible dabs, plein air light",
+          "example": "impressionist oil painting of a poppy field, broken color, visible brush dabs, shimmering plein air light.",
+          "negative": "photo, sharp detail, smooth, digital"
+        },
+        {
+          "id": "traditional",
+          "label": "Traditional oil",
+          "match": "",
+          "words": "oil on canvas, thick impasto brushstrokes, visible canvas texture, painterly light",
+          "example": "oil on canvas, a red barn after rain, thick impasto brushstrokes, visible canvas texture, rich layered color, painterly light.",
+          "negative": "photo, realistic, modern, digital, smooth, anime, cartoon, 3d render"
+        }
+      ]
+    },
+    "watercolor": {
+      "looks": [
+        {
+          "id": "loose",
+          "label": "Loose wet-on-wet",
+          "match": "",
+          "words": "watercolor, wet-on-wet, paint bleeding into the paper, soft edges, white paper showing, cold-press texture",
+          "example": "watercolor painting of a Japanese garden in spring, wet-on-wet technique, paint bleeding into the paper, soft edges, white paper showing through.",
+          "negative": "photo, realistic, digital, sharp edges, high contrast, dark, heavy saturation, 3d render"
+        },
+        {
+          "id": "botanical",
+          "label": "Botanical",
+          "match": "botanical|flower|plant|leaf|herb",
+          "words": "botanical watercolor, fine pencil lines, delicate washes, white background",
+          "example": "botanical watercolor study of wildflowers, fine pencil underdrawing, delicate transparent washes, white paper background.",
+          "negative": "photo, dark background, heavy saturation"
+        }
+      ]
+    },
+    "concept": {
+      "looks": [
+        {
+          "id": "environment",
+          "label": "Environment",
+          "match": "",
+          "words": "concept art, dramatic lighting, strong silhouette, sense of scale, atmospheric perspective, digital painting",
+          "example": "concept art of a floating citadel above a stormy ocean, bioluminescent towers, dramatic sunset light, strong silhouette, atmospheric perspective, digital painting.",
+          "negative": "photo, realistic, blurry, flat colors, amateur, sketch"
+        },
+        {
+          "id": "character",
+          "label": "Character",
+          "match": "character|hero|warrior|knight|soldier",
+          "words": "character concept art, full body, clear silhouette, costume detail, neutral background",
+          "example": "character concept art of a desert scout, full body, clear silhouette, layered costume detail, neutral background, digital painting.",
+          "negative": "photo, busy background, cropped"
+        }
+      ]
+    },
+    "fantasy": {
+      "looks": [
+        {
+          "id": "epic",
+          "label": "Epic landscape",
+          "match": "",
+          "words": "epic fantasy, highly detailed, dramatic lighting, digital painting",
+          "example": "A dragon on a crumbling mountain fortress under storm clouds, glowing runes, highly detailed, dramatic lighting, digital painting.",
+          "negative": "photo, modern city, cars, phones, plain"
+        },
+        {
+          "id": "cozy",
+          "label": "Cozy fairy tale",
+          "match": "cozy|fairy|storybook|cottage|gnome|mushroom",
+          "words": "storybook fantasy, warm light, soft painterly detail",
+          "example": "A cozy mushroom cottage in an enchanted forest, warm window light, soft painterly storybook detail.",
+          "negative": "photo, dark, gore, modern"
+        }
+      ]
+    },
+    "render3d": {
+      "looks": [
+        {
+          "id": "toy",
+          "label": "Cute 3D",
+          "match": "",
+          "words": "3d render, soft global illumination, subsurface scattering, studio HDRI lighting, octane render",
+          "example": "3d render of a cute robot watering houseplants, soft global illumination, glossy plastic and brushed metal, studio HDRI lighting, shallow depth of field, octane render.",
+          "negative": "photo, drawing, sketch, painting, flat colors, line art, noisy render"
+        },
+        {
+          "id": "isometric",
+          "label": "Isometric diorama",
+          "match": "isometric|diorama|miniature|tiny world",
+          "words": "isometric 3d diorama, tilt-shift, soft lighting",
+          "example": "isometric 3d diorama of a tiny bakery, tilt-shift, soft lighting, clean pastel materials.",
+          "negative": "photo, drawing, flat"
+        }
+      ],
+      "trigger": "3d style"
+    },
+    "scifi": {
+      "looks": [
+        {
+          "id": "hard",
+          "label": "Hard sci-fi / mecha",
+          "match": "mecha|robot|exosuit|ship|station|hard sci",
+          "words": "intricate industrial greeble, matte polycarbonate panels, exposed hydraulic wiring, brushed titanium",
+          "example": "A mech suit in a hangar, intricate industrial greeble, matte polycarbonate panels, exposed hydraulic copper wiring, brushed titanium, volumetric light.",
+          "negative": "(magic, wizard, fantasy, runes:1.2), organic curves, wood texture"
+        },
+        {
+          "id": "bio",
+          "label": "Biomechanical",
+          "match": "alien|biomech|organic|giger|creature",
+          "words": "chitinous plating, neural fiber optics, pulsing bioluminescent veins",
+          "example": "An alien biomechanical corridor, chitinous plating, integrated neural fiber optics, pulsing bioluminescent veins.",
+          "negative": "clean steel, 90-degree geometry, plastic"
+        },
+        {
+          "id": "opera",
+          "label": "Space opera",
+          "match": "",
+          "words": "panoramic cinematic view, megastructure, cosmic dust, volumetric light",
+          "example": "Panoramic cinematic view of an orbital ring megastructure over a gas giant, cosmic dust storm, volumetric light.",
+          "negative": "(magic, wizard, fantasy:1.2), trees, ground level, atmospheric blue sky"
+        }
+      ]
+    },
+    "cyberpunk": {
+      "looks": [
+        {
+          "id": "street",
+          "label": "Character / street",
+          "match": "",
+          "words": "rainy alley, neon sign reflections on wet asphalt, cyan and magenta light, volumetric fog, rim lighting, 85mm, f/1.4",
+          "example": "Raw photo of a cyberpunk woman with glowing neural implants in a rainy alleyway, neon sign reflections on wet asphalt, cyan and magenta lighting, volumetric fog, rim lighting, 85mm lens, f/1.4.",
+          "negative": "cartoon, anime, painting, illustration, washed out colors, flat lighting, daylight, rustic, pastoral"
+        },
+        {
+          "id": "city",
+          "label": "Megacity",
+          "match": "city|skyline|skyscraper|street view|aerial",
+          "words": "cyberpunk mega-city at midnight, giant holographic advertisements, flying vehicles, smog and rain, wide-angle, cinematic",
+          "example": "Massive cyberpunk mega-city at midnight, towering skyscrapers with giant holographic advertisements, flying vehicles through smog and rain, wide-angle cinematic composition.",
+          "negative": "daylight, rustic, pastoral, washed out colors, flat lighting"
+        }
+      ]
+    },
+    "comic": {
+      "looks": [
+        {
+          "id": "modern",
+          "label": "Comic book",
+          "match": "",
+          "words": "comic book art, bold ink outlines, halftone dots, dynamic angle, flat bold colors",
+          "example": "A noir detective in a rainy alley under neon signs, dynamic angle, bold ink outlines, halftone dots, comic book art.",
+          "negative": "photo, realistic, soft, pastel, blurry, low contrast, anime, watercolor"
+        }
+      ]
+    },
+    "cartoon": {
+      "looks": [
+        {
+          "id": "cartoon",
+          "label": "Cartoon",
+          "match": "",
+          "words": "cartoon illustration, bold clean outlines, flat bright colors, simple shapes, expressive pose",
+          "example": "cartoon illustration of a dog delivering mail on a bicycle, bold clean outlines, flat bright colors, simple shapes, expressive pose.",
+          "negative": "photo, realistic, 3d render, anime, sketchy lines, muddy colors"
+        }
+      ],
+      "trigger": "CuteCartoonAF, Cute Cartoon"
+    },
+    "pixel": {
+      "looks": [
+        {
+          "id": "16bit",
+          "label": "16-bit",
+          "match": "",
+          "words": "pixel art, 16-bit RPG style, limited color palette, retro game aesthetic, clean pixels",
+          "example": "pixel art of a knight at a torchlit dungeon entrance, 16-bit RPG style, limited color palette, clean pixels.",
+          "negative": "blurry, anti-aliasing, smooth, photorealistic, 3d render, gradient, high resolution"
+        }
+      ],
+      "lora_settings": {
+        "cfg": 1.5,
+        "steps": 8,
+        "sampler": "euler_ancestral",
+        "strength": 1.0
+      }
+    },
+    "illustration": {
+      "looks": [
+        {
+          "id": "flat",
+          "label": "Flat vector",
+          "match": "",
+          "words": "flat design illustration, clean lines, geometric shapes, limited palette",
+          "example": "flat design illustration of a family planting a garden, clean lines, geometric shapes, five-color palette.",
+          "negative": "photorealistic, 3d render, shadow, gradient, texture, busy, painterly"
+        },
+        {
+          "id": "storybook",
+          "label": "Storybook",
+          "match": "storybook|children'?s book|picture book|whimsical",
+          "words": "storybook illustration, soft gouache texture, warm palette",
+          "example": "storybook illustration of a fox reading under a tree, soft gouache texture, warm palette.",
+          "negative": "photo, 3d render, harsh contrast"
+        }
+      ]
+    },
+    "character": {
+      "looks": [
+        {
+          "id": "sheet",
+          "label": "Turnaround sheet",
+          "match": "sheet|turnaround|views|front.*side|side.*back",
+          "words": "character sheet, multiple views, front side and back, same outfit and colors in every view, plain white background",
+          "example": "character sheet, multiple views (front, side, back) of a cheerful little retro computer with arms and legs, same colors in every view, full body, plain white background, clean outlines.",
+          "negative": "busy background, multiple different characters, cropped, inconsistent design"
+        },
+        {
+          "id": "mascot",
+          "label": "Mascot",
+          "match": "",
+          "words": "cute mascot character, full body, simple friendly shapes, clean outlines, plain white background",
+          "example": "cute mascot character: a round clay pot with a little leaf on its head, big friendly eyes, full body, clean outlines, plain white background.",
+          "negative": "photo, realistic, human, woman, man, busy background, cropped"
+        }
+      ],
+      "trigger": "character sheet"
+    },
+    "coloring": {
+      "looks": [
+        {
+          "id": "adult",
+          "label": "Adult",
+          "match": "adult|intricate|mandala|detailed|pattern",
+          "words": "intricate line art, fine clean lines, detailed patterns",
+          "example": "adult coloring page, an owl surrounded by intricate botanical patterns, fine clean black lines, white background.",
+          "negative": "color, shading, gray, filled areas, cross-hatching"
+        },
+        {
+          "id": "simple",
+          "label": "Simple",
+          "match": "",
+          "words": "simple shapes, very thick clean outlines, large open areas",
+          "example": "coloring book page, a friendly sea turtle with coral, very thick clean black outlines, large open areas, white background.",
+          "negative": "color, shading, gray, gradient, texture, small details, cross-hatching"
+        }
+      ],
+      "trigger": "ColoringBookAF, Coloring Book"
+    },
+    "surreal": {
+      "looks": [
+        {
+          "id": "dream",
+          "label": "Dreamlike",
+          "match": "",
+          "words": "surreal art, one clear impossibility, grounded setting, strong perspective, sharp focus, intricate details",
+          "example": "A quiet suburban kitchen floating above a dark ocean, every cupboard open onto a different season, strong one-point perspective, pale morning light against deep blue water, tactile editorial collage, sharp focus.",
+          "negative": "stock photography feel, text"
+        }
+      ],
+      "no_anatomy": true,
+      "note": "Use ONE clear impossibility inside a believable setting. Order: subject, setting, the twist, perspective, light and color, medium."
+    },
+    "abstract": {
+      "looks": [
+        {
+          "id": "geometric",
+          "label": "Geometric",
+          "match": "geometric|bauhaus|grid|shapes|hard.?edge",
+          "words": "geometric abstract composition, clean hard edges, asymmetric grid, white negative space, flat color, Bauhaus",
+          "example": "Geometric abstract composition, overlapping translucent rectangles in navy blue, coral and matte gold, clean hard edges, asymmetric grid layout, generous white negative space, flat color.",
+          "negative": "soft edges, blurry gradients, organic smudges, messy brushwork, depth of field, vignette, lens flare"
+        },
+        {
+          "id": "field",
+          "label": "Color field",
+          "match": "rothko|color field|calm|meditative|soft",
+          "words": "abstract color field, soft-edged color blocks, luminous haze, fine canvas texture",
+          "example": "Rothko-influenced abstract color field, soft-edged horizontal blocks of deep crimson, burnt orange and violet, luminous haze, fine canvas texture.",
+          "negative": ""
+        },
+        {
+          "id": "gestural",
+          "label": "Expressive",
+          "match": "",
+          "words": "abstract expressionist brushstrokes, thick impasto, dynamic energy, paint splatters",
+          "example": "Abstract expressionist brushstrokes, chaotic yet balanced energy, thick impasto texture, electric cyan and emerald splatters, fluid motion, dark moody background.",
+          "negative": ""
+        }
+      ],
+      "no_anatomy": true,
+      "negative": "photographic, photorealistic, 3d render, human, face, figure, recognizable objects, muddy colors, over-saturated",
+      "note": "Name art movements (Bauhaus, Suprematism, Kandinsky-inspired, Abstract Expressionism), not feelings. Describe composition, color, texture and movement."
+    }
+  }
 }

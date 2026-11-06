@@ -384,12 +384,18 @@ IMAGE_NEGATIVE = ("(mutated hands and fingers, extra fingers, too many fingers, 
 OLD_IMAGE_NEGATIVE = "blurry, low quality, watermark, text, logo, deformed"   # settings saved before dev95
 
 
-def negative_for(family: str, saved: str, task: str) -> str:
+# For styles where strangeness is the point (surreal, abstract): quality words only.
+SHORT_NEGATIVE = "worst quality, low quality, lowres, blurry, jpeg artifacts, watermark, signature, text"
+
+
+def negative_for(family: str, saved: str, task: str, anatomy: bool = True) -> str:
     """The 'leave out' list for one picture/video: the task's own words come first, then
     Joe's defaults (a task's NEGATIVE adds to the defaults; it no longer replaces them).
     A Setup value still equal to the old short default counts as the new default."""
     base = WAN_NEGATIVE if family == "wan" else \
         (IMAGE_NEGATIVE if not (saved or "").strip() or saved.strip() == OLD_IMAGE_NEGATIVE else saved.strip())
+    if not anatomy and family != "wan" and base == IMAGE_NEGATIVE:
+        base = SHORT_NEGATIVE
     task = (task or "").strip().strip(",")
     return f"{task}, {base}" if task else base
 

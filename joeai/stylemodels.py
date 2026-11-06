@@ -33,12 +33,13 @@ BUILTIN = [
      "kind": "model", "base": "sdxl", "size_gb": 7,
      "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more"},
     {"style": "anime", "name": "Animagine XL 4.0", "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
-     "kind": "model", "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
+     "file": "animagine-xl-4.0.safetensors", "kind": "model", "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
     # style add-ons (LoRAs, small; they work on top of any SDXL model)
     {"style": "pixel", "name": "Pixel Art XL", "page": "https://huggingface.co/nerijs/pixel-art-xl",
      "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "retro pixel art"},
     {"style": "coloring", "name": "ColoringBookRedmond V2",
      "page": "https://huggingface.co/artificialguybr/ColoringBookRedmond-V2",
+     "file": "ColoringBookRedmond-ColoringBook-ColoringBookAF.safetensors",
      "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "clean coloring-book line art"},
     {"style": "watercolor", "name": "Watercolor SDXL", "page": "https://huggingface.co/cbo305/Watercolor_SDXL",
      "kind": "lora", "base": "sdxl", "size_gb": 0.2, "note": "soft watercolor paintings"},
@@ -74,7 +75,7 @@ def offers(models: list, picks: dict | None = None, loras: list[str] | None = No
         seen.add(s)
         label = styles.STYLES[s].label
         out.append({"id": f"style-{s}", "group": "styles", "optional": True, "action": "import-models",
-                    "page": r["page"], "style": s,
+                    "page": r["page"], "style": s, "file": str(r.get("file") or ""),
                     "text": f"For {label} pictures: {r['name']} ("
                             + (f"about {r['size_gb']:g} GB" if r['size_gb'] >= 1 else "a small style add-on")
                             + f", {r.get('note') or 'free community model'}) "
@@ -138,12 +139,15 @@ def hf_pick_file(siblings: list[dict]) -> str:
     return files[0]["rfilename"] if files else ""
 
 
-def download_link(page: str, timeout: float = 15) -> str:
+def download_link(page: str, timeout: float = 15, file: str = "") -> str:
     """A direct download link for a Hugging Face pick (the browser saves it to Downloads), or the
     repo's file list when the file can't be found; other sites: the page itself."""
     repo = hf_repo(page)
     if not repo:
         return page
+    import urllib.parse
+    if file and "/" not in file and file.lower().endswith(".safetensors"):
+        return f"https://huggingface.co/{repo}/resolve/main/{urllib.parse.quote(file)}?download=true"
     import json
     import urllib.parse
     import urllib.request

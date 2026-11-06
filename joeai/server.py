@@ -765,7 +765,7 @@ class App:
                             self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
                     elif b.get("page", "").startswith(stylemodels.PAGE_HOSTS):
                         import webbrowser
-                        link = stylemodels.download_link(b["page"])
+                        link = stylemodels.download_link(b["page"], file=str(b.get("file") or ""))
                         if link != b["page"]:
                             webbrowser.open(b["page"])          # the license and model card
                         webbrowser.open(link)
