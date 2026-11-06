@@ -184,3 +184,47 @@ def import_downloads(models_dir: Path | None, log: Log, folder: Path | None = No
         use = "" if s == "general" else f"; Joe will use it for {styles.STYLES[s].label} pictures"
         log(f"Moved {f.name} ({size} GB) into ComfyUI{use}.")
     return moved
+
+
+OTHER_FOLDERS = {"vae": "Picture decoder (VAE)", "text_encoders": "Text reader", "clip": "Text reader",
+                 "upscale_models": "Upscaler", "clip_vision": "Picture reader", "controlnet": "ControlNet",
+                 "embeddings": "Embedding", "audio_encoders": "Sound", "diffusion_models": "Main model",
+                 "unet": "Main model"}
+
+
+def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = None) -> dict:
+    """What's installed, for Setup > System check > Your models."""
+    from . import comfy
+    pics = []
+    for m in comfy.scan_models(models_dir):
+        if m.folder != "checkpoints":
+            continue
+        good = [s for s in styles.NAMES if s != "general" and m in styles.choose_model([m], s, picks)]
+        pics.append({"name": m.name, "size_gb": m.size_gb, "family": m.family,
+                     "styles": [styles.STYLES[s].label for s in good]})
+    addons = []
+    for name in comfy.list_loras(models_dir):
+        use = [styles.STYLES[s].label for s in styles.NAMES
+               if styles.STYLES[s].lora and styles.pick_lora(styles.STYLES[s], [name])]
+        size = 0.0
+        try:
+            size = round((models_dir / "loras" / name).stat().st_size / 2**30, 2)
+        except (OSError, TypeError):
+            pass
+        addons.append({"name": name, "size_gb": size, "styles": use})
+    other = []
+    for folder, what in OTHER_FOLDERS.items():
+        root = (models_dir / folder) if models_dir else None
+        if not root or not root.is_dir():
+            continue
+        for f in sorted(root.rglob("*")):
+            if f.is_file() and f.suffix.lower() in (".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf"):
+                try:
+                    gb = round(f.stat().st_size / 2**30, 2)
+                except OSError:
+                    gb = 0.0
+                other.append({"name": f.relative_to(root).as_posix(), "what": what, "size_gb": gb})
+    return {"writing": [{"name": m["name"], "size_gb": m["size_gb"], "params": m.get("params", ""),
+                         "writer": m.get("writer", True)} for m in ollama],
+            "pictures": pics, "addons": addons, "other": other,
+            "folder": str(models_dir) if models_dir else ""}

@@ -585,3 +585,7 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 #queued h2.sub { position: sticky; top: 0; background: var(--panel, var(--bg)); margin-top: 0; }
 #s-queue .jobs #joblist { flex: 0 1 auto; min-height: 4.5em; overflow-y: auto; }
 #s-queue .jobs #log { flex: 1 1 3em; min-height: 3em; }
+
+.mtable{border-collapse:collapse;width:100%;margin:.3em 0 .8em}
+.mtable th,.mtable td{text-align:left;padding:.15em .5em;border-bottom:1px dotted currentColor;vertical-align:top}
+.mtable td:first-child{word-break:break-all}

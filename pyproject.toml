@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "joe-ai"
-version = "2.0.0.dev108"
+version = "2.0.0.dev109"
 description = "Joe (01000001 01001001): overnight grunt work on your own PC with local AI models"
 readme = "README.md"
 license = "GPL-3.0-or-later"

@@ -1173,6 +1173,15 @@ def make_handler(app: App):
                                        "keep_days": app.settings.voice.chat_keep_days})
                 if u.path == "/api/history":
                     return self._json(app.history())
+                if u.path == "/api/models":               # Setup > System check > Your models
+                    from . import doctor, stylemodels
+                    try:
+                        from .upkeep import picks as _p
+                        pk = _p()
+                    except Exception:                    # noqa: BLE001
+                        pk = None
+                    return self._json(stylemodels.inventory(doctor.comfy_models_dir(app.settings),
+                                                            doctor.ollama_models(app.services), pk))
                 if u.path == "/api/lists":
                     return self._json(app.lists())
                 if u.path == "/api/resume":

@@ -2467,3 +2467,32 @@ document.addEventListener("change", (ev) => {
     msg.textContent = r.ok ? r.message : "Not imported: " + r.error;
   });
 })();
+
+
+// Setup > System check > Your models
+(function myModels() {
+  const go = document.getElementById("mymodels-go"), box = document.getElementById("mymodels");
+  if (!go || !box) return;
+  const gb = (n) => (n >= 1 ? `${n} GB` : n > 0 ? `${Math.round(n * 1024)} MB` : "");
+  const table = (title, rows, cols) => rows.length
+    ? `<h4>${title} (${rows.length})</h4><table class="mtable"><tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr>` +
+      rows.map((r) => `<tr>${cols.map((c) => `<td>${esc(c[1](r))}</td>`).join("")}</tr>`).join("") + "</table>"
+    : `<h4>${title}</h4><p class="dim small">None found.</p>`;
+  go.addEventListener("click", async () => {
+    box.textContent = "Looking…";
+    try {
+      const m = await api("/api/models");
+      box.innerHTML =
+        table("Writing and talking (Ollama)", m.writing, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],
+          ["Used for", (r) => (r.writer ? "writing, Talk" : "pictures, reading scans or other helpers")]]) +
+        table("Picture models (ComfyUI)", m.pictures, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],
+          ["Type", (r) => r.family.toUpperCase()], ["Joe uses it for", (r) => r.styles.join(", ") || "any style (Joe decides)"]]) +
+        table("Style add-ons (LoRAs)", m.addons, [["Add-on", (r) => r.name], ["Size", (r) => gb(r.size_gb)],
+          ["Used for", (r) => r.styles.join(", ") || "not matched to a style (use it in your own workflow)"]]) +
+        table("Other parts (video, sound, editing, upscaling)", m.other, [["File", (r) => r.name], ["What", (r) => r.what], ["Size", (r) => gb(r.size_gb)]]) +
+        (m.folder ? `<p class="dim small">ComfyUI models folder: ${esc(m.folder)}</p>` : "");
+    } catch (e) {
+      box.textContent = "Couldn't look: " + e;
+    }
+  });
+})();
