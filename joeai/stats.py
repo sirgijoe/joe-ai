@@ -44,11 +44,15 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
 
     files = sum(1 for f in sb.output.rglob("*")
                 if f.is_file() and ".joe" not in f.parts and not f.name.startswith("_"))
+    pictures, video_s = media_made(sb.output)
     code_lines = sum(_lines(f) for f in sb.output.rglob("*")
                      if f.suffix.lower() in {".py", ".cs", ".cpp", ".h", ".js", ".ts", ".ps1", ".gd"})
 
     st = settings.stats
-    cloud = tin / 1e6 * st.cloud_price_in_per_mtok + tout / 1e6 * st.cloud_price_out_per_mtok
+    cloud_text = tin / 1e6 * st.cloud_price_in_per_mtok + tout / 1e6 * st.cloud_price_out_per_mtok
+    cloud_pics = pictures * st.cloud_price_image
+    cloud_video = video_s * st.cloud_price_video_second
+    cloud = cloud_text + cloud_pics + cloud_video
     watts = st.gpu_watts
     if not watts:                            # automatic: this GPU's power reading, else a typical card
         from .hardware import gpu
@@ -62,8 +66,39 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
         "calls": calls, "calls_ok": ok, "tokens_in": tin, "tokens_out": tout,
         "model_hours": round(secs / 3600, 2), "nights": len(nights - {""}),
         "cloud_cost_avoided": round(cloud, 2), "electricity_cost": round(power, 2),
+        "cloud_cost_parts": {"text": round(cloud_text, 2), "pictures": round(cloud_pics, 2),
+                             "video": round(cloud_video, 2)},
+        "pictures": pictures, "video_seconds": round(video_s),
         "models": per_model,
     }
+
+
+def media_made(output: Path) -> tuple[int, float]:
+    """Pictures and seconds of video Joe made, from each folder's _media.json (one entry per
+    finished file). Coloring '_example' copies aren't counted twice. Video length: the entry's
+    own seconds when it has them, else 5 s."""
+    pics, secs = 0, 0.0
+    for mj in output.rglob("_media.json"):
+        if ".joe" in mj.parts:
+            continue
+        try:
+            d = json.loads(mj.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        items = d.get("items") if isinstance(d, dict) else None
+        for name, r in (items.items() if isinstance(items, dict) else []):
+            r = r if isinstance(r, dict) else {}
+            if "_example." in name:
+                continue
+            low = name.lower()
+            if low.endswith((".mp4", ".webm", ".mov", ".gif")):
+                try:
+                    secs += float(r.get("seconds") or 5)
+                except (TypeError, ValueError):
+                    secs += 5
+            elif low.endswith((".png", ".jpg", ".jpeg", ".webp")):
+                pics += 1
+    return pics, secs
 
 
 def _lines(p: Path) -> int:

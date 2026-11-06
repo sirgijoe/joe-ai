@@ -107,6 +107,8 @@ class StatsSettings:
     # Edit these to match current cloud prices and your power bill.
     cloud_price_in_per_mtok: float = 3.0
     cloud_price_out_per_mtok: float = 15.0
+    cloud_price_image: float = 0.035          # one standard cloud picture (2026 median of the main services)
+    cloud_price_video_second: float = 0.10    # one second of cloud video (cheap production tier)
     gpu_watts: int = 0               # 0 = read from the GPU while it works
     kwh_price: float = 0.17
 
