@@ -794,18 +794,20 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
     from .tools import option_value
     seed = _seed(job, i)
     extra = job.format.strip()
+    from . import workflowprefs as wfp
     if tid == "music":
         secs = float(option_value(job, "length") or 30)
         stem = f"{i + 1:02d}-{slug(item)[:40] or 'sound'}"
         if kind == "sfx":
-            return sfx_graph(item, secs, seed, prefix), stem, ".mp3"
-        return music_graph(item, secs, seed, prefix=prefix), stem, ".mp3"
+            return sfx_graph(wfp.with_add(item, wfp.get(engine.s, "sfx")), secs, seed, prefix), stem, ".mp3"
+        return music_graph(wfp.with_add(item, wfp.get(engine.s, "music")), secs, seed, prefix=prefix), stem, ".mp3"
+    epref = wfp.get(engine.s, "editor")
     from . import quality as quality_mod
     fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
     if isinstance(item, dict):                                     # the newer editor tools
         name = upload_image(client.base, item["src"])
         extras = [upload_image(client.base, p) for p in item.get("images", [])]
-        return (edit_graph(name, item["prompt"], seed, fast, 0, prefix, megapixels, cpu,
+        return (edit_graph(name, wfp.with_add(item["prompt"], epref), seed, fast, 0, prefix, megapixels, cpu,
                            denoise=item.get("denoise", 1.0), extra_images=extras),
                 item["stem"], ".png")
     src: Path = item
@@ -815,11 +817,12 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         keep = option_value(job, "background") or "transparent"
         return bg_graph(name, keep, upscale, prefix), stem + "-cutout", ".png"
     if tid == "edit-picture":
-        return edit_graph(name, extra, seed, fast, 0, prefix, megapixels, cpu), stem + "-edited", ".png"
+        return edit_graph(name, wfp.with_add(extra, epref), seed, fast, 0, prefix, megapixels, cpu), stem + "-edited", ".png"
     if tid == "restore-photo":
         prompt = RESTORE_PROMPT + (COLORIZE if "colorize" in opts else KEEP_BW)
         if extra:
             prompt += " " + extra
+        prompt = wfp.with_add(prompt, epref)
         return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu),
                 stem + "-restored", ".png")
     if tid == "animate-photo":
@@ -830,7 +833,9 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         from .doctor import comfy_models_dir
         turbo = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
         steps, cfg = (4, 1.0) if turbo else (20, 5.0)
-        return (animate_graph(name, prompt, comfy_mod.WAN_VIDEO["negative"], seed, w, h,
+        apref = wfp.get(engine.s, "animate")
+        prompt = wfp.with_add(prompt, apref)
+        return (animate_graph(name, prompt, wfp.with_avoid(comfy_mod.WAN_VIDEO["negative"], apref), seed, w, h,
                               steps=steps, cfg=cfg, turbo=turbo, prefix=prefix), stem + "-moving", ".mp4")
     raise comfy_mod.WorkflowError(f"unknown tool {tid}")
 

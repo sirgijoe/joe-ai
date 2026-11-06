@@ -1100,6 +1100,26 @@ class App:
         old_ws = self.settings.workspace_path
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time)
         _merge(self.settings, data)
+        return self._settings_changed(old_ws, old_sched)
+
+    def reset_settings(self, paths: list[str] | None) -> dict:
+        """Setup > RESET THIS PAGE (the page's settings) or RESET ALL SETTINGS (paths None)."""
+        if self.running:
+            return {"ok": False, "error": "Can't change settings during a run."}
+        from .config import reset_paths
+        old_ws = self.settings.workspace_path
+        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time)
+        changed = reset_paths(self.settings, paths)
+        if paths is None:
+            self.settings.workflows = {}
+        r = self._settings_changed(old_ws, old_sched)
+        if r.get("ok"):
+            r["changed"] = len(changed)
+            self.log(f"Settings reset to how Joe came ({'all' if paths is None else len(changed)} "
+                     f"setting{'s' if paths is None or len(changed) != 1 else ''}).")
+        return r
+
+    def _settings_changed(self, old_ws, old_sched) -> dict:
         self.settings.save()
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()
@@ -1210,7 +1230,7 @@ def make_handler(app: App):
                 if u.path == "/api/storage":
                     return self._json(storage_mod.usage(app.settings, app.sb))
                 if u.path == "/api/stats":
-                    return self._json(stats_mod.collect(app.settings, app.sb))
+                    return self._json(stats_mod.collect(app.settings, app.sb, (q.get("period") or ["all"])[0]))
                 if u.path == "/api/chats":
                     return self._json({"chats": app.chats.list((q.get("q") or [""])[0]), "bytes": app.chats.size(),
                                        "current": (app.chats.current or {}).get("id", ""),
@@ -1299,10 +1319,38 @@ def make_handler(app: App):
 
         do_HEAD = do_GET
 
+        def _mcp_http(self):
+            """MCP Streamable HTTP (JSON replies). Needs 'Authorization: Bearer <key>' (Setup >
+            General shows it), so a web page in a browser can't drive Joe."""
+            import secrets as _sec
+            key = app.settings.mcp_key
+            got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
+            if not key or not got or not _sec.compare_digest(got, key):
+                return self._json({"error": "Joe's connector key is missing or wrong (Setup > General)."}, 401)
+            n = int(self.headers.get("Content-Length") or 0)
+            if not 0 < n <= 2_000_000:
+                return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "empty"}}, 400)
+            try:
+                msg = json.loads(self.rfile.read(n))
+            except ValueError:
+                return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}, 400)
+            from . import mcp as mcp_mod
+            joe = mcp_mod.Joe(app.settings)
+            joe.sb = app.sb
+            if isinstance(msg, list):
+                out = [r for r in (mcp_mod.handle(joe, m) for m in msg if isinstance(m, dict)) if r is not None]
+                return self._send(202, b"", "application/json") if not out else self._json(out)
+            reply = mcp_mod.handle(joe, msg) if isinstance(msg, dict) else None
+            if reply is None:
+                return self._send(202, b"", "application/json")
+            return self._json(reply)
+
         def do_POST(self):
             if not self._host_ok():
                 return self._send(403, b"forbidden", "text/plain")
             u = urlparse(self.path)
+            if u.path == "/mcp":                        # Joe's connector over HTTP, for AI apps on this PC
+                return self._mcp_http()
             if not self._authed({}):
                 return self._json({"error": "bad token"}, 401)
             app.last_seen = time.monotonic()
@@ -1535,6 +1583,17 @@ def make_handler(app: App):
                     target = app.sb.check(pic.with_name(pic.stem + MASK_SUFFIX))
                     target.write_bytes(raw)
                     return self._json({"ok": True, "mask": target.name})
+                if u.path == "/api/workflows":         # Setup > Workflows
+                    from . import workflowprefs
+                    from .doctor import comfy_models_dir
+                    return self._json({"ok": True, **workflowprefs.entries(app.settings, app.sb,
+                                                                           comfy_models_dir(app.settings))})
+                if u.path in ("/api/workflows/save", "/api/workflows/reset"):
+                    if app.running:
+                        return self._json({"ok": False, "error": "Can't change settings during a run."})
+                    from . import workflowprefs
+                    prefs = b.get("prefs") if u.path.endswith("save") else None
+                    return self._json(workflowprefs.save(app.settings, str(b.get("id", "")), prefs))
                 if u.path == "/api/packs":             # STARTER PACKS: the list
                     from . import packs
                     return self._json({"ok": True, "packs": [{k: p[k] for k in ("id", "name", "about", "ask", "own")}
@@ -1568,7 +1627,20 @@ def make_handler(app: App):
                                        "on": app.settings.schedule.enabled, "time": app.settings.schedule.time})
                 if u.path == "/api/mcp-config":        # the lines for Claude Desktop's settings file
                     from .mcp import client_config
-                    return self._json({"ok": True, "text": json.dumps(client_config(), indent=2)})
+                    import secrets as _sec
+                    if not app.settings.mcp_key:
+                        app.settings.mcp_key = _sec.token_urlsafe(24)
+                        app.settings.save()
+                    from . import connect as connect_mod
+                    return self._json({"ok": True, "text": json.dumps(client_config(), indent=2),
+                                       "url": f"http://127.0.0.1:{self.server.server_address[1]}/mcp",
+                                       "key": app.settings.mcp_key, "apps": connect_mod.status()})
+                if u.path == "/api/connect":           # CONNECT / DISCONNECT an AI app (asked first in the window)
+                    from . import connect as connect_mod
+                    from .mcp import client_config
+                    if b.get("on"):
+                        return self._json(connect_mod.connect(str(b.get("app", "")), client_config()["mcpServers"]["joe"]))
+                    return self._json(connect_mod.disconnect(str(b.get("app", ""))))
                 if u.path == "/api/bigger":            # ASK A BIGGER AI: the paste-ready message
                     from . import bigger
                     return self._json({"ok": True, "text": bigger.message(
@@ -1640,6 +1712,13 @@ def make_handler(app: App):
                     return self._json(app.open_path(b.get("path", ""), b.get("how", "default")))
                 if u.path == "/api/settings":
                     return self._json(app.save_settings(b))
+                if u.path == "/api/settings/reset":    # RESET THIS PAGE / RESET ALL SETTINGS (after "are you sure")
+                    paths = b.get("paths")
+                    if b.get("all"):
+                        return self._json(app.reset_settings(None))
+                    if not isinstance(paths, list) or not paths:
+                        return self._json({"ok": False, "error": "Nothing to reset on this page."})
+                    return self._json(app.reset_settings([str(x) for x in paths][:200]))
                 if u.path == "/api/services/start":
                     which = b.get("which")
                     ok = app.services.ensure_ollama() if which == "ollama" else app.services.ensure_comfy()

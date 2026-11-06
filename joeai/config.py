@@ -151,6 +151,8 @@ class Settings:
     quality: QualitySettings = field(default_factory=QualitySettings)
     web: WebSettings = field(default_factory=WebSettings)
     schedule: ScheduleSettings = field(default_factory=ScheduleSettings)
+    workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
+    mcp_key: str = ""                # password for Joe's local connector address (made on first use)
     pandoc: str = ""                 # blank = auto-detect
 
     @property
@@ -189,3 +191,39 @@ def _merge(obj, data: dict) -> None:
             _merge(cur, val)
         elif isinstance(val, type(cur)) or (isinstance(cur, float) and isinstance(val, int)):
             setattr(obj, f.name, val)
+
+
+# Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state).
+KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows")
+
+
+def reset_paths(s: "Settings", paths: list[str] | None = None) -> list[str]:
+    """Put settings back to how Joe came. paths = dotted names ("engine.keep_awake"); None = all.
+    Returns the paths that changed."""
+    fresh = Settings()
+    if paths is None:
+        paths = []
+        for f in fields(Settings):
+            sub = getattr(fresh, f.name)
+            if hasattr(sub, "__dataclass_fields__"):
+                paths += [f"{f.name}.{g.name}" for g in fields(sub)]
+            else:
+                paths.append(f.name)
+    changed = []
+    for p in paths:
+        if p in KEEP_ON_RESET:
+            continue
+        head, _, tail = p.partition(".")
+        try:
+            if tail:
+                new = getattr(getattr(fresh, head), tail)
+                if getattr(getattr(s, head), tail) != new:
+                    setattr(getattr(s, head), tail, new)
+                    changed.append(p)
+            elif hasattr(fresh, head) and not hasattr(getattr(fresh, head), "__dataclass_fields__"):
+                if getattr(s, head) != getattr(fresh, head):
+                    setattr(s, head, getattr(fresh, head))
+                    changed.append(p)
+        except AttributeError:
+            continue
+    return changed

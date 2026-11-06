@@ -1006,11 +1006,14 @@ class Engine:
                 raise comfy_mod.WorkflowError(f"{name}: {problem}")
             current = comfy_mod.template_checkpoint(g)
             kind = job.type
-            if job.model:
-                m = comfy_mod.best_image_model(models, vram, kind, want=job.model) or \
-                    comfy_mod.best_image_model(models, vram, "image", want=job.model)
+            from . import workflowprefs as wfp
+            want = job.model or wfp.get(self.s, f"file:{name}").get("model", "")
+            if want:
+                m = comfy_mod.best_image_model(models, vram, kind, want=want) or \
+                    comfy_mod.best_image_model(models, vram, "image", want=want)
                 if not m:
-                    raise comfy_mod.WorkflowError(f"no installed model matches MODEL: {job.model}")
+                    raise comfy_mod.WorkflowError(f"no installed model matches '{want}'"
+                                                  + ("" if job.model else " (Setup > Workflows)"))
                 return g, api_name(m), m.family, name
             if not current:
                 return g, "", "", name                      # template loads models its own way
@@ -1043,7 +1046,13 @@ class Engine:
         basic = [m for m in models if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
         style = styles_mod.pick(job)
         m = None
-        if not job.model and style.id != "general":
+        from . import workflowprefs as wfp
+        wpref = wfp.merged(self.s, [f"style:{style.id}", "pictures"])
+        if not job.model and wpref.get("model"):
+            m = comfy_mod.best_image_model(basic, vram, "image", want=wpref["model"])
+            self.log(f"  Your workflow setting: model {wpref['model']}" + ("" if m else " (not installed; using "
+                                                                            "the usual pick)"))
+        if m is None and not job.model and style.id != "general":
             try:
                 from .upkeep import picks as _picks
                 pk = _picks()
@@ -1081,6 +1090,9 @@ class Engine:
                 label += f" + {lora}"
                 self.log(f"  Style add-on: {lora}" + (f" (its own settings: {ks['steps']} steps)"
                                                        if "steps" in ls else ""))
+        if wpref.get("steps"):
+            g["3"]["inputs"]["steps"] = wpref["steps"]
+            self.log(f"  Your workflow setting: {wpref['steps']} steps")
         if lv == "high" and job.type == "image":
             g = comfy_mod.with_hires(g)
             label += " + hi-res second pass"
@@ -1136,6 +1148,15 @@ class Engine:
                                       styles_mod.KID_NEGATIVE if styles_mod.for_kids(job) else "") if x)
         negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra, rec.anatomy) if builtin \
             else job.negative
+        from . import workflowprefs as wfp
+        wf_ids = (["video"] if job.type == "video" else [f"style:{style.id}", "pictures"]) if builtin \
+            else [f"file:{wf_label}", f"style:{style.id}"]
+        wpref = wfp.merged(self.s, wf_ids)
+        negative = wfp.with_avoid(negative, wpref)
+        if wpref.get("add") or wpref.get("avoid"):
+            self.log("  Your workflow settings: " + "; ".join(
+                x for x in (f"always add '{wpref['add']}'" if wpref.get("add") else "",
+                            f"always leave out '{wpref['avoid']}'" if wpref.get("avoid") else "") if x))
         if rec.look and builtin and job.type == "image":
             self.log(f"  Look: {style.label} > {rec.look.get('label', '')}")
         total = len(st.prompts) * job.variants
@@ -1155,7 +1176,7 @@ class Engine:
                 p = st.prompts[pi]
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
-                g = comfy_mod.fill(graph, self._styled(p["prompt"], rec) if builtin else p["prompt"],
+                g = comfy_mod.fill(graph, wfp.with_add(self._styled(p["prompt"], rec) if builtin else p["prompt"], wpref),
                                    negative, seed, w, h, ckpt,
                                    prefix=f"Joe/{slug(job.name)}")
                 stem = f"{pi + 1:03d}_{slug(p['title'])[:40]}" + (f"_{v + 1}" if job.variants > 1 else "")

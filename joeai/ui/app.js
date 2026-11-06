@@ -47,12 +47,15 @@ function toast(msg, ms = 2600) {
 
 let confirmCb = null, confirmNo = null;
 const confirmWaiting = [];
-function confirmBox(text, cb, noCb) {
-  if (!$("#confirm").hidden) { confirmWaiting.push([text, cb, noCb]); return; }
+let confirmCareful = false;          // resets: Enter and Y don't say yes; only a click on YES does
+function confirmBox(text, cb, noCb, careful) {
+  if (!$("#confirm").hidden) { confirmWaiting.push([text, cb, noCb, careful]); return; }
   $("#confirm-text").textContent = text;
   $("#confirm-text").style.whiteSpace = "pre-wrap";
   $("#confirm").hidden = false;
-  confirmCb = cb; confirmNo = noCb || null;
+  confirmCb = cb; confirmNo = noCb || null; confirmCareful = !!careful;
+  $("#confirm-yes").innerHTML = careful ? "[ YES, RESET ]" : '[ YES <span class="k">Y</span> ]';
+  if (careful) $("#confirm-no").focus();
 }
 document.getElementById("confirm-yes").addEventListener("click", (ev) => { ev.stopPropagation(); confirmClose(true); });
 document.getElementById("confirm-no").addEventListener("click", (ev) => { ev.stopPropagation(); confirmClose(false); });
@@ -249,6 +252,16 @@ function showPlan(r) {
     $("#plan-offer").hidden = false;
   } else if (!r.keepOffer) { planOffer = null; $("#plan-offer").hidden = true; }
   $("#plancard").hidden = false;
+}
+async function mcpShow() {
+  const r = await api("/api/mcp-config", {});
+  $("#mcp-lines").textContent = r.text || ""; $("#mcp-lines").hidden = false; $("#mcp-copy").hidden = false;
+  $("#mcp-apps").innerHTML = (r.apps || []).map((a) => `<div class="issue"><span class="t">${esc(a.name)}: ${
+    a.connected ? "connected" : a.installed ? "not connected" : "not found on this PC"}</span>${
+    a.connected ? `<button type="button" data-act="mcp-disconnect" data-app="${esc(a.id)}" data-name="${esc(a.name)}">[ DISCONNECT ]</button>`
+      : a.installed ? `<button type="button" data-act="mcp-connect" data-app="${esc(a.id)}" data-name="${esc(a.name)}">[ CONNECT ]</button>` : ""}</div>`).join("");
+  $("#mcp-http").hidden = false;
+  $("#mcp-http").innerHTML = `Apps that connect by address (on this PC only, while Joe's window is open): <b>${esc(r.url)}</b> with the header <b>Authorization: Bearer ${esc(r.key)}</b>. Keep the key private.`;
 }
 let planOffer = null;
 async function takeQualityOffer() {             // the plan card's "use High / Low for this" button
@@ -576,13 +589,22 @@ $("#dir").addEventListener("mousedown", (ev) => {
 });
 
 /* ---------------- stats ---------------- */
+let statPeriod = "all";
+try { statPeriod = localStorage.getItem("joe-stat-period") || "all"; } catch (e) {}
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-statper]"); if (!b) return;
+  statPeriod = b.dataset.statper;
+  try { localStorage.setItem("joe-stat-period", statPeriod); } catch (e) {}
+  loadStats();
+});
 async function loadStats() {
-  const s = await api("/api/stats");
+  document.querySelectorAll("[data-statper]").forEach((x) => x.classList.toggle("on", x.dataset.statper === statPeriod));
+  const s = await api("/api/stats?period=" + encodeURIComponent(statPeriod));
   const n = (x) => Number(x).toLocaleString();
   const cards = [
     [n(s.words), "words written"], [n(s.items), "items"], [n(s.files), "files"],
     [n(s.code_lines), "lines of code"], [n(s.tasks), "tasks"], [n(s.parts), "parts done"],
-    [n(s.retries), "retries"], [n(s.nights), "nights run"], [s.model_hours + " h", "model run time"],
+    [n(s.retries), "retries"], [n(s.nights), statPeriod === "day" ? "days run" : "days Joe worked"], [s.model_hours + " h", "model run time"],
     [n(s.tokens_in + s.tokens_out), "local tokens"], ["$" + s.cloud_cost_avoided.toFixed(2), s.cloud_cost_parts   // older Joe (still running) sends no breakdown
       ? `est. cloud cost avoided (words $${s.cloud_cost_parts.text.toFixed(2)}, ${n(s.pictures)} pictures $${s.cloud_cost_parts.pictures.toFixed(2)}, ${n(s.video_seconds)} s of video $${s.cloud_cost_parts.video.toFixed(2)})`
       : "est. cloud cost avoided"],
@@ -767,9 +789,19 @@ async function loadDoctor() {
     `FFMPEG   ${d.ffmpeg || "not found"}\n` +
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
-  $("#issues").innerHTML = d.issues.length ? d.issues.map((it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT" }[it.action] || "DOWNLOAD"} ]</button></div>`).join("")
-    : '<div class="dim">All good. Everything Joe needs is installed and running.</div>';
+  const issueRow = (it, i) =>
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span><button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT" }[it.action] || "DOWNLOAD"} ]</button></div>`;
+  const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
+  const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
+  const needMods = mods.filter(([it]) => !it.optional).length;
+  $("#issues").innerHTML = (progs.length ? progs.map(([it, i]) => issueRow(it, i)).join("")
+    : '<div class="dim">All good. Every program Joe needs is installed and running.</div>') +
+    (mods.length ? `<div class="issue"><span class="t">${needMods ? "!" : "·"} ${mods.length} model download${mods.length > 1 ? "s" : ""} to look at${needMods ? ` (${needMods} needed to start)` : ""}.</span><button type="button" data-goto-page="models">[ SEE MODELS ]</button></div>` : "");
+  const kinds = d.model_kinds || [];
+  $("#model-issues").innerHTML = mods.length ? kinds.map(([k, label]) => {
+    const rows = mods.filter(([it]) => it.kind === k);
+    return rows.length ? `<fieldset><legend>${esc(label.toUpperCase())}</legend>${rows.map(([it, i]) => issueRow(it, i)).join("")}</fieldset>` : "";
+  }).join("") : '<div class="dim">Nothing to download right now: Joe has the models he needs. SHOW MY MODELS lists them.</div>';
   return d;
 }
 // Banner on the main screen while Joe can't work yet (writing not set up), with one button.
@@ -848,6 +880,83 @@ async function saveSetup(ev) {
 }
 $("#setup").addEventListener("submit", saveSetup);
 
+/* Setup > Workflows: model, words always added / left out, steps, per workflow. */
+let wfData = null;
+async function loadWorkflows() {
+  try { wfData = await api("/api/workflows", {}); } catch (e) { $("#wf-list").textContent = e.message; return; }
+  const groups = [...new Set(wfData.rows.map((r) => r.group))];
+  const opt = (r) => `<option value="">(Joe picks)</option>` + wfData.models.map((m) =>
+    `<option value="${esc(m)}"${m === (r.prefs.model || "") ? " selected" : ""}>${esc(m)}</option>`).join("") +
+    (r.prefs.model && !wfData.models.includes(r.prefs.model) ? `<option value="${esc(r.prefs.model)}" selected>${esc(r.prefs.model)} (not installed)</option>` : "");
+  $("#wf-list").innerHTML = groups.map((g) => `<fieldset><legend>${esc(g.toUpperCase())}</legend>` +
+    wfData.rows.filter((r) => r.group === g).map((r) => {
+      const set = Object.keys(r.prefs).length;
+      return `<details class="wf" data-wf="${esc(r.id)}"><summary>${esc(r.label)}${set ? ' <span class="dim">· changed</span>' : ""}</summary>
+        <div class="dim small">${esc(r.about)}</div>
+        ${r.model_ok ? `<label>Model <select data-wff="model">${opt(r)}</select></label>` : ""}
+        <label title="Added to the end of every prompt for this workflow.">Always add <input data-wff="add" maxlength="600" value="${esc(r.prefs.add || "")}" placeholder="e.g. soft morning light, shallow depth of field"></label>
+        ${r.id === "editor" || r.id === "music" || r.id === "sfx" ? "" : `<label title="Added to the leave-out (negative) list.">Always leave out <input data-wff="avoid" maxlength="600" value="${esc(r.prefs.avoid || "")}" placeholder="e.g. text, watermark, extra fingers"></label>`}
+        ${r.steps_ok ? `<label title="0 = Joe decides from the Quality setting.">Steps (0 = Joe decides) <input type="number" min="0" max="150" data-wff="steps" value="${r.prefs.steps || 0}"></label>` : ""}
+        <div class="row"><button type="button" data-act="wf-save" class="primary">[ SAVE THIS WORKFLOW ]</button>
+          <button type="button" data-act="wf-reset">[ RESET THIS WORKFLOW ]</button></div></details>`;
+    }).join("") + "</fieldset>").join("");
+}
+async function wfSave(btn) {
+  const box = btn.closest("[data-wf]"), prefs = {};
+  box.querySelectorAll("[data-wff]").forEach((el) => { prefs[el.dataset.wff] = el.type === "number" ? Number(el.value) : el.value; });
+  const r = await api("/api/workflows/save", { id: box.dataset.wf, prefs });
+  if (!r.ok) { toast(r.error); return; }
+  toast("Workflow saved"); await loadWorkflows();
+  const again = document.querySelector(`[data-wf="${CSS.escape(box.dataset.wf)}"]`); if (again) again.open = true;
+}
+function wfReset(btn) {
+  const box = btn.closest("[data-wf]");
+  const name = box.querySelector("summary").textContent.replace("· changed", "").trim();
+  confirmBox(`Reset the "${name}" workflow?\n\nYour model choice, always-add and always-leave-out words and steps for it ` +
+    "are removed, and Joe goes back to his own choices. Nothing else changes.\n\nAre you sure?", async () => {
+      const r = await api("/api/workflows/reset", { id: box.dataset.wf });
+      if (!r.ok) { toast(r.error); return; }
+      toast(`${name}: back to how Joe came`); loadWorkflows();
+    }, null, true);
+}
+
+/* Reset to how Joe came: one button per Setup page, and RESET ALL on System check. Each asks
+   first, and only a click on YES, RESET does it (Enter and Y don't). */
+function addResetButtons() {
+  document.querySelectorAll("#setup .setpage").forEach((page) => {
+    const paths = [...page.querySelectorAll("[data-path]")].map((el) => el.dataset.path);
+    if (!paths.length || page.querySelector(".resetpage")) return;
+    const row = document.createElement("div");
+    row.className = "row resetpage";
+    row.innerHTML = `<button type="button" data-act="reset-page" title="Put the settings on this page back to how Joe came. Asks first.">[ RESET THIS PAGE ]</button>`;
+    page.appendChild(row);
+  });
+}
+addResetButtons();
+function resetPage(btn) {
+  const page = btn.closest(".setpage");
+  const paths = [...new Set([...page.querySelectorAll("[data-path]")].map((el) => el.dataset.path))];
+  const title = page.dataset.title || "this page";
+  confirmBox(`Reset ${title} to how Joe came?\n\nEvery setting on the ${title} page goes back to its starting value. ` +
+    "Your stats, files, chats, models, Joe's folder and any keys you typed stay as they are.\n\nAre you sure?",
+    async () => {
+      const r = await api("/api/settings/reset", { paths });
+      if (!r.ok) { toast(r.error); return; }
+      await loadSetup(); toast(`${title}: back to how Joe came`);
+    }, null, true);
+}
+function resetAll() {
+  confirmBox("Reset ALL settings to how Joe came?\n\nEvery page in Setup goes back to its starting values, " +
+    "including your workflow changes, the night shift and quiet hours. Your stats, files, chats, models, Joe's folder " +
+    "and any keys you typed stay as they are.\n\nAre you sure?",
+    async () => {
+      const r = await api("/api/settings/reset", { all: true });
+      if (!r.ok) { toast(r.error); return; }
+      await loadSetup(); if (typeof loadWorkflows === "function") loadWorkflows();
+      toast("All settings are back to how Joe came");
+    }, null, true);
+}
+
 // --- setup side menu: one section at a time, a find box, and an "unsaved" note ---------------
 let setupPageName = "system";
 try { setupPageName = localStorage.getItem("joe-setup-page") || "system"; } catch (e) {}
@@ -860,6 +969,7 @@ function setupPage(name) {
   document.querySelectorAll(".setpage").forEach((p) => p.classList.toggle("on", p.dataset.page === name));
   document.querySelectorAll(".setnav button[data-page]").forEach((b) => b.classList.toggle("on", b.dataset.page === name));
   $(".setpages").scrollTop = 0;
+  if (name === "workflows" && typeof loadWorkflows === "function") loadWorkflows();
 }
 // Shows every section, hiding settings whose name and hint don't match. Opens "More options"
 // when a match is inside it. Empty box = back to the section you were on.
@@ -926,15 +1036,23 @@ document.addEventListener("click", async (ev) => {
       else toast(r.on ? `Saved for tonight: Joe starts at ${r.time} (${r.waiting} waiting)`
                       : `Saved for tonight (${r.waiting} waiting). Turn the night shift on in Setup > General.`);
     }
-    if (act === "mcp-show") {
-      const r = await api("/api/mcp-config", {});
-      $("#mcp-lines").textContent = r.text || ""; $("#mcp-lines").hidden = false; $("#mcp-copy").hidden = false;
+    if (act === "mcp-show") await mcpShow();
+    if (act === "mcp-connect" || act === "mcp-disconnect") {
+      const on = act === "mcp-connect", name = b.dataset.name;
+      confirmBox(on ? `Connect Joe to ${name}?\n\nJoe adds his own entry to ${name}'s settings file (a copy of the old file is kept next to it). ${name} can then see Joe's status, queue plans, make pictures, run tools on Inbox files and read results. Restart ${name} afterwards.`
+                    : `Disconnect Joe from ${name}?\n\nJoe removes only his own entry from ${name}'s settings file.`,
+        async () => { const r = await api("/api/connect", { app: b.dataset.app, on }); toast(r.ok ? r.say : r.error); mcpShow(); });
     }
     if (act === "mcp-copy") {
       try { await navigator.clipboard.writeText($("#mcp-lines").textContent); $("#mcp-msg").textContent = "Copied."; }
       catch (e) { $("#mcp-msg").textContent = "Select the lines and copy them by hand."; }
     }
     if (act === "quality-offer") await takeQualityOffer();
+    if (b.dataset.gotoPage) setupPage(b.dataset.gotoPage);
+    if (act === "wf-save") await wfSave(b);
+    if (act === "wf-reset") wfReset(b);
+    if (act === "reset-page") resetPage(b);
+    if (act === "reset-all") resetAll();
     if (act === "packs-open") await packsOpen();
     if (act === "packs-use") await packsUse();
     if (act === "packs-close") $("#packs").hidden = true;
@@ -1086,7 +1204,7 @@ document.addEventListener("keydown", (ev) => {
   if (ev.key === "F4") { ev.preventDefault(); if (!ev.repeat && $("#welcome").hidden) f6Down(); return; }
   if (!$("#confirm").hidden) {
     ev.preventDefault();
-    if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
+    if (!confirmCareful && (ev.key === "y" || ev.key === "Y" || ev.key === "Enter")) confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
     return;
   }

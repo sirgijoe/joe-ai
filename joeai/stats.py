@@ -1,14 +1,48 @@
-"""Lifetime stats from Output/.joe (runs.jsonl + job state files)."""
+"""Stats from Output/.joe (runs.jsonl + job state files), for today, this week, this month,
+this year or all time. Nothing here is a setting: a Setup reset never touches these numbers."""
 from __future__ import annotations
 
 import json
+from datetime import date, datetime, timedelta
 from pathlib import Path
+
+PERIODS = ("day", "week", "month", "year", "all")
+
+
+def period_start(period: str, today: date | None = None) -> str:
+    """ISO date the period starts on ('' = all time). Weeks start on Monday."""
+    t = today or date.today()
+    if period == "day":
+        d = t
+    elif period == "week":
+        d = t - timedelta(days=t.weekday())
+    elif period == "month":
+        d = t.replace(day=1)
+    elif period == "year":
+        d = t.replace(month=1, day=1)
+    else:
+        return ""
+    return d.isoformat()
+
+
+def _in(ts, since: str) -> bool:
+    return not since or str(ts or "")[:10] >= since
+
+
+def _mtime_in(p: Path, since: str) -> bool:
+    if not since:
+        return True
+    try:
+        return datetime.fromtimestamp(p.stat().st_mtime).date().isoformat() >= since
+    except OSError:
+        return False
 
 from .config import Settings
 from .sandbox import Sandbox
 
 
-def collect(settings: Settings, sb: Sandbox) -> dict:
+def collect(settings: Settings, sb: Sandbox, period: str = "all") -> dict:
+    since = period_start(period if period in PERIODS else "all")
     meta = sb.meta
     calls = ok = tin = tout = 0
     secs = 0.0
@@ -20,6 +54,8 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
             try:
                 r = json.loads(line)
             except json.JSONDecodeError:
+                continue
+            if not _in(r.get("ts"), since):
                 continue
             calls += 1
             if r.get("ok"):
@@ -36,6 +72,8 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
             s = json.loads(p.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError):
             continue
+        if since and not _in(s.get("finished") or s.get("started"), since):
+            continue
         tasks += 1
         items += s.get("items", 0)
         words += s.get("words", 0)
@@ -43,10 +81,11 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
         parts += s.get("parts_done", 0)
 
     files = sum(1 for f in sb.output.rglob("*")
-                if f.is_file() and ".joe" not in f.parts and not f.name.startswith("_"))
-    pictures, video_s = media_made(sb.output)
+                if f.is_file() and ".joe" not in f.parts and not f.name.startswith("_") and _mtime_in(f, since))
+    pictures, video_s = media_made(sb.output, since)
     code_lines = sum(_lines(f) for f in sb.output.rglob("*")
-                     if f.suffix.lower() in {".py", ".cs", ".cpp", ".h", ".js", ".ts", ".ps1", ".gd"})
+                     if f.suffix.lower() in {".py", ".cs", ".cpp", ".h", ".js", ".ts", ".ps1", ".gd"}
+                     and _mtime_in(f, since))
 
     st = settings.stats
     cloud_text = tin / 1e6 * st.cloud_price_in_per_mtok + tout / 1e6 * st.cloud_price_out_per_mtok
@@ -69,11 +108,11 @@ def collect(settings: Settings, sb: Sandbox) -> dict:
         "cloud_cost_parts": {"text": round(cloud_text, 2), "pictures": round(cloud_pics, 2),
                              "video": round(cloud_video, 2)},
         "pictures": pictures, "video_seconds": round(video_s),
-        "models": per_model,
+        "models": per_model, "period": period if period in PERIODS else "all", "since": since,
     }
 
 
-def media_made(output: Path) -> tuple[int, float]:
+def media_made(output: Path, since: str = "") -> tuple[int, float]:
     """Pictures and seconds of video Joe made, from each folder's _media.json (one entry per
     finished file). Coloring '_example' copies aren't counted twice. Video length: the entry's
     own seconds when it has them, else 5 s."""
@@ -89,6 +128,8 @@ def media_made(output: Path) -> tuple[int, float]:
         for name, r in (items.items() if isinstance(items, dict) else []):
             r = r if isinstance(r, dict) else {}
             if "_example." in name:
+                continue
+            if since and not (_in(r.get("created"), since) if r.get("created") else _mtime_in(mj.parent / name, since)):
                 continue
             low = name.lower()
             if low.endswith((".mp4", ".webm", ".mov", ".gif")):

@@ -251,6 +251,10 @@ FORMAT: ...
   <main id="s-stats" class="view">
     <section class="panel full">
       <h2>STATISTICS</h2>
+      <div class="row statper" role="tablist">
+        <button type="button" data-statper="day">[ TODAY ]</button><button type="button" data-statper="week">[ THIS WEEK ]</button>
+        <button type="button" data-statper="month">[ THIS MONTH ]</button><button type="button" data-statper="year">[ THIS YEAR ]</button>
+        <button type="button" data-statper="all">[ ALL TIME ]</button></div>
       <div id="stats" class="stats"></div>
       <p class="dim small">Cloud cost and electricity are estimates from the rates in Setup (F10).</p>
     </section>
@@ -271,6 +275,8 @@ FORMAT: ...
         <nav class="setnav" aria-label="Setup sections">
           <input id="set-find" type="search" placeholder="Find a setting…" aria-label="Find a setting" title="Type part of a setting's name, like 'voice' or 'folder'.">
           <button type="button" data-page="system" title="What Joe found on this PC, and the setup helper.">System check</button>
+          <button type="button" data-page="models" title="Download models for writing, pictures, video, tools and sound, and see what's installed.">Models</button>
+          <button type="button" data-page="workflows" title="Pick the model and extra prompt words for each way Joe makes pictures, video and sound.">Workflows</button>
           <button type="button" data-page="general" title="Joe's folder, what happens when a run ends, quiet hours, phone ping, updates.">General</button>
           <button type="button" data-page="writing" title="Writing quality and the writing model.">Writing</button>
           <button type="button" data-page="images" title="Picture and video quality, and ComfyUI.">Images &amp; video</button>
@@ -291,19 +297,34 @@ FORMAT: ...
                 <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
                   <span id="busy" class="dim"></span></div>
               </fieldset>
-              <fieldset class="mymodels"><legend>YOUR MODELS</legend>
-                <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
-                <div id="mymodels" class="dim">Press SHOW to look.</div>
-                <div class="row"><button type="button" id="mymodels-go" title="List the writing and picture models installed on this PC.">[ SHOW MY MODELS ]</button></div>
-              </fieldset>
               <fieldset><legend>HELPERS</legend>
                 <div class="row">
                   <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
                   <button type="button" data-act="speedtest" title="Time one small batch so Joe's estimates fit this PC.">[ TEST MY SPEED ]</button>
                   <button type="button" data-act="check-update" title="See if a newer Joe is out.">[ CHECK FOR UPDATES ]</button>
+                  <button type="button" data-act="reset-all" title="Put every setting back to how Joe came. Asks first. Your files, chats and models stay.">[ RESET ALL SETTINGS ]</button>
                   <button type="button" data-act="help-file" title="Makes one zip to send someone helping you: versions, System check, settings with keys hidden, and the end of the logs. Never your files, chats or recordings.">[ MAKE A HELP FILE ]</button>
                 </div>
               </fieldset>
+            </div>
+
+            <!-- MODELS -->
+            <div class="setpage" data-page="models" data-title="Models">
+              <h3 class="settitle">Models</h3>
+              <p class="dim small">The AI models Joe can download for you, sorted by what they're for. Nothing downloads until you press a button and say yes.</p>
+              <div id="model-issues"></div>
+              <fieldset class="mymodels"><legend>YOUR MODELS</legend>
+                <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
+                <div id="mymodels" class="dim">Press SHOW to look.</div>
+                <div class="row"><button type="button" id="mymodels-go" title="List the writing and picture models installed on this PC.">[ SHOW MY MODELS ]</button></div>
+              </fieldset>
+            </div>
+
+            <!-- WORKFLOWS -->
+            <div class="setpage" data-page="workflows" data-title="Workflows">
+              <h3 class="settitle">Workflows</h3>
+              <p class="dim small">How Joe makes pictures, video and sound. For each one you can pick the model, add words to every prompt, and add things to always leave out. Joe's own files are never changed: your choices are saved in your settings, and RESET THIS WORKFLOW undoes them.</p>
+              <div id="wf-list" class="dim">Loading…</div>
             </div>
 
             <!-- GENERAL -->
@@ -340,10 +361,12 @@ FORMAT: ...
                 <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
               </fieldset>
               <fieldset><legend>USE JOE FROM ANOTHER AI APP</legend>
-                <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, and read his reports and the text files he made. They can't run programs, change settings, or touch anything outside Joe's folder. Paste these lines into the app's connector settings (Claude Desktop: Settings &gt; Developer &gt; Edit Config, inside the file's outer { }), then restart that app.</div>
-                <div class="row"><button type="button" data-act="mcp-show">[ SHOW THE CONNECTOR LINES ]</button>
-                  <button type="button" data-act="mcp-copy" hidden id="mcp-copy">[ COPY ]</button><span id="mcp-msg" class="dim"></span></div>
+                <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, make pictures, run Joe's tools on files in his Inbox, look at what he made, and stop a run. They can't install anything, change settings, or touch anything outside Joe's folder. CONNECT puts Joe into that app's settings for you (a copy of its old settings is kept); for other apps, paste the lines into their connector settings. Restart the app afterwards.</div>
+                <div id="mcp-apps" class="mcpapps"></div>
+                <div class="row"><button type="button" data-act="mcp-show">[ SHOW CONNECT OPTIONS ]</button>
+                  <button type="button" data-act="mcp-copy" hidden id="mcp-copy">[ COPY THE LINES ]</button><span id="mcp-msg" class="dim"></span></div>
                 <pre id="mcp-lines" class="out" hidden></pre>
+                <div id="mcp-http" class="dim small" hidden></div>
               </fieldset>
               <fieldset><legend>UPDATES</legend>
                 <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>

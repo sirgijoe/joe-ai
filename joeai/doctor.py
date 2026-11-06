@@ -326,8 +326,8 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         for pid in ("bg", "upscale", "edit", "music", "sfx"):
             if not picturetools.pack_ready(mdir, pid):
                 used = {"bg": "Remove background", "upscale": "sharper, bigger pictures",
-                        "edit": "Edit a picture and Restore old photos", "music": "music",
-                        "sfx": "sound effects"}[pid]
+                        "edit": "Edit a picture, AI photo repair and the other picture tools",
+                        "music": "music", "sfx": "sound effects"}[pid]
                 issues.append({"id": f"pack-{pid}", "text": f"For {used} (Tools tab): "
                                f"{picturetools.pack_offer(pid)}.", "action": "download-pack",
                                "pack": pid, "optional": True, "what": picturetools.PACKS[pid].label})
@@ -369,9 +369,12 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
             continue                       # that model was removed since the check
         issues.append(dict(it))
     for it in issues:
+        it["kind"] = model_kind(it.get("id", ""))
+    for it in issues:
         if it.get("action") == "install" and it.get("tool"):
             it["how"] = install_how(it["tool"])
     return {
+        "model_kinds": [list(k) for k in MODEL_KINDS],
         "updates_checking": upkeep.checking(),
         "gpu": g, "vram_gb": vram, "ram_gb": hardware.ram_total_gb(), "winget": bool(winget()),
         "gpu_advice": hardware.gpu_advice(g), "vendor": g.get("vendor") if g else "none",
@@ -575,3 +578,30 @@ def run_in_thread(fn, *a, **kw) -> threading.Thread:
     t = threading.Thread(target=fn, args=a, kwargs=kw, daemon=True, name="joe-doctor")
     t.start()
     return t
+
+
+# Setup > Models groups the model downloads by what they're for (System check keeps the programs).
+MODEL_KINDS = (("writing", "Writing and Talk"), ("pictures", "Pictures and picture styles"),
+               ("video", "Video"), ("tools", "Picture tools (Tools tab)"), ("sound", "Music and sound effects"),
+               ("helpers", "Helpers: looking at pictures, searching your files"),
+               ("updates", "Newer copies of your models"))
+
+
+def model_kind(issue_id: str) -> str:
+    """'' for program issues (System check); a MODEL_KINDS key for model downloads."""
+    i = issue_id or ""
+    if i in ("pull-model", "use-model", "upgrade-model", "pull-talk-model", "pull-small-model"):
+        return "writing"
+    if i in ("pull-vision", "pull-embed"):
+        return "helpers"
+    if i == "get-image-model" or i.startswith("style-"):
+        return "pictures"
+    if i in ("get-video-model", "get-video-turbo"):
+        return "video"
+    if i in ("pack-music", "pack-sfx"):
+        return "sound"
+    if i.startswith("pack-"):
+        return "tools"
+    if i.startswith("refresh-"):
+        return "updates"
+    return ""

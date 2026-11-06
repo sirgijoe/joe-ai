@@ -55,6 +55,20 @@ above it (a price list for the candles you just described, one picture per produ
 `FROM: <that task's name>` and use the same number. Joe hands over the finished names in order.
 In Step by step (F6) it's **Use the names from**.
 
+### Setup: Models, Workflows and resets
+
+- **Models** (Setup > Models): every model download Joe offers, sorted by what it's for (writing,
+  pictures and styles, video, picture tools, music and sound, helpers, newer copies), plus
+  SHOW MY MODELS. System check keeps the programs (Ollama, ComfyUI, FFmpeg...).
+- **Workflows** (Setup > Workflows): for Joe's built-in pictures, each picture style, video, the
+  picture editor tools, Animate a photo, music, sound effects and every workflow file you
+  imported, pick the model, words to **always add** to every prompt, words to **always leave
+  out**, and (for pictures) the number of steps. RESET THIS WORKFLOW undoes it.
+- **Reset**: every Setup page has RESET THIS PAGE, and System check has RESET ALL SETTINGS. Each
+  asks first, and only a click on YES, RESET does it (Enter doesn't). Your stats, files, chats,
+  models, Joe's folder and any keys you typed are never touched.
+- **Stats** (F9): Today, This week, This month, This year or All time.
+
 ### Starter packs
 
 **STARTER PACKS** (next to ASK JOE) are ready-made bundles: a small shop starter (descriptions, a
@@ -102,11 +116,20 @@ take a little longer. Leave it off overnight.
 
 ### Use Joe from another AI app (MCP)
 
-Apps that take MCP connectors, like Claude Desktop, can use Joe: see his status, read the mission
-format, check and queue plans (now or for tonight), and read his reports, log and the text files
-he made. They can't run programs, install anything, change settings, or reach outside Joe's
-folder. Setup > General > **SHOW THE CONNECTOR LINES** gives the lines to paste into the app's
-connector settings (Claude Desktop: Settings > Developer > Edit Config), then restart that app.
+A bigger AI can use Joe directly, the way a helper hands grunt work to an assistant: it sees
+what Joe can do on this PC (models, tools, how long things take), suggests which parts Joe should
+make, writes and queues the plan, makes pictures, runs Joe's tools on files in his Inbox, checks
+the report, reads the results and looks at the pictures, then polishes them for you. It can't
+install anything, change settings, or reach outside Joe's folder.
+
+Setup > General > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC with a
+**CONNECT** button each: Claude Desktop, ChatGPT desktop (shares its connector list with Codex),
+Gemini CLI, Cursor and LM Studio. CONNECT adds only Joe's own entry to that app's settings file
+(a copy of the old file is kept next to it as `.before-joe`); DISCONNECT takes it out. Restart the
+app afterwards. For other apps, copy the lines shown there. Apps that connect by address can use
+`http://127.0.0.1:<port>/mcp` with the key shown there, while Joe's window is open. Not every chat
+app can do this: chats in a web browser (ChatGPT or Gemini on the web, Grok) and the Gemini and
+consumer Copilot desktop apps can't reach programs on your PC; for those, use ASK A BIGGER AI.
 Queued plans run when Joe's window is open, or at the night-shift time.
 
 ## Building it step by step (F6)
