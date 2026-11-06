@@ -38,7 +38,10 @@ Kinds of task:
 - Pictures: TYPE: image, CHUNKS: parts x pictures (e.g. 16 pictures = CHUNKS: 4 x 4),
   FORMAT: subject and style. Pictures are AI art or mockups, never fake photos of real
   products, places or people.
-- Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens.
+- Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens. Add EXPORT: gif
+  when they want a GIF.
+- When they ask to research, look things up, or want current facts, add RESEARCH: yes to that
+  writing task (Joe searches online first and lists the sources).
 - Tasks can't see each other. When a spreadsheet or pictures must use the names from a list
   task above (a price list for the products just described), add FROM: <that task's name>
   and the same number of items.
@@ -147,6 +150,13 @@ def quality_offer(settings, request: str, block: str) -> dict | None:
         text = f"You asked for it quick, but {now}. Use Low for this? It's much faster but rougher."
         button = "USE LOW (FASTER)"
     return {"level": want, "kinds": off, "text": text, "button": button}
+
+
+def want_gif(request: str, block: str) -> str:
+    """'a gif of ...' -> the video task also makes a GIF (EXPORT: gif)."""
+    if not re.search(r"\bgifs?\b", request or "", re.I) or re.search(r"(?m)^EXPORT:.*gif", block, re.I):
+        return block
+    return re.sub(r"(?m)^(TYPE:\s*video\b.*)$", r"\1\nEXPORT: gif", block, count=1)
 
 
 def wants_high(request: str) -> bool:
@@ -466,7 +476,7 @@ def draft(app, request: str) -> dict:
             r = app.services.ollama.chat(msgs, model=model, max_tokens=1500, keep_alive="20m")
         except Exception as e:
             return {"ok": False, "error": f"Joe couldn't think: {e}"}
-        block = one_picture(request, extract_block(r.text))
+        block = want_gif(request, one_picture(request, extract_block(r.text)))
         if not block:
             problem = "there was no mission block in your reply"
         else:

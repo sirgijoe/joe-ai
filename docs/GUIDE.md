@@ -55,14 +55,43 @@ above it (a price list for the candles you just described, one picture per produ
 `FROM: <that task's name>` and use the same number. Joe hands over the finished names in order.
 In Step by step (F6) it's **Use the names from**.
 
+### Starter packs
+
+**STARTER PACKS** (next to ASK JOE) are ready-made bundles: a small shop starter (descriptions, a
+matching price list, About page, FAQ, product pictures), a month of social posts, a blog starter,
+a party or event kit, and a kids coloring book. Pick one, answer one question ("What's your shop
+and what do you sell?"), and Joe shows the whole plan. A part this PC can't do yet (music without
+ComfyUI, say) is left out and the plan says so. Your own packs: a mission file in
+`Missions\Packs` with `PACK:`, `ABOUT:` and `ASK:` lines on top, and `{for}` where the answer goes.
+A file in `Missions\Queue` may also hold several mission blocks; each is queued in turn.
+
+### Park an idea
+
+Type `park this: a recipe book for my mom` in the box. Joe adds it, dated, to `Ideas.md` in his
+folder, so it's out of your head and safe for later.
+
+### Looking things up for a task (RESEARCH: yes)
+
+A writing task with `RESEARCH: yes` is looked up online once before Joe writes it. The facts go
+to the model, the text marks them like [2], and a **Sources** list is added at the end (a
+`-sources.md` file next to a spreadsheet). Only the search words go online, and only when Setup >
+Voice & Talk > **Let Joe look things up online** is on; otherwise Joe writes from what he knows and
+the plan warns you. Ask for research or current facts in the box and Joe adds it himself.
+
+### GIFs
+
+A video task with `EXPORT: gif` also saves a looping GIF next to each clip. Asking for "a gif of
+..." in the box does this by itself.
+
 ### Night shift (Setup > General)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >
 General and pick a time (24-hour clock, e.g. 23:00): Joe asks your computer's own scheduler to
-start him then (Task Scheduler on Windows, launchd on a Mac, cron on Linux). If his window is open
+start him then (Task Scheduler on Windows, launchd on a Mac, cron on Linux). On Windows he also
+wakes the PC from sleep for it. If his window is open
 he just runs them; if not, he starts without a window, works through them (keep-awake, "when
 finished", phone ping all apply) and closes when done. Open Joe during the night to watch. The PC
-has to be on and signed in (not asleep) at that time. Turning it off, or uninstalling Joe, removes
+has to be signed in; on a Mac or Linux it also has to be awake. Turning it off, or uninstalling Joe, removes
 the scheduler entry. Plans saved for tonight sit in `Missions\Tonight`.
 
 ### Keep my PC usable (Setup > General)
@@ -142,6 +171,12 @@ All fonts ship with Joe (SIL Open Font License, files in `joeai/ui/fonts`), so n
 Joe opens fresh every time. If the last run didn't finish (stopped, crash, power cut), he asks on
 start: **Y** resumes where it stopped, **N** starts fresh (it stays in History).
 Pictures and video always run after the writing tasks, so the GPU switches over only once.
+
+### Older model files (.ckpt)
+
+Model files ending in .ckpt, .pt, .pth or .bin are an older format that can run hidden code when
+they're loaded. Joe always uses a .safetensors file first when there's a choice, and Setup >
+System check > Your models lists any older ones so you can swap them for .safetensors copies.
 
 ### Graphics cards other than NVIDIA
 
@@ -583,7 +618,8 @@ Double-click again to check on it. F1 shows all keys.
 | (Help) | ABOUT JOE: the story, privacy and license |
 | F10 | Setup: a side menu with System check, General, Writing, Images & video, Voice & Talk, Display & sound, Privacy, Stats & costs, plus a find box |
 
-The status bar shows the GPU live: temperature, load, memory, power and fan. It flashes
+The status bar shows the GPU live: temperature, load, memory, power and fan (hover it for the
+CPU load too). It flashes
 when the GPU gets within 5 °C of the pause temperature.
 
 Crashes are written to `%APPDATA%\joe-ai\crash.log`.

@@ -1,0 +1,26 @@
+PACK: Party or event kit
+ABOUT: Invitation wording, a schedule, a checklist, decoration pictures and a short background song.
+ASK: What's the event? (e.g. my son's 5th birthday, dinosaur theme)
+=== JOE MISSION ===
+RULES: For {for}. Cheerful and clear. Dates, times, places and names are [CHECK].
+TASK: Invitation wording
+CHUNKS: 1 x 5
+FORMAT: A short title for the style (fun, simple, formal...), then a ready-to-use invitation of 40-70 words.
+TASK: Event schedule
+PART: ## Before guests arrive. Setup steps with rough times.
+PART: ## During the event. A simple timeline with activities.
+PART: ## Wrapping up. Cleanup and thank-yous.
+EXPORT: pdf
+TASK: Checklist
+CHUNKS: 2 x 8
+FORMAT: One thing to buy, make or do, then one short line on why or when.
+TASK: Decoration pictures
+TYPE: image
+CHUNKS: 1 x 6
+STYLE: cartoon
+FORMAT: Cheerful decoration and banner pictures for {for}, no text or letters.
+TASK: Background song
+TYPE: music
+OPTIONS: kind music, length 120
+FORMAT: Happy, light background music that fits {for}, no singing.
+=== END ===

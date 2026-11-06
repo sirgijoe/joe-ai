@@ -142,12 +142,15 @@ class App:
             return {"ok": False, "error": str(e)}
         warnings = []
         names = {x.name: x for x in m.jobs}
+        if any(j.research for j in m.jobs) and not self.settings.web.enabled:
+            warnings.append("A task asks Joe to look things up online, but online lookups are off. Turn on "
+                            "Setup (F10) > Voice & Talk > Let Joe look things up online, or Joe writes from what he knows.")
         for j in m.jobs:
             src = names.get(j.source) if j.source else None
             if src is not None:
                 have = src.total_items
                 want = (len(j.part_prompts) or j.parts * j.part_size) if j.media else j.total_items
-                if not j.guided and have and want != have:
+                if not j.guided and have and want != have and not (j.media and want < have):
                     warnings.append(f"Task '{j.name}' makes {want} but '{src.name}' (its FROM) makes "
                                     f"{have}: " + (f"only the first {want} are matched." if want < have
                                                    else f"the last {want - have} are written on their own."))
@@ -286,10 +289,15 @@ class App:
                 text = p.read_text(encoding="utf-8-sig", errors="replace")
             except OSError:
                 continue
-            try:
-                r = self.enqueue(text)
-            except Exception as e:                           # noqa: BLE001 (never stop the loop)
-                r = {"ok": False, "error": str(e)}
+            from .packs import split_blocks
+            r = {"ok": True}
+            for block in split_blocks(text):                 # a file with several missions: each one
+                try:
+                    one = self.enqueue(block)
+                except Exception as e:                       # noqa: BLE001 (never stop the loop)
+                    one = {"ok": False, "error": str(e)}
+                if not one.get("ok"):
+                    r = one
             sub = folder / ("done" if r.get("ok") else "problems")
             sub.mkdir(exist_ok=True)
             stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -575,6 +583,22 @@ class App:
                             "summary": r["summary"], "mission": r["mission"]})
         return r
 
+    def park_idea(self, idea: str) -> dict:
+        """An idea saved for later, in the person's own words: Ideas.md in Joe's folder."""
+        idea = " ".join((idea or "").split())
+        if not idea:
+            return {"ok": False, "error": "Say the idea after 'park this', like: park this: a recipe book for my mom."}
+        p = self.sb.root / "Ideas.md"
+        try:
+            head = "" if p.exists() else "# Ideas for later\n\nParked with \"park this: ...\" in Joe's box.\n\n"
+            with open(p, "a", encoding="utf-8") as f:
+                f.write(head + f"- {datetime.now():%Y-%m-%d}: {idea}\n")
+        except OSError as e:
+            return {"ok": False, "error": f"Couldn't save it: {e}"}
+        n = sum(1 for ln in p.read_text(encoding="utf-8").splitlines() if ln.startswith("- "))
+        return {"ok": True, "count": n, "say": f"Parked. That's {n} idea{'s' if n != 1 else ''} in Ideas.md "
+                                               "(Files, F7)."}
+
     def hold_plan(self, text: str) -> dict:
         """Joe is busy drawing (the graphics card is full): keep the request, plan it after."""
         from .chat import busy_drawing
@@ -629,7 +653,7 @@ class App:
                 "model": (getattr(eng, "text_model", "") if eng else "") or s.ollama.text_model or "auto",
                 "ui": asdict(s.ui),
                 "report": (self.sb.output / "_REPORT.md").exists(),
-                "theme": self.theme_vars(), "hw": hardware.gpu(), "pause_c": s.engine.gpu_temp_pause_c,
+                "theme": self.theme_vars(), "hw": hardware.gpu(), "cpu_pct": hardware.cpu_pct(), "pause_c": s.engine.gpu_temp_pause_c,
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
                 "attention": self.services.attention,
                 "queued": [e["label"] for _, _, e in self.queue],
@@ -1492,6 +1516,26 @@ def make_handler(app: App):
                     if busy_drawing(app):              # hold it: plan once the pictures finish
                         return self._json(app.hold_plan(str(b.get("text", ""))))
                     return self._json(app.plan_now(str(b.get("text", ""))))
+                if u.path == "/api/packs":             # STARTER PACKS: the list
+                    from . import packs
+                    return self._json({"ok": True, "packs": [{k: p[k] for k in ("id", "name", "about", "ask", "own")}
+                                                             for p in packs.list_packs(app.sb)]})
+                if u.path == "/api/pack":              # one pack + the person's answer -> a plan
+                    from . import describe as describe_mod
+                    from . import packs
+                    try:
+                        text = packs.build(app.sb, str(b.get("id", "")), str(b.get("for", "")))
+                    except KeyError:
+                        return self._json({"ok": False, "error": "That pack is gone. Pick another one."})
+                    chk, text, notes = packs.plan(app, text)
+                    if not chk["ok"]:
+                        return self._json(chk)
+                    return self._json({"ok": True, "mission": text, "summary": describe_mod.plain_summary(chk),
+                                       "time": describe_mod.plain_time(chk["eta_min"])
+                                       + ("" if chk.get("eta_learned") else describe_mod.ROUGH),
+                                       "eta_min": chk["eta_min"], "warnings": notes + chk.get("warnings", [])})
+                if u.path == "/api/park":              # "park this: <idea>" -> Ideas.md in Joe's folder
+                    return self._json(app.park_idea(str(b.get("text", ""))[:4000]))
                 if u.path == "/api/tonight/add":       # save a plan for the night shift
                     from .mcp import Joe
                     j = Joe(app.settings)

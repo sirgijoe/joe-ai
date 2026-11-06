@@ -215,7 +215,9 @@ async function poll() {
     const bits = [t != null ? `${t}°C` : null, hw.util_pct != null ? `${hw.util_pct}%` : null,
       hw.vram_total_mb ? `${(hw.vram_used_mb / 1024).toFixed(1)}/${(hw.vram_total_mb / 1024).toFixed(0)}G` : null,
       hw.power_w != null ? `${Math.round(hw.power_w)}W` : null, hw.fan_pct != null ? `FAN ${hw.fan_pct}%` : null].filter(Boolean);
-    gpuHtml = `<span class="${hot ? "hot blink" : ""}" title="${esc(hw.name || "GPU")}">GPU ${esc(bits.join(" "))}</span>`;
+    const tip = (hw.name || "GPU") + (state.cpu_pct != null ? ` · CPU load ${state.cpu_pct}%` : "") +
+      (t == null ? " · temperature: this card doesn't report it here" : "");
+    gpuHtml = `<span class="${hot ? "hot blink" : ""}" title="${esc(tip)}">GPU ${esc(bits.join(" "))}</span>`;
   }
   $("#status").innerHTML = parts.map((p) => `<span>${esc(p)}</span>`).join("") + gpuHtml;
   if (state.busy !== lastBusy) { lastBusy = state.busy; if (!state.busy) loadDoctor(); }
@@ -273,8 +275,13 @@ const COMMAND_SAY = { run: "Starting the plan.", stop: "Stopping after the curre
   tools: "Here are the tools.", setup: "Here's Setup.", check: "Here's what Joe found on this PC.",
   updates: "Checking for updates to Joe, Ollama, ComfyUI and your models…", new: "New chat: a fresh start.",
   talk: "Talk to Joe here.", builder: "Build it step by step here.", stats: "Here are the numbers." };
-async function doCommand(cmd) {
+async function doCommand(cmd, rt) {
   const say = COMMAND_SAY[cmd] || "";
+  if (cmd === "park") {
+    if (!rt || !rt.idea) return "What's the idea? Type it after 'park this:', like: park this: a recipe book for my mom.";
+    const r = await api("/api/park", { text: rt.idea });
+    return r.ok ? r.say : r.error;
+  }
   if (cmd === "run") {
     if (state && state.running) return "Joe is already working. Say stop to stop.";
     if (!$("#mission").value.trim()) return "There's no plan yet. Tell Joe what to make first, then say go.";
@@ -297,7 +304,7 @@ async function describeIt() {
   if (!text) { $("#describe-msg").textContent = "Type what you need first."; $("#describe").focus(); return; }
   if (describing) return;
   const rt = await routeText(text);
-  if (rt.kind === "command") { $("#describe").value = ""; $("#describe-msg").textContent = await doCommand(rt.cmd); return; }
+  if (rt.kind === "command") { $("#describe").value = ""; $("#describe-msg").textContent = await doCommand(rt.cmd, rt); return; }
   if (rt.kind === "unclear") { $("#describe-msg").textContent = rt.say; return; }
   if (rt.kind === "chat") { $("#describe").value = ""; $("#describe-msg").textContent = ""; show("talk"); await talkSend(text); return; }
   describing = true;
@@ -318,6 +325,33 @@ function takePlan(r) {
     $("#describe-msg").textContent = "Here's the plan. Change it, or press RUN IT.";
     loadChats();
 }
+/* ---------------- STARTER PACKS: one question, a whole bundle of work ---------------- */
+let packPick = null;
+async function packsOpen() {
+  $("#packs").hidden = false; $("#pk-askrow").hidden = true; packPick = null;
+  const r = await api("/api/packs", {});
+  $("#pk-list").innerHTML = (r.packs || []).map((p) =>
+    `<button type="button" class="pk" data-pack="${esc(p.id)}"><b>${esc(p.name)}</b>${p.own ? " (yours)" : ""}<br><span class="dim small">${esc(p.about)}</span></button>`).join("");
+  $("#pk-list").querySelectorAll("[data-pack]").forEach((b) => b.addEventListener("click", (ev) => {
+    ev.stopPropagation();
+    packPick = (r.packs || []).find((p) => p.id === b.dataset.pack);
+    $("#pk-list").querySelectorAll(".pk").forEach((x) => x.classList.toggle("on", x === b));
+    $("#pk-ask").textContent = packPick.ask; $("#pk-askrow").hidden = false; $("#pk-err").textContent = "";
+    $("#pk-for").focus();
+  }));
+}
+async function packsUse() {
+  if (!packPick) return;
+  const answer = $("#pk-for").value.trim();
+  if (!answer) { $("#pk-err").textContent = "Answer the question first, in a few words."; return; }
+  const r = await api("/api/pack", { id: packPick.id, for: answer });
+  if (!r.ok) { $("#pk-err").textContent = r.error; return; }
+  $("#packs").hidden = true; $("#pk-for").value = "";
+  takePlan(r);
+  $("#describe-msg").textContent = `Here's the ${packPick.name} plan. Change it, or press RUN IT.`;
+}
+$("#pk-for").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); packsUse(); } });
+
 /* ---------------- ASK A BIGGER AI: paste-ready message out, answer back in ---------------- */
 async function biggerLoad() {
   const r = await api("/api/bigger", { text: $("#describe").value, mission: $("#mission").value,
@@ -901,6 +935,9 @@ document.addEventListener("click", async (ev) => {
       catch (e) { $("#mcp-msg").textContent = "Select the lines and copy them by hand."; }
     }
     if (act === "quality-offer") await takeQualityOffer();
+    if (act === "packs-open") await packsOpen();
+    if (act === "packs-use") await packsUse();
+    if (act === "packs-close") $("#packs").hidden = true;
     if (act === "bigger-open") await biggerOpen();
     if (act === "bigger-copy") await biggerCopy();
     if (act === "bigger-use") await biggerUse();
@@ -1051,6 +1088,11 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault();
     if (ev.key === "y" || ev.key === "Y" || ev.key === "Enter") confirmClose(true);
     else if (ev.key === "n" || ev.key === "N" || ev.key === "Escape") confirmClose(false);
+    return;
+  }
+  if (!$("#packs").hidden) {
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); $("#packs").hidden = true; }
     return;
   }
   if (!$("#bigger").hidden) {                  // ASK A BIGGER AI is open: Esc closes it, F-keys wait
@@ -1563,7 +1605,7 @@ async function talkSend(textArg) {
     const rt = await routeText(text);
     if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {
       $("#talk-in").value = "";
-      const said = await doCommand(rt.cmd);
+      const said = await doCommand(rt.cmd, rt);
       talkLog.push({ who: "you", text }, { who: "joe", text: said });
       if (current === "talk") renderTalk();
       return;
@@ -2559,7 +2601,7 @@ document.addEventListener("change", (ev) => {
     box.textContent = "Looking…";
     try {
       const m = await api("/api/models");
-      box.innerHTML =
+      box.innerHTML = ((m.unsafe || []).length ? `<div class="warn small">! ${m.unsafe.length} model file(s) use an older format (.ckpt, .pt, .pth or .bin) that can run hidden code when loaded: ${esc(m.unsafe.slice(0, 8).join(", "))}${m.unsafe.length > 8 ? "…" : ""}. Only keep them if you trust where they came from, and get the .safetensors version when there is one. Joe uses .safetensors files first.</div>` : "") +
         table("Writing and talking (Ollama)", m.writing, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],
           ["Used for", (r) => (r.writer ? "writing, Talk" : "pictures, reading scans or other helpers")]]) +
         table("Picture models (ComfyUI)", m.pictures, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],

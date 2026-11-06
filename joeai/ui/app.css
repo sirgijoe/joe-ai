@@ -591,3 +591,7 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .mtable{border-collapse:collapse;width:100%;margin:.3em 0 .8em}
 .mtable th,.mtable td{text-align:left;padding:.15em .5em;border-bottom:1px dotted currentColor;vertical-align:top}
 .mtable td:first-child{word-break:break-all}
+
+.pklist { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; margin: 8px 0; }
+.pklist .pk { text-align: left; white-space: normal; padding: 8px 10px; }
+.pklist .pk.on { outline: 2px solid var(--fg); }

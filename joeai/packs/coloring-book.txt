@@ -1,0 +1,16 @@
+PACK: Kids coloring book
+ABOUT: 20 printable coloring pages on one theme, and a cover page.
+ASK: What should the coloring book be about? (e.g. friendly farm animals)
+=== JOE MISSION ===
+RULES: A coloring book for children about {for}. Friendly, simple, nothing scary.
+TASK: Coloring pages
+TYPE: image
+CHUNKS: 5 x 4
+STYLE: coloring
+FORMAT: A simple, cute coloring page about {for}, thick clean outlines, big areas to color, white background, no text.
+TASK: Cover page
+TYPE: image
+CHUNKS: 1 x 2
+STYLE: cartoon
+FORMAT: A bright, happy book cover picture about {for}, no text or letters (add the title yourself).
+=== END ===

@@ -56,10 +56,18 @@ def _norm(text: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"[!.,;:]+", " ", t2)).strip()
 
 
+_PARK = re.compile(r"^\s*(?:please\s+)?(?:park\s+(?:this|that|it|an?\s+idea|idea|the\s+idea|this\s+idea)\b|"
+                   r"park\s*(?=[:\-])|save (?:this|an?) idea|idea for later|note (?:this )?for later)"
+                   r"\s*[:\-,]?\s*(.*)$", re.I | re.S)
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    pm = _PARK.match(raw)
+    if pm and (pm.group(1).strip() or raw.lower().strip(" .!") in ("park this", "park that", "park it")):
+        return {"kind": "command", "cmd": "park", "idea": pm.group(1).strip()}
     n = _norm(raw)
     if raw.strip().lower() in _LOOKUP:
         return {"kind": "command", "cmd": _LOOKUP[raw.strip().lower()]}

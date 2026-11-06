@@ -175,6 +175,14 @@ def video_bw(ffmpeg: str, src: Path, dest: Path) -> Path | None:
     return dest if _run(cmd) and dest.exists() else None
 
 
+def video_gif(ffmpeg: str, src: Path, dest: Path, width: int = 480, fps: int = 12) -> Path | None:
+    """A looping GIF of a clip (made with its own color palette, so it stays sharp and small)."""
+    vf = (f"fps={fps},scale={width}:-2:flags=lanczos,split[a][b];[a]palettegen=stats_mode=diff[p];"
+          f"[b][p]paletteuse=dither=bayer:bayer_scale=4")
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), "-filter_complex", vf, "-loop", "0", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
 def frames_to_mp4(ffmpeg: str, frames: list[Path], dest: Path, fps: int = 16) -> Path | None:
     if not frames:
         return None

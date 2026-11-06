@@ -61,6 +61,7 @@
 fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
       <div class="row buttons">
         <button data-act="describe" id="btn-describe" class="primary" title="Joe answers, does it, or makes a plan. Nothing big runs until you press RUN IT. (Ctrl+Enter)">[ ASK JOE ]</button>
+        <button data-act="packs-open" title="Ready-made bundles: a shop starter, a month of social posts, a blog starter, a party kit, a coloring book. Answer one question and Joe plans it all.">[ STARTER PACKS ]</button>
         <button data-act="bigger-open" title="Joe's own model is small. This makes one message you paste into any chatbot (ChatGPT, Claude, Gemini...); paste its answer back and Joe uses the plan. Free, no keys.">[ ASK A BIGGER AI ]</button>
         <span id="describe-msg" class="dim"></span>
       </div>
@@ -334,7 +335,7 @@ FORMAT: ...
                 </details>
               </fieldset>
               <fieldset><legend>NIGHT SHIFT</legend>
-                <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. The PC has to be on and signed in (not asleep) at that time.</div>
+                <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. On Windows, Joe wakes the PC from sleep for it (it must be signed in, and not shut down). On a Mac or Linux, the PC has to be awake at that time.</div>
                 <label title="Start the plans saved for tonight at the time below.">Night shift on <input type="checkbox" data-path="schedule.enabled"></label>
                 <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
               </fieldset>
@@ -433,7 +434,7 @@ FORMAT: ...
                 <label title="Every chat with Joe is saved in his folder and listed on the left. Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
               </fieldset>
               <fieldset><legend>ONLINE LOOKUPS</legend>
-                <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight runs never go online.">Let Talk look things up online <input type="checkbox" data-path="web.enabled"></label>
+                <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight tasks only look things up when the plan says RESEARCH: yes.">Let Joe look things up online <input type="checkbox" data-path="web.enabled"></label>
                 <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
                 <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
                   For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
@@ -505,7 +506,7 @@ FORMAT: ...
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
                   <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
-                  <li><b>Talk lookups</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Online lookups).</li>
+                  <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Let Joe look things up online).</li>
                 </ul>
                 <div class="dim small">Ollama and ComfyUI have their own update checks and settings. Once everything is installed, overnight runs work without internet.</div>
               </fieldset>
@@ -794,6 +795,13 @@ FORMAT: ...
     <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
     <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="saver" class="saver" hidden><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
+<div id="packs" class="modal" hidden><div class="panel bigger"><h2>STARTER PACKS</h2>
+  <p class="small">Pick one, answer one question, and Joe makes a plan for all of it. You see the plan before anything runs.</p>
+  <div id="pk-list" class="pklist"></div>
+  <div id="pk-askrow" hidden><p id="pk-ask" class="small"></p><input id="pk-for" maxlength="200" style="width:100%">
+    <div id="pk-err" class="small warn"></div>
+    <div class="row buttons"><button type="button" data-act="packs-use" class="primary">[ MAKE THE PLAN ]</button></div></div>
+  <div class="row buttons"><button type="button" data-act="packs-close">[ CLOSE ]</button></div></div></div>
 <div id="bigger" class="modal" hidden><div class="panel bigger"><h2>ASK A BIGGER AI</h2>
   <p class="small">1. Copy this message and paste it into any chatbot you like (ChatGPT, Claude, Gemini...). Read it first: nothing leaves your PC unless you paste it. Folder paths and your user name are hidden.</p>
   <textarea id="bg-msg" readonly spellcheck="false" rows="9"></textarea>

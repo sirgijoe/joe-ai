@@ -61,6 +61,15 @@ _FAMILIES = [  # (family, pattern) — first match wins; checked against the low
     ("sd15", r"v1-5|sd15|sd-?1\.5|sd_1\.5"),
     ("sdxl", r"sdxl|xl\b|xl[_.-]|pony|illustrious"),
 ]
+# Older model formats are Python "pickles": loading one can run code hidden inside it. Joe
+# prefers .safetensors (data only) whenever there's a choice, and System check lists the others.
+PICKLE_EXTS = {".ckpt", ".pt", ".pth", ".bin"}
+
+
+def is_pickle(name: str) -> bool:
+    return Path(name).suffix.lower() in PICKLE_EXTS
+
+
 # Tensor names that identify each architecture inside a .safetensors file.
 _ARCH_KEYS = [
     ("svd", ("time_stack", "time_mixer")),
@@ -170,6 +179,7 @@ def best_image_model(models: list[ImageModel], vram_gb: float, kind: str = "imag
         return max(hits, key=lambda m: m.mtime) if hits else None
     if family:
         pool = [m for m in pool if m.family == family]
+    pool = [m for m in pool if not is_pickle(m.name)] or pool     # .safetensors first (safer)
     if not pool:
         return None
     vram = vram_gb or 8

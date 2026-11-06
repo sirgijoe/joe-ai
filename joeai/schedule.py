@@ -37,6 +37,31 @@ def windows_commands(hh: int, mm: int, cmd: list[str]) -> list[list[str]]:
              "/TR", tr]]
 
 
+def windows_xml(hh: int, mm: int, cmd: list[str], start_date: str = "2026-01-01") -> str:
+    """Task Scheduler entry that also WAKES the PC from sleep at that time (Windows only; the
+    power plan's "Allow wake timers" must be on, which it is by default on most PCs)."""
+    from xml.sax.saxutils import escape
+    exe, args = cmd[0], " ".join(f'"{c}"' if " " in c or "\\" in c else c for c in cmd[1:])
+    return f"""<?xml version="1.0" encoding="UTF-16"?>
+<Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
+  <RegistrationInfo><Description>Joe's night shift: starts the plans saved for tonight (Setup &gt; General).</Description></RegistrationInfo>
+  <Triggers><CalendarTrigger><StartBoundary>{start_date}T{hh:02d}:{mm:02d}:00</StartBoundary><Enabled>true</Enabled>
+    <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger></Triggers>
+  <Principals><Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>
+  <Settings>
+    <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>
+    <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>
+    <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>
+    <StartWhenAvailable>true</StartWhenAvailable>
+    <WakeToRun>true</WakeToRun>
+    <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>
+    <Enabled>true</Enabled>
+  </Settings>
+  <Actions Context="Author"><Exec><Command>{escape(exe)}</Command><Arguments>{escape(args)}</Arguments></Exec></Actions>
+</Task>
+"""
+
+
 def mac_plist(hh: int, mm: int, cmd: list[str]) -> str:
     esc = lambda t: t.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")  # noqa: E731
     args = "".join(f"<string>{esc(c)}</string>" for c in cmd)
@@ -82,11 +107,16 @@ def apply(settings, log=lambda *_: None) -> dict:
     joe = joe_command("tonight", console=False)
     try:
         if WINDOWS:
-            for cmd in windows_commands(hh, mm, joe):
-                r = _run(cmd)
-                if r.returncode:
-                    return {"ok": False, "error": "Windows Task Scheduler said no: "
-                                                  + (r.stderr or r.stdout).strip()[:300]}
+            from datetime import date
+            from .config import config_path
+            xml = config_path().parent / "joe-night-shift.xml"
+            xml.write_text(windows_xml(hh, mm, joe, date.today().isoformat()), encoding="utf-16")
+            r = _run(["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/XML", str(xml)])
+            if r.returncode:                            # older Windows: plain entry, no wake
+                r = _run(windows_commands(hh, mm, joe)[0])
+            if r.returncode:
+                return {"ok": False, "error": "Windows Task Scheduler said no: "
+                                              + (r.stderr or r.stdout).strip()[:300]}
         elif MAC:
             p = mac_plist_path()
             p.parent.mkdir(parents=True, exist_ok=True)

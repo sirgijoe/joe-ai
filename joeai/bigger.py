@@ -30,11 +30,13 @@ def extra_keys() -> str:
 - PROMPTS: as written (use each PART line as the exact picture prompt)
 - NEGATIVE: things to leave out of pictures, comma separated
 - INPUT: file names from Joe's Inbox (for tools)   OPTIONS: tool options, comma separated
-- EXPORT: docx | pdf | epub | odt | html (a finished copy of a document)
+- EXPORT: docx | pdf | epub | odt | html (a finished copy of a document); gif on a video task
 - FROM: the name of an earlier list or spreadsheet task. Each task is written on its own and
   can't see the others, so when one task must use the same names as another (a price list
   for the products just described, one picture per product), add FROM: <that task's name>.
   Joe then hands over the finished items in order. Use the same item count in both tasks.
+- RESEARCH: yes (Joe looks the task up online first and lists sources; only when I want
+  current facts or research)
 - MODEL: an exact installed model name (only if I ask for one)"""
 
 

@@ -224,7 +224,9 @@ def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = 
                 except OSError:
                     gb = 0.0
                 other.append({"name": f.relative_to(root).as_posix(), "what": what, "size_gb": gb})
-    return {"writing": [{"name": m["name"], "size_gb": m["size_gb"], "params": m.get("params", ""),
+    unsafe = [x["name"] for x in pics + addons + other if comfy.is_pickle(x["name"])]
+    return {"unsafe": unsafe,
+            "writing": [{"name": m["name"], "size_gb": m["size_gb"], "params": m.get("params", ""),
                          "writer": m.get("writer", True)} for m in ollama],
             "pictures": pics, "addons": addons, "other": other,
             "folder": str(models_dir) if models_dir else ""}

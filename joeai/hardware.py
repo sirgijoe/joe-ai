@@ -325,3 +325,59 @@ def gpu_advice(g: dict | None, os_name: str = "") -> str:
 def ram_total_gb() -> float:
     from .system import ram_total_gb as _ram
     return _ram()
+
+
+# --------------------------------------------------------------------------- CPU load
+# Shown when hovering the GPU readout. Measured from the system's own counters between two
+# readings (no extra programs, no install), so the first reading after start is None.
+_cpu_last: dict = {"busy": None, "total": None, "t": 0.0, "pct": None}
+
+
+def _cpu_counters() -> tuple[float, float] | None:
+    """(busy, total) time counters since boot, or None."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class FT(ctypes.Structure):
+                _fields_ = [("lo", ctypes.c_uint32), ("hi", ctypes.c_uint32)]
+
+            idle, kern, user = FT(), FT(), FT()
+            if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kern),  # type: ignore[attr-defined]
+                                                         ctypes.byref(user)):
+                return None
+            v = lambda f: (f.hi << 32) | f.lo  # noqa: E731
+            total = v(kern) + v(user)               # kernel time includes idle time
+            return float(total - v(idle)), float(total)
+        if sys.platform.startswith("linux"):
+            with open("/proc/stat", encoding="ascii") as f:
+                nums = [float(x) for x in f.readline().split()[1:]]
+            idle = nums[3] + (nums[4] if len(nums) > 4 else 0)
+            return sum(nums) - idle, sum(nums)
+    except (OSError, ValueError, AttributeError):
+        return None
+    return None
+
+
+def cpu_pct() -> int | None:
+    """Whole-PC CPU load in percent (0-100), averaged since the last call (at most every 2 s)."""
+    now = time.monotonic()
+    if now - _cpu_last["t"] < 2 and _cpu_last["pct"] is not None:
+        return _cpu_last["pct"]
+    if sys.platform == "darwin":
+        try:
+            out = subprocess.run(["ps", "-A", "-o", "%cpu"], capture_output=True, text=True, timeout=5).stdout
+            pct = sum(float(x) for x in out.split()[1:] if re.match(r"^[\d.]+$", x)) / (os.cpu_count() or 1)
+            _cpu_last.update(t=now, pct=max(0, min(100, round(pct))))
+            return _cpu_last["pct"]
+        except (OSError, subprocess.SubprocessError, ValueError):
+            return None
+    c = _cpu_counters()
+    if not c:
+        return None
+    busy, total = c
+    pct = None
+    if _cpu_last["total"] is not None and total > _cpu_last["total"]:
+        pct = max(0, min(100, round(100 * (busy - _cpu_last["busy"]) / (total - _cpu_last["total"]))))
+    _cpu_last.update(busy=busy, total=total, t=now, pct=pct if pct is not None else _cpu_last["pct"])
+    return _cpu_last["pct"]

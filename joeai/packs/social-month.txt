@@ -1,0 +1,14 @@
+PACK: A month of social posts
+ABOUT: 30 ready-to-post captions with hashtags, plus 8 pictures to go with them.
+ASK: Who are the posts for? (e.g. my bakery in Kalamazoo)
+=== JOE MISSION ===
+RULES: Posts for {for}. Friendly and upbeat, short, no made-up facts, deals or prices ([CHECK] if needed). Mix of tips, behind-the-scenes, questions and gentle promotion.
+TASK: Social posts
+CHUNKS: 5 x 6
+FORMAT: A short title for the post, then the caption (40-80 words) and 3-5 hashtags on the last line.
+TASK: Post pictures
+TYPE: image
+CHUNKS: 2 x 4
+STYLE: illustration
+FORMAT: Bright, friendly social media pictures that fit {for}, simple shapes, no text, letters or logos.
+=== END ===

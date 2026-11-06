@@ -1,0 +1,29 @@
+PACK: Small shop starter
+ABOUT: Product descriptions, a matching price list, an About page, an FAQ and product pictures.
+ASK: What's your shop and what do you sell? (e.g. a candle shop selling soy candles)
+=== JOE MISSION ===
+RULES: This is for {for}. Warm, friendly, plain words. Never invent prices, reviews, awards or facts; write [CHECK] for anything unknown.
+TASK: Product descriptions
+CHUNKS: 4 x 5
+FORMAT: Product name, then a short description of 30-50 words: what it is, what it's like, who it's for. Every name is different.
+TASK: Price list
+FROM: Product descriptions
+CHUNKS: 4 x 5
+HEADER: Name,Description,Price
+SAVE: price-list.csv
+FORMAT: One row per product. Description is one short line. Price is always [CHECK].
+TASK: About page
+PART: ## Our story. Who we are and why we started, in a warm, personal voice. Leave real names and dates as [CHECK].
+PART: ## What we make. What we sell and what makes it special.
+PART: ## Our promise. Quality, care and how we treat customers.
+EXPORT: docx
+TASK: FAQ
+CHUNKS: 2 x 6
+FORMAT: A question a customer would ask, then a short helpful answer. Shipping times, policies and prices are [CHECK].
+TASK: Product pictures
+TYPE: image
+FROM: Product descriptions
+CHUNKS: 2 x 4
+STYLE: product
+FORMAT: The product on a clean, softly lit surface, simple background, no text or logos.
+=== END ===

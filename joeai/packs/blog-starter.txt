@@ -1,0 +1,27 @@
+PACK: Blog starter
+ABOUT: 20 post ideas, 3 full first posts and a picture for each post.
+ASK: What's the blog about? (e.g. gardening on a small budget)
+=== JOE MISSION ===
+RULES: A blog about {for}. Helpful, friendly, easy to read. Mark facts you aren't sure of as [CHECK].
+TASK: Post ideas
+CHUNKS: 4 x 5
+FORMAT: A catchy post title, then two sentences on what the post covers.
+TASK: First post
+PART: ## Welcome. Who this blog is for and what readers will get.
+PART: ## The basics. The first things a beginner should know.
+PART: ## Your first step. One simple thing to try this week.
+EXPORT: docx
+TASK: Second post
+PART: ## The most common mistakes. Five mistakes beginners make and how to avoid them.
+PART: ## What to do instead. Simple fixes for each one.
+EXPORT: docx
+TASK: Third post
+PART: ## A simple plan. A month-by-month or step-by-step plan for beginners.
+PART: ## Tools and supplies. What you really need, and what can wait. Prices are [CHECK].
+EXPORT: docx
+TASK: Blog pictures
+TYPE: image
+CHUNKS: 1 x 4
+STYLE: watercolor
+FORMAT: Soft, friendly header pictures about {for}, no text or logos.
+=== END ===
