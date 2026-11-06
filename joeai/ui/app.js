@@ -151,6 +151,8 @@ async function poll() {
     window._lastAttention = state.attention || "";
     if (state.attention) toast(state.attention, 15000);
   }
+  restartBar();
+  dlAllBar();
   const rb = $("#runbtn");
   if (rb) { rb.firstChild.textContent = state.running ? "STOP" : "RUN"; rb.classList.toggle("going", !!state.running); }
   const uiKey = JSON.stringify([state.ui, state.theme]);
@@ -884,6 +886,138 @@ async function saveSetup(ev) {
 }
 $("#setup").addEventListener("submit", saveSetup);
 
+/* [ + ] next to every folder/file box in Setup: opens this computer's own chooser and fills the box. */
+function addPickButtons() {
+  document.querySelectorAll("input[data-pick]").forEach((inp) => {
+    if (inp.nextElementSibling && inp.nextElementSibling.classList.contains("pickbtn")) return;
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "pickbtn"; b.textContent = "[ + ]";
+    b.title = inp.dataset.pick === "file" ? "Find the file on this computer" : "Find the folder on this computer";
+    b.addEventListener("click", async () => {
+      b.disabled = true; toast("Look for the chooser window (it may open behind Joe's window).", 6000);
+      try {
+        const start = inp.value.replace(/^"([^"]+)".*$/, "$1");
+        const r = await api("/api/pick", { kind: inp.dataset.pick, title: inp.dataset.pickTitle || "", start });
+        if (r.error) toast(r.error);
+        else if (r.path) {
+          inp.value = inp.dataset.pick === "file" && inp.dataset.path.endsWith("start_command") && /\s/.test(r.path) ? `"${r.path}"` : r.path;
+          inp.dispatchEvent(new Event("input", { bubbles: true })); inp.dispatchEvent(new Event("change", { bubbles: true }));
+          toast("Filled in. Press SAVE to keep it.");
+        }
+      } finally { b.disabled = false; }
+    });
+    inp.insertAdjacentElement("afterend", b);
+  });
+}
+addPickButtons();
+
+/* Setup > Writing > Templates: how finished copies look (doctemplates.py). */
+let tplData = null;
+async function loadTemplates() {
+  try { tplData = await api("/api/templates", {}); } catch (e) { $("#tpl-list").textContent = e.message; return; }
+  const names = { docx: "Word (.docx)", pdf: "PDF", epub: "E-book (.epub)", html: "Web page (.html)", odt: "OpenDocument (.odt)", xlsx: "Excel (.xlsx)" };
+  $("#tpl-defaults").innerHTML = `<div class="dim small">Which template each kind of file uses when a task doesn't say:</div>` +
+    Object.entries(tplData.defaults).map(([fmt, cur]) => `<label>${names[fmt] || fmt} <select data-tpldef="${fmt}">` +
+      tplData.rows.filter((r) => r.for === (fmt === "xlsx" ? "sheet" : "doc")).map((r) =>
+        `<option value="${r.id}"${r.id === cur ? " selected" : ""}>${esc(r.label)}</option>`).join("") + "</select></label>").join("") +
+    `<div class="row"><button type="button" data-act="tpl-defaults">[ SAVE THESE CHOICES ]</button></div>`;
+  const input = (f) => {
+    const dis = " disabled";
+    if (f.kind === "bool") return `<input type="checkbox" data-tplf="${f.key}"${f.value ? " checked" : ""}${dis}>`;
+    if (f.kind === "page") return `<select data-tplf="${f.key}"${dis}>` + Object.entries(tplData.pages).map(([k, v]) =>
+      `<option value="${k}"${k === f.value ? " selected" : ""}>${esc(v)}</option>`).join("") + "</select>";
+    if (f.kind === "align") return `<select data-tplf="${f.key}"${dis}>` + [["left", "Left"], ["justify", "Justified"], ["center", "Centered"]].map(([k, v]) =>
+      `<option value="${k}"${k === f.value ? " selected" : ""}>${v}</option>`).join("") + "</select>";
+    if (f.kind === "number") return `<input type="number" step="0.05" min="0" data-tplf="${f.key}" value="${f.value}"${dis}>`;
+    return `<input data-tplf="${f.key}" value="${esc(String(f.value))}"${dis}>`;
+  };
+  $("#tpl-list").innerHTML = tplData.rows.map((r) => {
+    const changed = r.fields.some((f) => f.changed);
+    return `<details class="wf" data-tpl="${r.id}"><summary>${esc(r.label)} <span class="dim">· TEMPLATE: ${r.id}${changed ? " · your changes" : ""}</span></summary>
+      <div class="dim small">${esc(r.about)}</div>
+      ${r.fields.map((f) => `<label title="${esc(f.help || "")}${f.changed ? " (Joe's: " + esc(String(f.joe)) + ")" : ""}">${esc(f.label)}${f.changed ? " *" : ""} ${input(f)}</label>`).join("")}
+      <div class="row"><button type="button" data-act="tpl-edit" title="Unlock the boxes to change this template.">[ EDIT ]</button>
+        <button type="button" data-act="tpl-save" class="primary" hidden>[ SAVE THIS TEMPLATE ]</button>
+        <button type="button" data-act="tpl-reset" title="Back to Joe's choices for this template. Asks first.">[ RESET THIS TEMPLATE ]</button></div></details>`;
+  }).join("");
+}
+function tplEdit(btn) {
+  const box = btn.closest("[data-tpl]");
+  box.querySelectorAll("[data-tplf]").forEach((el) => { el.disabled = false; });
+  box.querySelector('[data-act="tpl-save"]').hidden = false; btn.hidden = true;
+}
+async function tplSave(btn) {
+  const box = btn.closest("[data-tpl]"), values = {};
+  box.querySelectorAll("[data-tplf]").forEach((el) => { values[el.dataset.tplf] = el.type === "checkbox" ? el.checked : el.value; });
+  const r = await api("/api/templates/save", { id: box.dataset.tpl, values });
+  if (!r.ok) { toast(r.error); return; }
+  toast("Template saved: new copies use it"); await loadTemplates();
+  const again = document.querySelector(`[data-tpl="${box.dataset.tpl}"]`); if (again) again.open = true;
+}
+function tplReset(btn) {
+  const box = btn.closest("[data-tpl]");
+  confirmBox("Put this template back to Joe's choices?\n\nYour changes to it are removed. Copies already made don't change.\n\nAre you sure?", async () => {
+    const r = await api("/api/templates/reset", { id: box.dataset.tpl });
+    if (!r.ok) { toast(r.error); return; }
+    toast("Template back to how Joe came"); loadTemplates();
+  }, null, true);
+}
+async function tplDefaults() {
+  const defaults = {};
+  document.querySelectorAll("[data-tpldef]").forEach((el) => { defaults[el.dataset.tpldef] = el.value; });
+  const r = await api("/api/templates/defaults", { defaults });
+  toast(r.ok ? "Saved" : r.error);
+}
+
+/* RESTART JOE: shown when a restart helps (new files copied in, big installs, DOWNLOAD ALL). */
+let restartHidden = "";
+function restartBar() {
+  const bar = $("#restartbar"); if (!bar) return;
+  const hint = state.restart_hint || "";
+  bar.hidden = !hint || hint === restartHidden || state.running;
+  if (!bar.hidden) $("#restartbar-text").textContent = hint;
+}
+function restartJoe() {
+  confirmBox("Restart Joe now?\n\nJoe closes and opens again by himself in a few seconds. Nothing is lost: " +
+    "your chats, settings and work stay. If his window doesn't come back within a minute, start Joe again yourself.", async () => {
+      const r = await api("/api/restart", {});
+      if (!r.ok) { toast(r.error); return; }
+      toast("Restarting Joe…", 8000);
+      setTimeout(() => { try { window.close(); } catch (e) {} }, 2500);
+    });
+}
+
+/* Setup > Models > DOWNLOAD ALL: every model Joe offers, one after another (leave it overnight). */
+async function downloadAll() {
+  let r;
+  try { r = await api("/api/models/download-all", { list: true }); } catch (e) { toast(e.message); return; }
+  if (!r.items.length) { toast("Nothing to download: Joe has every model he offers."); return; }
+  const gb = r.items.reduce((a, it) => { const m = /([\d.]+)\s*GB/i.exec((it.what || "") + " " + it.text); return a + (m ? parseFloat(m[1]) : 0); }, 0);
+  confirmBox(`Download all ${r.items.length} model${r.items.length > 1 ? "s" : ""} Joe offers?\n\n` +
+    r.items.map((it) => "· " + (it.what || it.text)).join("\n") +
+    (gb ? `\n\nAbout ${Math.round(gb)} GB in all (rough).` : "") +
+    "\n\nJoe gets them one at a time and keeps going if one fails. Models that only show up after another one " +
+    "is in (a follow-on file) are added by themselves. On a slow connection this can take all night: leave Joe open, " +
+    "the PC won't go to sleep. Each model keeps its own license (shown on its line). STOP is on the Models page.", async () => {
+      const x = await api("/api/models/download-all", { approved: true });
+      if (!x.ok) { toast(x.error); return; }
+      toast("Downloading everything, one at a time…");
+    });
+}
+function dlAllBar() {
+  const el = $("#dlall-status"); if (!el) return;
+  const d = state.dl_all || {};
+  const btn = $("#dlall-go"), stop = $("#dlall-stop");
+  if (d.running) {
+    el.textContent = `Downloading: ${d.current || "…"}${state.busy_pct != null ? " " + Math.round(state.busy_pct) + "%" : ""}` +
+      ` · ${d.done || 0} done${d.left ? `, ${d.left} more after this` : ""}${(d.failed || []).length ? `, ${d.failed.length} failed` : ""}`;
+  } else el.textContent = d.finished ? `Last DOWNLOAD ALL: ${d.done || 0} downloaded${(d.failed || []).length ? `, ${d.failed.length} didn't work (see the log)` : ""}.` : "";
+  if (btn) btn.hidden = !!d.running;
+  if (stop) stop.hidden = !d.running;
+  if (window._dlWasRunning && !d.running && typeof loadDoctor === "function") loadDoctor();
+  window._dlWasRunning = !!d.running;
+}
+
 /* Setup > Workflows: model, words always added / left out, steps, per workflow. */
 let wfData = null;
 async function loadWorkflows() {
@@ -898,12 +1032,26 @@ async function loadWorkflows() {
       return `<details class="wf" data-wf="${esc(r.id)}"><summary>${esc(r.label)}${set ? ' <span class="dim">· changed</span>' : ""}</summary>
         <div class="dim small">${esc(r.about)}</div>
         ${r.model_ok ? `<label>Model <select data-wff="model">${opt(r)}</select></label>` : ""}
-        <label title="Added to the end of every prompt for this workflow.">Always add <input data-wff="add" maxlength="600" value="${esc(r.prefs.add || "")}" placeholder="e.g. soft morning light, shallow depth of field"></label>
-        ${r.id === "editor" || r.id === "music" || r.id === "sfx" ? "" : `<label title="Added to the leave-out (negative) list.">Always leave out <input data-wff="avoid" maxlength="600" value="${esc(r.prefs.avoid || "")}" placeholder="e.g. text, watermark, extra fingers"></label>`}
+        ${(r.texts || []).map((t) => `<div class="wftext" data-field="${t.field}">
+          <div class="row"><span>${esc(t.label)}${t.changed ? ' <span class="dim">· your words</span>' : ' <span class="dim">· Joe\'s words</span>'}</span>
+            <button type="button" data-act="wf-edit" title="Change these words. SAVE keeps your copy; RESET THIS WORKFLOW brings Joe's back.">[ EDIT ]</button>
+            ${t.changed ? `<button type="button" data-act="wf-joes" title="Put Joe's own words back in the box (then SAVE).">[ JOE'S WORDS ]</button>` : ""}</div>
+          <textarea data-wff="${t.field}" rows="${t.field === "note" ? 5 : 3}" readonly data-builtin="${esc(t.builtin)}">${esc(t.value)}</textarea></div>`).join("")}
+        <label title="Your own extra words, added after Joe's at the end of every prompt for this workflow.">Also add <input data-wff="add" maxlength="600" value="${esc(r.prefs.add || "")}" placeholder="e.g. soft morning light, shallow depth of field"></label>
+        ${r.id === "editor" || r.id === "music" || r.id === "sfx" ? "" : `<label title="Your own extra leave-out words, added to the list above.">Also leave out <input data-wff="avoid" maxlength="600" value="${esc(r.prefs.avoid || "")}" placeholder="e.g. text, watermark, extra fingers"></label>`}
         ${r.steps_ok ? `<label title="0 = Joe decides from the Quality setting.">Steps (0 = Joe decides) <input type="number" min="0" max="150" data-wff="steps" value="${r.prefs.steps || 0}"></label>` : ""}
         <div class="row"><button type="button" data-act="wf-save" class="primary">[ SAVE THIS WORKFLOW ]</button>
           <button type="button" data-act="wf-reset">[ RESET THIS WORKFLOW ]</button></div></details>`;
     }).join("") + "</fieldset>").join("");
+}
+function wfEdit(btn) {
+  const ta = btn.closest(".wftext").querySelector("textarea");
+  ta.readOnly = false; ta.classList.add("editing"); ta.focus();
+}
+function wfJoes(btn) {
+  const ta = btn.closest(".wftext").querySelector("textarea");
+  ta.value = ta.dataset.builtin; ta.readOnly = false; ta.classList.add("editing");
+  toast("Joe's words are back in the box. SAVE THIS WORKFLOW to keep them.");
 }
 async function wfSave(btn) {
   const box = btn.closest("[data-wf]"), prefs = {};
@@ -917,7 +1065,7 @@ function wfReset(btn) {
   const box = btn.closest("[data-wf]");
   const name = box.querySelector("summary").textContent.replace("· changed", "").trim();
   confirmBox(`Reset the "${name}" workflow?\n\nYour model choice, always-add and always-leave-out words and steps for it ` +
-    "are removed, and Joe goes back to his own choices. Nothing else changes.\n\nAre you sure?", async () => {
+    "(and any words you edited) are removed, and Joe goes back to his own. Nothing else changes.\n\nAre you sure?", async () => {
       const r = await api("/api/workflows/reset", { id: box.dataset.wf });
       if (!r.ok) { toast(r.error); return; }
       toast(`${name}: back to how Joe came`); loadWorkflows();
@@ -974,6 +1122,7 @@ function setupPage(name) {
   document.querySelectorAll(".setnav button[data-page]").forEach((b) => b.classList.toggle("on", b.dataset.page === name));
   $(".setpages").scrollTop = 0;
   if (name === "workflows" && typeof loadWorkflows === "function") loadWorkflows();
+  if (name === "writing" && typeof loadTemplates === "function") loadTemplates();
 }
 // Shows every section, hiding settings whose name and hint don't match. Opens "More options"
 // when a match is inside it. Empty box = back to the section you were on.
@@ -1055,6 +1204,16 @@ document.addEventListener("click", async (ev) => {
     if (b.dataset.gotoPage) setupPage(b.dataset.gotoPage);
     if (act === "wf-save") await wfSave(b);
     if (act === "wf-reset") wfReset(b);
+    if (act === "wf-edit") wfEdit(b);
+    if (act === "restart-joe") restartJoe();
+    if (act === "tpl-edit") tplEdit(b);
+    if (act === "tpl-save") await tplSave(b);
+    if (act === "tpl-reset") tplReset(b);
+    if (act === "tpl-defaults") await tplDefaults();
+    if (act === "restart-later") { restartHidden = state.restart_hint || ""; restartBar(); }
+    if (act === "download-all") await downloadAll();
+    if (act === "download-all-stop") { await api("/api/models/download-all", { stop: true }); toast("Stopping after the current download…"); }
+    if (act === "wf-joes") wfJoes(b);
     if (act === "reset-page") resetPage(b);
     if (act === "reset-all") resetAll();
     if (act === "packs-open") await packsOpen();

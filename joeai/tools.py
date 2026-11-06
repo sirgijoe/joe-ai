@@ -1698,7 +1698,7 @@ def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 if src.suffix.lower() == ".docx":
                     pandoc = pandoc_exe(engine.s.pandoc)
                     if pandoc:
-                        made += [p.name for p in export_document(folder / copy_name, ["docx"], pandoc, engine.log)]
+                        made += [p.name for p in export_document(folder / copy_name, ["docx"], pandoc, engine.log, settings=engine.s, cache=engine.meta / "templates")]
                     else:
                         engine.log("  Pandoc isn't installed, so the corrected copy is text, not Word.")
             atomic_write_text(folder / f"{stem}-changes.md",
@@ -2084,7 +2084,7 @@ def run_translate(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 if src.suffix.lower() == ".docx":
                     pandoc = pandoc_exe(engine.s.pandoc)
                     if pandoc:
-                        made += [p.name for p in export_document(folder / fname, ["docx"], pandoc, engine.log)]
+                        made += [p.name for p in export_document(folder / fname, ["docx"], pandoc, engine.log, settings=engine.s, cache=engine.meta / "templates")]
                 flags = find_flags(done)
                 st.flags.extend({"item": f"{src.stem} ({name})", "flag": f} for f in flags[:30])
                 st.titles.append(f"{rel} -> {lang}")

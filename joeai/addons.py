@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -273,10 +274,11 @@ def install_log(log: Log) -> Log:
     return both
 
 
-def _run(cmd: list[str], log: Log, timeout: int = 3600) -> bool:
+def _run(cmd: list[str], log: Log, timeout: int = 3600, cwd: str | None = None) -> bool:
     log("  > " + " ".join(Path(cmd[0]).name if i == 0 else c for i, c in enumerate(cmd))[:160])
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW)
+        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW,
+                           cwd=cwd)
     except (OSError, subprocess.SubprocessError) as e:
         log(f"  failed to run: {e}")
         return False
@@ -463,32 +465,62 @@ class VoiceWorker:
 
 
 # --------------------------------------------------------------------------- documents
-def export_document(md: Path, formats: list[str], pandoc: str, log: Log) -> list[Path]:
-    """Markdown -> .docx / .epub with Pandoc; .pdf by printing Pandoc's HTML with Edge
-    (built into Windows), so no LaTeX is needed."""
+def export_document(md: Path, formats: list[str], pandoc: str, log: Log, settings=None,
+                    template: str = "", cache: Path | None = None) -> list[Path]:
+    """Markdown -> .docx / .epub / .odt / .html with Pandoc; .pdf by printing Pandoc's HTML with
+    Edge or Chrome, so no LaTeX is needed. Each copy follows a writing template (doctemplates.py):
+    `template` (a task's TEMPLATE:) or Setup's default for that kind of file."""
+    from . import doctemplates as dt
     made: list[Path] = []
     title = md.stem.replace("_", " ").replace("-", " ").title()
+    cache = cache or (md.parent / ".joe-templates")
+
+    def tpl(fmt: str) -> dict:
+        tid = template if template in dt.TEMPLATES and dt.TEMPLATES[template]["for"] == "doc" else \
+            (dt.default_for(settings, fmt) if settings is not None else dt.DEFAULTS.get(fmt, "standard"))
+        return dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
+
     for fmt in formats:
         fmt = fmt.strip().lower().lstrip(".")
         if fmt in ("docx", "epub", "odt", "html"):
+            t = tpl(fmt)
             out = md.with_suffix("." + fmt)
             cmd = [pandoc, str(md), "-s", "-o", str(out), "--metadata", f"title={title}"]
-            if _run(cmd, log, 300) and out.exists():
+            css = None
+            if fmt == "docx":
+                ref = dt.reference_docx(pandoc, t, cache, log)
+                if ref:
+                    cmd += ["--reference-doc", str(ref)]
+            elif fmt in ("epub", "html"):
+                css = md.with_suffix(f".{fmt}.css")
+                css.write_text(dt.css(t, epub=fmt == "epub"), encoding="utf-8")
+                cmd += ["--css", css.name if fmt == "html" else str(css)]
+                if fmt == "html":
+                    cmd += ["--embed-resources"] if _pandoc_embeds(pandoc) else []
+                if fmt == "epub" and t.get("chapter_break"):
+                    cmd += ["--split-level=1"] if _pandoc_split_level(pandoc) else []
+            ok = _run(cmd, log, 300, cwd=str(md.parent)) and out.exists()
+            if css and (fmt == "epub" or _pandoc_embeds(pandoc)):
+                try:
+                    css.unlink()
+                except OSError:
+                    pass
+            if ok:
                 made.append(out)
+                log(f"  {out.name}: template '{t['label']}'")
         elif fmt == "pdf":
+            t = tpl("pdf")
             html = md.with_suffix(".print.html")
             out = md.with_suffix(".pdf")
             css = md.with_suffix(".print.css")
-            css.write_text("body{font-family:Georgia,serif;max-width:46em;margin:2em auto;line-height:1.5}"
-                           "h1,h2,h3{font-family:Segoe UI,Arial,sans-serif}table{border-collapse:collapse}"
-                           "td,th{border:1px solid #999;padding:3px 6px}", encoding="utf-8")
+            css.write_text(dt.css(t), encoding="utf-8")
             ok = _run([pandoc, str(md), "-s", "-o", str(html), "--metadata", f"title={title}",
-                       "--css", css.name], log, 300)
+                       "--css", css.name], log, 300, cwd=str(md.parent))
             edge = _edge()
             if ok and edge:
                 ok = _print_pdf(edge, html, out, log)
             elif ok:
-                log("  PDF needs Microsoft Edge (built into Windows); saved HTML instead.")
+                log("  PDF needs Microsoft Edge or Google Chrome; saved HTML instead.")
             for tmp in (html, css):
                 if out.exists() or not ok:
                     try:
@@ -497,9 +529,45 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log) -> list
                         pass
             if out.exists():
                 made.append(out)
+                log(f"  {out.name}: template '{t['label']}'")
+        elif fmt == "xlsx":
+            src = md if md.suffix.lower() == ".csv" else None
+            if not src:
+                log("  xlsx: only a spreadsheet (.csv) result can become an .xlsx.")
+                continue
+            tid = template if template in dt.TEMPLATES and dt.TEMPLATES[template]["for"] == "sheet" else \
+                (dt.default_for(settings, "xlsx") if settings is not None else "sheet")
+            t = dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
+            try:
+                made.append(dt.csv_to_xlsx(src, t))
+            except OSError as e:
+                log(f"  xlsx: {e}")
         else:
             log(f"  unknown export format: {fmt}")
     return made
+
+
+_PANDOC_INFO: dict = {}
+
+
+def _pandoc_version(pandoc: str) -> tuple[int, ...]:
+    if pandoc not in _PANDOC_INFO:
+        try:
+            p = subprocess.run([pandoc, "--version"], capture_output=True, text=True, timeout=30,
+                               creationflags=NO_WINDOW)
+            m = re.search(r"pandoc\S*\s+(\d+(?:\.\d+)*)", p.stdout or "")
+            _PANDOC_INFO[pandoc] = tuple(int(x) for x in m.group(1).split(".")) if m else (0,)
+        except (OSError, subprocess.SubprocessError):
+            _PANDOC_INFO[pandoc] = (0,)
+    return _PANDOC_INFO[pandoc]
+
+
+def _pandoc_embeds(pandoc: str) -> bool:
+    return _pandoc_version(pandoc) >= (2, 19)
+
+
+def _pandoc_split_level(pandoc: str) -> bool:
+    return _pandoc_version(pandoc) >= (3, 0)
 
 
 def _kill_tree(p: subprocess.Popen) -> None:

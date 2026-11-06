@@ -155,6 +155,7 @@ class Settings:
     quality: QualitySettings = field(default_factory=QualitySettings)
     web: WebSettings = field(default_factory=WebSettings)
     schedule: ScheduleSettings = field(default_factory=ScheduleSettings)
+    templates: dict = field(default_factory=dict)   # Setup > Writing > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)
     pandoc: str = ""                 # blank = auto-detect
@@ -198,7 +199,7 @@ def _merge(obj, data: dict) -> None:
 
 
 # Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state).
-KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows")
+KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows", "templates")
 
 
 def reset_paths(s: "Settings", paths: list[str] | None = None) -> list[str]:

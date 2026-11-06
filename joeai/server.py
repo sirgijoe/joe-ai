@@ -32,7 +32,7 @@ from .mission import MissionError, parse
 from .sandbox import Sandbox, SandboxError
 from .services import ServiceManager
 from . import stats as stats_mod
-from . import doctor, hardware
+from . import doctor, hardware, system
 from . import media as media_mod
 from . import storage as storage_mod
 from . import themes as themes_mod
@@ -82,6 +82,8 @@ class App:
         self.last_seen = time.monotonic()
         self.quit_now = False
         self.services_status = {"ollama": False, "comfyui": False, "loaded": []}
+        self.dl_all: dict = {}            # Setup > Models > DOWNLOAD ALL progress
+        self.restart_hint = ""            # "restart Joe" advice shown in the window (with a button)
         self.services = ServiceManager(self.settings, log=self.log)
         self.fix_result: dict = {}           # how the last System-check fix went (for the UI)
         self.busy = ""                       # a system-check fix running in the background
@@ -656,6 +658,7 @@ class App:
                 "report": (self.sb.output / "_REPORT.md").exists(),
                 "theme": self.theme_vars(), "hw": hardware.gpu(), "cpu_pct": hardware.cpu_pct(), "pause_c": s.engine.gpu_temp_pause_c,
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
+                "dl_all": {k: v for k, v in self.dl_all.items() if k != "stop"}, "restart_hint": self.restart_advice(),
                 "attention": self.services.attention,
                 "queued": [e["label"] for _, _, e in self.queue],
                 "queued_eta_s": 60 * sum(int(e.get("eta_min") or 0) for _, _, e in self.queue),
@@ -836,6 +839,10 @@ class App:
                 ok = False
                 addons_mod.install_log(self.log)(f"!! {action} failed: {e!r}")
             finally:
+                if ok and action in ("install-voice", "install-clone", "install-whispercpp") or \
+                        (ok and action == "install" and tool in ("ollama", "comfyui")):
+                    self.restart_hint = ("New helpers were set up. Restart Joe so everything starts fresh "
+                                         "with them (nothing is lost).")
                 self.fix_result = {"action": action, "ok": bool(ok), "n": self.fix_result.get("n", 0) + 1}
                 self.busy, self.busy_pct = "", None
         labels = {"install": f"installing {tool}", "start": f"starting {tool}", "update": f"updating {tool}",
@@ -845,7 +852,9 @@ class App:
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
                   "install-clone": "setting up voice copy", "update-joe": "updating Joe",
                   "download-pack": "downloading a picture/sound model",
-                  "import-models": "getting a picture model"}
+                  "import-models": "getting a picture model",
+                  "share-models": "sharing model folders with ComfyUI",
+                  "install-whispercpp": "installing whisper.cpp"}
         if action == "download-pack":
             from . import picturetools
             if b.get("pack") not in picturetools.PACKS:
@@ -857,6 +866,78 @@ class App:
         self.busy = labels[action]
         doctor.run_in_thread(work)
         return {"ok": True, "started": self.busy}
+
+    def restart_advice(self) -> str:
+        """Why a restart would help now ('' = it wouldn't): newer files copied into Joe's folder,
+        or something set up that's picked up best by a fresh start."""
+        now = time.monotonic()
+        if now - getattr(self, "_disk_checked", 0) > 30:
+            self._disk_checked = now
+            try:
+                txt = (Path(__file__).parent / "__init__.py").read_text(encoding="utf-8")
+                m = re.search(r'__version__\s*=\s*"([^"]+)"', txt)
+                self._disk_version = m.group(1) if m else __version__
+            except OSError:
+                self._disk_version = __version__
+        disk = getattr(self, "_disk_version", __version__)
+        if disk != __version__:
+            return (f"A newer Joe ({disk}) is in his folder; this window is still {__version__}. "
+                    "Restart Joe to use the new one.")
+        return self.restart_hint
+
+    # -- Setup > Models > DOWNLOAD ALL: every offered model, one after another -------------
+    DL_ALL_ACTIONS = ("pull", "download-image-model", "download-video-model", "download-video-turbo",
+                      "download-pack")
+
+    def download_all_items(self) -> list[dict]:
+        """The model downloads System check offers now (no program installs, no browser ones)."""
+        d = doctor.check(self.settings, self.services)
+        return [it for it in d["issues"] if it.get("kind") and it.get("action") in self.DL_ALL_ACTIONS
+                and it.get("group") != "updates"]
+
+    def download_all(self, b: dict) -> dict:
+        if not b.get("approved"):
+            return {"ok": False, "error": "Needs your OK first."}
+        if self.busy or self.dl_all.get("running"):
+            return {"ok": False, "error": f"Busy: {self.busy or 'downloading'}"}
+        skip = set(b.get("skip") or [])
+        self.dl_all = {"running": True, "done": 0, "failed": [], "current": "", "stop": False}
+
+        def work():
+            tried: set[str] = set(skip)
+            with system.keep_awake(True, self.log):
+                self.log("DOWNLOAD ALL: getting every model Joe offers, one at a time. Leave Joe open; "
+                         "the PC won't go to sleep until it's done.")
+                while not self.dl_all.get("stop"):
+                    todo = [it for it in self.download_all_items()
+                            if (it.get("id", "") + it.get("model", "") + it.get("pack", "")) not in tried]
+                    if not todo:
+                        break                        # follow-on models appear after earlier ones land
+                    it = todo[0]
+                    key = it.get("id", "") + it.get("model", "") + it.get("pack", "")
+                    tried.add(key)
+                    self.dl_all["current"] = it.get("what") or it.get("text", "")[:80]
+                    self.dl_all["left"] = len(todo) - 1
+                    r = self.doctor_fix({**it, "approved": True})
+                    if not r.get("ok"):
+                        self.dl_all["failed"].append(f"{self.dl_all['current']}: {r.get('error')}")
+                        continue
+                    time.sleep(1)
+                    while self.busy:
+                        time.sleep(2)
+                    if self.fix_result.get("ok"):
+                        self.dl_all["done"] += 1
+                    else:
+                        self.dl_all["failed"].append(self.dl_all["current"])
+            n, bad = self.dl_all["done"], self.dl_all["failed"]
+            self.log(f"DOWNLOAD ALL finished: {n} downloaded" + (f", {len(bad)} didn't work: " + "; ".join(bad)
+                                                                 if bad else "") + ".")
+            self.restart_hint = ("New models were downloaded. Restart ComfyUI so it sees them, and restart Joe "
+                                 "so everything is picked up fresh.") if n else self.restart_hint
+            self.dl_all = {"running": False, "done": n, "failed": bad, "current": "", "finished": True}
+
+        doctor.run_in_thread(work)
+        return {"ok": True, "started": "downloading every model"}
 
     def theme_vars(self) -> dict | None:
         ph = self.settings.ui.phosphor
@@ -1084,7 +1165,8 @@ class App:
         pandoc = addons_mod.pandoc_exe(self.settings.pandoc)
         if not pandoc:
             return {"ok": False, "error": "Pandoc isn't installed (F10 > System check)."}
-        made = addons_mod.export_document(p, formats, pandoc, self.log)
+        made = addons_mod.export_document(p, formats, pandoc, self.log, settings=self.settings,
+                                          cache=self.sb.meta / "templates")
         return {"ok": bool(made), "made": [m.name for m in made],
                 "error": "" if made else "Couldn't make the document (see the log on F2)."}
 
@@ -1524,6 +1606,22 @@ def make_handler(app: App):
                     return self._json(app.check(b.get("text", "")))
                 if u.path == "/api/run":
                     return self._json(app.run(b.get("text", "")))
+                if u.path == "/api/pick":               # [ + ] next to a folder/file box in Setup
+                    kind = "file" if b.get("kind") == "file" else "folder"
+                    return self._json({"ok": True, **system.pick_path(kind, str(b.get("title") or (
+                        "Choose a file" if kind == "file" else "Choose a folder"))[:120], str(b.get("start") or ""))})
+                if u.path == "/api/restart":            # RESTART JOE (asks first in the window)
+                    if app.running:
+                        return self._json({"ok": False, "error": "Joe is working: restart after the run finishes."})
+                    if app.busy or app.dl_all.get("running"):
+                        return self._json({"ok": False, "error": f"Busy: {app.busy or 'downloading'}. Restart when it's done."})
+                    from .app import restart
+                    if not restart(app.log):
+                        return self._json({"ok": False, "error": "Couldn't start a new Joe."})
+                    app.restart_hint = ""
+                    app.last_seen = 0.0
+                    app.quit_now = True
+                    return self._json({"ok": True})
                 if u.path == "/api/quit":
                     if app.running:
                         return self._json({"ok": False, "error": "a run is going"})
@@ -1534,6 +1632,15 @@ def make_handler(app: App):
                     app.stop.set()
                     app.log("Stop requested: finishing the current step...")
                     return self._json({"ok": True})
+                if u.path == "/api/models/download-all":
+                    if b.get("stop"):
+                        app.dl_all["stop"] = True
+                        return self._json({"ok": True})
+                    if b.get("list"):
+                        items = app.download_all_items()
+                        return self._json({"ok": True, "items": [{"id": i.get("id"), "text": i.get("text"),
+                                                                  "what": i.get("what", "")} for i in items]})
+                    return self._json(app.download_all(b))
                 if u.path == "/api/doctor/fix":
                     return self._json(app.doctor_fix(b))
                 if u.path == "/api/help-file":                  # a zip to send when asking for help
@@ -1596,6 +1703,15 @@ def make_handler(app: App):
                     target = app.sb.check(pic.with_name(pic.stem + MASK_SUFFIX))
                     target.write_bytes(raw)
                     return self._json({"ok": True, "mask": target.name})
+                if u.path == "/api/templates":         # Setup > Writing > Templates
+                    from . import doctemplates
+                    return self._json({"ok": True, **doctemplates.entries(app.settings)})
+                if u.path in ("/api/templates/save", "/api/templates/reset", "/api/templates/defaults"):
+                    from . import doctemplates
+                    if u.path.endswith("defaults"):
+                        return self._json(doctemplates.save_defaults(app.settings, b.get("defaults") or {}))
+                    vals = b.get("values") if u.path.endswith("save") else None
+                    return self._json(doctemplates.save(app.settings, str(b.get("id", "")), vals))
                 if u.path == "/api/workflows":         # Setup > Workflows
                     from . import workflowprefs
                     from .doctor import comfy_models_dir

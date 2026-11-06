@@ -59,11 +59,23 @@ In Step by step (F6) it's **Use the names from**.
 
 - **Models** (Setup > Models): every model download Joe offers, sorted by what it's for (writing,
   pictures and styles, video, picture tools, music and sound, helpers, newer copies), plus
-  SHOW MY MODELS. System check keeps the programs (Ollama, ComfyUI, FFmpeg...).
+  SHOW MY MODELS. System check keeps the programs (Ollama, ComfyUI, FFmpeg...). **DOWNLOAD ALL**
+  at the bottom gets every model on the page, one after another (it shows the list and rough total
+  size first, keeps going if one fails, adds follow-on files by itself, keeps the PC awake, and
+  has a STOP button). Good for slow connections: press it at bedtime.
 - **Workflows** (Setup > Workflows): for Joe's built-in pictures, each picture style, video, the
   picture editor tools, Animate a photo, music, sound effects and every workflow file you
-  imported, pick the model, words to **always add** to every prompt, words to **always leave
-  out**, and (for pictures) the number of steps. RESET THIS WORKFLOW undoes it.
+  imported, pick the model and see **Joe's own words**, filled in: what he tells the prompt writer,
+  the words he adds to every prompt, and his leave-out list (the Pictures list is Joe's general
+  one; Video clips' is Wan's, partly in Chinese because Wan was trained that way, and it's also used
+  by Animate a photo). EDIT unlocks a box; your copy replaces Joe's for that workflow, and JOE'S
+  WORDS puts his back. Below them, **also add** / **also leave out** take your extra words, and (for
+  pictures) the number of steps. RESET THIS WORKFLOW brings everything back to how Joe came.
+- **Folder and file boxes** (Joe's folder, ComfyUI's models/output folders, start commands, FFmpeg):
+  the [ + ] button next to each opens this computer's own chooser and fills the box. Press SAVE.
+- **Restart Joe**: a bar with RESTART JOE shows up when a restart helps: newer Joe files were copied
+  into his folder, helpers were set up, or DOWNLOAD ALL finished. It asks first; Joe closes and opens
+  again by himself (LATER hides it).
 - **Reset**: every Setup page has RESET THIS PAGE, and System check has RESET ALL SETTINGS. Each
   asks first, and only a click on YES, RESET does it (Enter doesn't). Your stats, files, chats,
   models, Joe's folder and any keys you typed are never touched.
@@ -621,6 +633,26 @@ System check offers one that fits your graphics card.
 `EXPORT: docx, pdf, epub` on a writing task makes finished copies next to the .md when it's
 done (also `odt`, `html`). In F7, P makes Word + PDF copies of any .md file. Needs Pandoc
 (System check installs it); PDFs are printed by Microsoft Edge, so no LaTeX is needed.
+
+**Templates** (Setup > Writing > TEMPLATES) decide how those copies look: page size, margins, body
+and heading fonts, text size, line spacing, first-line indent, alignment, space between paragraphs,
+centered headings, each chapter on a new page, and a title page. Joe's built-in ones:
+
+| TEMPLATE | For | Joe's choices |
+|---|---|---|
+| `standard` | everyday documents (Word, PDF, web page by default) | Letter, 1 in, Georgia 12, 1.4 lines |
+| `book` | a printed novel | 6 x 9 in, Garamond 11.5, justified, indents, chapters on new pages, title page |
+| `manuscript` | sending to an editor or agent | Letter, 1 in, Times New Roman 12, double spaced, 0.5 in indents |
+| `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (22 pt), centered, a new page per part |
+| `ebook` | EPUB (the default for .epub) | light styling, since e-readers use their own settings |
+| `report` | business reports | Calibri 11, block paragraphs |
+| `sheet` | Excel copies of a spreadsheet (`EXPORT: xlsx` on a .csv task) | bold blue header that stays in place, filter buttons, fitted columns |
+
+Each is shown filled in; EDIT unlocks it and RESET THIS TEMPLATE brings Joe's back. Pick which one
+each kind of file uses by default at the top, or put `TEMPLATE: book` (or kids, manuscript, ebook,
+report) on a task. Word copies get the template through a "reference document" Joe builds from
+Pandoc's own; PDF, EPUB and web pages through a style sheet. A font must be on the computer that
+opens the file; list a few (comma-separated) and the first one there is used (Word uses the first).
 
 `EXPORT: social` on a list of posts (also on a `.csv` task) adds three files for posting tools:
 `<name>-social.csv` (one row per post: the text, how long it is, which sites it fits, and empty

@@ -40,6 +40,9 @@ Kinds of task:
   products, places or people.
 - Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens. Add EXPORT: gif
   when they want a GIF.
+- Finished copies (EXPORT: docx/pdf/epub, or xlsx for a .csv) can take TEMPLATE: book (printed
+  novel) | manuscript (for an editor/agent) | kids (children's picture book) | ebook | report |
+  standard. Only add it when the request names that kind of project.
 - Social media posts (a list of posts): add EXPORT: social so Joe also makes files a post
   scheduler or spreadsheet can take (Joe never posts by himself).
 - When they ask to research, look things up, or want current facts, add RESEARCH: yes to that

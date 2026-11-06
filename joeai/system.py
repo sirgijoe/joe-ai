@@ -463,3 +463,71 @@ def joe_command(sub: str, console: bool = True) -> list[str]:
     if pyw.exists():
         return [str(exe), str(pyw), sub]
     return [str(exe), "-m", "joeai", sub]
+
+
+# --------------------------------------------------------------------------- choose a folder / file
+_PICK_TK = r"""
+import sys, tkinter as tk
+from tkinter import filedialog
+r = tk.Tk(); r.withdraw()
+try:
+    r.attributes("-topmost", True)
+except Exception:
+    pass
+kind, title, start = sys.argv[1], sys.argv[2], sys.argv[3] or None
+p = filedialog.askdirectory(title=title, initialdir=start, mustexist=False) if kind == "folder" \
+    else filedialog.askopenfilename(title=title, initialdir=start)
+sys.stdout.write(p or "")
+"""
+
+
+def _pick_cmds(kind: str, title: str, start: str) -> list[list[str]]:
+    """Ways to show the system's own folder/file chooser, best first."""
+    cmds: list[list[str]] = [[sys.executable, "-c", _PICK_TK, kind, title, start]]
+    if WINDOWS:
+        if kind == "folder":
+            ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; "
+                  f"$d.Description = '{title.replace(chr(39), '')}'; $d.ShowNewFolderButton = $true; "
+                  f"$d.SelectedPath = '{start.replace(chr(39), '')}'; "
+                  "if ($d.ShowDialog() -eq 'OK') { [Console]::Write($d.SelectedPath) }")
+        else:
+            ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; "
+                  f"$d.Title = '{title.replace(chr(39), '')}'; "
+                  "if ($d.ShowDialog() -eq 'OK') { [Console]::Write($d.FileName) }")
+        cmds.append(["powershell", "-NoProfile", "-STA", "-Command", ps])
+    elif MAC:
+        what = "folder" if kind == "folder" else "file"
+        t = title.replace('"', "")
+        cmds.append(["osascript", "-e", f'POSIX path of (choose {what} with prompt "{t}")'])
+    else:
+        if shutil.which("zenity"):
+            cmds.append(["zenity", "--file-selection", f"--title={title}"]
+                        + (["--directory"] if kind == "folder" else []) + ([f"--filename={start}/"] if start else []))
+        if shutil.which("kdialog"):
+            cmds.append(["kdialog", "--getexistingdirectory" if kind == "folder" else "--getopenfilename",
+                         start or str(Path.home()), "--title", title])
+    return cmds
+
+
+def pick_path(kind: str = "folder", title: str = "Choose a folder", start: str = "") -> dict:
+    """Show the system's folder (or file) chooser on this PC. {"path": ...}; path '' = cancelled;
+    {"error": ...} when this system has no chooser Joe can open."""
+    kind = "file" if kind == "file" else "folder"
+    if start and not Path(start).exists():
+        start = str(Path(start).parent) if Path(start).parent.exists() else ""
+    for cmd in _pick_cmds(kind, title, start):
+        try:
+            p = subprocess.run(cmd, capture_output=True, text=True, timeout=900, creationflags=no_window_flags())
+        except (OSError, subprocess.SubprocessError):
+            continue
+        if p.returncode == 0 or (p.stdout or "").strip():
+            out = (p.stdout or "").strip().splitlines()
+            path = out[-1].strip() if out else ""
+            if kind == "folder" and MAC:
+                path = path.rstrip("/") or path
+            return {"path": path}
+        err = (p.stderr or "")
+        if "No module named" in err or "TclError" in err or "no display" in err.lower():
+            continue                     # this way doesn't work here: try the next one
+        return {"path": ""}               # the person pressed Cancel
+    return {"error": "This computer has no folder chooser Joe can open. Type the path in the box instead."}

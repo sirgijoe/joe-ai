@@ -9,6 +9,9 @@ if sys.argv[1:2] in (["mcp"], ["tonight"]):     # connector for AI apps / the ni
     from joeai.cli import main  # noqa: E402
     sys.exit(main(sys.argv[1:]))
 
-from joeai.app import run_logged  # noqa: E402
+from joeai.app import run_logged, wait_for_old  # noqa: E402
+
+if sys.argv[1:2] == ["restart"]:                 # RESTART JOE: wait for the old Joe to close first
+    wait_for_old()
 
 run_logged()

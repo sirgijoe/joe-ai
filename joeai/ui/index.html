@@ -52,6 +52,9 @@
   <!-- ============ QUEUE (F2) ============ -->
   <main id="s-queue" class="view active">
     <section class="panel mission">
+      <div id="restartbar" class="readybar" hidden><span id="restartbar-text"></span>
+        <button type="button" data-act="restart-joe" class="primary" title="Close Joe and open him again by himself. Asks first.">[ RESTART JOE ]</button>
+        <button type="button" data-act="restart-later" title="Hide this until something else needs a restart.">[ LATER ]</button></div>
       <div id="readybar" class="readybar" hidden><span id="readybar-text"></span>
         <button type="button" data-act="finish-setup" class="primary">[ FINISH SETTING UP ]</button></div>
       <h2>WHAT DO YOU NEED?</h2>
@@ -313,6 +316,12 @@ FORMAT: ...
               <h3 class="settitle">Models</h3>
               <p class="dim small">The AI models Joe can download for you, sorted by what they're for. Nothing downloads until you press a button and say yes.</p>
               <div id="model-issues"></div>
+              <fieldset><legend>DOWNLOAD ALL</legend>
+                <p class="dim small">Get every model listed above in one go, one after another. Handy on a slow connection: press it at bedtime and let Joe work through the list overnight (the PC stays awake). It keeps going if one fails, and you can stop it any time.</p>
+                <div class="row"><button type="button" id="dlall-go" data-act="download-all" class="primary" title="Download every model Joe offers on this page, one at a time. Shows the list and total size first.">[ DOWNLOAD ALL ]</button>
+                  <button type="button" id="dlall-stop" data-act="download-all-stop" hidden title="Stop after the download that's going now.">[ STOP ]</button></div>
+                <div id="dlall-status" class="dim small"></div>
+              </fieldset>
               <fieldset class="mymodels"><legend>YOUR MODELS</legend>
                 <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
                 <div id="mymodels" class="dim">Press SHOW to look.</div>
@@ -323,7 +332,7 @@ FORMAT: ...
             <!-- WORKFLOWS -->
             <div class="setpage" data-page="workflows" data-title="Workflows">
               <h3 class="settitle">Workflows</h3>
-              <p class="dim small">How Joe makes pictures, video and sound. For each one you can pick the model, add words to every prompt, and add things to always leave out. Joe's own files are never changed: your choices are saved in your settings, and RESET THIS WORKFLOW undoes them.</p>
+              <p class="dim small">How Joe makes pictures, video and sound. For each one you can pick the model and see the words Joe uses: what he tells the prompt writer, the words he adds to every prompt, and his leave-out list. Press EDIT to change them, or add your own words below them. Joe's own files are never changed: your choices are saved in your settings, and RESET THIS WORKFLOW brings Joe's words back.</p>
               <div id="wf-list" class="dim">Loading…</div>
             </div>
 
@@ -331,7 +340,7 @@ FORMAT: ...
             <div class="setpage" data-page="general" data-title="General">
               <h3 class="settitle">General</h3>
               <fieldset><legend>JOE'S FOLDER</legend>
-                <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace"></label>
+                <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace" data-pick="folder" data-pick-title="Choose Joe's folder"></label>
               </fieldset>
               <fieldset><legend>WHILE JOE WORKS</legend>
                 <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
@@ -394,8 +403,13 @@ FORMAT: ...
                   <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
                   <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
                   <label title="Only for LM Studio, llama.cpp or LocalAI. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
-                  <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" placeholder="blank = start it yourself"></label>
+                  <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" data-pick="file" data-pick-title="Choose the program that starts it (llama-server, local-ai)" placeholder="blank = start it yourself"></label>
                 </details>
+              </fieldset>
+              <fieldset><legend>TEMPLATES (HOW FINISHED COPIES LOOK)</legend>
+                <p class="dim small">When Joe makes a finished copy (Word, PDF, EPUB, or an Excel copy of a spreadsheet), it follows a template: page size, margins, fonts, text size, line spacing, indents and more. Each one is filled in with Joe's choices; press EDIT to change it. A task can pick one with TEMPLATE: book (or kids, manuscript, ebook, report).</p>
+                <div id="tpl-defaults" class="small"></div>
+                <div id="tpl-list" class="dim">Loading…</div>
               </fieldset>
             </div>
 
@@ -416,15 +430,15 @@ FORMAT: ...
                 </div>
               </fieldset>
               <fieldset><legend>PICTURES &amp; VIDEO (COMFYUI)</legend>
-                <label title="Things every picture should avoid, like 'blurry, text, watermark'.">Leave out of every picture <input data-path="comfy.negative"></label>
+                <label title="Things every picture should avoid. Blank = Joe's own list (shown and editable in Setup > Workflows > Pictures).">Leave out of every picture <input data-path="comfy.negative" placeholder="blank = Joe's list (see Workflows > Pictures)"></label>
                 <label title="ComfyUI keeps its own copy of each picture. Joe deletes that copy once he has saved his.">Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
                 <div class="row"><button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button></div>
                 <details class="more"><summary>More options</summary>
                   <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
                   <label title="Where ComfyUI listens. Leave as is unless ComfyUI runs on another PC.">ComfyUI address <input name="cu" data-path="comfy.url"></label>
-                  <label title="How to start ComfyUI. Blank = Joe finds ComfyUI Desktop himself.">Start command <input name="cs" data-path="comfy.start_command" placeholder="blank = find ComfyUI Desktop"></label>
-                  <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" placeholder="blank = automatic"></label>
-                  <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" placeholder="blank = automatic"></label>
+                  <label title="How to start ComfyUI. Blank = Joe finds ComfyUI Desktop himself.">Start command <input name="cs" data-path="comfy.start_command" data-pick="file" data-pick-title="Choose what starts ComfyUI (the program, or a .bat / .sh file)" placeholder="blank = find ComfyUI Desktop"></label>
+                  <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" data-pick="folder" data-pick-title="Choose ComfyUI's models folder" placeholder="blank = automatic"></label>
+                  <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" data-pick="folder" data-pick-title="Choose ComfyUI's output folder" placeholder="blank = automatic"></label>
                   <label title="A ComfyUI workflow file (in Workflows/) to use instead of Joe's built-in one.">Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
                   <div class="wfimport">
                     <b>Your own workflows</b> (advanced)
@@ -434,7 +448,7 @@ FORMAT: ...
                     <button id="wf-go" type="button">IMPORT WORKFLOW</button>
                     <span id="wf-msg" class="dim small"></span>
                   </div>
-                  <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" placeholder="blank = automatic"></label>
+                  <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" data-pick="file" data-pick-title="Choose the FFmpeg program" placeholder="blank = automatic"></label>
                 </details>
               </fieldset>
             </div>

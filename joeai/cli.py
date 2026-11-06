@@ -49,10 +49,15 @@ def main(argv: list[str] | None = None) -> int:
         p.add_argument("mission")
     sub.add_parser("mcp", help="talk MCP on stdin/stdout (for Claude Desktop and other AI apps)")
     sub.add_parser("tonight", help="start the plans saved for tonight (run by the night shift)")
+    sub.add_parser("restart", help="start Joe's window after the old Joe has closed (RESTART JOE)")
     a = ap.parse_args(argv)
     if a.cmd == "mcp":
         from .mcp import serve
         return serve()
+    if a.cmd == "restart":
+        from .app import main as app_main, wait_for_old
+        wait_for_old()
+        return app_main()
     if a.cmd == "tonight":
         from .schedule import tonight
         return tonight()

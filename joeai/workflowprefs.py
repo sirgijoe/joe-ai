@@ -5,12 +5,20 @@ imported) you can set: the model to use, words added to every prompt ("always ad
 added to every leave-out list ("always leave out") and, for pictures, the number of steps.
 They're kept in settings.json (Settings.workflows); Joe's own files are never edited, and
 RESET THIS WORKFLOW (or Setup's RESET ALL) takes them away again.
+
+Joe's own words for each workflow (a style's prompt-writer note, the words added to every
+prompt, the leave-out list) are shown too, filled in, with EDIT. An edited copy replaces Joe's
+for that workflow (apply() puts it in place when Joe starts and after each save); reset brings
+Joe's back. The Pictures leave-out list is the same as Setup's old "negative" setting.
 """
 from __future__ import annotations
 
 from pathlib import Path
 
-FIELDS = ("model", "add", "avoid", "steps")
+FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave")
+TEXT_FIELDS = ("note", "words", "leave")       # Joe's own words, shown and editable (replace his)
+TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe adds to every prompt",
+               "leave": "Joe's leave-out list (negative prompt)"}
 
 # id -> (group, label, what it covers, can pick a model, can set steps)
 BUILTIN = {
@@ -30,13 +38,54 @@ BUILTIN = {
 }
 
 
-def _clean(p: dict | None) -> dict:
+_ORIG: dict = {}          # Joe's own words, captured once before any edit is applied
+
+
+def _originals() -> dict:
+    if not _ORIG:
+        from . import comfy, engine, styles
+        _ORIG["styles"] = dict(styles.STYLES)
+        _ORIG["wan"] = comfy.WAN_NEGATIVE
+        _ORIG["video_extra"] = engine.VIDEO_EXTRA
+        _ORIG["image_negative"] = comfy.IMAGE_NEGATIVE
+    return _ORIG
+
+
+def builtin_text(wid: str) -> dict:
+    """Joe's own words for one workflow: {field: text} (only the fields it has)."""
+    o = _originals()
+    if wid == "pictures":
+        return {"leave": o["image_negative"]}
+    if wid == "video":
+        return {"note": o["video_extra"], "leave": o["wan"]}
+    if wid.startswith("style:"):
+        st = o["styles"].get(wid[6:])
+        if st:
+            return {"note": st.note, "words": st.suffix, "leave": st.negative}
+    return {}
+
+
+def _text(v, field: str) -> str:
+    v = str(v or "").replace("\r", "")
+    if field == "note":
+        return "\n".join(" ".join(line.split()) if not line.startswith("  ") else line.rstrip()
+                         for line in v.strip().splitlines())[:4000]
+    return " ".join(v.split())[:4000]
+
+
+def _clean(p: dict | None, wid: str = "") -> dict:
     p = p if isinstance(p, dict) else {}
     out = {}
     for k in ("model", "add", "avoid"):
         v = " ".join(str(p.get(k) or "").split())[:600]
         if v:
             out[k] = v
+    base = builtin_text(wid) if wid else {}
+    for k in TEXT_FIELDS:
+        if k in p and k in base:
+            v = _text(p[k], k)
+            if v != _text(base[k], k):        # unchanged = Joe's own (nothing stored)
+                out[k] = v
     try:
         steps = int(p.get("steps") or 0)
     except (TypeError, ValueError):
@@ -47,7 +96,35 @@ def _clean(p: dict | None) -> dict:
 
 
 def get(settings, wid: str) -> dict:
-    return _clean((getattr(settings, "workflows", None) or {}).get(wid))
+    return _clean((getattr(settings, "workflows", None) or {}).get(wid), wid)
+
+
+def text_of(settings, wid: str) -> dict:
+    """The words in use now for each of Joe's own fields: your edit, else Joe's."""
+    base = builtin_text(wid)
+    mine = get(settings, wid)
+    out = {k: mine.get(k, v) for k, v in base.items()}
+    if wid == "pictures" and (settings.comfy.negative or "").strip():
+        from .comfy import OLD_IMAGE_NEGATIVE
+        if settings.comfy.negative.strip() != OLD_IMAGE_NEGATIVE:
+            out["leave"] = settings.comfy.negative.strip()
+    return out
+
+
+def apply(settings) -> None:
+    """Put edited words in place of Joe's (and Joe's back where there's no edit)."""
+    from dataclasses import replace
+    from . import comfy, engine, styles
+    o = _originals()
+    wf = getattr(settings, "workflows", None) or {}
+    for sid, st in o["styles"].items():
+        mine = _clean(wf.get(f"style:{sid}"), f"style:{sid}")
+        ch = {f: mine[k] for k, f in (("note", "note"), ("words", "suffix"), ("leave", "negative")) if k in mine}
+        styles.STYLES[sid] = replace(st, **ch) if ch else st
+    v = _clean(wf.get("video"), "video")
+    comfy.WAN_NEGATIVE = v.get("leave", o["wan"])
+    comfy.WAN_VIDEO["negative"] = comfy.WAN_NEGATIVE
+    engine.VIDEO_EXTRA = v.get("note", o["video_extra"])
 
 
 def merged(settings, ids: list[str]) -> dict:
@@ -85,22 +162,27 @@ def entries(settings, sb, models_dir: Path | None) -> dict:
     from . import comfy, styles
     pics = [m.name for m in comfy.scan_models(models_dir) if m.folder == "checkpoints" or m.family == "flux2"]
     rows = []
+    def texts(wid: str) -> list[dict]:
+        base, now = builtin_text(wid), text_of(settings, wid)
+        return [{"field": k, "label": TEXT_LABELS[k], "builtin": base[k], "value": now[k],
+                 "changed": _text(now[k], k) != _text(base[k], k)} for k in TEXT_FIELDS if k in base]
+
     for wid, (group, label, about, can_model, can_steps) in BUILTIN.items():
         rows.append({"id": wid, "group": group, "label": label, "about": about, "model_ok": can_model,
-                     "steps_ok": can_steps, "prefs": get(settings, wid)})
+                     "steps_ok": can_steps, "prefs": get(settings, wid), "texts": texts(wid)})
     for sid in styles.NAMES:
         if sid == "general":
             continue
         st = styles.STYLES[sid]
         rows.append({"id": f"style:{sid}", "group": "Picture styles", "label": st.label,
                      "about": f"Pictures with STYLE: {sid}.", "model_ok": True, "steps_ok": True,
-                     "prefs": get(settings, f"style:{sid}")})
+                     "prefs": get(settings, f"style:{sid}"), "texts": texts(f"style:{sid}")})
     folder = sb.workflows
     for f in sorted(folder.glob("*.json")) if folder.is_dir() else []:
         rows.append({"id": f"file:{f.name}", "group": "Your workflow files", "label": f.name,
                      "about": "A workflow you imported (Workflows folder). The model is used if the file has "
                               "a checkpoint loader.", "model_ok": True, "steps_ok": False,
-                     "prefs": get(settings, f"file:{f.name}")})
+                     "prefs": get(settings, f"file:{f.name}"), "texts": []})
     return {"rows": rows, "models": pics}
 
 
@@ -109,11 +191,14 @@ def save(settings, wid: str, prefs: dict | None) -> dict:
     if not (wid in BUILTIN or wid.startswith("style:") or wid.startswith("file:")):
         return {"ok": False, "error": "Unknown workflow."}
     wf = dict(getattr(settings, "workflows", None) or {})
-    clean = _clean(prefs) if prefs is not None else {}
+    clean = _clean(prefs, wid) if prefs is not None else {}
+    if wid == "pictures":                     # its leave-out list is Setup's comfy.negative
+        settings.comfy.negative = clean.pop("leave", "")
     if clean:
         wf[wid] = clean
     else:
         wf.pop(wid, None)
     settings.workflows = wf
     settings.save()
+    apply(settings)
     return {"ok": True, "prefs": clean}

@@ -153,6 +153,8 @@ class Engine:
                  client: OllamaClient | None = None, log: Callable[[str], None] = print,
                  stop: threading.Event | None = None, voice=None):
         self.s = settings
+        from . import workflowprefs
+        workflowprefs.apply(settings)       # your edited prompt words (Setup > Workflows) in place of Joe's
         self.voice = voice                  # the voice helper (Whisper/Kokoro) for tools, if any
         self.sb = sandbox.ensure()
         self.services = services or ServiceManager(settings, log=self.log)
@@ -340,7 +342,14 @@ class Engine:
             from . import social
             social.export(out, self.log)
         docs = [x for x in job.export if x != "social"]
-        if not docs or job.is_csv:
+        if not docs:
+            return
+        if job.is_csv:                                   # spreadsheets: .xlsx copy (Joe writes it himself)
+            if "xlsx" in docs:
+                from .addons import export_document as _ed
+                made = _ed(out, ["xlsx"], "", self.log, settings=self.s, template=job.template)
+                if made:
+                    self.log("  Made " + ", ".join(p.name for p in made))
             return
         pandoc = pandoc_exe(self.s.pandoc)
         if not pandoc:
@@ -348,7 +357,8 @@ class Engine:
             self.log(f"  {st.note}")
             self._save_state(job, st)
             return
-        made = export_document(out, docs, pandoc, self.log)
+        made = export_document(out, docs, pandoc, self.log, settings=self.s, template=job.template,
+                               cache=self.meta / "templates")
         if made:
             self.log("  Made " + ", ".join(p.name for p in made))
         missing = set(docs) - {p.suffix.lstrip(".") for p in made}

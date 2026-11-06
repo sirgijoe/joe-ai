@@ -59,6 +59,25 @@ def _existing_url() -> str | None:
     return None
 
 
+def wait_for_old(seconds: float = 60) -> None:
+    """RESTART JOE: the new copy waits until the old one has closed (its lock file is gone)."""
+    import time
+    end = time.monotonic() + seconds
+    while _lock_path().exists() and time.monotonic() < end:
+        time.sleep(0.5)
+
+
+def restart(log=print) -> bool:
+    """Start a fresh Joe that waits for this one to close (the caller then quits)."""
+    from .system import joe_command, popen_detached
+    try:
+        popen_detached(joe_command("restart", console=False))
+        return True
+    except OSError as e:
+        log(f"Couldn't restart Joe: {e}. Close him and open him again.")
+        return False
+
+
 def open_window(url: str) -> None:
     if os.environ.get("JOE_NO_WINDOW"):      # installer tests: run the server, show nothing
         return

@@ -603,3 +603,9 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .statper button.on { outline: 2px solid var(--fg); }
 
 details.wf { margin: 4px 0; } details.wf summary { cursor: pointer; } details.wf[open] { padding-bottom: 6px; }
+.wftext { margin: 6px 0; } .wftext .row { align-items: center; gap: 8px; }
+.wftext textarea { width: 100%; box-sizing: border-box; font: inherit; font-size: 0.85em; resize: vertical; opacity: 0.85; }
+.wftext textarea.editing { opacity: 1; outline: 1px solid var(--fg, currentColor); }
+.pickbtn { margin-left: 4px; padding: 0 6px; }
+label:has(> input[data-pick]) { display: flex; align-items: center; gap: 4px; }
+label:has(> input[data-pick]) > input { flex: 1 1 auto; }
