@@ -141,6 +141,16 @@ class App:
         except (MissionError, SandboxError) as e:
             return {"ok": False, "error": str(e)}
         warnings = []
+        names = {x.name: x for x in m.jobs}
+        for j in m.jobs:
+            src = names.get(j.source) if j.source else None
+            if src is not None:
+                have = src.total_items
+                want = (len(j.part_prompts) or j.parts * j.part_size) if j.media else j.total_items
+                if not j.guided and have and want != have:
+                    warnings.append(f"Task '{j.name}' makes {want} but '{src.name}' (its FROM) makes "
+                                    f"{have}: " + (f"only the first {want} are matched." if want < have
+                                                   else f"the last {want - have} are written on their own."))
         for j in m.jobs:
             if not j.media:
                 continue
@@ -230,7 +240,7 @@ class App:
                           "workflow": j.workflow, "options": j.options, "watermark": j.watermark,
                           "format": j.format if j.tool else "",
                           "files": tool_info.get(j.job_id, {}).get("files", 0),
-                          "project": j.project or m.project}
+                          "project": j.project or m.project, "source": j.source}
                          for j in m.jobs]}
 
     # -- queue: missions run back-to-back until the queue is empty ------------------

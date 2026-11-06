@@ -265,3 +265,89 @@ def test_bigger_answer_with_lost_line_breaks(app):
     from joeai.mission import parse
     names = [j.name for j in parse(r["mission"]).jobs]
     assert names == ["Blurbs", "Care guide", "Prices", "Shelf art"]
+
+
+# --------------------------------------------------------------------------- dev117: FROM + tidy
+def test_from_must_name_an_earlier_list_task():
+    from joeai.mission import MissionError, parse
+    ok = parse("TASK: Blurbs\nCHUNKS: 2 x 3\nTASK: Prices\nFROM: blurbs\nCHUNKS: 2 x 3\n"
+               "HEADER: Name,Price\nSAVE: p.csv")
+    assert ok.jobs[1].source == "Blurbs"                  # case doesn't matter, real name kept
+    for bad in ("TASK: Prices\nFROM: Blurbs\nCHUNKS: 1 x 3\nTASK: Blurbs\nCHUNKS: 1 x 3",
+                "TASK: Guide\nPART: ## A. x\nTASK: B\nFROM: Guide\nCHUNKS: 1 x 3"):
+        with pytest.raises(MissionError):
+            parse(bad)
+
+
+def test_from_hands_the_names_to_the_next_task(tmp_path, monkeypatch):
+    from joeai.engine import Engine
+    from joeai.mission import parse
+    from joeai.sandbox import Sandbox
+    monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
+    fake = FakeOllama(dup_every=1000, short_every=1000)
+    try:
+        s = Settings()
+        s.workspace = str(tmp_path / "ws")
+        s.ollama.url = fake.url
+        s.comfy.url = "http://127.0.0.1:9"
+        s.engine.retry_backoff_s = 0
+        s.engine.gpu_temp_pause_c = 0
+        s.engine.keep_awake = False
+        sb = Sandbox(s.workspace_path).ensure()
+        m = parse("TASK: Blurbs\nCHUNKS: 2 x 3\nFORMAT: name and one line\n"
+                  "TASK: Prices\nFROM: Blurbs\nCHUNKS: 2 x 3\nHEADER: Name,Price\nSAVE: p.csv")
+        states = Engine(s, sb, log=lambda *_: None).run_mission(m)
+        assert states[0].status == "done", states[0].note
+        names = states[0].titles
+        assert len(names) == 6
+        csv_prompts = [p for p in fake.prompts if "CSV COLUMNS" in p]
+        assert csv_prompts
+        assert all(n in csv_prompts[0] for n in names[:3]) and names[3] not in csv_prompts[0]
+        assert any(names[3] in p for p in csv_prompts[1:])
+    finally:
+        fake.close()
+
+
+def test_from_count_mismatch_warns(app):
+    chk = app.check("TASK: Blurbs\nCHUNKS: 5 x 6\nTASK: Prices\nFROM: Blurbs\nCHUNKS: 2 x 5\n"
+                    "HEADER: Name,Price\nSAVE: p.csv")
+    assert chk["ok"] and any("only the first 10" in w for w in chk["warnings"])
+
+
+def test_tidy_fixes_what_different_ais_do(app):
+    messy = ("Here's your plan!\n```\n==== JOE MISSION ====\n**Task:** Blurbs\n- **Chunks:** 1 x 30\n"
+             "* Format: cozy\nTask: Art\nType: pictures\nStyle: Black and White\nChunks: 2 x 4\n```\n"
+             "Let me know if you want changes!")
+    r = bigger.read_answer(app, messy)
+    assert r["ok"], r
+    assert "CHUNKS: 5 x 6" in r["mission"] and "TYPE: image" in r["mission"] and "STYLE: bw" in r["mission"]
+    assert "Let me know" not in r["mission"]
+    assert r["warnings"][0].startswith("Joe tidied the AI's answer")
+    r2 = bigger.read_answer(app, "=== JOE MISSION ===\nTASK: Art\nTYPE: image\nSTYLE: zqx\n=== END ===")
+    assert r2["ok"] and "STYLE" not in r2["mission"]
+    keep = bigger.tidy("=== JOE MISSION ===\nTASK: Prices\nCHUNKS: 5 x 6\nHEADER: Name,Size\nSAVE: p.csv\n"
+                       "FORMAT: one row each.\nSize: small or large\n=== END ===")[0]
+    assert "\nSize: small or large" in keep                 # a sentence inside FORMAT stays text
+
+
+def test_message_hides_non_writing_models_and_unused_inbox(app, monkeypatch):
+    import joeai.doctor
+    monkeypatch.setattr(joeai.doctor, "ollama_models", lambda sm: [{"name": "nomic-embed-text:latest"},
+                        {"name": "qwen2.5vl:7b"}, {"name": "qwen3:14b"}])
+    import joeai.tools
+    monkeypatch.setattr(joeai.tools, "inbox_media", lambda sb, *a, **k: ["old-photo.jpg"])
+    msg = bigger.message(app, "30 candle descriptions", with_report=False)
+    assert "qwen3:14b" in msg and "nomic" not in msg and "qwen2.5vl" not in msg
+    assert "- old-photo.jpg" not in msg and "1 of my files" in msg
+    assert "FROM:" in msg and "watercolor" in msg and "mascot," not in msg
+    assert "- old-photo.jpg" in bigger.message(app, "restore my old photos", with_report=False)
+
+
+def test_matching_words_add_from(app):
+    r = bigger.read_answer(app, "=== JOE MISSION ===\nTASK: candle product descriptions\nCHUNKS: 5 x 6\n"
+                                "TASK: candle price list\nCHUNKS: 5 x 6\nHEADER: Name,Price\nSAVE: p.csv\n"
+                                "FORMAT: one row per candle matching the product descriptions\n=== END ===")
+    assert r["ok"] and "\nFROM: candle product descriptions\n" in r["mission"]
+    plain = bigger.read_answer(app, "=== JOE MISSION ===\nTASK: Blurbs\nCHUNKS: 2 x 5\nTASK: Prices\n"
+                                    "CHUNKS: 2 x 5\nHEADER: Name,Price\nSAVE: p.csv\nFORMAT: one row each\n=== END ===")
+    assert "FROM:" not in plain["mission"]

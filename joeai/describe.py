@@ -39,6 +39,9 @@ Kinds of task:
   FORMAT: subject and style. Pictures are AI art or mockups, never fake photos of real
   products, places or people.
 - Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens.
+- Tasks can't see each other. When a spreadsheet or pictures must use the names from a list
+  task above (a price list for the products just described), add FROM: <that task's name>
+  and the same number of items.
 {tools}
 
 Rules:
@@ -108,6 +111,14 @@ def _n(x: int, one: str, many: str) -> str:
 
 def plain_summary(chk: dict) -> list[str]:
     """One plain line per task, from App.check()'s result."""
+    out = _plain_summary(chk)
+    for i, j in enumerate(chk.get("jobs", [])):
+        if j.get("source") and len(out) == len(chk.get("jobs", [])):
+            out[i] += f" (same names as {j['source']})"
+    return out
+
+
+def _plain_summary(chk: dict) -> list[str]:
     out = []
     for j in chk.get("jobs", []):
         name = j["name"]

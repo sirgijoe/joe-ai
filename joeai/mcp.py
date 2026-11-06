@@ -101,16 +101,14 @@ class Joe:
         return "\n".join(lines)
 
     def mission_format(self) -> str:
-        from .bigger import EXTRA_KEYS
-        from .describe import planner_text
-        return planner_text().replace("Reply with ONLY the mission block,\nnothing before or after it.",
-                                      "").strip() + "\n\n" + EXTRA_KEYS
+        from .bigger import HOW_TO_ANSWER, extra_keys, format_text
+        return format_text() + "\n\n" + extra_keys() + "\n\n" + HOW_TO_ANSWER
 
     def check(self, text: str) -> tuple[bool, str]:
-        from .describe import extract_block
+        from .bigger import tidy
         from .mission import MissionError, parse
         from .sandbox import SandboxError
-        block = extract_block(text) or text
+        block = tidy(text)[0] or text
         try:
             m = parse(block)
             for j in m.jobs:
@@ -126,13 +124,13 @@ class Joe:
         return True, "\n".join(out)
 
     def queue(self, text: str, name: str = "", tonight: bool = False) -> str:
-        from .describe import extract_block
+        from .bigger import tidy
         from .fsutil import atomic_write_text
         from .mission import slug
         ok, msg = self.check(text)
         if not ok:
             return msg + "\nNothing was queued. Fix the mission and try again."
-        block = extract_block(text) or text
+        block = tidy(text)[0] or text
         if not name:
             from .mission import parse
             jobs = parse(block).jobs

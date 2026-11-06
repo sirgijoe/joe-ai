@@ -43,6 +43,17 @@ tools on your PC, what you typed in the box, and (if you leave the tick on) Joe'
 the problems from his log. Read it first: nothing leaves your PC unless you paste it, and folder
 paths and your user name are hidden. Paste the chatbot's whole answer into the second box and
 press **USE THIS PLAN**: Joe finds the mission in it, checks it, and shows it like his own plan.
+Every chatbot writes the plan a little differently, so Joe tidies the answer first and tells you
+what he changed: lost line breaks, bold or bulleted keys, a list in one huge part (1 x 30 becomes
+5 x 6), a style name he doesn't know (black and white becomes bw), a price list that says it
+"matches" the descriptions (he adds FROM: so it really does).
+
+### Matching names between tasks (FROM:)
+
+Each task is written on its own. When a spreadsheet or pictures must use the names from a list
+above it (a price list for the candles you just described, one picture per product), add
+`FROM: <that task's name>` and use the same number. Joe hands over the finished names in order.
+In Step by step (F6) it's **Use the names from**.
 
 ### Night shift (Setup > General)
 

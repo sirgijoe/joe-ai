@@ -1287,6 +1287,11 @@ function renderForm() {
   }
   if (k === "image") h += field("Versions of each picture", `<input type="number" min="1" max="16" data-f="variants" value="${t.variants}">`,
     `${(briefs || t.parts * t.part_size) * t.variants} pictures in all. More versions = more to choose from.`);
+  const before = B.tasks.slice(0, B.sel).filter((x) => x.name && (x._kind === "list" || x._kind === "sheet"));
+  if (before.length && ["list", "sheet", "image", "video"].includes(k))
+    h += field("Use the names from", `<select data-f="source"><option value="">(no, make its own)</option>${before.map((x) =>
+      `<option value="${v(x.name)}"${x.name === t.source ? " selected" : ""}>${v(x.name)}</option>`).join("")}</select>`,
+      "Each one here matches the same item there, in order (e.g. a price list for the products you just described). Use the same number.");
   if (k === "sheet") h += field("Columns", `<input data-f="header" value="${v(t.header)}" placeholder="Name, Description, Price">`, "The column names, separated by commas. Joe checks every row has them all.");
   const fmtLabel = { list: "What each one looks like", doc: "How to write it", sheet: "What goes in each row", image: "What the pictures show", video: "What happens in the clips" }[k];
   const fmtPh = { list: "A catchy title, then one short paragraph about look, feel and use. End with a care tip.",

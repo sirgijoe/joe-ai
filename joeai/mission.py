@@ -44,7 +44,7 @@ from dataclasses import asdict, dataclass, field
 KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
         "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
-        "OPTIONS", "WATERMARK", "STYLE")
+        "OPTIONS", "WATERMARK", "STYLE", "FROM")
 EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html")
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
@@ -88,6 +88,7 @@ class Job:
     export: list[str] = field(default_factory=list)   # finished copies: docx, pdf, epub...
     options: list[str] = field(default_factory=list)  # tool extras (OPTIONS: subtitles, notes)
     watermark: str = ""      # photo tools: text, or a logo .png in Inbox (only if asked for)
+    source: str = ""         # FROM: an earlier task's name; its finished items are handed over
 
     @property
     def media(self) -> bool:
@@ -134,6 +135,8 @@ class Mission:
             j.pop("options", None)
         if not j.get("watermark"):
             j.pop("watermark", None)
+        if not j.get("source"):
+            j.pop("source", None)
         blob = json.dumps({"p": self.project, "r": self.rules, "j": j}, sort_keys=True)
         return hashlib.sha1(blob.encode()).hexdigest()[:12]
 
@@ -187,6 +190,21 @@ def parse(text: str) -> Mission:
     ids = [j.job_id for j in jobs]
     if len(set(ids)) != len(ids):
         raise MissionError("Two tasks share the same name and SAVE path.")
+    for i, j in enumerate(jobs):
+        if not j.source:
+            continue
+        earlier = {x.name.lower(): x.name for x in jobs[:i]}
+        want = j.source.strip().lower()
+        if want not in earlier:
+            raise MissionError(f"Task '{j.name}': FROM: must name a task above it (got '{j.source}'"
+                               + (f"; tasks above: {', '.join(x.name for x in jobs[:i])}" if i else "") + ").")
+        src = next(x for x in jobs[:i] if x.name.lower() == want)
+        if src.media or src.guided:
+            raise MissionError(f"Task '{j.name}': FROM: works with a list or spreadsheet task, not "
+                               f"{'pictures/video' if src.media else 'a document'} ('{src.name}').")
+        if j.tool:
+            raise MissionError(f"Task '{j.name}': tools use INPUT, not FROM.")
+        j.source = earlier[want]
     return Mission(project=project, rules="\n".join(global_rules), jobs=jobs)
 
 
@@ -255,6 +273,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     if jtype not in ("text", "code", "image", "video") + ready_ids():
         raise MissionError(f"Task '{name}': TYPE must be text, code, image, video, or a tool "
                            f"({', '.join(ready_ids())}).")
+    source = (d.get("FROM") or "").strip()
     inputs = [x.strip() for x in re.split(r"[,\n]", d.get("INPUT", "")) if x.strip()]
     options = [re.sub(r"\s*[:=]\s*|\s+", " ", x.strip().lower())         # "size: 1600" -> "size 1600"
                for x in re.split(r"[,\n]", d.get("OPTIONS", "")) if x.strip()]
@@ -331,7 +350,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
                min_words=int(mw), format=d.get("FORMAT", ""), rules=d.get("RULES", ""),
                model=d.get("MODEL", "").strip(), type=jtype, inputs=inputs,
                notes=d.get("NOTES", ""), part_prompts=part_prompts, header=header,
-               project=d.get("PROJECT", "").strip())
+               project=d.get("PROJECT", "").strip(), source=source)
 
 
 # --------------------------------------------------------------------------- builder support
@@ -340,7 +359,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
 TASK_FIELDS = ("name", "save", "type", "project", "parts", "part_size", "part_prompts", "format",
                "rules", "min_words", "header", "inputs", "model", "notes", "workflow",
                "negative", "style", "width", "height", "variants", "seed", "fps", "prompts_as_written",
-               "export", "options", "watermark")
+               "export", "options", "watermark", "source")
 
 
 def job_to_dict(j: Job) -> dict:
@@ -385,7 +404,7 @@ def to_text(project: str, rules: str, tasks: list[dict]) -> str:
             L.append(f"CHUNKS: {int(t.get('parts') or 1)} x {int(t.get('part_size') or 5)}")
         if int(t.get("min_words") or 0):
             L.append(f"MIN WORDS PER ITEM: {int(t['min_words'])}")
-        for key, fld in (("HEADER", "header"), ("FORMAT", "format"), ("RULES", "rules"),
+        for key, fld in (("FROM", "source"), ("HEADER", "header"), ("FORMAT", "format"), ("RULES", "rules"),
                          ("MODEL", "model"), ("NOTES", "notes")):
             if str(t.get(fld) or "").strip():
                 L.append(f"{key}: {_safe(t[fld])}")
