@@ -106,6 +106,49 @@ def one_picture(request: str, block: str) -> str:
     return "".join(out)
 
 
+_FAST = re.compile(r"\b(quick(ly)?|fast|asap|rough|draft|in a hurry|right away|low[ -]?quality|"
+                   r"doesn'?t (need|have) to be (perfect|great))\b", re.I)
+_KIND_NAMES = {"writing": "Writing", "pictures": "Pictures", "video": "Video"}
+
+
+def quality_offer(settings, request: str, block: str) -> dict | None:
+    """The person asked for high quality (or for speed) but Setup says otherwise: offer to
+    change it, in plain words, with one button. Nothing changes unless they press it."""
+    from . import quality
+    kinds = []
+    for t in re.split(r"(?m)^(?=TASK:)", block)[1:]:
+        m = re.search(r"(?m)^TYPE:\s*([\w-]+)", t)
+        typ = (m.group(1).lower() if m else "text")
+        if typ in ("image", "edit-picture", "remove-bg", "restore-photo"):
+            kinds.append("pictures")
+        elif typ in ("video", "animate-photo"):
+            kinds.append("video")
+        elif typ in ("text", "code"):
+            kinds.append("writing")
+    kinds = list(dict.fromkeys(kinds))
+    if wants_high(request) or re.search(r"\b(best|amazing|stunning|super ?cool|highest|top[- ]notch|"
+                                        r"professional|detailed)\b", request, re.I):
+        want = "high"
+    elif _FAST.search(request):
+        want = "low"
+    else:
+        return None
+    off = [k for k in kinds if quality.level(settings, k) != want]
+    if want == "high":                          # only the kinds the request is really about
+        media = [k for k in off if k != "writing"]
+        off = media or off
+    if not off:
+        return None
+    now = ", ".join(f"{_KIND_NAMES[k]} is set to {quality.level(settings, k).capitalize()}" for k in off)
+    if want == "high":
+        text = f"You asked for high quality, but {now}. Use High for this? It's slower but finer."
+        button = "USE HIGH QUALITY"
+    else:
+        text = f"You asked for it quick, but {now}. Use Low for this? It's much faster but rougher."
+        button = "USE LOW (FASTER)"
+    return {"level": want, "kinds": off, "text": text, "button": button}
+
+
 def wants_high(request: str) -> bool:
     return bool(re.search(r"\b(high|best|top|max(imum)?)[ -]?(quality|detail)\b|\bhigh[ -]?res", request, re.I))
 
@@ -439,15 +482,16 @@ def draft(app, request: str) -> dict:
                         warns.append("Joe planned only writing, though you mentioned a video or "
                                      "pictures. If you wanted those, try 'make a video of ...' or use "
                                      "Step by step (F6).")
-                    if wants_high(request) and re.search(r"TYPE:\s*(video|image)", block, re.I):
-                        warns.append("For high quality, set Setup (F10) > Images & video > Quality to "
-                                     "High first (slower, finer).")
                     chk["warnings"] = warns
                 if chk["ok"]:
-                    return {"ok": True, "mission": block, "summary": plain_summary(chk),
-                            "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
-                            "eta_min": chk["eta_min"],
-                            "warnings": chk.get("warnings", [])}
+                    out = {"ok": True, "mission": block, "summary": plain_summary(chk),
+                           "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
+                           "eta_min": chk["eta_min"],
+                           "warnings": chk.get("warnings", [])}
+                    offer = quality_offer(app.settings, request, block)
+                    if offer:
+                        out["quality_offer"] = offer
+                    return out
                 problem = chk["error"]
             except MissionError as e:
                 problem = str(e)

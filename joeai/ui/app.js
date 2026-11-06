@@ -239,13 +239,32 @@ function showPlan(r) {
   $("#plan-list").innerHTML = r.summary.map((s) => `<li>${esc(s)}</li>`).join("");
   $("#plan-time").textContent = "— " + r.time;
   $("#plan-warn").innerHTML = (r.warnings || []).map((w) => `<div class="warn">! ${esc(w)}</div>`).join("");
+  const q = r.quality_offer;
+  if (q) {
+    planOffer = q;
+    $("#plan-offer-text").textContent = q.text + " ";
+    $("#plan-offer-btn").textContent = `[ ${q.button} ]`;
+    $("#plan-offer").hidden = false;
+  } else if (!r.keepOffer) { planOffer = null; $("#plan-offer").hidden = true; }
   $("#plancard").hidden = false;
 }
-function hidePlan() { $("#plancard").hidden = true; $("#plan-list").innerHTML = ""; }
+let planOffer = null;
+async function takeQualityOffer() {             // the plan card's "use High / Low for this" button
+  if (!planOffer) return;
+  const quality = {};
+  planOffer.kinds.forEach((k) => { quality[k] = planOffer.level; });
+  const r = await api("/api/settings", { quality });
+  if (!r.ok) { toast(r.error); return; }
+  $("#plan-offer").hidden = true;
+  toast(`Quality set to ${planOffer.level === "high" ? "High" : "Low"} (Setup > Quality)`);
+  planOffer = null;
+  refreshPlan();                                // the time estimate changes with it
+}
+function hidePlan() { $("#plancard").hidden = true; $("#plan-list").innerHTML = ""; planOffer = null; $("#plan-offer").hidden = true; }
 async function refreshPlan() {                 // keep the plain plan in step with the mission text
   const text = $("#mission").value;
   if (!text.trim()) { hidePlan(); return; }
-  try { const r = await api("/api/summary", { text }); if (r.ok) showPlan(r); else hidePlan(); } catch (e) {}
+  try { const r = await api("/api/summary", { text }); if (r.ok) showPlan({ ...r, keepOffer: true }); else hidePlan(); } catch (e) {}
 }
 let describing = false;
 // One box for everything: short words run right away, questions go to Talk, work gets a plan.
@@ -319,7 +338,7 @@ async function biggerCopy() {
 async function biggerUse() {
   const text = $("#bg-answer").value.trim();
   if (!text) { $("#bg-err").textContent = "Paste the AI's answer first."; return; }
-  const r = await api("/api/bigger/answer", { text });
+  const r = await api("/api/bigger/answer", { text, request: $("#describe").value });
   if (!r.ok) { $("#bg-err").textContent = r.error; return; }
   $("#bigger").hidden = true; $("#bg-answer").value = "";
   takePlan(r);
@@ -881,6 +900,7 @@ document.addEventListener("click", async (ev) => {
       try { await navigator.clipboard.writeText($("#mcp-lines").textContent); $("#mcp-msg").textContent = "Copied."; }
       catch (e) { $("#mcp-msg").textContent = "Select the lines and copy them by hand."; }
     }
+    if (act === "quality-offer") await takeQualityOffer();
     if (act === "bigger-open") await biggerOpen();
     if (act === "bigger-copy") await biggerCopy();
     if (act === "bigger-use") await biggerUse();

@@ -1513,7 +1513,8 @@ def make_handler(app: App):
                         str(b.get("mission", ""))[:8000])})
                 if u.path == "/api/bigger/answer":     # the chatbot's answer pasted back
                     from . import bigger
-                    return self._json(bigger.read_answer(app, str(b.get("text", ""))[:60000]))
+                    return self._json(bigger.read_answer(app, str(b.get("text", ""))[:60000],
+                                                         str(b.get("request", ""))[:4000]))
                 if u.path == "/api/describe/held":     # the UI took the held plan (or dropped it)
                     app.held_plan = {}
                     return self._json({"ok": True})

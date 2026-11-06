@@ -361,3 +361,26 @@ def test_one_picture_request_gives_four_versions_of_one():
     assert (j.parts, j.part_size, j.variants) == (1, 1, 4)
     for keep in ("8 images of raccoons", "some pictures of raccoons", "a few drawings of a raccoon"):
         assert one_picture(keep, b) == b
+
+
+def test_quality_offer_only_when_settings_disagree():
+    from joeai.describe import quality_offer
+    s = Settings()
+    pic = "=== JOE MISSION ===\nTASK: Raccoon\nTYPE: image\nCHUNKS: 1 x 1\n=== END ==="
+    req = "make me a super cool high quality image of a racoon eating a turtle"
+    assert quality_offer(s, req, pic) is None                     # already High: nothing to say
+    s.quality.pictures = "low"
+    o = quality_offer(s, req, pic)
+    assert o["level"] == "high" and o["kinds"] == ["pictures"] and "Pictures is set to Low" in o["text"]
+    assert quality_offer(s, "a picture of a raccoon", pic) is None   # didn't ask for quality
+    s.quality.pictures = "high"
+    o = quality_offer(s, "a quick rough picture of a raccoon", pic)
+    assert o["level"] == "low" and o["kinds"] == ["pictures"]
+    mixed = pic.replace("=== END ===", "TASK: Blurbs\nCHUNKS: 2 x 5\n=== END ===")
+    s.quality.pictures, s.quality.writing = "low", "low"
+    assert quality_offer(s, req, mixed)["kinds"] == ["pictures"]   # "image" request: pictures only
+
+
+def test_offer_button_setting_saves(app):
+    assert app.save_settings({"quality": {"pictures": "low"}})["ok"]
+    assert app.settings.quality.pictures == "low"

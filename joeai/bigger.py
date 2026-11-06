@@ -308,7 +308,7 @@ def link_tasks(block: str, notes: list[str]) -> str:
     return block
 
 
-def read_answer(app, answer: str) -> dict:
+def read_answer(app, answer: str, request: str = "") -> dict:
     """The chatbot's answer -> the same result as Joe's own planner (mission + plain summary)."""
     from . import describe as d
     block, notes = tidy(answer or "")
@@ -324,6 +324,10 @@ def read_answer(app, answer: str) -> dict:
     warns = list(chk.get("warnings", []))
     if notes:
         warns.insert(0, "Joe tidied the AI's answer: " + "; ".join(notes) + ".")
-    return {"ok": True, "mission": block, "summary": d.plain_summary(chk),
-            "time": d.plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else d.ROUGH),
-            "eta_min": chk["eta_min"], "warnings": warns}
+    out = {"ok": True, "mission": block, "summary": d.plain_summary(chk),
+           "time": d.plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else d.ROUGH),
+           "eta_min": chk["eta_min"], "warnings": warns}
+    offer = d.quality_offer(app.settings, request, block) if request.strip() else None
+    if offer:
+        out["quality_offer"] = offer
+    return out
