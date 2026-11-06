@@ -1149,7 +1149,9 @@ def make_handler(app: App):
             arg = (q.get("path") or [""])[0]
             try:
                 if u.path == "/api/ping":
-                    return self._json({"ok": True, "version": __version__, "running": app.running})
+                    from .update import install_kind
+                    return self._json({"ok": True, "version": __version__, "running": app.running,
+                                       "install_kind": install_kind()})
                 if u.path == "/api/state":
                     return self._json(app.state())
                 if u.path == "/api/mission":

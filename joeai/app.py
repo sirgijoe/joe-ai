@@ -60,6 +60,8 @@ def _existing_url() -> str | None:
 
 
 def open_window(url: str) -> None:
+    if os.environ.get("JOE_NO_WINDOW"):      # installer tests: run the server, show nothing
+        return
     from .system import open_window as _ow
     _ow(url, config_dir() / "window")
 

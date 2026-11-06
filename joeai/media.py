@@ -159,6 +159,20 @@ def to_mp4(ffmpeg: str, src: Path, dest: Path | None = None, fps: int = 16) -> P
     return dest if _run(cmd) and dest.exists() else None
 
 
+# Black-and-white video look, applied by FFmpeg after Wan makes the clip in color: no color
+# at all, a gentle contrast curve (deeper blacks, brighter highlights) and fine moving grain.
+BW_VIDEO_VF = ("format=yuv420p,hue=s=0,curves=preset=increase_contrast,"
+               "eq=contrast=1.06:brightness=-0.01,noise=c0s=7:c0f=t+u")
+
+
+def video_bw(ffmpeg: str, src: Path, dest: Path) -> Path | None:
+    """Turn a color video into a black-and-white film look (sound, if any, is kept)."""
+    cmd = [ffmpeg, "-y", "-loglevel", "error", "-i", str(src), "-vf", BW_VIDEO_VF,
+           "-movflags", "+faststart", "-pix_fmt", "yuv420p", "-c:v", "libx264",
+           "-preset", "veryfast", "-crf", "18", "-c:a", "copy", str(dest)]
+    return dest if _run(cmd) and dest.exists() else None
+
+
 def frames_to_mp4(ffmpeg: str, frames: list[Path], dest: Path, fps: int = 16) -> Path | None:
     if not frames:
         return None

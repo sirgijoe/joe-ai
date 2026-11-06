@@ -1,7 +1,9 @@
 name: release
-# Builds the Windows installer. Push a tag like v2.0.0 to publish a GitHub release with
-# Joe-Setup-<version>-windows-x64.exe and SHA256SUMS.txt (the names update.py looks for).
-# "Run workflow" by hand builds the installer as a downloadable test file, no release.
+# Builds Joe's installers: Windows (.exe), Mac (.dmg, Apple Silicon + Intel) and Linux
+# (.AppImage, x86_64 + aarch64). Push a tag like v2.0.0 to publish a GitHub release with them
+# and one SHA256SUMS.txt (the names update.py looks for). "Run workflow" by hand builds them as
+# downloadable test files, no release. Mac and Linux are newer: if one of them fails, the
+# release still goes out with whatever built (Windows must pass).
 on:
   push:
     tags: ["v*"]
@@ -95,9 +97,97 @@ jobs:
           name: joe-windows
           path: dist/*
 
-      - name: Publish release
-        if: github.ref_type == 'tag'
+  mac:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: macos-15, arch: arm64, triple: aarch64-apple-darwin }
+          - { runner: macos-15-intel, arch: x64, triple: x86_64-apple-darwin }
+    runs-on: ${{ matrix.runner }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: v
+        run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
+      - name: Private Python
+        run: installer/get_python.sh ${{ matrix.triple }}
+      - name: Build Joe.app and the disk image
+        run: installer/mac/build_dmg.sh ${{ steps.v.outputs.version }} ${{ matrix.arch }}
+      - name: Install test (copy out of the disk image, start, quit)
         run: |
-          gh release create "$GITHUB_REF_NAME" dist/* --title "Joe $GITHUB_REF_NAME" \
-            --notes "Windows: download Joe-Setup-${{ steps.v.outputs.version }}-windows-x64.exe and open it. It isn't code-signed, so Windows SmartScreen may say 'Windows protected your PC': click More info, then Run anyway. SHA256SUMS.txt lets you check the download." \
+          dmg=$(ls dist/Joe-*-macos-*.dmg)
+          mnt=$(hdiutil attach -nobrowse -readonly "$dmg" | tail -1 | cut -f3-)
+          test -f "$mnt/Read me first.txt"
+          cp -R "$mnt/Joe.app" "$RUNNER_TEMP/Joe.app"
+          hdiutil detach "$mnt"
+          codesign --verify --deep --strict "$RUNNER_TEMP/Joe.app"
+          python3 installer/smoke_test.py mac-app -- "$RUNNER_TEMP/Joe.app/Contents/MacOS/Joe"
+          # Joe never writes inside his own app (that would break the signature)
+          codesign --verify --deep --strict "$RUNNER_TEMP/Joe.app"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: joe-mac-${{ matrix.arch }}
+          path: dist/*.dmg
+
+  linux:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: ubuntu-24.04, arch: x86_64, triple: x86_64-unknown-linux-gnu }
+          - { runner: ubuntu-24.04-arm, arch: aarch64, triple: aarch64-unknown-linux-gnu }
+    runs-on: ${{ matrix.runner }}
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Version
+        id: v
+        run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
+      - name: Private Python
+        run: installer/get_python.sh ${{ matrix.triple }}
+      - name: Build the AppImage
+        run: installer/linux/build_appimage.sh ${{ steps.v.outputs.version }} ${{ matrix.arch }}
+      - name: Install test (start, quit)
+        run: |
+          img=$(ls dist/Joe-*-linux-*.AppImage)
+          APPIMAGE_EXTRACT_AND_RUN=1 python3 installer/smoke_test.py linux-appimage -- "$img"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: joe-linux-${{ matrix.arch }}
+          path: dist/*.AppImage
+
+  release:
+    if: always() && github.ref_type == 'tag' && needs.windows.result == 'success'
+    needs: [windows, mac, linux]
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: got
+          pattern: joe-*
+          merge-multiple: true
+      - name: Checksums for every file
+        run: |
+          mkdir dist && find got -type f ! -name '*.txt' -exec cp {} dist/ \;
+          cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Publish release
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          cat > notes.md <<NOTES
+          **Windows:** download Joe-Setup-$v-windows-x64.exe and open it. It isn't code-signed, so Windows SmartScreen may say "Windows protected your PC": click More info, then Run anyway.
+
+          **Mac:** download the .dmg for your Mac (arm64 = Apple Silicon M1/M2/M3/M4, x64 = older Intel Macs), open it and drag Joe onto Applications. The first time, macOS can't check Joe (he isn't registered with Apple): click Done, then System Settings > Privacy & Security > Open Anyway. Details are in "Read me first.txt" inside the disk image.
+
+          **Linux:** download the .AppImage (x86_64 for most PCs, aarch64 for ARM), make it runnable (right-click > Properties > Allow executing, or chmod +x) and open it.
+
+          SHA256SUMS.txt lets you check any download. If a Mac or Linux file is missing, that build failed this time; the next release will try again.
+          NOTES
+          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Joe $GITHUB_REF_NAME" \
+            --notes-file notes.md \
             $( [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *rc* ]] && echo --prerelease )

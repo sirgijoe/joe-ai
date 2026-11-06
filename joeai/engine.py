@@ -990,6 +990,14 @@ class Engine:
             w, h = None, None
         rec = styles_mod.recipe(job, self._picks())
         style = rec.style
+        # Black-and-white video: Wan makes it in color (asking Wan for monochrome fought its own
+        # leave-out list, which includes "greyish", and gave bad hands and missing fingers), then
+        # FFmpeg turns it black and white. The photo style words ("photograph", lens, grain) and
+        # the photo leave-out words are for picture models, so they're left out of the video.
+        bw_video = job.type == "video" and style.id == "bw" and builtin
+        if bw_video:
+            rec = dc_replace(rec, words="", negative="")
+            self.log("  Black and white video: made in color, then turned black and white by FFmpeg.")
         extra = ", ".join(x for x in (job.negative.strip(), rec.negative,
                                       styles_mod.KID_NEGATIVE if styles_mod.for_kids(job) else "") if x)
         negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra, rec.anatomy) if builtin \
@@ -1025,6 +1033,8 @@ class Engine:
                         saved = self._save_outputs(client, entry, folder, stem, job, ffmpeg)
                         if style.id == "coloring" and job.type == "image":
                             saved = self._coloring_pages(folder, saved, ffmpeg, styles_mod.for_kids(job))
+                        if bw_video:
+                            saved = self._bw_videos(folder, saved, ffmpeg)
                         break
                     except InterruptedError:
                         raise Stopped()
@@ -1080,6 +1090,28 @@ class Engine:
         self._save_state(job, st)
         self.log(f"Finished '{job.name}': {st.items} file(s) in {st.output}/ (AI-generated)")
         return st
+
+    def _bw_videos(self, folder: Path, names: list[str], ffmpeg: str | None) -> list[str]:
+        """Black-and-white video style: each MP4 becomes black and white; the color original is
+        kept next to it as '<name>_color.mp4'."""
+        if not ffmpeg:
+            self.log("  FFmpeg isn't installed, so the video stays in color (F10 > System check installs it).")
+            return names
+        out = []
+        for n in names:
+            src = folder / n
+            if src.suffix.lower() != ".mp4":
+                out.append(n)
+                continue
+            color = src.with_name(f"{src.stem}_color{src.suffix}")
+            src.replace(color)
+            if media_mod.video_bw(ffmpeg, color, src):
+                out += [n, color.name]
+            else:
+                color.replace(src)
+                self.log(f"  {n}: couldn't make it black and white; kept the video in color.")
+                out.append(n)
+        return out
 
     def _coloring_pages(self, folder: Path, names: list[str], ffmpeg: str | None,
                         simple: bool = False) -> list[str]:

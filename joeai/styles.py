@@ -178,7 +178,7 @@ _WORDS = [
     ("abstract", r"\babstract\b|geometric art|color field"),
     ("comic", r"comic[- ]book|\bcomics?\b|halftone|superhero"),
     ("cartoon", r"cartoon"),
-    ("bw", r"black[- ]and[- ]white (?:photo\w*|portrait|picture)|\bb&w\b|monochrome|grayscale photo"),
+    ("bw", r"black[- ]and[- ]white (?:photo\w*|portrait|picture|video|clip|film|footage)|\bb&w\b|monochrome|grayscale photo"),
     ("photo", r"\bphoto(?:s|graph\w*|real\w*)?\b|realistic|real[- ]life|portrait|candid|\bdslr\b|bokeh"),
     ("illustration", r"illustrat\w*|\bflat\b|vector|drawing|clip ?art|storybook|children'?s book|"
                      r"\bicons?\b"),

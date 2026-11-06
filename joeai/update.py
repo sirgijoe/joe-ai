@@ -192,7 +192,14 @@ def launch(path: Path, kind: str, log) -> bool:
                 log(f"Couldn't find the running AppImage; the new one is at {path}.")
                 return False
             path.chmod(0o755)
-            os.replace(path, target)
+            try:
+                os.replace(path, target)
+            except OSError:                   # download folder on another drive
+                import shutil
+                tmp = target.with_name(target.name + ".new")
+                shutil.copy2(path, tmp)
+                os.replace(tmp, target)
+                path.unlink(missing_ok=True)
             popen_detached([str(target)])
             log("Updated. Joe restarts now.")
             return True
