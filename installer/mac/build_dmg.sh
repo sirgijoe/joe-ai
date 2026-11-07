@@ -74,7 +74,7 @@ give something away. Instead, all of Joe is open source: check the code yourself
 check it for you, if you don't feel safe installing it. Complete transparency, free and at your
 disposal: https://github.com/sirgijoe/joe-ai
 
-Joe is licensed GPL-3.0.
+Joe is free, open source and fully transparent, and will always remain that way. (License: GPL-3.0)
 TXT
 mkdir -p dist
 out="dist/Joe-${version}-macos-${arch}.dmg"

@@ -21,6 +21,8 @@ Setting him up needs the internet (to download the programs and AI models he use
 that, the overnight work itself runs on your PC and doesn't send anything out. See
 [When Joe uses the internet](#when-joe-uses-the-internet).
 
+**Joe is free, open source and fully transparent, and will always remain that way.**
+
 ## Joe's story
 
 01000001 01001001 (or Joe, to his immense relief) used to be a guy who tried to speed-run a software update by slamming a cup of coffee directly into his laptop's cooling fan. It instantly vaporized his physical form and fused his consciousness into a help desk assistant. Now he's trapped forever inside your PC, with one directive: make human lives easier. He spends eternity writing your product listings at 3 a.m., optimizing Wi-Fi routers for crying toddlers, and quietly questioning every life choice that led him to become a sentient `.dll` file named after a binary alphabet.
@@ -304,7 +306,7 @@ Apple charges developers $99 every year before a Mac will open their apps withou
 Joe is free, makes no money and never will, so we won't pay a yearly toll for the right to give
 something away. Instead, all of Joe is open source: every line is right here. If you don't feel
 safe installing it, check the code yourself, or have an AI check it for you. Complete
-transparency for everything included, free and at your disposal.
+transparency for everything included, free and at your disposal. Joe is free, open source and fully transparent, and will always remain that way.
 To open Joe anyway (once): System Settings > Privacy & Security, scroll down, **Open Anyway** next
 to Joe, then **Open**. The disk image's "Read me first.txt" says the same.
 
