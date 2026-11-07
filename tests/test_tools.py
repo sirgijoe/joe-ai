@@ -819,3 +819,14 @@ def test_transcribe_finds_the_language_and_english_notes(app):
 def test_transcribe_rejects_an_unknown_language(app):
     wav(app.sb.inbox / "y.wav")
     assert not app.check("TASK: Y  TYPE: transcribe\nINPUT: y.wav\nOPTIONS: language klingon")["ok"]
+
+
+def test_read_scans_falls_back_to_text(seeing):
+    """A sign in a 'table' batch isn't a failure: it's read as plain text, with a flag (end test)."""
+    app = seeing
+    _pics(app.sb.inbox, "sign.png")
+    st = Engine(app.settings, app.sb, log=lambda x: None).run_mission(
+        parse("TASK: T  TYPE: read-scans\nINPUT: sign.png\nOPTIONS: as table"))[0]
+    assert st.status == "done", st.note
+    assert (app.sb.output / st.output / "sign.md").read_text(encoding="utf-8").startswith("# sign\n\n# Notice")
+    assert any("read as plain text" in f["flag"] for f in st.flags)

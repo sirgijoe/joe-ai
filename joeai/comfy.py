@@ -208,6 +208,8 @@ def best_image_model(models: list[ImageModel], vram_gb: float, kind: str = "imag
 
 # --------------------------------------------------------------------------- client
 class ComfyClient:
+    MAX_MISSES = 6          # status checks in a row ComfyUI may miss while busy (about 3+ minutes)
+
     def __init__(self, base: str, timeout_s: int = 900):
         self.base = base.rstrip("/")
         self.timeout_s = timeout_s
@@ -250,8 +252,18 @@ class ComfyClient:
     def wait(self, prompt_id: str, stop=None, poll_s: float = 1.5) -> dict:
         """Wait for a queued prompt; returns its history entry (outputs + status)."""
         end = time.monotonic() + self.timeout_s
+        misses = 0
         while time.monotonic() < end:
-            h = request_json("GET", f"{self.base}/history/{prompt_id}", timeout=30)
+            try:
+                h = request_json("GET", f"{self.base}/history/{prompt_id}", timeout=30)
+                misses = 0
+            except HttpError as e:
+                # A busy ComfyUI (a big video on a 12 GB card) can miss one status check; that isn't
+                # a failure. Only give up when it stays unreachable for several checks in a row.
+                misses += 1
+                if "can't reach" not in str(e) or misses > self.MAX_MISSES:
+                    raise
+                h = {}
             if prompt_id in h:
                 entry = h[prompt_id]
                 st = entry.get("status", {})

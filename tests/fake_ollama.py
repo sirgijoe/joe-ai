@@ -134,6 +134,8 @@ class FakeOllama:
                     return 200, self._reply(json.dumps({"date": "2026-03-02", "store": "Corner Shop", "total": "$12.50",
                         "tax": "$0.75", "currency": "$", "items": [{"name": "Milk", "price": "$3.00"},
                                                                    {"name": "Br[CHECK]ad", "price": "$9.50"}]}))
+                if "Copy the table" in user and "sign" in user:
+                    return 200, self._reply(json.dumps({"columns": [], "rows": []}))   # a sign has no table
                 if "Copy the table" in user:
                     return 200, self._reply(json.dumps({"columns": ["Name", "Qty"], "rows": [["Mugs", "4"], ["Bowls", "2", "extra"]]}))
                 return 200, self._reply(json.dumps({"text": "# Notice\n\nOpen 9 to 5. Closed S[CHECK]day."}))

@@ -341,3 +341,57 @@ def test_run_sketch_3d_and_flux2_pictures(tmp_path, monkeypatch):
             next(gen)
         except StopIteration:
             pass
+
+
+def test_word_pattern_falls_back_to_block_letters(tmp_path, monkeypatch):
+    """When FFmpeg can't draw text (no drawtext, or a Windows font path), Joe's block letters are used."""
+    import shutil
+    from joeai import makers
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        import pytest
+        pytest.skip("no ffmpeg")
+    real, calls = makers._run, []
+
+    def fake(cmd, timeout=1800):
+        calls.append(cmd)
+        if any("drawtext" in c for c in cmd):
+            return None                               # this FFmpeg can't draw text
+        return real(cmd, timeout)
+    monkeypatch.setattr(makers, "_run", fake)
+    why: list = []
+    dest = makers.make_pattern(ff, "word", tmp_path / "p.png", "JOE", why)
+    assert dest and dest.exists() and why and not (tmp_path / "p.pgm").exists()
+    pgm = makers.block_word_pgm("JOE!", 64)
+    assert pgm.startswith(b"P5 64 64 255\n") and len(pgm) == len(b"P5 64 64 255\n") + 64 * 64 and b"\xff" in pgm
+
+
+def test_word_pattern_escapes_windows_drive_colon(tmp_path, monkeypatch):
+    from pathlib import PureWindowsPath
+    from joeai import makers
+    seen = []
+    monkeypatch.setattr(makers, "font_file", lambda: PureWindowsPath(r"C:\Users\Joe\joeai\ui\fonts\f.ttf"))
+    monkeypatch.setattr(makers, "_run", lambda cmd, timeout=0: seen.append(cmd) or None)
+    makers.make_pattern("ffmpeg", "word", tmp_path / "x.png", "JOE", [])
+    assert "fontfile='C\\:/Users/Joe/" in " ".join(seen[0])
+
+
+def test_comfy_wait_survives_a_missed_status_check(monkeypatch):
+    from joeai import comfy
+    from joeai.http import HttpError
+    answers = [HttpError("can't reach http://127.0.0.1:8188/history/x: timed out"), {},
+               {"p1": {"status": {"completed": True}, "outputs": {}}}]
+
+    def fake(method, url, body=None, timeout=0):
+        a = answers.pop(0)
+        if isinstance(a, Exception):
+            raise a
+        return a
+    monkeypatch.setattr(comfy, "request_json", fake)
+    c = comfy.ComfyClient("http://127.0.0.1:8188", timeout_s=30)
+    assert c.wait("p1", poll_s=0.01)["status"]["completed"]
+    answers[:] = [HttpError("can't reach x: timed out")] * (comfy.ComfyClient.MAX_MISSES + 1)
+    monkeypatch.setattr(c, "interrupt", lambda: None)
+    import pytest
+    with pytest.raises(HttpError):
+        c.wait("p1", poll_s=0.01)

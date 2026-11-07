@@ -164,19 +164,83 @@ def font_file() -> Path:
     return Path(__file__).parent / "ui" / "fonts" / "AtkinsonHyperlegible-Bold.ttf"
 
 
-def make_pattern(ff: str, kind: str, dest: Path, word: str = "") -> Path | None:
-    """A 1024x1024 black-and-white pattern for the illusion (softened edges blend better)."""
+# A bold 5x7 block font for the hidden word when FFmpeg can't draw text itself (some FFmpeg builds
+# have no drawtext/freetype). Blurred afterwards, the blocks read as soft, bold letters.
+BLOCK_FONT = {
+    "A": "01110 10001 10001 11111 10001 10001 10001", "B": "11110 10001 10001 11110 10001 10001 11110",
+    "C": "01111 10000 10000 10000 10000 10000 01111", "D": "11110 10001 10001 10001 10001 10001 11110",
+    "E": "11111 10000 10000 11110 10000 10000 11111", "F": "11111 10000 10000 11110 10000 10000 10000",
+    "G": "01111 10000 10000 10111 10001 10001 01111", "H": "10001 10001 10001 11111 10001 10001 10001",
+    "I": "11111 00100 00100 00100 00100 00100 11111", "J": "00111 00010 00010 00010 00010 10010 01100",
+    "K": "10001 10010 10100 11000 10100 10010 10001", "L": "10000 10000 10000 10000 10000 10000 11111",
+    "M": "10001 11011 10101 10101 10001 10001 10001", "N": "10001 11001 10101 10011 10001 10001 10001",
+    "O": "01110 10001 10001 10001 10001 10001 01110", "P": "11110 10001 10001 11110 10000 10000 10000",
+    "Q": "01110 10001 10001 10001 10101 10010 01101", "R": "11110 10001 10001 11110 10100 10010 10001",
+    "S": "01111 10000 10000 01110 00001 00001 11110", "T": "11111 00100 00100 00100 00100 00100 00100",
+    "U": "10001 10001 10001 10001 10001 10001 01110", "V": "10001 10001 10001 10001 10001 01010 00100",
+    "W": "10001 10001 10001 10101 10101 10101 01010", "X": "10001 10001 01010 00100 01010 10001 10001",
+    "Y": "10001 10001 01010 00100 00100 00100 00100", "Z": "11111 00001 00010 00100 01000 10000 11111",
+    "0": "01110 10001 10011 10101 11001 10001 01110", "1": "00100 01100 00100 00100 00100 00100 01110",
+    "2": "01110 10001 00001 00010 00100 01000 11111", "3": "11110 00001 00001 01110 00001 00001 11110",
+    "4": "00010 00110 01010 10010 11111 00010 00010", "5": "11111 10000 11110 00001 00001 10001 01110",
+    "6": "00110 01000 10000 11110 10001 10001 01110", "7": "11111 00001 00010 00100 01000 01000 01000",
+    "8": "01110 10001 10001 01110 10001 10001 01110", "9": "01110 10001 10001 01111 00001 00010 01100",
+    "!": "00100 00100 00100 00100 00100 00000 00100", "?": "01110 10001 00001 00010 00100 00000 00100",
+    "&": "01100 10010 10100 01000 10101 10010 01101", "#": "01010 01010 11111 01010 11111 01010 01010",
+    "+": "00000 00100 00100 11111 00100 00100 00000", "-": "00000 00000 00000 11111 00000 00000 00000",
+    " ": "00000 00000 00000 00000 00000 00000 00000",
+}
+
+
+def block_word_pgm(word: str, size: int = 1024) -> bytes:
+    """The word in BLOCK_FONT, white on black, centered, as a binary PGM (FFmpeg reads it anywhere)."""
+    glyphs = [BLOCK_FONT.get(c, BLOCK_FONT["?"]).split() for c in word.upper()]
+    cols = len(glyphs) * 6 - 1                        # 5 wide + 1 gap
+    cell = max(4, min(int(size * 0.86 / cols), int(size * 0.5 / 7)))
+    left, top = (size - cols * cell) // 2, (size - 7 * cell) // 2
+    img = bytearray(size * size)
+    for gi, rows in enumerate(glyphs):
+        for ry, row in enumerate(rows):
+            for rx, bit in enumerate(row):
+                if bit != "1":
+                    continue
+                pad = cell // 4                       # a bit wider than the cell: bold strokes
+                x0 = max(0, left + (gi * 6 + rx) * cell - pad)
+                x1 = min(size, left + (gi * 6 + rx + 1) * cell + pad)
+                for y in range(max(0, top + ry * cell - pad), min(size, top + (ry + 1) * cell + pad)):
+                    img[y * size + x0:y * size + x1] = b"\xff" * (x1 - x0)
+    return f"P5 {size} {size} 255\n".encode() + bytes(img)
+
+
+def make_pattern(ff: str, kind: str, dest: Path, word: str = "", why: list | None = None) -> Path | None:
+    """A 1024x1024 black-and-white pattern for the illusion (softened edges blend better).
+    A word is drawn with FFmpeg's drawtext and Joe's font; if that FFmpeg can't (no drawtext in the
+    build, or the font path trips it up on Windows), Joe's own block letters are used instead.
+    FFmpeg's complaint goes into `why` for the log."""
     if kind == "word":
         word = safe_word(word)
         if not word:
             return None
         size = max(110, min(520, int(1700 / max(1, len(word)))))
-        font = font_file().as_posix()
+        # FFmpeg's filter options split on ':' -> escape the Windows drive colon (C\:/...)
+        font = font_file().as_posix().replace(":", "\\:")
         vf = (f"drawtext=fontfile='{font}':text='{word}':fontcolor=white:fontsize={size}:"
               "x=(w-text_w)/2:y=(h-text_h)/2,gblur=sigma=5,format=gray")
-    else:
-        expr = PATTERNS.get(kind, PATTERNS["spiral"])[1] or PATTERNS["spiral"][1]
-        vf = f"format=gray,geq=lum='{expr}',gblur=sigma=5"
+        r = _run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1024x1024", "-vf", vf,
+                  "-frames:v", "1", str(dest)], timeout=120)
+        if r is not None and r.returncode == 0 and dest.exists():
+            return dest
+        if why is not None:
+            why.append(((r.stderr or "").strip().splitlines() or ["FFmpeg didn't start"])[-1][:200]
+                       if r is not None else "FFmpeg didn't start")
+        pgm = dest.with_suffix(".pgm")
+        pgm.write_bytes(block_word_pgm(word))
+        r = _run([ff, "-y", "-v", "error", "-i", str(pgm), "-vf", "gblur=sigma=9,format=gray",
+                  "-frames:v", "1", str(dest)], timeout=120)
+        pgm.unlink(missing_ok=True)
+        return dest if r is not None and r.returncode == 0 and dest.exists() else None
+    expr = PATTERNS.get(kind, PATTERNS["spiral"])[1] or PATTERNS["spiral"][1]
+    vf = f"format=gray,geq=lum='{expr}',gblur=sigma=5"
     r = _run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "color=c=black:s=1024x1024", "-vf", vf,
               "-frames:v", "1", str(dest)], timeout=120)
     return dest if r is not None and r.returncode == 0 and dest.exists() else None
@@ -363,9 +427,12 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                 return [], [], "needs FFmpeg to draw the hidden pattern (Setup > System check installs it)"
             if hidden == "word" and not word:
                 return [], [], "write the hidden word on its own line, like: word: JOE"
-            pat = make_pattern(ff, hidden, _work(engine) / f"pattern-{hidden}-{slug(word) or 'x'}.png", word)
+            why: list = []
+            pat = make_pattern(ff, hidden, _work(engine) / f"pattern-{hidden}-{slug(word) or 'x'}.png", word, why)
+            if why:
+                engine.log(f"  FFmpeg couldn't write the word with a font ({why[0]}); using Joe's block letters")
             if not pat:
-                return [], [], "couldn't draw the hidden pattern with FFmpeg"
+                return [], [], "couldn't draw the hidden pattern with FFmpeg" + (f" ({why[0]})" if why else "")
             sources = [(pat, word or hidden)]
         count = int(option_value(job, "versions") or 2)
         for src, name in sources:

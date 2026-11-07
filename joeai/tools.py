@@ -2713,9 +2713,23 @@ def run_read_scans(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 made.append(f"{stem}.csv")
                 st.flags.extend({"item": src.name, "flag": f} for f in find_flags(json_text(o)))
             else:
-                failed.append(f"{src.name}: nothing could be read (is it a clear photo?)")
-                engine.log(f"  {src.name}: nothing could be read")
-                continue
+                # Not a table / receipt after all (a sign, a note)? Read it as plain text instead of
+                # giving up (end test: a store-hours sign in a "table" batch came back empty).
+                t = None
+                if mode != "text":
+                    t = _look(engine, job, st, i, "read-scans", system,
+                              wish + SCAN_ASK["text"].format(name=src.name), img, model)
+                if t and _s(t.get("text")):
+                    text = str(t.get("text")).strip()
+                    atomic_write_text(folder / f"{stem}.md", f"# {src.stem}\n\n{text}\n")
+                    made.append(f"{stem}.md")
+                    st.words += count_words(text)
+                    st.flags.append({"item": src.name, "flag": f"[CHECK] no {mode} found, read as plain text"})
+                    engine.log(f"  {src.name}: no {mode} in it, read as plain text")
+                else:
+                    failed.append(f"{src.name}: nothing could be read (is it a clear photo?)")
+                    engine.log(f"  {src.name}: nothing could be read")
+                    continue
             st.titles.append(key)
             st.items += 1
             engine._save_state(job, st)
