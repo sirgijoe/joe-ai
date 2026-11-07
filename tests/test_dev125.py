@@ -148,7 +148,7 @@ def test_download_all_runs_each_model_once(tmp_path, monkeypatch):
         time.sleep(0.1)
     assert got == ["pull-model", "pack-bg"]
     assert app.dl_all["done"] == 1 and len(app.dl_all["failed"]) == 1
-    assert "Restart" in app.restart_advice()
+    assert app.restart_advice() == ""                             # downloads never need a Joe restart
 
 
 def test_claude_desktop_msix_found_on_windows(tmp_path, monkeypatch):

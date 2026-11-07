@@ -861,10 +861,6 @@ class App:
                 ok = False
                 addons_mod.install_log(self.log)(f"!! {action} failed: {e!r}")
             finally:
-                if ok and action in ("install-voice", "install-clone", "install-whispercpp") or \
-                        (ok and action == "install" and tool in ("ollama", "comfyui")):
-                    self.restart_hint = ("New helpers were set up. Restart Joe so everything starts fresh "
-                                         "with them (nothing is lost).")
                 self.fix_result = {"action": action, "ok": bool(ok), "n": self.fix_result.get("n", 0) + 1}
                 self.busy, self.busy_pct = "", None
         labels = {"install": f"installing {tool}", "start": f"starting {tool}", "update": f"updating {tool}",
@@ -890,8 +886,9 @@ class App:
         return {"ok": True, "started": self.busy}
 
     def restart_advice(self) -> str:
-        """Why a restart would help now ('' = it wouldn't): newer files copied into Joe's folder,
-        or something set up that's picked up best by a fresh start."""
+        """Why Joe must restart now ('' = he needn't): newer Joe files copied into his folder, or
+        restart_hint set by something that truly can't be picked up live. Installs (voice, whisper.cpp,
+        Ollama, ComfyUI) and model downloads are picked up without a restart, so they don't set it."""
         now = time.monotonic()
         if now - getattr(self, "_disk_checked", 0) > 30:
             self._disk_checked = now
@@ -927,6 +924,7 @@ class App:
 
         def work():
             tried: set[str] = set(skip)
+            comfy_new = 0
             with system.keep_awake(True, self.log):
                 self.log("DOWNLOAD ALL: getting every model Joe offers, one at a time. Leave Joe open; "
                          "the PC won't go to sleep until it's done.")
@@ -949,13 +947,14 @@ class App:
                         time.sleep(2)
                     if self.fix_result.get("ok"):
                         self.dl_all["done"] += 1
+                        comfy_new += it.get("action") != "pull"     # Ollama sees new models by itself
                     else:
                         self.dl_all["failed"].append(self.dl_all["current"])
             n, bad = self.dl_all["done"], self.dl_all["failed"]
             self.log(f"DOWNLOAD ALL finished: {n} downloaded" + (f", {len(bad)} didn't work: " + "; ".join(bad)
                                                                  if bad else "") + ".")
-            self.restart_hint = ("New models were downloaded. Restart ComfyUI so it sees them, and restart Joe "
-                                 "so everything is picked up fresh.") if n else self.restart_hint
+            if comfy_new:          # ComfyUI needs the restart, not Joe: no RESTART JOE bar for this
+                self.log("Restart ComfyUI (close and reopen it) so it sees the new picture/video/sound models.")
             self.dl_all = {"running": False, "done": n, "failed": bad, "current": "", "finished": True}
 
         doctor.run_in_thread(work)

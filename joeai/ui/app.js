@@ -1158,7 +1158,7 @@ async function tplDefaults() {
   toast(r.ok ? "Saved" : r.error);
 }
 
-/* RESTART JOE: shown when a restart helps (new files copied in, big installs, DOWNLOAD ALL). */
+/* RESTART JOE: shown only when Joe must restart (a newer Joe copied into his folder). */
 let restartHidden = "";
 function restartBar() {
   const bar = $("#restartbar"); if (!bar) return;
