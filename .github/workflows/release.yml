@@ -192,14 +192,15 @@ jobs:
         run: |
           v="${GITHUB_REF_NAME#v}"
           cat > notes.md <<NOTES
-          **Windows:** download Joe-Setup-$v-windows-x64.exe and open it. It isn't code-signed, so Windows SmartScreen may say "Windows protected your PC": click More info, then Run anyway.
+          **Windows:** download Joe-Setup-$v-windows-x64.exe and open it. It isn't code-signed yet, so Windows SmartScreen may say "Windows protected your PC" (or pause and say it "couldn't be reached"): click More info, then Run anyway.
 
-          **Mac:** download the .dmg for your Mac (arm64 = Apple Silicon M1/M2/M3/M4, x64 = older Intel Macs), open it and drag Joe onto Applications. The first time, macOS can't check Joe (he isn't registered with Apple): click Done, then System Settings > Privacy & Security > Open Anyway. Details are in "Read me first.txt" inside the disk image.
+          **Mac:** download the .dmg for your Mac (arm64 = Apple Silicon M1/M2/M3/M4, x64 = older Intel Macs), open it and drag Joe onto Applications. The first time, macOS can't check Joe: Apple charges developers \$99 every year to remove that warning, and Joe is free, so we don't pay it. Click Done, then System Settings > Privacy & Security > Open Anyway. Details are in "Read me first.txt" inside the disk image.
 
           **Linux:** download the .AppImage (x86_64 for most PCs, aarch64 for ARM), make it runnable (right-click > Properties > Allow executing, or chmod +x) and open it.
 
           SHA256SUMS.txt lets you check any download; SHA256SUMS.txt.sig (when there) proves the list came from Joe's maker, and Joe checks it before he installs an update. If a Mac or Linux file is missing, that build failed this time; the next release will try again.
           NOTES
+          if [ -f src/installer/RELEASE_NOTES.md ]; then cat src/installer/RELEASE_NOTES.md notes.md > all.md; else cp notes.md all.md; fi
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Joe $GITHUB_REF_NAME" \
-            --notes-file notes.md \
+            --notes-file all.md \
             $( [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *rc* ]] && echo --prerelease )
