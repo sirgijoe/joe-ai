@@ -20,9 +20,10 @@ body:
     id: version
     attributes:
       label: Joe version
-      description: Shown in Joe's About or Settings
+      description: Shown at the top right of Joe's window
       placeholder: e.g. 2.0.0
   - type: textarea
     id: extra
     attributes:
       label: Screenshots or anything else
+      description: "A help file makes this much easier: Setup > System check > MAKE A HELP FILE. It hides your keys, home folder and user name, and never holds your files, chats or recordings. Look inside before attaching it."
