@@ -291,6 +291,23 @@ class Recipe:
     lora_settings: dict
 
 
+# Animals (singular stems; plurals match too). Used for the photo Wildlife look and to spot pictures
+# with two or more different animals, which SDXL models tend to blend into one creature.
+ANIMALS = ("raccoon|racoon|turtle|tortoise|otter|beaver|squirrel|chipmunk|rabbit|bunny|hare|fox|wolf|coyote|"
+           "dog|puppy|cat|kitten|lion|tiger|leopard|cheetah|jaguar|bear|panda|deer|elk|moose|horse|pony|donkey|"
+           "cow|bull|calf|pig|goat|sheep|lamb|chicken|hen|rooster|duck|goose|swan|owl|eagle|hawk|falcon|parrot|"
+           "bird|crow|raven|penguin|frog|toad|snake|lizard|gecko|iguana|alligator|crocodile|fish|trout|"
+           "salmon|shark|whale|dolphin|walrus|octopus|crab|lobster|spider|bee|butterfly|moth|ant|beetle|"
+           "mice|rat|hamster|hedgehog|porcupine|skunk|opossum|possum|badger|weasel|ferret|mink|"
+           "monkey|ape|gorilla|chimpanzee|elephant|giraffe|zebra|rhino|hippo|camel|kangaroo|koala|sloth")
+_ANIMAL_RE = re.compile(rf"\b({ANIMALS})(?:e?s)?\b", re.I)
+
+
+def animals_in(text: str) -> set:
+    """Different animals a request names ('a raccoon eating a turtle' -> {'raccoon', 'turtle'})."""
+    return {m.group(1).lower().replace("racoon", "raccoon") for m in _ANIMAL_RE.finditer(text or "")}
+
+
 def recipe(job, picks: dict | None = None) -> Recipe:
     """Everything one picture task gets from its style and sub-look."""
     st = pick(job)
@@ -308,7 +325,8 @@ def recipe(job, picks: dict | None = None) -> Recipe:
                      f"(change the subject, keep the kind of detail): {look['example']}")
     words = ", ".join(x for x in (st.suffix, look.get("words", "")) if x)
     neg = ", ".join(x for x in (look.get("negative", ""), data.get("negative", ""), st.negative) if x)
-    return Recipe(st, look, notes, words, neg, not data.get("no_anatomy"), str(data.get("trigger") or ""),
+    return Recipe(st, look, notes, words, neg, not (data.get("no_anatomy") or look.get("no_anatomy")),
+                  str(data.get("trigger") or ""),
                   data.get("lora_settings") if isinstance(data.get("lora_settings"), dict) else {})
 
 

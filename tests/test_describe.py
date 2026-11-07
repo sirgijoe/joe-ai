@@ -66,7 +66,7 @@ def test_plain_summary_kinds():
     assert describe.plain_summary(chk) == [
         "A document in 1 section: Guide",
         "2 short video clips: Clips",
-        "12 pictures: Mugs (2 versions of each)",
+        "6 pictures, 2 versions of each (12 pictures in all): Mugs",
         "20 items: Posts, at least 80 words each",
     ]
     assert describe.plain_time(1) == "about a minute"

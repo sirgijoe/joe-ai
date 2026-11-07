@@ -305,12 +305,27 @@
           "negative": "plastic skin, airbrushed, poreless, deformed face, asymmetrical face, bad teeth, dead eyes, crossed eyes"
         },
         {
+          "id": "wildlife",
+          "label": "Wildlife",
+          "match": "\\b(?:animal|wildlife|raccoon|racoon|turtle|tortoise|otter|beaver|squirrel|chipmunk|rabbit|bunny|hare|fox|wolf|coyote|dog|puppy|cat|kitten|lion|tiger|leopard|cheetah|jaguar|bear|panda|deer|elk|moose|horse|pony|donkey|cow|bull|calf|pig|goat|sheep|lamb|chicken|hen|rooster|duck|goose|swan|owl|eagle|hawk|falcon|parrot|bird|crow|raven|penguin|frog|toad|snake|lizard|gecko|iguana|alligator|crocodile|fish|trout|salmon|shark|whale|dolphin|walrus|octopus|crab|lobster|spider|bee|butterfly|moth|ant|beetle|mice|rat|hamster|hedgehog|porcupine|skunk|opossum|possum|badger|weasel|ferret|mink|monkey|ape|gorilla|chimpanzee|elephant|giraffe|zebra|rhino|hippo|camel|kangaroo|koala|sloth)(?:e?s)?\\b",
+          "words": "telephoto 200mm, f/4, natural light, crisp fur, feather and scale detail, nature documentary photograph",
+          "example": "A wildlife photograph of a grey raccoon with a black eye mask and ringed tail crouched over a box turtle with a scaly reptile head, hard beak and domed brown shell, on a damp forest floor, soft overcast light, telephoto 200mm, f/4, crisp fur and shell detail.",
+          "negative": "hybrid animal, merged animals, two animals fused together, wrong species features, mammal face on a reptile, furry reptile, extra heads, extra legs, plush toy, cartoon",
+          "no_anatomy": true
+        },
+        {
           "id": "landscape",
           "label": "Landscape",
           "match": "landscape|mountain|lake|forest|valley|coast|sunrise over|sunset over|vista|countryside",
           "words": "wide-angle 16mm, f/8, natural light, hyper-detailed",
           "example": "A breathtaking wide-angle landscape photograph of a misty alpine lake at sunrise, snow-capped peaks reflecting on calm water, golden sun rays through low fog, rich pine forests, 16mm, f/8, natural lighting.",
           "negative": "oversaturated, underexposed, overexposed, power lines, distortion, painting, drawing"
+        },
+        {
+          "id": "general",
+          "label": "Everyday",
+          "words": "50mm, f/4, natural light, realistic detail, true-to-life colors",
+          "negative": "oversaturated, plastic look, painting, drawing"
         }
       ]
     },

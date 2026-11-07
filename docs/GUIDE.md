@@ -258,7 +258,8 @@ is open on GitHub for anyone (or any AI) to check. Open it once with System Sett
 Security > **Open Anyway** next to Joe > **Open**.
 
 **Windows:** until Joe's free SignPath Foundation certificate is in place, SmartScreen may say
-"Windows protected your PC": **More info** > **Run anyway**.
+"Windows protected your PC": **More info** > **Run anyway**. If Windows pauses and then says
+SmartScreen "couldn't be reached", that's its online check timing out: choose **Run anyway**.
 
 ## First start, tabs and looks
 

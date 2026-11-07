@@ -279,10 +279,14 @@ async function poll() {
 }
 
 /* ---------------- "just describe it": plain words -> plan -> RUN ---------------- */
+// Heads-ups that aren't problems: shown calm (gray, no "!") instead of like an error.
+const NOTE_STARTS = ["Joe will start ComfyUI"];
+const isNote = (w) => NOTE_STARTS.some((s) => String(w).startsWith(s));
 function showPlan(r) {
   $("#plan-list").innerHTML = r.summary.map((s) => `<li>${esc(s)}</li>`).join("");
   $("#plan-time").textContent = "— " + r.time;
-  $("#plan-warn").innerHTML = (r.warnings || []).map((w) => `<div class="warn">! ${esc(w)}</div>`).join("");
+  $("#plan-warn").innerHTML = (r.warnings || []).map((w) => isNote(w)
+    ? `<div class="dim">${esc(w)}</div>` : `<div class="warn">! ${esc(w)}</div>`).join("");
   const q = r.quality_offer;
   if (q) {
     planOffer = q;
@@ -527,7 +531,15 @@ async function checkMission() {
     `\nESTIMATE about ${r.eta_min} min` + (r.warnings && r.warnings.length ? "\nWARNING " + r.warnings.join("\nWARNING ") : "");
   return r;
 }
+let starting = false;                           // RUN IT pressed, waiting for Joe to say it started
+function runButtons(busy) {
+  document.querySelectorAll('[data-act="plan-run"]').forEach((b) => {
+    b.disabled = busy;
+    b.innerHTML = busy ? "[ STARTING… ]" : '[ RUN IT <span class="k">F5</span> ]';
+  });
+}
 async function runOrStop() {
+  if (starting) { toast("Starting it…"); return; }   // a second click or F5 while it starts does nothing
   if (state && state.running) {
     confirmBox("Stop the run after the current step? It can resume later.", async () => {
       await api("/api/stop", {});
@@ -541,11 +553,14 @@ async function runOrStop() {
     else { toast("Tell Joe what you need first"); $("#describe").focus(); }
     return;
   }
-  const r = await checkMission();
-  if (!r) { show("queue"); return; }
-  const res = await api("/api/run", { text: $("#mission").value });
-  if (!res.ok) { $("#plan").textContent = "ERROR: " + res.error; return; }
-  toast("Mission started — safe to close this window");
+  starting = true; runButtons(true); toast("Starting it…");
+  try {
+    const r = await checkMission();
+    if (!r) { show("queue"); return; }
+    const res = await api("/api/run", { text: $("#mission").value });
+    if (!res.ok) { $("#plan").textContent = "ERROR: " + res.error; toast(res.error); return; }
+    if (!res.already) toast("Started — safe to close this window");
+  } finally { starting = false; runButtons(false); }
 }
 async function loadReport() {
   const r = await api("/api/report");
@@ -1445,6 +1460,7 @@ document.addEventListener("click", async (ev) => {
       else { await loadThemes().catch(() => {}); welcomeOpen(2); }
     }
     if (act === "plan-run") {
+      if (starting) { toast("Starting it…"); return; }
       if (state && state.running) {
         const r = await api("/api/queue/add", { text: $("#mission").value });
         toast(r.ok ? `Joe is busy, so it's in line (${r.queued} waiting)` : r.error);

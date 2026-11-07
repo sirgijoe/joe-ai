@@ -66,6 +66,9 @@ Rules that always apply:
 - The task's brief is the SUBJECT. Every prompt must show that subject; never swap it for
   a different subject. Vary only the details: angle, framing, time of day, small props.
 - Never repeat or lightly reword a title or prompt you have already used.
+- Two or more different animals, people or things in one picture: describe each one's own look
+  separately (a raccoon with grey fur, a black eye mask and a ringed tail; a turtle with a scaly
+  reptile head, a hard beak and a domed shell), or the image model blends them into one creature.
 - The image model draws ONE scene. It can't draw steps, before/after, arrows, labels, numbered
   parts, cut-away layers or diagrams, and it mixes up anything with many small parts. For a
   how-to topic, show the single most telling moment: the finished thing (or hands doing the key
@@ -1041,7 +1044,7 @@ class Engine:
                             self._save_state(job, st)
                             continue
                         for it in items:
-                            st.prompts.append({"title": it.title, "prompt": " ".join(it.body.split())})
+                            st.prompts.append({"title": _clean_title(it.title), "prompt": " ".join(it.body.split())})
                             st.titles.append(it.title)
                         st.prompt_parts = part + 1
                         self._save_state(job, st)
@@ -1075,7 +1078,7 @@ class Engine:
             items = [it for it in split_items(_clean_reply(r.text)) if it.body]
             if items:
                 st.titles.append(items[0].title)
-                return {"title": items[0].title, "prompt": " ".join(items[0].body.split())}
+                return {"title": _clean_title(items[0].title), "prompt": " ".join(items[0].body.split())}
             text = " ".join(_clean_reply(r.text).split())
             if len(text.split()) >= 8:
                 return {"title": _short_title(brief), "prompt": text}
@@ -1245,6 +1248,9 @@ class Engine:
             return True, "no SD1.5/SDXL picture model is installed"
         if comfy_mod.WORDS_IN_PICTURE.search(f"{job.name}\n{job.format}"):
             return True, "the pictures have words in them, and it spells far better"
+        if styles_mod.pick(job).id in ("photo", "general") and \
+                len(styles_mod.animals_in(f"{job.name}\n{job.format}")) >= 2:
+            return True, "two different animals in one picture: it keeps them apart far better"
         return False, ""
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
@@ -1597,6 +1603,18 @@ def _parse_csv_rows(text: str, header: list[str]) -> tuple[list[list[str]], int]
         else:
             bad += 1
     return good, bad
+
+
+# Words the prompt writer sometimes leaks into a title from its own instructions
+# ('Raccoon Feasting on Turtle (No Break)', 'Title: ...', '... - one paragraph').
+_TITLE_LEAK = re.compile(r"\(?\b(?:no[- ]?(?:line[- ]?)?breaks?|one paragraph|single paragraph|image prompt)\b\)?"
+                         r"|^\s*(?:short )?title\s*:", re.I)
+
+
+def _clean_title(title: str) -> str:
+    t = _TITLE_LEAK.sub(" ", title or "")
+    t = re.sub(r"\s*[-–—:|]\s*$", "", " ".join(t.split())).strip(" -–—:|")
+    return t or (title or "image").strip()
 
 
 def _short_title(text: str) -> str:

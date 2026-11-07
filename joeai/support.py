@@ -93,7 +93,8 @@ def about(settings=None) -> str:
     return "\n".join(lines) + "\n"
 
 
-def make_help_file(settings, sb, check: dict | None = None, out_dir: Path | None = None) -> Path:
+def make_help_file(settings, sb, check: dict | None = None, out_dir: Path | None = None,
+                   debug: list | None = None) -> Path:
     """Write Joe-help-<date>.zip (in Output unless out_dir is given) and return it."""
     from .storage import log_files
     now = datetime.now()
@@ -108,6 +109,8 @@ def make_help_file(settings, sb, check: dict | None = None, out_dir: Path | None
             z.writestr("settings.json", _scrub_text(json.dumps(_scrub_settings(asdict(settings)), indent=2)))
         except TypeError:
             pass
+        if debug:                                  # timing lines kept out of the window's log
+            z.writestr("logs/debug.txt", _scrub_text("\n".join(debug)))
         seen = set()
         for p in log_files(sb):
             if p.is_file() and p.name not in seen:

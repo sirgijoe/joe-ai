@@ -115,6 +115,14 @@ class App:
         # stay in Missions/ (F7, L loads one); _last_mission.txt is kept only as a backup.
 
     # -- helpers ---------------------------------------------------------------
+    def debug(self, line: str) -> None:
+        """Timing/diagnostic lines: kept for MAKE A HELP FILE, not shown in the window's log."""
+        dl = getattr(self, "debug_lines", None)
+        if dl is None:
+            dl = self.debug_lines = []
+        dl.append(time.strftime("[%H:%M:%S] ") + line)
+        del dl[:-200]
+
     def log(self, line: str) -> None:
         self.logs.append(line)
         self.log_count += 1
@@ -197,8 +205,8 @@ class App:
             warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")
         from .picturetools import COMFY_TOOLS
         if any(j.media or j.type in COMFY_TOOLS for j in m.jobs) and not self.services.comfy_up():
-            warnings.append("Joe will start ComfyUI for this. ComfyUI updates itself often and can stop "
-                            "to wait for a click in its own window; if it seems stuck, look at its window.")
+            warnings.append("Joe will start ComfyUI (the picture maker) for this. If it's updating or waits "
+                            "for a click in its own window, Joe waits for it.")
         if any(j.type == "video" and not j.workflow for j in m.jobs):
             from . import quality as quality_mod
             from .comfy import WAN_TURBO, wan_missing, wan_turbo_installed
@@ -378,9 +386,17 @@ class App:
         return {"ok": True, "queued": 0}
 
     def run(self, text: str) -> dict:
-        if self.running:
-            return {"ok": False, "error": "Joe is busy. Use ADD TO QUEUE, or stop the run first (F5)."}
-        return self.enqueue(text)
+        with self.lock:                            # two quick presses (click + F5) must not start twice
+            starting = getattr(self, "_starting", None)
+            if starting is not None or self.running:
+                if (text or "").strip() in (starting, (getattr(self, "mission_text", "") or "").strip()):
+                    return {"ok": True, "already": True}   # same plan, already starting: nothing to do
+                return {"ok": False, "error": "Joe is busy. Use ADD TO QUEUE, or stop the run first (F5)."}
+            self._starting = (text or "").strip()
+        try:
+            return self.enqueue(text)
+        finally:
+            self._starting = None
 
     def _work(self) -> None:
         while True:
@@ -1103,7 +1119,7 @@ class App:
             t0 = time.monotonic()
             r = self.voice.call({"cmd": "stt", "audio": str(f), "stt_model": self.settings.voice.stt_model},
                                 timeout=180)
-            self.log(f"Talk timing: hearing {time.monotonic() - t0:.1f}s ({self.settings.voice.stt_model})")
+            self.debug(f"Talk timing: hearing {time.monotonic() - t0:.1f}s ({self.settings.voice.stt_model})")
         finally:
             try:
                 f.unlink()                           # never keep recordings
@@ -1131,7 +1147,7 @@ class App:
             r = self.voice.call({"cmd": "tts", "text": text[:6000], "out": str(out), "voice": voice,
                                  "speed": v.speed}, timeout=300)
         if len(text) < 400:                                   # one sentence of a streamed reply
-            self.log(f"Talk timing: speaking {time.monotonic() - t0:.1f}s for {len(text)} letters")
+            self.debug(f"Talk timing: speaking {time.monotonic() - t0:.1f}s for {len(text)} letters")
         try:
             if not r.get("ok"):
                 return b"", r.get("error", "Joe lost his voice")
@@ -1788,7 +1804,7 @@ def make_handler(app: App):
                         chk = doctor.check(app.settings, app.services)
                     except Exception as e:                      # noqa: BLE001 (still make the file)
                         chk = {"error": repr(e)}
-                    f = support.make_help_file(app.settings, app.sb, chk)
+                    f = support.make_help_file(app.settings, app.sb, chk, debug=getattr(app, "debug_lines", None))
                     if b.get("show", True):
                         try:
                             from .system import reveal
@@ -2123,7 +2139,7 @@ def make_handler(app: App):
                         r = p["final"] if "final" in p else chat_mod.finish(raw, p.get("sources"))
                         if "final" not in p and r.get("ok"):
                             r["say"] = brief.trim(r["say"])
-                        app.log(f"Talk timing: setup {t_prep:.1f}s, first words {first:.1f}s, "
+                        app.debug(f"Talk timing: setup {t_prep:.1f}s, first words {first:.1f}s, "
                                 f"whole reply {time.monotonic() - t0:.1f}s ({p['model']})")
                     except ConnectionError:
                         raise                                     # the window pressed STOP (or closed)

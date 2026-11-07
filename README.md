@@ -312,7 +312,9 @@ to Joe, then **Open**. The disk image's "Read me first.txt" says the same.
 
 **Windows:** until Joe's free code-signing certificate is in place (applied for through
 SignPath Foundation, which signs open-source projects at no cost), Windows may show "Windows
-protected your PC". Click **More info**, then **Run anyway**.
+protected your PC". Click **More info**, then **Run anyway**. Windows first asks Microsoft about
+the file online; when that check is slow, the installer can seem to hang for a bit and then say
+SmartScreen "couldn't be reached". That's Windows, not Joe: choose **Run anyway**.
 
 **Updates:** each release lists a SHA-256 checksum for every file, and releases are signed with
 Joe's own key, so Joe refuses an update that was changed or didn't come from this project.

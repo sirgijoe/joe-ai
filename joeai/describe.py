@@ -366,9 +366,13 @@ def _plain_summary(chk: dict) -> list[str]:
                 out.append(f"{TOOLS[t].name}: {_n(n, 'file', 'files')} ({name})")
         elif t in ("image", "video"):
             n = j["prompts"] * j["variants"]
-            what = _n(n, "picture", "pictures") if t == "image" else _n(n, "short video clip", "short video clips")
-            extra = f" ({j['variants']} versions of each)" if j["variants"] > 1 else ""
-            out.append(f"{what}: {name}{extra}")
+            unit = ("picture", "pictures") if t == "image" else ("short video clip", "short video clips")
+            if j["variants"] > 1:                  # "1 picture, 4 versions (4 pictures in all)", never "4 ... of each"
+                what = (f"{_n(j['prompts'], *unit)}, {j['variants']} versions of "
+                        f"{'it' if j['prompts'] == 1 else 'each'} ({_n(n, *unit)} in all)")
+            else:
+                what = _n(n, *unit)
+            out.append(f"{what}: {name}")
         elif t == "csv":
             out.append(f"A spreadsheet with {_n(j['items'], 'row', 'rows')}: {name}")
         elif j["guided"]:
