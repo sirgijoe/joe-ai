@@ -69,6 +69,7 @@ Rules that always apply:
 - Two or more different animals, people or things in one picture: describe each one's own look
   separately (a raccoon with grey fur, a black eye mask and a ringed tail; a turtle with a scaly
   reptile head, a hard beak and a domed shell), or the image model blends them into one creature.
+  Keep their real-life sizes and say so ("a small box turtle, about a third of the raccoon's size").
 - The image model draws ONE scene. It can't draw steps, before/after, arrows, labels, numbered
   parts, cut-away layers or diagrams, and it mixes up anything with many small parts. For a
   how-to topic, show the single most telling moment: the finished thing (or hands doing the key

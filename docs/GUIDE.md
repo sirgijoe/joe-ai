@@ -263,8 +263,9 @@ SmartScreen "couldn't be reached", that's its online check timing out: choose **
 
 ## First start, tabs and looks
 
-The first time Joe opens, a setup helper walks through it one step at a time: your graphics card
-in plain words, then **Pick**: a checklist of everything Joe could install, grouped (Writing,
+The first time Joe opens, a setup helper walks through it one step at a time. **Hello** lets you
+pick Joe's look right away (change it any time in Setup > Display & sound, or describe your own
+under CUSTOM THEME and Joe designs it). Then your graphics card in plain words, then **Pick**: a checklist of everything Joe could install, grouped (Writing,
 Pictures, Talking, Extras), each with its size, and a running total. Small and needed things start
 ticked; big downloads (the picture editor, video, music) start unticked, and picture programs are
 pre-ticked only on a strong graphics card. **INSTALL WHAT'S TICKED** installs them one after

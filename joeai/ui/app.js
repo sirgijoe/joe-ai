@@ -2639,7 +2639,6 @@ const W_STEPS = [
   { id: "hello", name: "Hello" },
   { id: "pc", name: "Your PC" },
   { id: "pick", name: "Get set up" },
-  { id: "look", name: "Look" },
   { id: "done", name: "Ready" },
 ];
 const W_TEXT = {
@@ -2778,7 +2777,10 @@ function wRender() {
   if (st.id === "hello") {
     h = `<p>01000001 01001001, if you're fancy. Humans can't say that, so just call me Joe.</p>
       <p>I do the grunt work on your own computer while you sleep: lists, descriptions, documents, spreadsheets, pictures and short videos. Free and private: your files never leave this PC. Setting me up needs the internet to download programs and models, and I ask before each one.</p>
-      <p>Let's get me set up. It's a few short steps, and I ask before installing anything.</p>`;
+      <p>First, pick how I look:</p>` + wLooks() +
+      `<p class="dim small">You can change it any time in Setup (F10) &gt; Display &amp; sound, or make your very own:
+      describe it there under CUSTOM THEME ("deep ocean at night, teal text, warm orange highlights") and I'll design it.</p>
+      <p>Then let's get me set up. It's a few short steps, and I ask before installing anything.</p>`;
   } else if (st.id === "pc") {
     h = `<pre class="out">${esc(wGpuLine(d))}</pre>`;
   } else if (st.ids) {
@@ -2799,11 +2801,6 @@ function wRender() {
     } else h += left.map(wItem).join("");
   } else if (st.id === "pick") {
     h = wPickList();
-  } else if (st.id === "look") {
-    const opts = [...$("#theme-select").options].map((o) => [o.value, o.textContent]);
-    const cur = state ? state.ui.phosphor : "";
-    h = `<p>Pick a look. You can change it any time in Setup (F10).</p><div class="wlooks">` +
-      opts.map(([v, n]) => `<button data-wlook="${esc(v)}" class="${v === cur ? "on" : ""}">[ ${esc(n)} ]</button>`).join("") + "</div>";
   } else if (st.id === "done") {
     const need = W.d && W.d.issues.find((it) => !it.optional);
     const how = `<ol class="planlist"><li>Type what you need in the big box, in your own words. Questions work too.</li>
@@ -2817,6 +2814,12 @@ function wRender() {
   $("#w-body").innerHTML = h;
   $("#w-back").disabled = W.i === 0;
   $("#w-next").textContent = W.i === W_STEPS.length - 1 ? "[ START USING JOE ]" : "[ NEXT ▸ ]";
+}
+function wLooks() {                              // the look buttons on the Hello screen
+  const opts = [...$("#theme-select").options].map((o) => [o.value, o.textContent]);
+  const cur = state ? state.ui.phosphor : "";
+  return `<div class="wlooks">` +
+    opts.map(([v, n]) => `<button data-wlook="${esc(v)}" class="${v === cur ? "on" : ""}">[ ${esc(n)} ]</button>`).join("") + "</div>";
 }
 function welcomeTick() {                          // called by poll(): show progress, re-check when a setup ends
   if (!state || (!W.open && !W.auto)) return;      // the ticked installs keep going after the helper closes
