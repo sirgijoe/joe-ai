@@ -312,6 +312,10 @@ def _download(url: str, dest: Path, log: Log, progress=None) -> bool:
     try:
         with urllib.request.urlopen(url, timeout=60) as r, open(part, "wb") as f:
             total, got, last = int(r.headers.get("Content-Length") or 0), 0, -25.0
+            from .system import room_problem
+            room = room_problem(dest.parent, total)
+            if room:                                  # say so now, not after the download fills the drive
+                raise OSError(room)
             while chunk := r.read(1 << 20):
                 f.write(chunk)
                 got += len(chunk)

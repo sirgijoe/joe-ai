@@ -324,6 +324,11 @@ FORMAT: ...
                   <button type="button" id="dlall-stop" data-act="download-all-stop" hidden title="Stop after the download that's going now.">[ STOP ]</button></div>
                 <div id="dlall-status" class="dim small"></div>
               </fieldset>
+              <fieldset><legend>CHECK MY MODEL FILES</legend>
+                <p class="dim small">Makes sure every picture, video and sound model is whole. A download that stopped part way can leave a file that looks fine but makes ComfyUI fail later. Joe reads each file's own size note, so this needs no internet and changes nothing. A cut-short file can be moved to the Recycle Bin, and then this page offers it again.</p>
+                <div class="row"><button type="button" data-act="models-check" title="Check every model file in ComfyUI's models folder (a few seconds).">[ CHECK MY MODEL FILES ]</button></div>
+                <div id="mcheck" class="dim small" aria-live="polite"></div>
+              </fieldset>
               <fieldset class="mymodels"><legend>YOUR MODELS</legend>
                 <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
                 <div id="mymodels" class="dim">Press SHOW to look.</div>
@@ -365,6 +370,14 @@ FORMAT: ...
                 <details class="more"><summary>More options</summary>
                   <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
                 </details>
+              </fieldset>
+              <fieldset><legend>BACK UP &amp; RESTORE MY SETTINGS</legend>
+                <div class="dim small">One small zip with everything you set up by hand: your settings, your own writing templates, workflow words, color themes and screen savers, imported workflows, project profiles and your own starter packs. Handy for a new computer, after a reinstall, or to give a friend your setup. Never inside: your files, chats, recordings or models. Restoring keeps where things are on this computer and never overwrites a file you have (a different one comes back as "(restored)").</div>
+                <label title="Also save the Ollama web-search key, the connector password and the phone-ping topic. Leave it off for a backup you'll give to someone else.">Include keys and passwords <input type="checkbox" id="bk-keys"></label>
+                <div class="row"><button type="button" data-act="backup" title="Save the backup zip in Output/Backups (the folder opens).">[ BACK UP MY SETTINGS ]</button>
+                  <button type="button" data-act="restore" title="Pick a backup zip made by Joe and bring it back.">[ RESTORE FROM A BACKUP ]</button>
+                  <input type="file" id="bk-file" accept=".zip" hidden></div>
+                <div id="bk-msg" class="dim small" aria-live="polite"></div>
               </fieldset>
               <fieldset id="portable-box"><legend>PORTABLE JOE (RUN FROM A USB DRIVE)</legend>
                 <div id="pt-on" hidden>
@@ -874,25 +887,25 @@ FORMAT: ...
 </div>
 <div id="boot" class="boot" aria-hidden="true"><div><div id="boot-bin" class="boot-bin"></div><div id="boot-name" class="boot-name">JOE</div><div class="boot-sub dim">humans can't say that, so we just call him Joe</div></div></div>
 <div id="dropveil" class="dropveil" hidden><span class="inv">&nbsp;DROP IT — JOE WILL TAKE A LOOK&nbsp;</span></div>
-<div id="welcome" class="modal welcome" hidden><div class="panel"><h2 id="w-title">WELCOME</h2>
+<div id="welcome" class="modal welcome" hidden role="dialog" aria-modal="true" aria-labelledby="w-title"><div class="panel"><h2 id="w-title">WELCOME</h2>
   <div id="w-steps" class="wsteps"></div>
-  <div id="w-body" class="wbody"></div>
-  <div class="row buttons wnav"><button id="w-back" title="Go back a step">[ ◂ BACK ]</button><span class="grow"></span>
-    <button id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
-    <button id="w-next">[ NEXT ▸ ]</button></div></div></div>
+  <div id="w-body" class="wbody" aria-live="polite"></div>
+  <div class="row buttons wnav"><button type="button" id="w-back" title="Go back a step">[ ◂ BACK ]</button><span class="grow"></span>
+    <button type="button" id="w-skip" title="Close the helper. You can open it again from Setup (F10).">[ SKIP FOR NOW ]</button>
+    <button type="button" id="w-next">[ NEXT ▸ ]</button></div></div></div>
 <div id="saver" class="saver" hidden><canvas id="saver-canvas"></canvas><div id="saver-box"><div class="saver-name">JOE</div><div id="saver-line" class="dim"></div></div></div>
-<div id="maskbox" class="modal" hidden><div class="panel bigger"><h2>MARK THE SPOT</h2>
+<div id="maskbox" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="mk-title"><div class="panel bigger"><h2 id="mk-title">MARK THE SPOT</h2>
   <p class="small">Paint over what should change. Only the painted part is redrawn. <span id="mk-name" class="dim"></span></p>
   <div class="mkwrap"><img id="mk-img" alt=""><canvas id="mk-canvas"></canvas></div>
   <div class="row buttons"><label class="inline">Brush <input type="range" id="mk-size" min="4" max="160" value="40"></label>
     <button type="button" data-act="mask-clear">[ CLEAR ]</button><span class="grow"></span>
     <button type="button" data-act="mask-save" class="primary">[ SAVE THE MARK ]</button>
     <button type="button" data-act="mask-close">[ CANCEL ]</button></div></div></div>
-<div id="packs" class="modal" hidden><div class="panel bigger"><h2>STARTER PACKS</h2>
+<div id="packs" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="pk-title"><div class="panel bigger"><h2 id="pk-title">STARTER PACKS</h2>
   <p class="small">Pick one, answer one question, and Joe makes a plan for all of it. You see the plan before anything runs.</p>
   <div id="pk-list" class="pklist"></div>
   <div id="pk-askrow" hidden><p id="pk-ask" class="small"></p><input id="pk-for" maxlength="200" style="width:100%">
-    <div id="pk-err" class="small warn"></div>
+    <div id="pk-err" class="small warn" role="alert"></div>
     <div class="row buttons"><button type="button" data-act="packs-use" class="primary">[ MAKE THE PLAN ]</button></div></div>
   <div class="row buttons"><button type="button" data-act="packs-close">[ CLOSE ]</button></div></div></div>
 <div id="abilities" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ab-title"><div class="panel bigger"><h2 id="ab-title">WHAT CAN JOE DO?</h2>
@@ -900,7 +913,7 @@ FORMAT: ...
   <div class="abwrap"><div id="ab-list" class="ablist"></div><div id="ab-text" class="abtext small" aria-live="polite"></div></div>
   <div class="row buttons"><button type="button" data-act="abilities-all">[ SHOW EVERYTHING ]</button>
     <button type="button" data-act="abilities-close">[ CLOSE ]</button></div></div></div>
-<div id="bigger" class="modal" hidden><div class="panel bigger"><h2>ASK A BIGGER AI</h2>
+<div id="bigger" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bg-title"><div class="panel bigger"><h2 id="bg-title">ASK A BIGGER AI</h2>
   <p class="small">1. Copy this message and paste it into any chatbot you like (ChatGPT, Claude, Gemini...). Read it first: nothing leaves your PC unless you paste it. Folder paths and your user name are hidden.</p>
   <textarea id="bg-msg" readonly spellcheck="false" rows="9"></textarea>
   <div class="row buttons"><button type="button" data-act="bigger-copy" class="primary">[ COPY MESSAGE ]</button>
@@ -908,12 +921,12 @@ FORMAT: ...
     <span id="bg-copied" class="dim"></span></div>
   <p class="small">2. Paste the whole answer here. Joe finds the plan in it and checks it.</p>
   <textarea id="bg-answer" spellcheck="false" rows="7" placeholder="Paste the AI's answer here"></textarea>
-  <div id="bg-err" class="small warn"></div>
+  <div id="bg-err" class="small warn" role="alert"></div>
   <div class="row buttons"><button type="button" data-act="bigger-use" class="primary">[ USE THIS PLAN ]</button>
     <button type="button" data-act="bigger-close">[ CLOSE ]</button></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
-<div id="confirm" class="modal" hidden><div class="panel"><h2>CONFIRM</h2><p id="confirm-text"></p>
-  <p class="row"><button id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>
+<div id="confirm" class="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="confirm-text"><div class="panel"><h2 id="cf-title">CONFIRM</h2><p id="confirm-text"></p>
+  <p class="row"><button type="button" id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button type="button" id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>
 <script src="/app.js"></script>
 </body>
 </html>

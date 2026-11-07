@@ -7,7 +7,7 @@
 **Meet 01000001 01001001. Humans can't say that, so we just call him Joe.**
 
 > **Early preview.** Joe works and is tested on Windows, but the one-click installer isn't ready
-> yet: for now you need Python 3.11+ (see [What you need](#what-you-need)). Expect rough edges,
+> yet: for now you need Python 3.11.4+ (see [What you need](#what-you-need)). Expect rough edges,
 > and please open an issue if something breaks.
 
 Joe does the grunt work on your own computer while you sleep. You hand him a list of jobs
@@ -138,6 +138,10 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   any computer with "Start Joe". His settings, your work and anything he sets up (voice, Ollama,
   ComfyUI, models) stay on the drive. Each computer still needs its own graphics driver, and
   Windows may still remember that a program ran: portable means carried with you, not invisible.
+- **Takes care of the small stuff**: CHECK MY MODEL FILES spots a model whose download stopped part way;
+  Joe checks there's room on the drive before big downloads and big plans; BACK UP MY SETTINGS saves
+  everything you set up by hand in one zip to restore on any computer; and every pop-up window works
+  with the keyboard and screen readers.
 - **"What can Joe do?"**: ask him (in Talk or the Home box), or press WHAT CAN JOE DO? on Home or
   Help (F1). He lists everything in plain words, and "how does restore photo work?" gets the long
   version: how he does it behind the scenes, what to give him, every option, time, needs and tips.
@@ -223,7 +227,7 @@ overnight work still runs.
 | Graphics card | NVIDIA with 6 GB memory | NVIDIA with 12 GB or more |
 | Memory (RAM) | 16 GB | 32 GB |
 | Free disk space | 15 GB | 50 GB+ if you want pictures and video |
-| Python | 3.11 or newer (python.org) — until the one-click installer is ready | |
+| Python | 3.11.4 or newer (python.org) — until the one-click installer is ready | |
 
 Joe will offer to install Ollama, ComfyUI and FFmpeg for you. They're free programs made by
 other people, each under their own license. AI models are big downloads (2–20 GB each).
@@ -306,5 +310,5 @@ Joe is free, and he stays free. No ads, no upgrades, no donations. He's here to 
 
 ---
 
-**Ready?** Install Python 3.11+ from python.org, download Joe, and double-click `Joe.pyw`.
+**Ready?** Install Python 3.11.4+ from python.org, download Joe, and double-click `Joe.pyw`.
 The details are in the [full guide](docs/GUIDE.md).

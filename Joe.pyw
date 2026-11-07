@@ -1,8 +1,20 @@
 # Double-click this file to start Joe (01000001 01001001). No console window.
-# Needs Python 3.11+ from python.org. Crashes are written to %APPDATA%\joe-ai\crash.log
+# Needs Python 3.11.4+ from python.org. Crashes are written to %APPDATA%\joe-ai\crash.log
 # (portable Joe: JoeData\settings\crash.log on the drive).
 import os
 import sys
+
+if sys.version_info < (3, 11, 4):                # older Pythons unpack downloads less safely
+    _msg = (f"Joe needs Python 3.11.4 or newer; this computer has {sys.version.split()[0]}. "
+            "Get the newest Python from python.org, then start Joe again.")
+    try:
+        import tkinter
+        from tkinter import messagebox
+        tkinter.Tk().withdraw()
+        messagebox.showerror("Joe", _msg)
+    except Exception:
+        print(_msg)
+    sys.exit(1)
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 

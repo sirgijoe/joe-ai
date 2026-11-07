@@ -67,6 +67,42 @@ function confirmClose(yes) {
   if (confirmWaiting.length) setTimeout(() => confirmBox(...confirmWaiting.shift()), 150);
 }
 
+/* ---------------- pop-up windows (dialogs): keyboard and screen readers ----------------
+   Every .modal, whichever code opens it: focus moves into it when it appears, Tab stays inside
+   it, and focus goes back to where it was when it closes. The page behind is hidden from screen
+   readers while one is open. */
+const modalBack = new Map();
+const FOCUSABLE = 'button:not([disabled]):not([hidden]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+function modalFocusables(m) { return [...m.querySelectorAll(FOCUSABLE)].filter((el) => el.offsetParent !== null || el === document.activeElement); }
+function modalOpened(m) {
+  if (!modalBack.has(m)) modalBack.set(m, document.activeElement);
+  document.querySelectorAll("body > main, body > header, body > nav, #status").forEach((el) => el.setAttribute("aria-hidden", "true"));
+  setTimeout(() => {
+    if (m.hidden || m.contains(document.activeElement)) return;
+    const f = m.id === "confirm" ? $("#confirm-no") : modalFocusables(m)[0];   // a question starts on NO
+    if (f) f.focus();
+  }, 30);
+}
+function modalClosed(m) {
+  const back = modalBack.get(m); modalBack.delete(m);
+  if (!document.querySelector(".modal:not([hidden])"))
+    document.querySelectorAll('[aria-hidden="true"]').forEach((el) => { if (!el.closest(".modal")) el.removeAttribute("aria-hidden"); });
+  if (back && back.focus && document.contains(back)
+      && (!document.querySelector(".modal:not([hidden])") || back.closest(".modal:not([hidden])"))) back.focus();
+}
+new MutationObserver((recs) => recs.forEach((r) => {
+  const m = r.target; if (!m.classList || !m.classList.contains("modal")) return;
+  if (m.hidden) modalClosed(m); else modalOpened(m);
+})).observe(document.body, { subtree: true, attributes: true, attributeFilter: ["hidden"] });
+document.addEventListener("keydown", (ev) => {        // Tab cycles inside the open dialog
+  if (ev.key !== "Tab") return;
+  const open = [...document.querySelectorAll(".modal:not([hidden])")].pop(); if (!open) return;
+  const f = modalFocusables(open); if (!f.length) return;
+  const i = f.indexOf(document.activeElement);
+  if (ev.shiftKey && (i <= 0)) { ev.preventDefault(); f[f.length - 1].focus(); }
+  else if (!ev.shiftKey && (i === -1 || i === f.length - 1)) { ev.preventDefault(); f[0].focus(); }
+}, true);
+
 /* ---------------- state polling ---------------- */
 let state = null, fails = 0;
 function bar(done, total, width = 28) {
@@ -379,6 +415,31 @@ async function packsUse() {
 }));
 $("#pt-dest").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ptPlan(); } });
 $("#pk-for").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); packsUse(); } });
+
+/* ---------------- Setup > General > RESTORE FROM A BACKUP ---------------- */
+$("#bk-file").addEventListener("change", () => {
+  const f = $("#bk-file").files[0]; if (!f) return;
+  confirmBox(`Restore Joe's settings from ${f.name}?\n\nYour settings become the ones in the backup (where things are on this computer stays the same). Files you already have are never overwritten.`, async () => {
+    $("#bk-msg").textContent = "Restoring…";
+    try {
+      const res = await fetch("/api/restore", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": "application/zip" }, body: f });
+      const r = await res.json();
+      if (!r.ok) { $("#bk-msg").textContent = r.error; return; }
+      $("#bk-msg").textContent = `Restored: your settings and ${r.files} file(s)` + (r.renamed ? `, ${r.renamed} kept beside yours as "(restored)"` : "") + "." + (r.warning ? " " + r.warning : "");
+      toast("Settings restored"); loadSetup();
+    } catch (e) { $("#bk-msg").textContent = e.message; }
+  });
+});
+
+/* ---------------- Setup > Models > CHECK MY MODEL FILES ---------------- */
+async function modelsCheck() {
+  $("#mcheck").textContent = "Checking…";
+  try {
+    const r = await api("/api/models/check", {});
+    $("#mcheck").innerHTML = esc(r.text).replace(/\n/g, "<br>") + r.short.map((s) =>
+      `<div class="row"><button type="button" data-mfix="${esc(s.path)}" title="Move this cut-short file to the Recycle Bin, so it can be downloaded again.">[ MOVE ${esc(s.name)} TO THE RECYCLE BIN ]</button></div>`).join("");
+  } catch (e) { $("#mcheck").textContent = e.message; }
+}
 
 /* ---------------- WHAT CAN JOE DO? (built from the code: abilities.py) ---------------- */
 let abData = null;
@@ -1349,6 +1410,22 @@ document.addEventListener("click", async (ev) => {
     if (act === "wf-joes") wfJoes(b);
     if (act === "reset-page") resetPage(b);
     if (act === "reset-all") resetAll();
+    if (act === "models-check") { await modelsCheck(); return; }
+    if (act === "backup") {
+      $("#bk-msg").textContent = "Making the backup…";
+      const r = await api("/api/backup", { keys: $("#bk-keys").checked });
+      $("#bk-msg").textContent = r.ok ? `Saved ${r.path} in Output (the folder opens).${$("#bk-keys").checked ? " It has your keys in it: keep it private." : ""}` : r.error;
+      return;
+    }
+    if (act === "restore") { $("#bk-file").value = ""; $("#bk-file").click(); return; }
+    if (b.dataset.mfix) {
+      const p = b.dataset.mfix;
+      confirmBox(`Move ${p.split(/[\\/]/).pop()} to the Recycle Bin?\n\nIt's cut short, so it can't work as it is. Setup > Models then offers the download again.`, async () => {
+        const r = await api("/api/models/check", { fix: p, approved: true });
+        toast(r.ok ? "Moved to the Recycle Bin" : r.error); await modelsCheck(); loadDoctor();
+      });
+      return;
+    }
     if (act === "abilities-open") { await abilitiesOpen(); return; }
     if (act === "abilities-all") { abilityAll(); return; }
     if (act === "abilities-close") { abilitiesClose(); return; }

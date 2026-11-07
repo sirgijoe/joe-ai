@@ -70,6 +70,7 @@ class App:
         self.token = secrets.token_urlsafe(24)
         self.held_plan: dict = {}                 # a request that waits for the pictures to finish
         self.portable_job = portable_mod.Job()    # MAKE A PORTABLE JOE (one copy at a time)
+        self.short_models: set[str] = set()       # last CHECK MY MODEL FILES: files that may be moved
         self.lock = threading.RLock()
         self.logs: collections.deque[str] = collections.deque(maxlen=400)
         self.log_count = 0                   # lines logged since Joe started (never goes down)
@@ -207,6 +208,10 @@ class App:
                 warnings.append(f"Based on your {lv.capitalize()} video setting, I'd recommend the "
                                 f"{WAN_TURBO['label']} (under 1 GB) for this: several times faster. "
                                 "Install it from Setup > System check, or run as is.")
+        need = disk_need(m, self.sb)                  # room for what this plan makes?
+        room = system.room_problem(self.sb.output, need, spare=2_000_000_000)
+        if room:
+            warnings.append("Low on space: " + room[0].lower() + room[1:])
         parts = sum(j.parts for j in m.jobs if not j.media and not j.tool)
         sp = stats_mod.speeds(self.sb)                # learned on this PC; rough defaults at first
         secs = parts * sp["part"]
@@ -1261,6 +1266,27 @@ class App:
 
 
 # ---------------------------------------------------------------------------
+def disk_need(m, sb) -> int:
+    """A rough upper guess of the bytes a mission makes: text is tiny, pictures a few MB, video
+    clips tens of MB, tools about twice their input files (copies, cut-outs, frames)."""
+    need = 0
+    for j in m.jobs:
+        if j.tool:
+            for x in j.inputs or []:
+                try:
+                    need += 2 * (sb.inbox / x).stat().st_size
+                except (OSError, TypeError):
+                    continue
+            need += 50_000_000
+        elif j.type == "video":
+            need += max(1, j.parts * j.part_size) * max(1, j.variants) * 40_000_000
+        elif j.media:
+            need += max(1, j.parts * j.part_size) * max(1, j.variants) * 4_000_000
+        else:
+            need += j.parts * 200_000
+    return need
+
+
 def make_handler(app: App):
     class H(BaseHTTPRequestHandler):
         server_version = "Joe"
@@ -1493,6 +1519,23 @@ def make_handler(app: App):
                     app.settings.save()
                     app.log("Saved your voice sample (stays on this PC). Joe will use it when he talks.")
                 return self._json({"ok": not err, "error": err})
+            if u.path == "/api/restore":                # RESTORE FROM A BACKUP: the zip itself is the body
+                from . import backup
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= backup.MAX_TOTAL:
+                    return self._json({"ok": False, "error": "That file is empty or far too big for a settings backup."})
+                if app.running:
+                    return self._json({"ok": False, "error": "Can't change settings during a run."})
+                old_ws = app.settings.workspace_path
+                old_sched = (app.settings.schedule.enabled, app.settings.schedule.time)
+                try:
+                    r = backup.restore(app.settings, app.sb, self.rfile.read(n))
+                except (ValueError, OSError) as e:
+                    return self._json({"ok": False, "error": str(e)})
+                ch = app._settings_changed(old_ws, old_sched)
+                app.log(f"Restored settings from a backup made {r['made'][:16].replace('T', ' ')} "
+                        f"(Joe {r['joe']}): {r['files']} file(s)" + (f", {r['renamed']} kept as '(restored)'" if r["renamed"] else "") + ".")
+                return self._json({**r, "warning": "" if ch.get("ok") else ch.get("error", "")})
             if u.path == "/api/tools/upload":           # a file for a tool (streamed to Inbox/tools/<id>/)
                 from urllib.parse import unquote
                 from . import tools as tools_mod
@@ -1681,6 +1724,36 @@ def make_handler(app: App):
                     return self._json(app.download_all(b))
                 if u.path == "/api/doctor/fix":
                     return self._json(app.doctor_fix(b))
+                if u.path == "/api/backup":                     # BACK UP MY SETTINGS
+                    from . import backup
+                    try:
+                        f = backup.make(app.settings, app.sb, keys=bool(b.get("keys")))
+                    except OSError as e:
+                        return self._json({"ok": False, "error": str(e)})
+                    try:
+                        from .system import reveal
+                        reveal(f)
+                    except OSError:
+                        pass
+                    return self._json({"ok": True, "path": str(f.relative_to(app.sb.output)).replace("\\", "/")})
+                if u.path == "/api/models/check":               # Setup > Models > CHECK MY MODEL FILES
+                    from . import modelcheck
+                    from .doctor import comfy_models_dir
+                    if b.get("fix"):                            # move one short file to the Recycle Bin
+                        p = str(b["fix"])
+                        if not b.get("approved") or p not in app.short_models:
+                            return self._json({"ok": False, "error": "Check the files first, then say yes."})
+                        try:
+                            storage_mod.trash(Path(p))
+                        except OSError as e:
+                            return self._json({"ok": False, "error": f"Couldn't move it: {e}"})
+                        app.short_models.discard(p)
+                        app.log(f"Moved the cut-short model file {Path(p).name} to the Recycle Bin. "
+                                "Setup > Models offers it again.")
+                        return self._json({"ok": True})
+                    r = modelcheck.scan(comfy_models_dir(app.settings))
+                    app.short_models = {s["path"] for s in r["short"]}
+                    return self._json({"ok": True, **r, "text": modelcheck.plain(r)})
                 if u.path == "/api/abilities":                  # WHAT CAN JOE DO?
                     from . import abilities
                     aid = str(b.get("id", ""))

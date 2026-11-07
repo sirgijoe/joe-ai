@@ -143,9 +143,10 @@ OTHER: tuple[Ability, ...] = (
             "Joe finds, installs and updates what he needs, with your OK for every step.",
             "What it does: System check (Setup, F10) shows what Joe found on your PC and offers each missing piece with its size and license: Ollama, ComfyUI, FFmpeg, Pandoc, voice, and the best models for your graphics card.\n"
             "How Joe does it: he looks for programs where they're usually installed (and the ones you already have, like LM Studio or Automatic1111/Forge models), checks your graphics card and memory, and only downloads after you say yes. DOWNLOAD ALL in Setup > Models gets every offered model overnight. Once a week he can check for newer versions (only telling you).\n"
-            "Options: Setup > Workflows sets the model and words for each kind of picture, video and sound. RESET THIS PAGE and RESET ALL SETTINGS put things back. MAKE A HELP FILE packs up what someone helping you needs (never your files).\n"
-            "Limits: setup, downloads and update checks use the internet. Joe tells you each time.",
-            ("system check", "install", "installing", "models", "download", "updates", "settings", "setup helper", "workflows")),
+            "Options: Setup > Workflows sets the model and words for each kind of picture, video and sound. RESET THIS PAGE and RESET ALL SETTINGS put things back. MAKE A HELP FILE packs up what someone helping you needs (never your files). CHECK MY MODEL FILES (Setup > Models) finds a model whose download stopped part way, with no internet needed. BACK UP MY SETTINGS (Setup > General) saves everything you set up by hand in one zip, and RESTORE brings it back on any computer.\n"
+            "Limits: setup, downloads and update checks use the internet. Joe tells you each time. Before a big download (or a plan that makes lots of pictures or video) he checks there's room on the drive and tells you if there isn't. Updates are only installed when their checksum (and, for signed releases, the maker's signature) matches.",
+            ("system check", "install", "installing", "models", "download", "updates", "settings", "setup helper", "workflows",
+             "backup", "back up", "restore", "model check", "broken model", "disk space")),
     Ability("quality", "Setting up", "Quality vs speed",
             "Low, Medium or High for writing, pictures and video; High is the default for overnight work.",
             "What it does: one setting per kind of work trades speed for quality.\n"

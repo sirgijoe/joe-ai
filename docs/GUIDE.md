@@ -134,6 +134,32 @@ finished", phone ping all apply) and closes when done. Open Joe during the night
 has to be signed in; on a Mac or Linux it also has to be awake. Turning it off, or uninstalling Joe, removes
 the scheduler entry. Plans saved for tonight sit in `Missions\Tonight`.
 
+### Check my model files (Setup > Models)
+
+**CHECK MY MODEL FILES** makes sure every picture, video and sound model (`.safetensors`, in ComfyUI's
+models folder and any shared A1111/Forge folders) is whole. Each such file says in its first bytes how
+big it must be, so Joe can spot one whose download stopped part way without the internet and without
+changing anything. A cut-short file gets a **MOVE ... TO THE RECYCLE BIN** button; after that, Setup >
+Models offers its download again. (Writing models are checked by Ollama itself.)
+
+### Room on the drive
+
+Before a download starts, Joe compares its size with the free space (plus a spare GB so the computer
+keeps working) and stops with a plain message if it won't fit. A plan that makes lots of pictures,
+video or tool copies gets a "Low on space" warning, and the log says so at the start of a run when less
+than 2 GB is free.
+
+### Back up and restore my settings (Setup > General)
+
+**BACK UP MY SETTINGS** saves one zip in `Output\Backups`: your settings, your own writing templates,
+workflow words, color themes and screen savers (`Themes`), imported workflows (`Workflows`), project
+profiles (`Projects`) and your own starter packs (`Missions\Packs`). Keys, the connector password and
+the phone-ping topic only go in when you tick **Include keys and passwords**. Never inside: your files,
+chats, recordings or models. **RESTORE FROM A BACKUP** brings it back on any computer: settings become
+the backup's, except where things are on this computer (Joe's folder, program paths) and keys the
+backup doesn't have. Files you already have are never overwritten; a different file with the same name
+comes back as `name (restored)`.
+
 ### Portable Joe (Setup > General)
 
 **MAKE A PORTABLE JOE** copies Joe to a USB drive or any folder you pick (into a folder called
@@ -168,7 +194,7 @@ for the window (with a profile kept on the drive). Windows may still remember th
 (prefetch, the page file): portable means carried with you, not invisible. The night shift is off
 while Joe runs from a drive (it would leave a task in that computer's scheduler). Use a fast USB 3
 drive (an SSD is best) formatted as exFAT or NTFS: FAT32 can't hold files over 4 GB, which most
-models are. On a Mac or Linux the drive copy uses the computer's Python 3.11+ unless Joe came with
+models are. On a Mac or Linux the drive copy uses the computer's Python 3.11.4+ unless Joe came with
 his own.
 
 ### Keep my PC usable (Setup > General)
@@ -838,7 +864,7 @@ Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 
 ## Running it
 
-Needs Python 3.11+ (python.org) and Ollama with a model pulled (default `qwen3:14b`).
+Needs Python 3.11.4+ (python.org) and Ollama with a model pulled (default `qwen3:14b`).
 
 **Double-click `Joe.pyw`.** A window opens (Microsoft Edge in app mode, no
 tabs). Paste a mission, press **F5**. You can close the window; the run keeps going.
@@ -898,6 +924,15 @@ size, and installing programs (winget on Windows, Homebrew on Mac; on Linux Joe 
 be each system, and CI runs the suite on Windows, macOS and Ubuntu.
 
 ## Updates and getting help
+
+Release signing: every release's `SHA256SUMS.txt` (the checksum of each download) can also be signed
+with the maker's private key (`SHA256SUMS.txt.sig`, Ed25519). Joe has the public key built in
+(`SIGN_PUBLIC_KEY` in `joeai/__init__.py`) and refuses an update whose list isn't signed by it, so a
+changed release can't slip through even if both the file and its checksum were swapped. The maker sets
+it up once: `python installer/make_signing_key.py`, the private line goes into the GitHub secret
+`JOE_SIGNING_KEY` (never anywhere else), the public line into `SIGN_PUBLIC_KEY`. Until then, updates are
+checked against the checksums only.
+
 
 **CHECK FOR UPDATES** (Setup > System check) asks GitHub for the newest release; Joe also checks when he
 opens unless that's off. When Joe was installed with an installer, an update is one click: he

@@ -216,6 +216,11 @@ class Engine:
         self.live = [self._load_state(mission, j) for j in mission.jobs]
         self.services.log = self.log           # "Starting ComfyUI..." etc. land in _log.txt too
         self.log(f"=== Mission start: {mission.project or '(no project)'}, {len(mission.jobs)} task(s)")
+        from .system import free_bytes, gb
+        free = free_bytes(self.sb.output)
+        if 0 <= free < 2_000_000_000:
+            self.log(f"!! Only {gb(free)} free on the drive with Joe's folder. Pictures and video may fail "
+                     "when it runs out; F9 > Storage can free space.")
         jobs = list(zip(mission.jobs, self.live))
         text_jobs = [(j, st) for j, st in jobs if not j.media]
         media_jobs = [(j, st) for j, st in jobs if j.media]

@@ -477,6 +477,33 @@ def joe_command(sub: str, console: bool = True) -> list[str]:
     return [str(exe), "-m", "joeai", sub]
 
 
+# --------------------------------------------------------------------------- disk space
+def free_bytes(path: Path) -> int:
+    """Free space on the drive holding path (or its nearest existing parent); -1 = unknown."""
+    p = Path(path)
+    while not p.exists() and p.parent != p:
+        p = p.parent
+    try:
+        return shutil.disk_usage(p).free
+    except OSError:
+        return -1
+
+
+def gb(n: float) -> str:
+    return f"{n / 1e9:.1f} GB" if n >= 1e9 else f"{max(n, 0) / 1e6:.0f} MB"
+
+
+def room_problem(path: Path, need: int, spare: int = 1_000_000_000) -> str:
+    """'' when there's room for `need` bytes (plus a spare GB so the PC keeps working), else a plain
+    sentence saying how much is needed and free."""
+    free = free_bytes(path)
+    if free < 0 or need <= 0 or free >= need + spare:
+        return ""
+    return (f"Not enough room on the drive: this needs about {gb(need + spare)} "
+            f"(with a little left over so the computer keeps working), and {gb(free)} is free. "
+            "Free some space (F9 > Storage can help), then try again.")
+
+
 # --------------------------------------------------------------------------- choose a folder / file
 _PICK_TK = r"""
 import sys, tkinter as tk

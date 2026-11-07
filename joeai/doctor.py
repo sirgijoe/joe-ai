@@ -538,6 +538,10 @@ def _download(url: str, dest: Path, log: Log, progress: Callable[[float], None] 
     try:
         with urllib.request.urlopen(url, timeout=60) as r, open(part, "wb") as f:
             total = int(r.headers.get("Content-Length") or 0)
+            from .system import room_problem
+            room = room_problem(dest.parent, total)
+            if room:                                  # say so now, not after hours of downloading
+                raise OSError(room)
             got, last = 0, -10.0
             while chunk := r.read(1 << 20):
                 f.write(chunk)

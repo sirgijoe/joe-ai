@@ -176,6 +176,18 @@ jobs:
         run: |
           mkdir dist && find got -type f ! -name '*.txt' -exec cp {} dist/ \;
           cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - uses: actions/checkout@v4
+        with:
+          path: src
+      - name: Sign the checksum list (Joe checks it before installing an update)
+        env:
+          JOE_SIGNING_KEY: ${{ secrets.JOE_SIGNING_KEY }}
+        run: |
+          if [ -n "$JOE_SIGNING_KEY" ]; then
+            python3 src/installer/sign_release.py dist/SHA256SUMS.txt
+          else
+            echo "::warning::The JOE_SIGNING_KEY secret isn't set, so this release isn't signed."
+          fi
       - name: Publish release
         run: |
           v="${GITHUB_REF_NAME#v}"
@@ -186,7 +198,7 @@ jobs:
 
           **Linux:** download the .AppImage (x86_64 for most PCs, aarch64 for ARM), make it runnable (right-click > Properties > Allow executing, or chmod +x) and open it.
 
-          SHA256SUMS.txt lets you check any download. If a Mac or Linux file is missing, that build failed this time; the next release will try again.
+          SHA256SUMS.txt lets you check any download; SHA256SUMS.txt.sig (when there) proves the list came from Joe's maker, and Joe checks it before he installs an update. If a Mac or Linux file is missing, that build failed this time; the next release will try again.
           NOTES
           gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Joe $GITHUB_REF_NAME" \
             --notes-file notes.md \

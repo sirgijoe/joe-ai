@@ -404,10 +404,7 @@ def unpack_archive(arc: Path, dest: Path) -> None:
         members = t.getmembers() if fobj is None else None
         if members is not None:
             _safe_members([m.name for m in members])
-        try:
-            t.extractall(dest, filter="data")
-        except TypeError:                          # very old Python without filters
-            t.extractall(dest)
+        t.extractall(dest, filter="data")          # Python 3.11.4+: no links or paths outside dest
     if fobj is not None:
         fobj.close()
 
@@ -539,7 +536,7 @@ def plan(settings) -> dict:
     return {
         "program_gb": gb(prog), "python": bool(py),
         "python_note": "" if py else ("The drive copy will use the Python on each computer "
-                                      "(3.11 or newer; python.org)."),
+                                      "(3.11.4 or newer; python.org)."),
         "work": str(settings.workspace_path), "work_gb": gb(folder_size(settings.workspace_path)),
         "settings": config_path().exists(),
         "ollama_models_gb": gb(folder_size(om)) if om else 0, "ollama_models": str(om or ""),

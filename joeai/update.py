@@ -73,6 +73,11 @@ def sums_url(assets: list) -> str:
                  if str(a.get("name", "")).upper() == "SHA256SUMS.TXT"), "")
 
 
+def sig_url(assets: list) -> str:
+    return next((a.get("browser_download_url", "") for a in assets or []
+                 if str(a.get("name", "")).upper() == "SHA256SUMS.TXT.SIG"), "")
+
+
 def expected_sha(sums_text: str, name: str) -> str:
     for line in sums_text.splitlines():
         parts = line.split()
@@ -115,7 +120,7 @@ def check(force: bool = False, fetch=request_json) -> dict:
              "newer": parse_version(latest) > parse_version(__version__),
              "url": rel.get("html_url") or f"https://github.com/{REPO}/releases/latest",
              "notes": str(rel.get("body") or "")[:1500], "kind": kind,
-             "asset": pick_asset(assets, kind), "sums": sums_url(assets)}
+             "asset": pick_asset(assets, kind), "sums": sums_url(assets), "sig": sig_url(assets)}
     _CACHE.update(t=now, r=r)
     return r
 
@@ -150,13 +155,29 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
         log(f"Couldn't download the update: {e}")
         part.unlink(missing_ok=True)
         return None
-    want = ""
+    want, sums = "", b""
     if info.get("sums"):
         try:
             with opener(info["sums"], timeout=30) as r:
-                want = expected_sha(r.read().decode("utf-8", "replace"), a["name"])
+                sums = r.read()
+            want = expected_sha(sums.decode("utf-8", "replace"), a["name"])
         except OSError:
             want = ""
+    from . import SIGN_PUBLIC_KEY
+    if want and SIGN_PUBLIC_KEY:                 # signed releases: the list must be the maker's
+        from . import sign
+        sig = ""
+        if info.get("sig"):
+            try:
+                with opener(info["sig"], timeout=30) as r:
+                    sig = r.read().decode("ascii", "replace")
+            except OSError:
+                sig = ""
+        if not sig or not sign.check(sums, sig, SIGN_PUBLIC_KEY):
+            log("This release's signature is missing or doesn't match Joe's maker, so Joe won't install it. "
+                "Use the release page, or ask on GitHub.")
+            part.unlink(missing_ok=True)
+            return None
     if not want:
         log("The release has no checksum for this file, so Joe won't install it. Use the release page.")
         part.unlink(missing_ok=True)
