@@ -173,7 +173,7 @@ _WORDS = [
     ("fantasy", r"\bfantasy\b|dragons?\b|wizard|elves|\belf\b|castle"),
     ("watercolor", r"watercolou?r"),
     ("painting", r"oil painting|ink wash|gouache|impressionis\w*|renaissance|cubis\w*|"
-                 r"\bpainted\b|on canvas"),
+                 r"(?<!hand-)(?<!hand )\bpainted\b|on canvas"),     # a hand-painted sign is the subject, not the look
     ("surreal", r"surreal\w*|dreamlike"),
     ("abstract", r"\babstract\b|geometric art|color field"),
     ("comic", r"comic[- ]book|\bcomics?\b|halftone|superhero"),

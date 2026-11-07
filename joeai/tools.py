@@ -2147,6 +2147,40 @@ def tidy_cell(v: str) -> str:
     return re.sub(r"[ \t ]{2,}", " ", v.replace(" ", " ").replace("\r", "")).strip()
 
 
+def match_case(header: list[str], rows: list[list[str]]) -> list[str]:
+    """In columns of repeated short labels (Category, Color...), make the same word look the same:
+    "mugs", "Mugs" and "MUGS" all become the most common way it's written. Returns what changed."""
+    from collections import Counter
+    changed: list[str] = []
+    for c in range(len(header)):
+        vals = [r[c].strip() for r in rows if c < len(r) and r[c].strip()]
+        if len(vals) < 4 or any(re.search(r"\d", v) or len(v) > 30 for v in vals):
+            continue
+        if len({v.casefold() for v in vals}) > 0.7 * len(vals):
+            continue
+        count = Counter(vals)
+        best: dict[str, str] = {}
+        for v in vals:                                   # most common form; first seen wins a tie
+            k = v.casefold()
+            if k not in best or count[v] > count[best[k]]:
+                best[k] = v
+        n = 0
+        for r in rows:
+            if c < len(r) and r[c].strip() and best[r[c].strip().casefold()] != r[c].strip():
+                r[c] = best[r[c].strip().casefold()]
+                n += 1
+        if n:
+            changed.append(f"{header[c]}: {n} cell{'' if n == 1 else 's'}")
+    return changed
+
+
+def real_spelling_fix(find: str, rep: str) -> bool:
+    """A spelling fix, not a capital letter, a plural or a written-out short form (those aren't
+    spelling, and the model applied them to some rows but not others)."""
+    a, b = find.strip().casefold(), rep.strip().casefold()
+    return bool(a and b) and a != b and not a.startswith(b) and not b.startswith(a)
+
+
 def dedupe_rows(rows: list[list[str]]) -> tuple[list[int], list[int]]:
     """(kept, dropped) row indexes. Rows that match after ignoring case and spacing are
     duplicates; the first one stays."""
@@ -2276,6 +2310,9 @@ def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                             n += 1
                 header = [tidy_cell(h) for h in header]
                 notes.append(f"Extra spaces tidied in {n} cell{'' if n == 1 else 's'}.")
+                same = match_case(header, rows)
+                if same:
+                    notes.append("Same words written the same way (" + "; ".join(same) + ").")
             dropped: list[tuple[int, str]] = []
             if "dupes" in opts:
                 kept, gone = dedupe_rows(rows)
@@ -2304,7 +2341,8 @@ def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                         k = pos.get(f.get("row"))
                         col = next((c for c in tcols if header[c] == f.get("column")), None)
                         find, rep = str(f.get("find") or ""), str(f.get("replace") or "")
-                        if k is None or col is None or not find or find == rep or len(find) > 120:
+                        if k is None or col is None or not find or len(find) > 120 \
+                                or not real_spelling_fix(find, rep):
                             continue
                         cell = rows[k][col]
                         if find in cell and not re.search(r"\d", find):

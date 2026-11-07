@@ -472,7 +472,7 @@ class VoiceWorker:
 
 # --------------------------------------------------------------------------- documents
 def export_document(md: Path, formats: list[str], pandoc: str, log: Log, settings=None,
-                    template: str = "", cache: Path | None = None) -> list[Path]:
+                    template: str = "", cache: Path | None = None, heading: str = "") -> list[Path]:
     """Markdown -> .docx / .epub / .odt / .html with Pandoc; .pdf by printing Pandoc's HTML with
     Edge or Chrome, so no LaTeX is needed. Each copy follows a writing template (doctemplates.py):
     `template` (a task's TEMPLATE:) or Setup's default for that kind of file."""
@@ -480,6 +480,22 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
     made: list[Path] = []
     title = md.stem.replace("_", " ").replace("-", " ").title()
     cache = cache or (md.parent / ".joe-templates")
+    # Joe's documents start with "# <task name>" (`heading`). In a finished copy that line is the
+    # title, not a chapter: printed as a heading it gave books an empty first chapter page. So it
+    # becomes the title and is taken out of the copy - also when it's the only "# " heading.
+    import re as _re
+    try:
+        lines = md.read_text(encoding="utf-8", errors="replace").splitlines()
+    except OSError:
+        lines = []
+    body = None
+    first = next((i for i, ln in enumerate(lines) if ln.strip()), None)
+    if first is not None and _re.match(r"^#\s+\S", lines[first]):
+        rest = "\n".join(lines[first + 1:]).lstrip("\n")
+        top = lines[first][1:].strip()
+        if (heading and top == heading.strip()) or not _re.search(r"(?m)^#\s+\S", rest):
+            title = top or title
+            body = rest + "\n"
 
     def tpl(fmt: str) -> dict:
         template_ = dt.resolve(settings, template) if template else ""
@@ -492,10 +508,19 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
         args = ["--metadata", f"title={title}"] if t.get("show_title", True) else ["--metadata", f"pagetitle={title}"]
         if t.get("line_breaks"):
             args = ["-f", "markdown+hard_line_breaks"] + args
+        text = body if body is not None else None
         if t.get("screenplay"):
             tmp = md.with_name(md.stem + ".script.md")
             try:
-                tmp.write_text(dt.screenplay_md(md.read_text(encoding="utf-8", errors="replace")), encoding="utf-8")
+                src = text if text is not None else md.read_text(encoding="utf-8", errors="replace")
+                tmp.write_text(dt.screenplay_md(src), encoding="utf-8")
+                return [str(tmp)] + args, tmp
+            except OSError:
+                pass
+        if text is not None:
+            tmp = md.with_name(md.stem + ".export.md")
+            try:
+                tmp.write_text(text, encoding="utf-8")
                 return [str(tmp)] + args, tmp
             except OSError:
                 pass

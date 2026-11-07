@@ -92,6 +92,17 @@ REF_WORDS_EACH = 1200      # cap per Inbox reference file
 REF_FILE_TYPES = {".txt", ".md", ".csv", ".json"}
 
 
+def research_query(job) -> str:
+    """Search words for a task: what it's about, not its label ("T3 Mug care" -> "Mug care")."""
+    name = re.sub(r"^(?:[A-Z]{0,3}\d+[a-z]?|test|task)\s*[-:.)]?\s+", "", job.name or "", flags=re.I).strip()
+    text = (job.format or "").strip() or (job.part_prompts[0] if job.part_prompts else "")
+    first = re.split(r"(?<=[.!?])\s", text.strip(), maxsplit=1)[0]
+    first = re.sub(r"^(?:please\s+)?(?:write|make|create|draft|give me|explain)\s+(?:an?\s+|the\s+)?", "",
+                   first, flags=re.I)[:160]
+    words = f"{name} {first}".strip()
+    return re.sub(r"\s+", " ", words)[:200]
+
+
 @dataclass
 class PartOut:
     text: str
@@ -379,7 +390,7 @@ class Engine:
             self.log(f"  {st.note}")
             self._save_state(job, st)
             return
-        made = export_document(out, docs, pandoc, self.log, settings=self.s, template=job.template,
+        made = export_document(out, docs, pandoc, self.log, settings=self.s, template=job.template, heading=job.name,
                                cache=self.meta / "templates")
         if made:
             self.log("  Made " + ", ".join(p.name for p in made))
@@ -504,12 +515,13 @@ class Engine:
                      "(Setup > Voice & Talk > Let Joe look things up online). Writing from what the model knows.")
         else:
             from . import websearch
-            first = re.split(r"(?<=[.!?])\s", (job.format or "").strip(), maxsplit=1)[0][:160]
-            query = f"{job.name} {first}".strip()
+            query = research_query(job)
             try:
                 found = websearch.search(query, w.ollama_key, max(3, min(8, w.max_results)))
             except Exception as e:                     # noqa: BLE001 (never stop the run for it)
                 self.log(f"  lookup failed: {e}")
+            if websearch.last_error:
+                self.log(f"  Ollama web search didn't answer ({websearch.last_error}); used Wikipedia instead.")
             self.log(f"  Looked up '{query[:80]}': {len(found)} source(s)")
         cache[job.job_id] = found
         return found
@@ -754,9 +766,23 @@ class Engine:
         if recent:
             lines += ["", "Headings already written in earlier parts (do NOT repeat them):"]
             lines += [f"- {t}" for t in recent]
+        so_far = self._written_so_far(st) if part else ""
+        if so_far:                                 # a story's second chapter must know the first
+            lines += ["", "WHAT IS ALREADY WRITTEN (for continuity only: keep the same names, people, "
+                          "places, facts and style; don't repeat it, carry on from it):", so_far]
         if extra:
             lines += ["", extra]
         return "\n".join(lines)
+
+    def _written_so_far(self, st: JobState, head: int = 1500, tail: int = 2500) -> str:
+        """The start and the end of what earlier parts wrote (names come early, the thread late)."""
+        try:
+            text = self.sb.resolve(st.output).read_text(encoding="utf-8", errors="replace").strip()
+        except (OSError, SandboxError, ValueError):
+            return ""
+        if len(text) <= head + tail + 200:
+            return text
+        return text[:head].rstrip() + "\n[...]\n" + text[-tail:].lstrip()
 
     def _run_guided_part(self, job: Job, part: int, st: JobState, system: str) -> PartOut:
         best: tuple | None = None

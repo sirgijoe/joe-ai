@@ -17,6 +17,7 @@ OLLAMA_SEARCH = "https://ollama.com/api/web_search"
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 AGENT = {"User-Agent": "Joe-ai/2 (open-source desktop assistant)"}
 SNIPPET = 1200           # characters of each result shown to the model
+last_error = ""          # why the last Ollama web search failed ("" when it worked or wasn't tried)
 
 # Questions that are about the world right now, or that ask to look something up.
 _NEEDS = re.compile(
@@ -42,6 +43,8 @@ def needs_web(text: str) -> bool:
 
 def search(query: str, key: str = "", max_results: int = 5) -> list[Result]:
     """Ollama web search with a key; Wikipedia without one (or if Ollama fails)."""
+    global last_error
+    last_error = ""
     query = re.sub(r"\s+", " ", query or "").strip()[:300]
     if not query:
         return []
@@ -54,8 +57,10 @@ def search(query: str, key: str = "", max_results: int = 5) -> list[Result]:
                    for x in r.get("results", []) if x.get("url")]
             if out:
                 return out
-        except HttpError:
-            pass
+            last_error = "no results"
+        except HttpError as e:
+            last_error = ("the key was refused - check it in Setup" if re.match(r"HTTP 40[13]\b", str(e))
+                          else str(e)[:120])
     return wikipedia(query, min(max_results, 3))
 
 

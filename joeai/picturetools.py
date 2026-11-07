@@ -515,6 +515,12 @@ _CAST = ("split[ca][cb];[cb]format=gbrpf32le,grayworld,format=yuv444p[cg];[ca]fo
 # edge-keeping smoothing (bilateral: smooths flat areas, leaves edges like hair and leaves) plus a
 # sharpen. Picked on a real 1980 print: sharper trees and face than blur-only, dots still gone.
 _FIRST = "gblur=sigma=1.0"
+# Thin scratches and dust: a pixel far off from its row neighbours' median is a scratch or a speck,
+# so it takes the median's value; everything else is left exactly as it was. Only used when a photo
+# really has scratches (scratch_score), because on a clean photo it would only nibble fine lines.
+SCRATCH_FIX = ("format=gbrp,split[sa][sb];[sb]median=radius=3:radiusV=0[sm];"
+               "[sa][sm]blend=all_expr='if(gt(abs(A-B),28),B,A)'")
+SCRATCHY = 0.5           # percent of the photo that looks like scratches/dust before Joe cleans them
 _ROUND = "bilateral=sigmaS=1.5:sigmaR=0.06,cas=0.5"
 _ROUND_OLD = "gblur=sigma=0.8,cas=0.5"       # for an FFmpeg too old to have bilateral
 ROUNDS = 3
@@ -557,11 +563,13 @@ SEPIA_TONE = "hue=s=0,colorchannelmixer=rr=1:rg=0:rb=0:gr=0:gg=0.89:gb=0:br=0:bg
 
 def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0,
                          level: str = "strong", cast: bool = True, sepia: bool = False,
-                         whites: str = "") -> list[str]:
+                         whites: str = "", scratches: bool = False) -> list[str]:
     from .tools import _TURN
     parts = ([_TURN[turn]] if turn in _TURN else []) + [_FIX]
     if cast and not sepia:
         parts.append(_CAST)
+    if scratches:                                  # after the color fix, which reads the photo as it was
+        parts.append(SCRATCH_FIX)
     parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"]), _FIRST] + [_ROUND if cast else _ROUND_OLD] * ROUNDS
     if whites and not sepia:
         parts.append(whites)                       # the photo's own whites made white (white_fix)
@@ -572,6 +580,23 @@ def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, fact
     parts += ["cas=0.3", "format=rgb24"]
     return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-filter_complex", ",".join(parts),
             "-frames:v", "1", str(dest)]
+
+
+def scratch_score(ffmpeg: str, img: Path) -> float:
+    """About how much of the photo (percent) is thin scratches and dust. 0.0 when unsure."""
+    import subprocess
+    from .system import no_window_flags
+    try:
+        r = subprocess.run([ffmpeg, "-v", "info", "-noautorotate", "-i", str(img), "-filter_complex",
+                            "format=gray,split[a][b];[b]median=radius=3:radiusV=0[m];"
+                            "[a][m]blend=all_expr='if(gt(abs(A-B),28),255,0)',signalstats,"
+                            "metadata=print:key=lavfi.signalstats.YAVG", "-frames:v", "1", "-f", "null", "-"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
+                           creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return 0.0
+    m = re.findall(r"YAVG=([0-9.]+)", r.stderr or "")
+    return float(m[-1]) / 255 * 100 if m else 0.0
 
 
 def white_fix(ffmpeg: str, img: Path) -> str:
@@ -649,10 +674,13 @@ def run_true_restore(engine, job, st, files, keys):
                            if low is not None else f"  {src.name}: couldn't measure it -> {level}")
             ok, err = False, ""
             sepia = "sepia" in chosen_options(job)
+            scratchy = scratch_score(ffmpeg, src) >= SCRATCHY
+            if scratchy:
+                engine.log(f"  {src.name}: thin scratches and dust found -> cleaning them")
             for cast in (True, False):              # an older FFmpeg: skip the newer filters
                 try:
                     p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast,
-                                                            sepia),
+                                                            sepia, scratches=scratchy and cast),
                                        capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
                                        creationflags=no_window_flags())
                     ok = p.returncode == 0 and dest.exists()
@@ -666,7 +694,7 @@ def run_true_restore(engine, job, st, files, keys):
                 if wf:
                     try:
                         p2 = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, True,
-                                                                 sepia, wf),
+                                                                 sepia, wf, scratches=scratchy),
                                             capture_output=True, text=True, encoding="utf-8", errors="replace",
                                             timeout=600, creationflags=no_window_flags())
                         if p2.returncode == 0:
@@ -687,9 +715,9 @@ def run_true_restore(engine, job, st, files, keys):
                           "\nfading and color cast undone, grain smoothed, rounds of edge-keeping smoothing + sharpen"
                           + (f", {factor}x bigger" if factor else "")
                           + (", warm sepia tone put back" if "sepia" in chosen_options(job) else "")
-                          + ", mild sharpening.\nNothing was "
-                          "redrawn by AI. Scratches, tears and date stamps stay: for those, run it again "
-                          "with 'AI repair' (it can change faces).\n")
+                          + ", mild sharpening. Thin scratches and dust specks are cleaned when a photo has "
+                          "them.\nNothing was redrawn by AI. Wide scratches, tears and date stamps stay: for "
+                          "those, run it again with 'AI repair' (it can change faces).\n")
     except Stopped:
         st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)}"
         engine._save_state(job, st)
