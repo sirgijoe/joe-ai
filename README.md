@@ -6,9 +6,9 @@
 
 **Meet 01000001 01001001. Humans can't say that, so we just call him Joe.**
 
-> **Early preview.** Joe works and is tested on Windows, but the one-click installer isn't ready
+> **🧪 Beta (early preview).** Joe is free to use and works today, and it's tested on Windows, but the one-click installer isn't ready
 > yet: for now you need Python 3.11.4+ (see [What you need](#what-you-need)). Expect rough edges,
-> and please open an issue if something breaks.
+> and please [open an issue](https://github.com/sirgijoe/joe-ai/issues/new/choose) if something breaks.
 
 Joe does the grunt work on your own computer while you sleep. You hand him a list of jobs
 before bed — product descriptions, long lists, design notes, spreadsheets, pictures, short

@@ -1,0 +1,28 @@
+name: 🐞 Bug report
+description: Something in Joe isn't working right
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What did you do, what did you expect, and what happened instead?
+    validations:
+      required: true
+  - type: input
+    id: device
+    attributes:
+      label: Your PC (OS, graphics card, RAM)
+      placeholder: e.g. Windows 11, RTX 4070, 32 GB RAM
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Joe version
+      description: Shown in Joe's About or Settings
+      placeholder: e.g. 2.0.0
+  - type: textarea
+    id: extra
+    attributes:
+      label: Screenshots or anything else

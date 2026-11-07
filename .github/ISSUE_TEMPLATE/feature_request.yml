@@ -1,0 +1,15 @@
+name: 💡 Feature request
+description: An idea to make Joe better
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like Joe to do?
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: What would you use it for?
+      description: e.g. "I run an Etsy shop and want Joe to..."
