@@ -716,6 +716,19 @@ Text, Markdown, CSV, JSON, Word (.docx), web pages and PDFs work (PDFs use the v
 Python; the PDF reader is added the first time). Pictures need a vision model in Ollama;
 System check offers one that fits your graphics card.
 
+A picture plus a request for work ("restore this photo", "remove the background", "colorize it",
+"swap the sky for a sunset", "make it watercolor") goes straight to the right tool on exactly that
+file: the plan shows under Joe's answer with RUN IT and OPEN IN BUILDER. No AI guesses at the plan,
+so it can't pick the wrong file. A follow-up like "make it a new mission" right after means the same
+picture. Questions about a picture ("what's in this?") go to the vision model.
+
+Dropped on the Home screen, a file goes to Tools (F3) with every tool that can use it lit up: pick
+what Joe should do. To ask Joe about a file instead, drop it on Talk (F4).
+
+Spoken answers are kept to a few sentences; ask for detail ("explain in detail", "tell me more",
+"walk me through it") and Joe says more. Some models "think out loud" in plain text; Joe spots it,
+asks again with the thinking kept out of the answer, and remembers to do that for that model.
+
 ## Finished documents (EXPORT)
 
 `EXPORT: docx, pdf, epub` on a writing task makes finished copies next to the .md when it's

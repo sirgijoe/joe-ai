@@ -74,12 +74,13 @@ class OllamaClient:
         )
 
     def chat_stream(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-                    keep_alive: str | None = None):
-        """Yield the reply a few words at a time (for talking: Joe starts speaking sooner)."""
+                    keep_alive: str | None = None, think: bool | None = None):
+        """Yield the reply a few words at a time (for talking: Joe starts speaking sooner).
+        With think=True, a thinking model keeps its reasoning in a separate field (never yielded)."""
         import json as _json
         import urllib.request
         payload = {"model": model or self.cfg.text_model, "messages": messages, "stream": True,
-                   "think": self.cfg.think,
+                   "think": self.cfg.think if think is None else think,
                    "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(), "temperature": self.cfg.temperature}}
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens

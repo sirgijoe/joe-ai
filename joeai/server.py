@@ -71,6 +71,7 @@ class App:
         self.held_plan: dict = {}                 # a request that waits for the pictures to finish
         self.portable_job = portable_mod.Job()    # MAKE A PORTABLE JOE (one copy at a time)
         self.short_models: set[str] = set()       # last CHECK MY MODEL FILES: files that may be moved
+        self.leaky_models: set[str] = set()       # Talk models that "think out loud" (asked with think on)
         self.lock = threading.RLock()
         self.logs: collections.deque[str] = collections.deque(maxlen=400)
         self.log_count = 0                   # lines logged since Joe started (never goes down)
@@ -2051,26 +2052,52 @@ def make_handler(app: App):
                     raw, first = "", 0.0
                     try:
                         looked = not chat_mod.web_on(app) or bool(p.get("searched"))
+                        brief = chat_mod.Brief(text)     # spoken replies stay short unless asked
                         while True:
                             raw, held, asked = "", "", ""
-                            stream = app.services.ollama.chat_stream(p["msgs"], model=p["model"],
-                                                                     max_tokens=900, keep_alive="20m")
+                            thinker = p["model"] in app.leaky_models
+                            stream = app.services.ollama.chat_stream(
+                                p["msgs"], model=p["model"], max_tokens=3000 if thinker else 900,
+                                keep_alive="20m", think=True if thinker else None)
+                            leaked = False
                             for piece in stream:
                                 if not first and piece.strip():
                                     first = time.monotonic() - t0
                                 raw += piece
-                                if not looked and len(raw.lstrip()) < 8 and "\n" not in raw.strip():
-                                    held += piece                 # might be "LOOKUP: ..." - don't say it yet
-                                    continue
+                                if not thinker and len(raw) < 90 and "\n" not in raw.strip():
+                                    held += piece                 # might be "LOOKUP: ..." or the model
+                                    continue                      # thinking out loud: don't say it yet
+                                if not thinker and chat_mod.thinking_aloud(raw):
+                                    leaked = True                 # it reasons in plain text: ask again,
+                                    break                         # with its thinking kept out of the reply
                                 if not looked and chat_mod.lookup_request(raw):
                                     if "\n" in raw.strip():
                                         asked = chat_mod.lookup_request(raw)
                                         break
                                     continue
                                 if held:
-                                    send({"t": "delta", "text": held})
-                                    held = ""
-                                send({"t": "delta", "text": piece})
+                                    held, piece = "", held + piece
+                                out = brief.feed(piece)
+                                if out:
+                                    send({"t": "delta", "text": out})
+                            if leaked:
+                                try:
+                                    stream.close()
+                                except Exception:                 # noqa: BLE001
+                                    pass
+                                app.leaky_models.add(p["model"])
+                                app.log(f"Talk: {p['model']} thinks out loud; asking it again with its "
+                                        "thinking kept separate (slower first words, clean answers).")
+                                send({"t": "status", "text": "Thinking…"})
+                                res = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=3000,
+                                                               keep_alive="20m", think=True)
+                                raw, held = res.text, ""
+                                if chat_mod.thinking_aloud(raw):
+                                    raw = chat_mod.after_thinking(raw)
+                                out = brief.feed(raw)
+                                if out:
+                                    send({"t": "delta", "text": out})
+                                break
                             if not looked and not asked:
                                 asked = chat_mod.lookup_request(raw)
                             if asked and not looked:
@@ -2085,6 +2112,8 @@ def make_handler(app: App):
                                 send({"t": "delta", "text": held})
                             break
                         r = p["final"] if "final" in p else chat_mod.finish(raw, p.get("sources"))
+                        if "final" not in p and r.get("ok"):
+                            r["say"] = brief.trim(r["say"])
                         app.log(f"Talk timing: setup {t_prep:.1f}s, first words {first:.1f}s, "
                                 f"whole reply {time.monotonic() - t0:.1f}s ({p['model']})")
                     except ConnectionError:

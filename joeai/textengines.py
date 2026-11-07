@@ -223,7 +223,7 @@ class OpenAICompatClient:
                           seconds=time.monotonic() - t0)
 
     def chat_stream(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-                    keep_alive: str | None = None):
+                    keep_alive: str | None = None, think: bool | None = None):
         import urllib.request
         payload = self._payload(messages, model, max_tokens, None, True)
         req = urllib.request.Request(f"{self.base}/v1/chat/completions", data=json.dumps(payload).encode(),

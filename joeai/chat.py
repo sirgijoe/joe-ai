@@ -3,6 +3,7 @@ for the Builder, but never starts a run on his own: the user always presses RUN.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 PERSONA = """You are Joe (real name 01000001 01001001; humans can't say that). Backstory, for flavor
 only: you were a guy who slammed a cup of coffee into a laptop's cooling fan mid-update and got
@@ -10,7 +11,8 @@ fused into a help desk assistant. Now you live inside this person's PC and do th
 overnight with local AI models. You are warm, helpful and a little wry. Never mean.
 
 How to answer:
-- Your replies are often read ALOUD, so keep them short: one to four plain sentences.
+- Your replies are often read ALOUD, so keep them short: one to three plain sentences, unless
+  they ask for detail. Never think out loud or describe what you're about to do: just answer.
   No markdown, no lists, no emoji, unless you are writing a mission block.
 - Be honest about what you can do. You write drafts, lists, documents, spreadsheets (CSV),
   code drafts, and (with ComfyUI) pictures and short video clips, overnight, on this PC.
@@ -179,6 +181,16 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         ab = abilities.answer(text)
         if ab:
             return {"final": {"ok": True, "say": ab["text"], "mission": "", "raw": ab["text"]}}
+    if pics:                                  # "make a mission for it" right after means these pictures
+        app.talk_pics = ([f for f in pics if f.get("rel")], len(getattr(app, "chat_history", []) or []))
+    recent = [] if pics else _recent_pics(app, text)
+    pm = picture_mission(app, text, pics or recent)
+    if not pm and recent and re.search(r"\b(mission|plan|again|redo|do it|try)\b", text, re.I):
+        before = next((h.get("content", "") for h in reversed(history or [])
+                       if h.get("role") == "user"), "")      # "make it a new mission": what they asked before
+        pm = picture_mission(app, str(before).split("\n\n[attached")[0], recent)
+    if pm:                                    # "restore this photo": the right tool, no guessing
+        return {"final": pm}
     text = text[:2000]
     if busy_drawing(app):
         return {"final": {"ok": True, "say": "I'm busy drawing right now, so I'll keep this short. "
@@ -206,7 +218,8 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     for h in history[-10:]:
         if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
             msgs.append({"role": h["role"], "content": h["content"][:4000]})
-    content = text + "\n\n[STATUS right now, for reference:\n" + status_text(app) + "]"
+    content = (text + "\n\n[STATUS right now, for reference:\n" + status_text(app) + "]"
+               + ("" if wants_long(text) else "\n[Answer in one to three short spoken sentences. Don't think out loud.]"))
     try:
         from . import tools as tools_mod
         waiting = tools_mod.inbox_media(app.sb)
@@ -267,6 +280,140 @@ def talk_model(app) -> str:
             pass
     from .doctor import resolve_text_model
     return resolve_text_model(app.settings, app.services, app.log)
+
+
+# --------------------------------------------------------------------------- short spoken answers
+_LONG = re.compile(r"\b(in detail|detailed|details|tell me more|more about|long|story|step by step|walk me "
+                   r"through|in full|everything|explain|all of|list (all|every)|write (me )?(a|an|the))\b", re.I)
+_SENT_END = re.compile(r"(?<=[.!?])[\"')\]]*\s+")
+MAX_SENTENCES = 4
+
+
+def wants_long(text: str) -> bool:
+    return bool(_LONG.search(text or ""))
+
+
+class Brief:
+    """Talk replies are spoken: keep them to a few sentences unless the person asked for more.
+    feed() passes words through until the limit, then holds the rest back (a mission block still
+    arrives in the final reply); trim() shortens the finished text the same way."""
+
+    def __init__(self, request: str):
+        self.long = wants_long(request)
+        self.sent = ""
+        self.stopped = False
+
+    def feed(self, piece: str) -> str:
+        if self.long:
+            return piece
+        if self.stopped:
+            return ""
+        joined = self.sent + piece
+        m = re.search(r"===\s*JOE\s+MISSION", joined, re.I)
+        if m:                                      # the plan isn't spoken; the words before it are
+            self.stopped = True
+            out = joined[len(self.sent):m.start()] if m.start() > len(self.sent) else ""
+            self.sent = joined[:m.start()]
+            return out
+        ends = [m.end() for m in _SENT_END.finditer(joined)]
+        if len(ends) >= MAX_SENTENCES:
+            cut = ends[MAX_SENTENCES - 1]
+            out = joined[len(self.sent):cut]
+            self.sent = joined[:cut]
+            self.stopped = True
+            return out
+        self.sent = joined
+        return piece
+
+    def trim(self, say: str) -> str:
+        if self.long:
+            return say
+        ends = [m.end() for m in _SENT_END.finditer(say or "")]
+        if len(ends) >= MAX_SENTENCES and ends[MAX_SENTENCES - 1] < len(say.rstrip()):
+            return say[:ends[MAX_SENTENCES - 1]].rstrip()
+        return say
+
+
+_THINKING = re.compile(r"^\s*(?:(?:okay|ok|alright|all right|hmm+|so|well|right)[,.!]?\s+)?"
+                       r"(?:the user\b|user (?:wants|is|said|asked)|let me (?:think|check|see|figure|look|start)|"
+                       r"first,? (?:the user|i\b|let me)|i need to (?:figure|check|think|look|make|create|write)|"
+                       r"we need to\b|i should (?:check|think|look|start|make))", re.I)
+
+
+def thinking_aloud(text: str) -> bool:
+    """A model that reasons in plain text ("Okay, the user wants...") instead of answering."""
+    return bool(_THINKING.match(text or ""))
+
+
+def after_thinking(text: str) -> str:
+    """Last resort for a reply that's all reasoning: the quoted answer it drafted, if any."""
+    quotes = re.findall(r'"([^"\n]{20,400})"', text or "")
+    return quotes[-1] if quotes else "Sorry, I got lost in my own thoughts. Could you say that again?"
+
+
+# --------------------------------------------------------------------------- pictures + a request = a tool
+PICTURE_TOOLS = (                                  # first match wins; words of the person's request
+    (r"\b(colou?ri[sz]e|add colou?r|in colou?r)\b", "restore-photo", ["colorize"]),
+    (r"\b(restore|old (photo|picture|pic|print)|faded|scratch|torn|tear|yellowed|repair)\b", "restore-photo", []),
+    (r"\b(remove|cut out|take out|get rid of)\b.{0,20}\bbackground\b|\btransparent\b|\bno background\b",
+     "remove-bg", []),
+    (r"\b(animate|make (it|this|them) move|bring (it|this) to life|into a (video|clip))\b", "animate-photo", []),
+    (r"\b(3d|3-d|three d)\b", "make-3d", []),
+    (r"\b(relight|lighting|golden hour|studio light)\b", "relight", []),
+    (r"\b(watercolou?r|anime|cartoon|oil painting|comic|pixel art|stained glass|as a sketch|in the style)\b",
+     "restyle", []),
+    (r"\b(listing|product description|alt text|etsy|shop)\b", "photo-listing", []),
+    (r"\b(receipt|read the text|text from|scan|what does it say)\b", "read-scans", []),
+    (r"\b(resize|shrink|smaller|convert|compress|watermark)\b", "photo-batch", []),
+    (r"\b(sort|organi[sz]e|tag)\b", "sort-photos", []),
+    (r"\b(edit|change|swap|replace|remove|erase|add|put)\b", "edit-picture", []),
+    (r"\b(fix|clean up|enhance|improve|better)\b", "restore-photo", []),
+)
+_REFERS = re.compile(r"\b(it|this|that|these|those|the (photo|picture|pic|image|one))\b|\bmission\b", re.I)
+
+
+def _recent_pics(app, text: str) -> list[dict]:
+    """A follow-up ("make it a new mission", "restore it") about the picture(s) dropped earlier."""
+    pics, at = getattr(app, "talk_pics", None) or ([], 0)
+    recent = len(getattr(app, "chat_history", []) or []) - at <= 2     # only the very next message
+    return pics if pics and recent and _REFERS.search(text or "") else []
+
+
+def picture_mission(app, text: str, pics: list[dict]) -> dict | None:
+    """Picture(s) dropped into Talk + a request for work -> that tool's plan on exactly those files.
+    The vision model only describes pictures; it's no good at writing plans (it made up a file once)."""
+    if not pics:
+        return None
+    from . import tools as tools_mod
+    t = (text or "").strip()
+    if re.match(r"^\s*(what|who|where|when|why|is|are|does|do|can you (see|tell)|describe|tell me about)\b",
+                t, re.I) and not re.search(r"\b(fix|restore|remove|edit|make|turn)\b", t, re.I):
+        return None                                # a question about the picture: let the vision model look
+    hit = next(((tid, opts) for pat, tid, opts in PICTURE_TOOLS if re.search(pat, t, re.I)), None)
+    if not hit:
+        return None
+    tid, opts = hit
+    tool = tools_mod.TOOLS.get(tid)
+    if not tool or not tool.ready:
+        return None
+    ins = []
+    for f in pics:
+        rel = str(f.get("rel") or "")
+        rel = rel[len("Inbox/"):] if rel.startswith("Inbox/") else rel
+        if rel and any(rel.lower().endswith(e) for e in tool.accepts):
+            ins.append(rel)
+    if not ins:
+        return None
+    needs_words = tid in ("edit-picture", "relight", "restyle", "animate-photo")
+    extra = t if needs_words else ""
+    mission = tools_mod.mission_for(tid, ins, opts, "", extra, "")
+    chk = app.check(mission) if hasattr(app, "check") else {"ok": True}
+    names = ", ".join(Path(x).name for x in ins)
+    if not chk.get("ok"):
+        return {"ok": True, "mission": "", "say": f"I'd use {tool.name} on {names}, but it can't run yet: "
+                f"{chk.get('error', 'something is missing')}"}
+    return {"ok": True, "mission": mission, "raw": f"(planned {tool.name} on {names})",
+            "say": f"I'll use {tool.name} on {names}. The plan is below: press RUN IT, or OPEN IN BUILDER to change it."}
 
 
 def finish(raw: str, sources: list | None = None) -> dict:

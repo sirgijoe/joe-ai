@@ -2536,11 +2536,17 @@ let dragDepth = 0;
 window.addEventListener("dragenter", (ev) => { if ([...ev.dataTransfer.types].includes("Files")) { dragDepth++; $("#dropveil").hidden = false; } });
 window.addEventListener("dragleave", () => { if (--dragDepth <= 0) { dragDepth = 0; $("#dropveil").hidden = true; } });
 window.addEventListener("dragover", (ev) => ev.preventDefault());       // never let the window open the file itself
-window.addEventListener("drop", (ev) => {
+window.addEventListener("drop", async (ev) => {
   ev.preventDefault(); dragDepth = 0; $("#dropveil").hidden = true;
   const files = [...(ev.dataTransfer?.files || [])];
   if (!files.length) return;
   if (current === "tools" || (current !== "talk" && typeof toolFor === "function" && toolFor(files))) { toolsDrop(files); return; }
+  if (current === "queue" && !toolCat) { try { await loadTools(); } catch (e) {} }
+  if (current === "queue" && toolCat && toolsFor(files).length) {
+    toolOpen = null;                              // Home: a file + "what should Joe do with it?" = the Tools
+    toolsDrop(files);                             // that fit, lit up (Talk is for asking Joe about a file)
+    return;
+  }
   attachFiles(files);
 });
 $("#talk-file").addEventListener("change", (ev) => { attachFiles([...ev.target.files]); ev.target.value = ""; });
@@ -3193,7 +3199,8 @@ async function toolsDrop(files) {
     if (!fit.length) { toast("Pick a tool first, then drop the files on it."); return; }
     if (fit.length > 1) {          // e.g. a document: read it aloud or proofread it? Let them pick.
       toolPending = files; renderToolGrid(fit.map((t) => t.id));
-      toast("Which tool? Pick one of the lit-up cards: " + fit.map((t) => t.name).join(" or "));
+      toast(fit.length > 4 ? "What should Joe do with it? Pick one of the lit-up cards. (To ask Joe about it instead, drop it on Talk, F4.)"
+        : "Which tool? Pick one of the lit-up cards: " + fit.map((t) => t.name).join(" or "), 8000);
       return;
     }
     openTool(fit[0].id);
