@@ -340,13 +340,19 @@ def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m", cfg_shif
     }
 
 
-def with_hires(g: dict, scale: float = 1.5, denoise: float = 0.35, steps: int = 14) -> dict:
+def with_hires(g: dict, scale: float = 1.5, denoise: float = 0.4, steps: int = 14) -> dict:
     """Two-pass "hi-res fix" for the built-in graph: make the picture, enlarge it 1.5x, then a
-    short second pass adds real fine detail at the bigger size (Quality > High)."""
+    short second pass adds real fine detail at the bigger size (Quality > High).
+    The enlarging is done on the finished picture (decode, Lanczos, encode again), not on the
+    latent: a stretched latent at this low denoise leaves streaks and "wrinkles" all over the
+    picture (end test 2026-11-06, worst on plain SDXL base)."""
     g = copy.deepcopy(g)
     first = g["3"]["inputs"]
-    g["11"] = {"class_type": "LatentUpscaleBy", "inputs": {"samples": ["3", 0], "upscale_method": "bislerp",
-                                                           "scale_by": scale}}
+    vae = g["8"]["inputs"]["vae"]
+    g["13"] = {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": vae}}
+    g["14"] = {"class_type": "ImageScaleBy", "inputs": {"image": ["13", 0], "upscale_method": "lanczos",
+                                                        "scale_by": scale}}
+    g["11"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["14", 0], "vae": vae}}
     g["12"] = {"class_type": "KSampler", "inputs": {
         "seed": first["seed"], "steps": steps, "cfg": first["cfg"], "sampler_name": first["sampler_name"],
         "scheduler": first["scheduler"], "denoise": denoise, "model": first["model"],

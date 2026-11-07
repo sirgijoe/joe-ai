@@ -52,6 +52,9 @@ def test_hires_second_pass():
     assert g["8"]["inputs"]["samples"] == ["12", 0]
     assert g["12"]["inputs"]["latent_image"] == ["11", 0] and g["12"]["inputs"]["denoise"] < 0.5
     assert g["12"]["inputs"]["model"] == g["3"]["inputs"]["model"]
+    # enlarged as a picture (no LatentUpscale: that left streaks at this denoise)
+    assert g["11"]["class_type"] == "VAEEncode" and g["14"]["inputs"]["upscale_method"] == "lanczos"
+    assert not any(n["class_type"].startswith("LatentUpscale") for n in g.values())
 
 
 @needs_ff
