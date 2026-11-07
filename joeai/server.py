@@ -225,7 +225,7 @@ class App:
             if problem:
                 return {"ok": False, "error": problem}
             info = tools_mod.plan_info(self.sb, j, sp)
-            if not info["files"] and tools_mod.TOOLS[j.type].accepts:
+            if not info["files"] and tools_mod.TOOLS[j.type].accepts and j.type not in tools_mod.NO_INPUT_OK:
                 return {"ok": False, "error": f"Task '{j.name}': no files to work on yet. Add them "
                         "on the Tools tab (F3), or put them in Joe's Inbox folder."
                         + (f" ({info['problems'][0]})" if info["problems"] else "")}

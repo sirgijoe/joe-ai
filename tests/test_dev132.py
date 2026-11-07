@@ -103,3 +103,13 @@ def test_hand_painted_sign_is_not_a_painting_look():
     assert styles.pick(job).id != "painting"
     job2 = SimpleNamespace(name="Harbor", format="A harbor at dusk, painted in oils", rules="", style="", look="")
     assert styles.pick(job2).id == "painting"
+
+
+def test_illusion_art_without_a_picture_can_be_queued(tmp_path, monkeypatch):
+    from joeai import tools as tools_mod
+    monkeypatch.setattr(tools_mod, "needs_problem", lambda *a, **k: "")
+    import tests.test_dev120 as t120
+    gen = t120.app.__wrapped__(tmp_path, monkeypatch)
+    app = next(gen)
+    chk = app.check("TASK: Spiral  TYPE: illusion-art\nOPTIONS: hidden spiral\nFORMAT: a village")
+    assert chk["ok"], chk
