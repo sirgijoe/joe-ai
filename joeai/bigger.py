@@ -23,7 +23,7 @@ My PC: {pc}"""
 def extra_keys() -> str:
     from .styles import NAMES
     return f"""Extra keys Joe understands (use them only when needed):
-- SAVE: a file name, only for spreadsheets (must end in .csv) or when I ask for a name
+- SAVE: a file name, only for spreadsheets (must end in .csv)
 - TYPE: text (default) | code | image | video | or a tool name from the list above
 - STYLE: one of: {", ".join(NAMES)} (bw = black and white; character = mascots and characters)
 - SIZE: 1344 x 768 (pictures)   VARIANTS: 1-4 (pictures per prompt)
@@ -163,7 +163,12 @@ def message(app, request: str = "", with_report: bool = True, mission: str = "")
             rep = (app.sb.output / "_REPORT.md").read_text(encoding="utf-8")[:6000].strip()
         except OSError:
             rep = ""
-        probs = recent_problems(app)
+        # A clean last run (everything finished) has nothing to fix: leave it and the old log lines out,
+        # so a new request isn't padded with unrelated task names or a "change the plan" nudge.
+        if not mission.strip() and "- Nothing. All tasks finished." in rep:
+            rep, probs = "", []
+        else:
+            probs = recent_problems(app)
         if rep:
             parts.append("--- JOE'S LAST REPORT ---\n" + rep)
         if probs:

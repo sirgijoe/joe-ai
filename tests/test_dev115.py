@@ -384,3 +384,16 @@ def test_quality_offer_only_when_settings_disagree():
 def test_offer_button_setting_saves(app):
     assert app.save_settings({"quality": {"pictures": "low"}})["ok"]
     assert app.settings.quality.pictures == "low"
+
+
+def test_bigger_message_leaves_out_a_clean_last_report(app):
+    """A finished, problem-free last run isn't sent with a new request (noise + old task names)."""
+    (app.sb.output / "_REPORT.md").write_text("# Joe report\n| B1 Cut out mugs | done |\n\n## What's left\n\n"
+                                              "- Nothing. All tasks finished.\n", encoding="utf-8")
+    (app.sb.output / "_log.txt").write_text("old run: 'Mascot' failed\n", encoding="utf-8")
+    msg = bigger.message(app, "a picture of a raccoon", with_report=True)
+    assert "JOE'S LAST REPORT" not in msg and "Cut out mugs" not in msg and "If something above failed" not in msg
+    fixing = bigger.message(app, "fix it", with_report=True, mission="=== JOE MISSION ===\nTASK: x\n=== END ===")
+    assert "JOE'S LAST REPORT" in fixing                       # fixing a plan still gets the context
+    (app.sb.output / "_REPORT.md").write_text("# Joe report\n## What's left\n\n- B2 Mascot: failed\n", encoding="utf-8")
+    assert "JOE'S LAST REPORT" in bigger.message(app, "try again", with_report=True)
