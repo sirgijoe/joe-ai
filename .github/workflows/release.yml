@@ -21,7 +21,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Version
         id: v
@@ -92,7 +92,7 @@ jobs:
           Start-Sleep 5
           if (Test-Path "$dir\joeai") { throw "uninstall left program files" }
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: joe-windows
           path: dist/*
@@ -108,7 +108,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Version
         id: v
         run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
@@ -127,7 +127,7 @@ jobs:
           python3 installer/smoke_test.py mac-app -- "$RUNNER_TEMP/Joe.app/Contents/MacOS/Joe"
           # Joe never writes inside his own app (that would break the signature)
           codesign --verify --deep --strict "$RUNNER_TEMP/Joe.app"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: joe-mac-${{ matrix.arch }}
           path: dist/*.dmg
@@ -143,7 +143,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Version
         id: v
         run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
@@ -155,7 +155,7 @@ jobs:
         run: |
           img=$(ls dist/Joe-*-linux-*.AppImage)
           APPIMAGE_EXTRACT_AND_RUN=1 python3 installer/smoke_test.py linux-appimage -- "$img"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         with:
           name: joe-linux-${{ matrix.arch }}
           path: dist/*.AppImage
@@ -167,7 +167,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v6
         with:
           path: got
           pattern: joe-*
@@ -176,7 +176,7 @@ jobs:
         run: |
           mkdir dist && find got -type f ! -name '*.txt' -exec cp {} dist/ \;
           cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           path: src
       - name: Sign the checksum list (Joe checks it before installing an update)
