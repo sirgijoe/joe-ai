@@ -280,3 +280,11 @@ def test_custom_templates(tmp_path, monkeypatch):
     assert dt.delete_custom(s, "my-church-bulletin")["ok"]
     assert dt.default_for(s, "pdf") == "standard"
     assert not dt.delete_custom(s, "book")["ok"]
+
+
+def test_restart_bar_really_hides():
+    """.readybar sets display:flex, which beats [hidden] unless a [hidden] rule says otherwise
+    (the RESTART JOE bar showed up empty)."""
+    from pathlib import Path
+    css = (Path(__file__).parents[1] / "joeai" / "ui" / "app.css").read_text(encoding="utf-8")
+    assert ".readybar[hidden] { display: none; }" in css
