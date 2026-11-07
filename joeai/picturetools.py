@@ -519,7 +519,9 @@ _ROUND = "bilateral=sigmaS=1.5:sigmaR=0.06,cas=0.5"
 _ROUND_OLD = "gblur=sigma=0.8,cas=0.5"       # for an FFmpeg too old to have bilateral
 ROUNDS = 3
 TRUE_LEVELS = {   # contrast and color, applied ONCE (rounds repeat only blur + sharpen)
-    "strong": "curves=preset=increase_contrast,eq=gamma=0.97:saturation=1.3",   # faded prints
+    # faded prints: deep blacks back, gentle color (a strong color boost turned the grass yellow on a
+    # real 1980 print; this was tuned on it, side by side with the old strong and medium)
+    "strong": "eq=contrast=1.25:brightness=-0.03:gamma=0.95:saturation=1.15",
     "medium": "eq=contrast=1.12:gamma=0.97:saturation=1.15",
     "light": "eq=contrast=1.04:saturation=1.05",                                # still has its blacks
 }
@@ -554,12 +556,15 @@ SEPIA_TONE = "hue=s=0,colorchannelmixer=rr=1:rg=0:rb=0:gr=0:gg=0.89:gb=0:br=0:bg
 
 
 def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, factor: int = 0,
-                         level: str = "strong", cast: bool = True, sepia: bool = False) -> list[str]:
+                         level: str = "strong", cast: bool = True, sepia: bool = False,
+                         whites: str = "") -> list[str]:
     from .tools import _TURN
     parts = ([_TURN[turn]] if turn in _TURN else []) + [_FIX]
     if cast and not sepia:
         parts.append(_CAST)
     parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"]), _FIRST] + [_ROUND if cast else _ROUND_OLD] * ROUNDS
+    if whites and not sepia:
+        parts.append(whites)                       # the photo's own whites made white (white_fix)
     if sepia:
         parts.append(SEPIA_TONE)
     if factor:
@@ -567,6 +572,37 @@ def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, fact
     parts += ["cas=0.3", "format=rgb24"]
     return [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-filter_complex", ",".join(parts),
             "-frames:v", "1", str(dest)]
+
+
+def white_fix(ffmpeg: str, img: Path) -> str:
+    """Use the photo's own whites as the guide: the brightest nearly-colorless parts (sky, a white
+    shirt, the print's border) should come out white, not minty or yellow. Returns a colorbalance
+    filter that moves only the highlights there (grass and faces are barely touched), or '' when
+    the photo has no such whites or they're already white."""
+    import subprocess
+    from .system import no_window_flags
+    try:
+        r = subprocess.run([ffmpeg, "-v", "error", "-i", str(img), "-vf", "scale=128:128:flags=area,format=rgb24",
+                            "-f", "rawvideo", "-"], capture_output=True, timeout=120, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    d = r.stdout or b""
+    px = [(d[i], d[i + 1], d[i + 2]) for i in range(0, len(d) - 2, 3)]
+    if len(px) < 1000:
+        return ""
+    px.sort(key=lambda p: p[0] * 0.3 + p[1] * 0.59 + p[2] * 0.11, reverse=True)
+    top = [p for p in px[:len(px) // 10] if max(p) >= 170 and max(p) < 254 and (max(p) - min(p)) / max(p) < 0.12]
+    if len(top) < len(px) // 100:                  # under 1% of the photo: no real whites to go by
+        return ""
+    m = [sum(p[i] for p in top) / len(top) for i in range(3)]
+    t = sum(m) / 3
+    if max(abs(t - c) for c in m) < 3:
+        return ""
+    # colorbalance's highlight sliders move bright parts by about 200 levels per 1.0 (measured)
+    rh, gh, bh = (max(-0.1, min(0.1, (t - c) / 200)) for c in m)
+    # green only a little: pulling green out of the highlights turns sunlit grass and leaves purple
+    gh = max(-0.015, min(0.015, gh / 2))
+    return f"colorbalance=rh={rh:.3f}:gh={gh:.3f}:bh={bh:.3f}"
 
 
 def restore_is_true(job) -> bool:
@@ -625,6 +661,18 @@ def run_true_restore(engine, job, st, files, keys):
                     ok, err = False, str(e)
                 if ok:
                     break
+            if ok and cast and not sepia:                # second look: are the whites white?
+                wf = white_fix(ffmpeg, dest)
+                if wf:
+                    try:
+                        p2 = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, True,
+                                                                 sepia, wf),
+                                            capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                            timeout=600, creationflags=no_window_flags())
+                        if p2.returncode == 0:
+                            engine.log(f"  {src.name}: whites balanced against the photo's own white parts")
+                    except (OSError, subprocess.SubprocessError):
+                        pass
             if not ok:
                 failed.append(f"{src.name}: {err or 'FFmpeg failed'}")
                 engine.log(f"  {src.name}: {err or 'FFmpeg failed'}")

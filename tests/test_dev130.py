@@ -68,3 +68,28 @@ def test_follow_up_mission_reuses_what_was_asked(monkeypatch):
     monkeypatch.setattr(chat, "busy_drawing", lambda a: False)
     p = chat.prepare(app, hist, "lets make it a new mission")
     assert "TYPE: restore-photo" in p["final"]["mission"] and "dropped/a.jpg" in p["final"]["mission"]
+
+
+def test_true_restore_whites_guide(tmp_path):
+    """Faded color print: the brightest near-colorless parts steer the highlights to white,
+    green only a little (so grass doesn't turn purple)."""
+    import shutil
+    import subprocess
+    import pytest
+    from joeai import picturetools as pt
+    ff = shutil.which("ffmpeg")
+    if not ff:
+        pytest.skip("no FFmpeg")
+    img = tmp_path / "warm.png"          # a warm-white (yellowed) picture: sky-like bright area
+    subprocess.run([ff, "-v", "error", "-f", "lavfi", "-i", "color=c=0xF0EBDC:s=160x160", "-frames:v", "1",
+                    str(img)], check=True)
+    fix = pt.white_fix(ff, img)
+    assert fix.startswith("colorbalance=") and "bh=0.05" in fix and "rh=-" in fix
+    gh = float(fix.split("gh=")[1].split(":")[0])
+    assert abs(gh) <= 0.015
+    neutral = tmp_path / "white.png"
+    subprocess.run([ff, "-v", "error", "-f", "lavfi", "-i", "color=c=0xEEEEEE:s=160x160", "-frames:v", "1",
+                    str(neutral)], check=True)
+    assert pt.white_fix(ff, neutral) == ""
+    cmd = pt.true_restore_command(ff, img, tmp_path / "o.png", 1, 0, "strong", True, False, fix)
+    assert fix in ",".join(cmd)
