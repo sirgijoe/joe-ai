@@ -23,4 +23,6 @@ Joe is in beta: please [open an issue](https://github.com/sirgijoe/joe-ai/issues
 if something breaks. Setup and model downloads need the internet; see the README for exactly
 when Joe goes online.
 
+[Code signing policy](https://github.com/sirgijoe/joe-ai/blob/main/CODE_SIGNING.md)
+
 ## Installing

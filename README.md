@@ -318,7 +318,7 @@ SmartScreen "couldn't be reached". That's Windows, not Joe: choose **Run anyway*
 
 **Updates:** each release lists a SHA-256 checksum for every file, and releases are signed with
 Joe's own key, so Joe refuses an update that was changed or didn't come from this project.
-[SECURITY_REVIEW.md](SECURITY_REVIEW.md) lists what an outside reviewer should check.
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md) lists what an outside reviewer should check. How releases are signed, and by whom: [Code signing policy](CODE_SIGNING.md).
 
 ## How a night with Joe goes
 
