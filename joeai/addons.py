@@ -277,7 +277,7 @@ def install_log(log: Log) -> Log:
 def _run(cmd: list[str], log: Log, timeout: int = 3600, cwd: str | None = None) -> bool:
     log("  > " + " ".join(Path(cmd[0]).name if i == 0 else c for i, c in enumerate(cmd))[:160])
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=NO_WINDOW,
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, creationflags=NO_WINDOW,
                            cwd=cwd)
     except (OSError, subprocess.SubprocessError) as e:
         log(f"  failed to run: {e}")
@@ -322,6 +322,8 @@ def _download(url: str, dest: Path, log: Log, progress=None) -> bool:
                     if pct - last >= 25:
                         log(f"  {dest.name}: {pct:.0f}%")
                         last = pct
+            if total and got != total:          # the connection dropped: never keep a cut-short file
+                raise OSError(f"the download stopped early ({got // 1_000_000} of {total // 1_000_000} MB); try again")
         part.replace(dest)
         return True
     except OSError as e:
@@ -476,10 +478,10 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
     cache = cache or (md.parent / ".joe-templates")
 
     def tpl(fmt: str) -> dict:
-        template_ = dt.ALIASES.get(template, template)
-        tid = template_ if template_ in dt.TEMPLATES and dt.TEMPLATES[template_]["for"] == "doc" else \
+        template_ = dt.resolve(settings, template) if template else ""
+        tid = template_ if template_ and dt.exists(settings, template_, "doc") else \
             (dt.default_for(settings, fmt) if settings is not None else dt.DEFAULTS.get(fmt, "standard"))
-        return dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
+        return dt.get(settings, tid)
 
     def source(t: dict) -> tuple[list[str], Path | None]:
         """Pandoc's input: the .md itself, or a screenplay-marked copy; plus title / line-break options."""
@@ -560,10 +562,10 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             if not src:
                 log("  xlsx: only a spreadsheet (.csv) result can become an .xlsx.")
                 continue
-            template_ = dt.ALIASES.get(template, template)
-            tid = template_ if template_ in dt.TEMPLATES and dt.TEMPLATES[template_]["for"] == "sheet" else \
+            template_ = dt.resolve(settings, template) if template else ""
+            tid = template_ if template_ and dt.exists(settings, template_, "sheet") else \
                 (dt.default_for(settings, "xlsx") if settings is not None else "sheet")
-            t = dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
+            t = dt.get(settings, tid)
             try:
                 made.append(dt.csv_to_xlsx(src, t))
             except OSError as e:
@@ -579,7 +581,7 @@ _PANDOC_INFO: dict = {}
 def _pandoc_version(pandoc: str) -> tuple[int, ...]:
     if pandoc not in _PANDOC_INFO:
         try:
-            p = subprocess.run([pandoc, "--version"], capture_output=True, text=True, timeout=30,
+            p = subprocess.run([pandoc, "--version"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
                                creationflags=NO_WINDOW)
             m = re.search(r"pandoc\S*\s+(\d+(?:\.\d+)*)", p.stdout or "")
             _PANDOC_INFO[pandoc] = tuple(int(x) for x in m.group(1).split(".")) if m else (0,)

@@ -49,6 +49,8 @@ def save_drop(sb, name: str, data: bytes) -> Path:
 
 def _docx_text(p: Path) -> str:
     with zipfile.ZipFile(p) as z:
+        if z.getinfo("word/document.xml").file_size > 200_000_000:     # a "zip bomb": far too big to be real
+            raise ValueError("this Word file's text is far too big to read")
         xml = z.read("word/document.xml").decode("utf-8", "replace")
     xml = re.sub(r"</w:p>", "\n", xml)
     xml = re.sub(r"<w:tab/>", "\t", xml)

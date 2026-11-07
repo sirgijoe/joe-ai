@@ -246,8 +246,15 @@ def run(engine, mission, job, st):
     engine.log(f"Starting '{job.name}': {len(files)} video(s), up to {count} shorts each, "
                f"{int(min_s)}-{int(max_s)} s, crop {crop} -> {st.output}")
     failed: list[str] = []
-    posts: list[dict] = []
-    listing: list[str] = [f"# Shorts: {job.name}", ""]
+    import json
+    from .picturetools import unique_stems
+    keep = folder / ".shorts-done.json"         # what earlier (stopped) runs already made, for shorts.md
+    try:
+        done = json.loads(keep.read_text(encoding="utf-8"))
+        posts, listing = list(done["posts"]), list(done["listing"])
+    except (OSError, ValueError, KeyError, TypeError):
+        posts, listing = [], [f"# Shorts: {job.name}", ""]
+    bases = [it["stem"] for it in unique_stems([{"stem": slug(f.stem)} for f in files])]
     try:
         for vi, src in enumerate(files):
             key = _key(engine, src)
@@ -256,7 +263,7 @@ def run(engine, mission, job, st):
             if engine.stop.is_set():
                 raise Stopped()
             engine._progress(f"{job.name}: {vi + 1}/{len(files)} {src.name}: listening")
-            wav = _to_wav(ff, src, work / (slug(src.stem) + ".wav"), engine.log)
+            wav = _to_wav(ff, src, work / (bases[vi] + ".wav"), engine.log)
             if not wav:
                 failed.append(f"{src.name}: couldn't read the sound")
                 continue
@@ -309,7 +316,7 @@ def run(engine, mission, job, st):
             if crop == "face" and size[0] * 16 > size[1] * 9:
                 frames = []
                 for n, c in enumerate(chosen):
-                    fr = work / f"{slug(src.stem)}-mid-{n}.jpg"
+                    fr = work / f"{bases[vi]}-mid-{n}.jpg"
                     if media._run([ff, "-y", "-ss", f"{(c['start'] + c['end']) / 2:.2f}", "-i", str(src),
                                    "-frames:v", "1", "-q:v", "3", str(fr)]) and fr.exists():
                         frames.append((n, fr))
@@ -325,7 +332,7 @@ def run(engine, mission, job, st):
                         except OSError:
                             pass
             # 4. cut each clip
-            base = slug(src.stem) or f"video-{vi + 1}"
+            base = bases[vi]
             listing += [f"## {src.name}", ""]
             for n, c in enumerate(chosen, 1):
                 if engine.stop.is_set():
@@ -363,6 +370,10 @@ def run(engine, mission, job, st):
                                ok=True, seconds=round(c["end"] - c["start"], 1))
             st.titles.append(key)
             engine._save_state(job, st)
+            try:
+                atomic_write_text(keep, json.dumps({"posts": posts, "listing": listing}))
+            except OSError:
+                pass
     except Stopped:
         st.status, st.note = "stopped", f"stopped after {len(st.titles)} of {len(files)} video(s)"
         engine._save_state(job, st)
@@ -370,10 +381,13 @@ def run(engine, mission, job, st):
         return st
     if len(listing) > 2:
         atomic_write_text(folder / "shorts.md", "\n".join(listing).rstrip() + "\n")
-        st.media_files.append("shorts.md")
+        if "shorts.md" not in st.media_files:
+            st.media_files.append("shorts.md")
     if posts and "posts" in opts:
         for f in social.write(folder, "shorts", posts):
-            st.media_files.append(f.name)
+            if f.name not in st.media_files:
+                st.media_files.append(f.name)
+    keep.unlink(missing_ok=True)
     return _finish(engine, job, st, len(files), failed)
 
 

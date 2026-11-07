@@ -240,3 +240,43 @@ def test_pricelist_money_and_totals(tmp_path):
     assert dt.money_columns(["Item", "Retail price", "Qty"], "auto") == {1}
     assert dt.money_columns(["Item", "Retail price", "Qty"], "qty") == {2}
     assert dt.money_value("abc") is None and dt.money_value("$1,234.5") == "1234.5"
+
+
+def test_custom_templates(tmp_path, monkeypatch):
+    """Your own writing templates (Setup > Writing > Templates > ADD YOUR OWN TEMPLATE)."""
+    monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
+    from joeai import doctemplates as dt
+    from joeai.config import Settings
+    from joeai.mission import MissionError, parse
+    s = Settings()
+    assert not dt.add_custom(s, "", "book")["ok"]
+    assert not dt.add_custom(s, "Bulletin", "nope")["ok"]
+    r = dt.add_custom(s, "Church bulletin", "report", "weekly 2 pages")
+    assert r["ok"] and r["id"] == "my-church-bulletin"
+    assert not dt.add_custom(s, "church bulletin", "book")["ok"]          # same name twice
+    assert not dt.add_custom(s, "Book", "standard")["ok"]                 # clashes with Joe's
+    t = dt.get(s, "my-church-bulletin")
+    assert t["custom"] and t["for"] == "doc" and t["page"] == dt.TEMPLATES["report"]["page"]
+    assert dt.save(s, "my-church-bulletin", {"page": "a5", "size": 14, "label": "Bulletin"})["ok"]
+    t = dt.get(s, "my-church-bulletin")
+    assert t["page"] == "a5" and t["size"] == 14 and t["label"] == "Bulletin"
+    assert dt.get(s, "report")["page"] == dt.TEMPLATES["report"]["page"]  # Joe's own never changes
+    rows = {r["id"]: r for r in dt.entries(s)["rows"]}
+    assert rows["my-church-bulletin"]["custom"] and rows["my-church-bulletin"]["base"] == "report"
+    assert dt.save_defaults(s, {"pdf": "my-church-bulletin", "xlsx": "my-church-bulletin"})["ok"]
+    assert dt.default_for(s, "pdf") == "my-church-bulletin" and dt.default_for(s, "xlsx") == "sheet"
+    assert dt.resolve(s, "Church bulletin") == "my-church-bulletin"          # by its id...
+    assert dt.resolve(s, "bulletin") == "my-church-bulletin"                 # ...or its (new) name
+    assert dt.resolve(s, "newsletter") == ""
+    assert dt.resolve(s, "my-church-bulletin") == "my-church-bulletin"
+    assert dt.save(s, "my-church-bulletin", None)["ok"]                   # back to where it started
+    assert dt.get(s, "my-church-bulletin")["page"] == dt.TEMPLATES["report"]["page"]
+    s.save()
+    m = parse("TASK: News\nCHUNKS: 1 x 2\nEXPORT: pdf\nTEMPLATE: my-church-bulletin\n")
+    assert m.jobs[0].template == "my-church-bulletin"
+    import pytest
+    with pytest.raises(MissionError):
+        parse("TASK: X\nCHUNKS: 1 x 2\nTEMPLATE: nothing-like-this\n")
+    assert dt.delete_custom(s, "my-church-bulletin")["ok"]
+    assert dt.default_for(s, "pdf") == "standard"
+    assert not dt.delete_custom(s, "book")["ok"]

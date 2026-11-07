@@ -74,15 +74,19 @@ def offers(models: list, picks: dict | None = None, loras: list[str] | None = No
             continue
         seen.add(s)
         label = styles.STYLES[s].label
+        try:
+            gb = float(r.get("size_gb", 1))
+        except (TypeError, ValueError):
+            gb = 1.0
         out.append({"id": f"style-{s}", "group": "styles", "optional": True, "action": "import-models",
                     "page": r["page"], "style": s, "file": str(r.get("file") or ""),
                     "text": f"For {label} pictures: {r['name']} ("
-                            + (f"about {r['size_gb']:g} GB" if r['size_gb'] >= 1 else "a small style add-on")
+                            + (f"about {gb:g} GB" if gb >= 1 else "a small style add-on")
                             + f", {r.get('note') or 'free community model'}) "
                             + ("gives that look on top of your model. " if r.get("kind") == "lora"
                                else "draws them better than the model you have. ")
                             + "Its page has the license terms; you download it there and Joe moves it into ComfyUI.",
-                    "what": f"{r['name']} (about {r['size_gb']:g} GB)"})
+                    "what": f"{r['name']} (about {gb:g} GB)"})
     return out
 
 

@@ -78,7 +78,7 @@ def _mission_lines(mission: Mission, states: list) -> list[str]:
             bits = []
             if skipped:
                 bits.append(f"part{'s' if len(skipped) > 1 else ''} {', '.join(map(str, skipped))} "
-                            "skipped (run it again to retry just those)")
+                            "skipped (running the plan again writes the whole task again, as a new copy)")
             if missing:
                 bits.append(f"{missing} part(s) not started")
             L.append(f"- {s.name}: {s.status}" + (", " + "; ".join(bits) if bits else "")

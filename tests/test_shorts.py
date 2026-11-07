@@ -65,7 +65,7 @@ def test_social_files(tmp_path):
     assert "Big news! Our mugs are back. #pottery" in csv_text and "X, Bluesky" in csv_text
     data = json.loads(made[1].read_text(encoding="utf-8"))
     assert len(data["posts"]) == 2 and "**" not in data["posts"][0]["text"]
-    assert 'postiz posts:create -c "Big news!' in made[2].read_text(encoding="utf-8")
+    assert "postiz posts:create -c 'Big news!" in made[2].read_text(encoding="utf-8")
     c = tmp_path / "p.csv"
     c.write_text("Name,Caption\nMug,Fresh mugs today\n", encoding="utf-8")
     assert social.posts_from_csv(c.read_text())[0]["text"] == "Fresh mugs today"

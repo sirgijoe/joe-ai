@@ -392,7 +392,7 @@ def test_fit_size_and_spots():
     assert tools.fit_size(3000, 4000, None) == (3000, 4000)
     assert tools._spot("top-left", "tw", "th", "9") == ("9", "9")
     assert tools._spot("center", "w", "h", "9") == ("(W-w)/2", "(H-h)/2")
-    assert tools._ff_path("C:\\Fonts\\a'b.ttf") == "'C\\:/Fonts/a\\'b.ttf'"
+    assert tools._ff_path("C:\\Fonts\\a'b.ttf") == "'C\\:/Fonts/a'\\\\\\''b.ttf'"
 
 
 def test_photo_summary(app, monkeypatch):

@@ -204,12 +204,18 @@ def frames_to_mp4(ffmpeg: str, frames: list[Path], dest: Path, fps: int = 16) ->
 def size_of(ffmpeg: str, p: Path) -> tuple[int, int] | None:
     import re as _re
     try:
-        r = subprocess.run([ffmpeg, "-hide_banner", "-i", str(p)], capture_output=True, text=True, timeout=60,
+        r = subprocess.run([ffmpeg, "-hide_banner", "-i", str(p)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
                            creationflags=_flags())
     except (OSError, subprocess.SubprocessError):
         return None
     m = _re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", r.stderr or "")
-    return (int(m.group(1)), int(m.group(2))) if m else None
+    if not m:
+        return None
+    w, h = int(m.group(1)), int(m.group(2))
+    rot = _re.search(r"(?:rotation of|rotate\s*:)\s*(-?\d+)", r.stderr or "")
+    if rot and abs(int(rot.group(1))) % 180 == 90:     # phone video filmed upright: frames come out turned
+        w, h = h, w
+    return w, h
 
 
 def _flags() -> int:

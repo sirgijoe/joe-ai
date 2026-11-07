@@ -19,6 +19,13 @@ from .system import MAC, WINDOWS
 ENTRY = "joe"
 
 
+def _backup(p) -> None:
+    """Keep the app's settings as they were before Joe ever touched them (the first copy wins)."""
+    b = p.with_name(p.name + ".before-joe")
+    if not b.exists():
+        shutil.copy2(p, b)
+
+
 def _home() -> Path:
     return Path(os.environ.get("JOE_HOME_OVERRIDE") or Path.home())
 
@@ -148,7 +155,7 @@ def connect(app_id: str, entry: dict) -> dict:
     if p.suffix == ".toml":
         text = p.read_text(encoding="utf-8") if p.exists() else ""
         if p.exists():
-            shutil.copy2(p, p.with_name(p.name + ".before-joe"))
+            _backup(p)
         body = _toml_strip_joe(text)
         _write(p, (body + "\n" if body.strip() else "") + _toml_joe(entry))
         return {"ok": True, "say": f"Joe is connected to {name}. Restart it; in ChatGPT, turn on Settings > "
@@ -158,7 +165,7 @@ def connect(app_id: str, entry: dict) -> dict:
         return {"ok": False, "error": f"{name}'s settings file isn't something Joe can read safely, so he left it "
                                       f"alone. Use SHOW THE CONNECTOR LINES and paste them in by hand."}
     if p.exists():
-        shutil.copy2(p, p.with_name(p.name + ".before-joe"))
+        _backup(p)
     servers = d.get("mcpServers") if isinstance(d.get("mcpServers"), dict) else {}
     servers[ENTRY] = entry
     d["mcpServers"] = servers
@@ -169,7 +176,7 @@ def connect(app_id: str, entry: dict) -> dict:
                 od = _read(other)
                 if od is not None:
                     if other.exists():
-                        shutil.copy2(other, other.with_name(other.name + ".before-joe"))
+                        _backup(other)
                     osv = od.get("mcpServers") if isinstance(od.get("mcpServers"), dict) else {}
                     osv[ENTRY] = entry
                     od["mcpServers"] = osv
@@ -186,20 +193,20 @@ def disconnect(app_id: str) -> dict:
         text = p.read_text(encoding="utf-8") if p.exists() else ""
         if not _toml_has_joe(text):
             return {"ok": True, "say": f"Joe wasn't connected to {name}."}
-        shutil.copy2(p, p.with_name(p.name + ".before-joe"))
+        _backup(p)
         _write(p, _toml_strip_joe(text))
         return {"ok": True, "say": f"Joe is disconnected from {name}. Restart it."}
     d = _read(p)
     if not d or not isinstance(d.get("mcpServers"), dict) or ENTRY not in d["mcpServers"]:
         return {"ok": True, "say": f"Joe wasn't connected to {name}."}
-    shutil.copy2(p, p.with_name(p.name + ".before-joe"))
+    _backup(p)
     del d["mcpServers"][ENTRY]
     _write(p, json.dumps(d, indent=2))
     if app_id == "claude" and WINDOWS:
         for other in claude_windows_files():
             od = _read(other) if other != p else None
             if od and isinstance(od.get("mcpServers"), dict) and ENTRY in od["mcpServers"]:
-                shutil.copy2(other, other.with_name(other.name + ".before-joe"))
+                _backup(other)
                 del od["mcpServers"][ENTRY]
                 _write(other, json.dumps(od, indent=2))
     return {"ok": True, "say": f"Joe is disconnected from {name}. Restart {name}."}

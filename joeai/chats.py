@@ -9,6 +9,7 @@ after Setup > Voice & Talk > "Delete chats after (days)" (0 = keep them). Nothin
 from __future__ import annotations
 
 import json
+import threading
 import re
 import time
 from datetime import datetime
@@ -157,11 +158,21 @@ class Chats:
     def _path(self, cid: str) -> Path | None:
         return self.dir / f"{cid}.json" if _ID.match(cid or "") else None   # never outside the folder
 
+    _LOCK = threading.RLock()                   # Talk and a run can both write a chat at once
+
     def _write(self, d: dict) -> None:
-        self.dir.mkdir(parents=True, exist_ok=True)
-        tmp = self.dir / f"{d['id']}.json.tmp"
-        tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1), encoding="utf-8")
-        tmp.replace(self.dir / f"{d['id']}.json")
+        from .fsutil import atomic_write_text
+        with self._LOCK:
+            self.dir.mkdir(parents=True, exist_ok=True)
+            for _ in range(3):
+                try:
+                    text = json.dumps(d, ensure_ascii=False, indent=1)
+                    break
+                except RuntimeError:            # changed while being written out: try again
+                    continue
+            else:
+                return
+            atomic_write_text(self.dir / f"{d['id']}.json", text)
 
 
 def _title(text: str) -> str:

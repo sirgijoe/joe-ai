@@ -202,40 +202,98 @@ ALIASES = {"novel": "book", "children": "kids", "childrens-book": "kids", "pictu
 
 
 # --------------------------------------------------------------------------- settings
+# settings.templates = {"edits": {id: {field: value}},       your changes to Joe's templates
+#                       "defaults": {fmt: id},               which template each kind of file uses
+#                       "custom": {id: {"label", "about", "base", field: value...}}}   your own templates
+# Your own templates start as a copy of one of Joe's (base) and keep every field; their ids start
+# with "my-" so they never clash with a template Joe adds later.
+CUSTOM_PREFIX = "my-"
+MAX_CUSTOM = 50
+
+
 def _store(settings) -> dict:
     t = getattr(settings, "templates", None)
     return t if isinstance(t, dict) else {}
 
 
-def fields_of(tid: str) -> dict:
-    return SHEET_FIELDS if TEMPLATES.get(tid, {}).get("for") == "sheet" else DOC_FIELDS
+def _custom_raw(settings) -> dict:
+    c = _store(settings).get("custom") if settings is not None else None
+    return {k: v for k, v in (c or {}).items()
+            if isinstance(v, dict) and k.startswith(CUSTOM_PREFIX) and v.get("base") in TEMPLATES}
 
 
-def _coerce(tid: str, k: str, v):
-    kind = fields_of(tid)[k][1]
+def _base_of(tid: str, settings=None) -> dict:
+    """Joe's template a template is built on (itself for Joe's own)."""
+    if tid in TEMPLATES:
+        return TEMPLATES[tid]
+    c = _custom_raw(settings).get(tid)
+    return TEMPLATES[c["base"]] if c else TEMPLATES["standard"]
+
+
+def all_ids(settings=None) -> list[str]:
+    return list(TEMPLATES) + list(_custom_raw(settings))
+
+
+def exists(settings, tid: str, kind: str | None = None) -> bool:
+    """A template with this id (Joe's or yours); kind 'doc' | 'sheet' also checks what it's for."""
+    if tid not in TEMPLATES and tid not in _custom_raw(settings):
+        return False
+    return kind is None or _base_of(tid, settings)["for"] == kind
+
+
+def resolve(settings, name: str) -> str:
+    """A task's TEMPLATE: words -> a template id ('' when there's no such template)."""
+    t = (name or "").strip().lower().replace("'", "").replace(" ", "-")
+    t = ALIASES.get(t, t)
+    if exists(settings, t):
+        return t
+    if exists(settings, CUSTOM_PREFIX + t):
+        return CUSTOM_PREFIX + t
+    for cid, c in _custom_raw(settings).items():            # your template's name, as you typed it
+        if _slug(c.get("label", "")) == t:
+            return cid
+    return ""
+
+
+def fields_of(tid: str, settings=None) -> dict:
+    return SHEET_FIELDS if _base_of(tid, settings).get("for") == "sheet" else DOC_FIELDS
+
+
+def _coerce(tid: str, k: str, v, settings=None):
+    base = _base_of(tid, settings)
+    kind = fields_of(tid, settings)[k][1]
     if kind == "bool":
         return v in (True, "true", "on", "yes", 1, "1")
     if kind == "number":
         try:
             n = float(v)
         except (TypeError, ValueError):
-            return TEMPLATES[tid][k]
+            return base[k]
         n = max(0.0, min(n, 96.0))
         return int(n) if n == int(n) else round(n, 2)
     if kind == "page":
-        return v if v in PAGES else TEMPLATES[tid][k]
+        return v if v in PAGES else base[k]
     if kind == "align":
-        return v if v in ("left", "justify", "center") else TEMPLATES[tid][k]
+        return v if v in ("left", "justify", "center") else base[k]
     if kind == "choice":
         v = str(v)
-        return v if v in fields_of(tid)[k][3] else TEMPLATES[tid][k]
+        return v if v in fields_of(tid, settings)[k][3] else base[k]
     if k in ("header", "money", "currency"):                  # may be blank on purpose
         return " ".join(str(v or "").split())[:80]
-    return " ".join(str(v or "").split())[:200] or TEMPLATES[tid][k]
+    return " ".join(str(v or "").split())[:200] or base[k]
 
 
 def get(settings, tid: str) -> dict:
-    """A template with your edits on top of Joe's."""
+    """A template with your edits on top of Joe's (or one of your own)."""
+    custom = _custom_raw(settings)
+    if tid in custom:
+        c = custom[tid]
+        t = dict(get(settings, c["base"]))           # starts from Joe's (with your edits to it)...
+        for k in fields_of(tid, settings):
+            if k in c:
+                t[k] = _coerce(tid, k, c[k], settings)  # ...and your own template's choices on top
+        t.update(label=c.get("label") or tid, about=c.get("about") or "", id=tid, custom=True)
+        return t
     tid = tid if tid in TEMPLATES else "standard"
     t = dict(TEMPLATES[tid])
     mine = (_store(settings).get("edits") or {}).get(tid) or {}
@@ -248,24 +306,92 @@ def get(settings, tid: str) -> dict:
 
 def default_for(settings, fmt: str) -> str:
     d = (_store(settings).get("defaults") or {}).get(fmt) or DEFAULTS.get(fmt, "standard")
-    return d if d in TEMPLATES else DEFAULTS.get(fmt, "standard")
+    return d if exists(settings, d) else DEFAULTS.get(fmt, "standard")
 
 
 def entries(settings) -> dict:
     rows = []
-    for tid, base in TEMPLATES.items():
+    for tid in all_ids(settings):
         t = get(settings, tid)
-        rows.append({"id": tid, "label": base["label"], "about": base["about"], "for": base["for"],
+        custom = tid not in TEMPLATES
+        joe = get(settings, _custom_raw(settings)[tid]["base"]) if custom else TEMPLATES[tid]
+        rows.append({"id": tid, "label": t["label"], "about": t["about"], "for": t["for"], "custom": custom,
+                     "base": _custom_raw(settings)[tid]["base"] if custom else "",
                      "fields": [{"key": k, "label": f[0], "kind": f[1], "help": f[2], "value": t[k],
                                  "choices": f[3] if len(f) > 3 else None,
-                                 "joe": base[k], "changed": t[k] != base[k]}
-                                for k, f in fields_of(tid).items()]})
+                                 "joe": joe[k], "changed": t[k] != joe[k]}
+                                for k, f in fields_of(tid, settings).items()]})
     return {"rows": rows, "pages": PAGE_LABELS,
             "defaults": {f: default_for(settings, f) for f in DEFAULTS}}
 
 
+def _slug(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:40]
+
+
+def add_custom(settings, name: str, base: str, about: str = "") -> dict:
+    """A new template of your own, starting as a copy of one of Joe's (with your edits to it)."""
+    name = " ".join(str(name or "").split())[:60]
+    slug = _slug(name)
+    if not slug:
+        return {"ok": False, "error": "Give your template a name first (letters or numbers)."}
+    base = ALIASES.get(base, base)
+    if base not in TEMPLATES:
+        return {"ok": False, "error": "Pick one of Joe's templates to start from."}
+    store = dict(_store(settings))
+    custom = dict(store.get("custom") or {})
+    if len(custom) >= MAX_CUSTOM:
+        return {"ok": False, "error": f"That's {MAX_CUSTOM} templates of your own already. Delete one first."}
+    tid = CUSTOM_PREFIX + slug
+    if tid in custom or slug in TEMPLATES:
+        return {"ok": False, "error": f"There's already a template called {name}. Pick another name."}
+    start = get(settings, base)
+    entry = {"label": name, "about": " ".join(str(about or "").split())[:300] or f"Your own, based on {TEMPLATES[base]['label']}.",
+             "base": base}
+    entry.update({k: start[k] for k in fields_of(base)})
+    custom[tid] = entry
+    store["custom"] = custom
+    settings.templates = store
+    settings.save()
+    return {"ok": True, "id": tid}
+
+
+def delete_custom(settings, tid: str) -> dict:
+    store = dict(_store(settings))
+    custom = dict(store.get("custom") or {})
+    if tid not in custom:
+        return {"ok": False, "error": "Only your own templates can be deleted."}
+    custom.pop(tid)
+    store["custom"] = custom
+    store["defaults"] = {f: d for f, d in (store.get("defaults") or {}).items() if d != tid}
+    settings.templates = store
+    settings.save()
+    return {"ok": True}
+
+
 def save(settings, tid: str, values: dict | None) -> dict:
-    """values None = reset this template to Joe's."""
+    """values None = reset this template to Joe's (yours: back to the template it started from)."""
+    custom = _custom_raw(settings)
+    if tid in custom:
+        store = dict(_store(settings))
+        allc = dict(store.get("custom") or {})
+        entry = dict(allc[tid])
+        if values is None:
+            start = get(settings, entry["base"])
+            entry.update({k: start[k] for k in fields_of(tid, settings)})
+        else:
+            for k, v in values.items():
+                if k in fields_of(tid, settings):
+                    entry[k] = _coerce(tid, k, v, settings)
+                elif k == "label" and _slug(str(v)):
+                    entry["label"] = " ".join(str(v).split())[:60]
+                elif k == "about":
+                    entry["about"] = " ".join(str(v or "").split())[:300]
+        allc[tid] = entry
+        store["custom"] = allc
+        settings.templates = store
+        settings.save()
+        return {"ok": True}
     if tid not in TEMPLATES:
         return {"ok": False, "error": "Unknown template."}
     store = dict(_store(settings))
@@ -290,8 +416,7 @@ def save_defaults(settings, defaults: dict) -> dict:
     store = dict(_store(settings))
     d = {}
     for fmt, tid in (defaults or {}).items():
-        if fmt in DEFAULTS and tid in TEMPLATES and TEMPLATES[tid]["for"] == ("sheet" if fmt == "xlsx" else "doc") \
-                and tid != DEFAULTS[fmt]:
+        if fmt in DEFAULTS and exists(settings, tid, "sheet" if fmt == "xlsx" else "doc") and tid != DEFAULTS[fmt]:
             d[fmt] = tid
     store["defaults"] = d
     settings.templates = store
@@ -626,7 +751,9 @@ def reference_docx(pandoc: str, t: dict, cache: Path, log=print, title: str = ""
         return out
     cache.mkdir(parents=True, exist_ok=True)
     try:
-        p = subprocess.run([pandoc, "--print-default-data-file", "reference.docx"], capture_output=True, timeout=60)
+        from .system import no_window_flags
+        p = subprocess.run([pandoc, "--print-default-data-file", "reference.docx"], capture_output=True, timeout=60,
+                           creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError) as e:
         log(f"  Word template: couldn't ask Pandoc for its reference document ({e}).")
         return None

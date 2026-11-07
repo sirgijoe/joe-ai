@@ -54,7 +54,7 @@ function confirmBox(text, cb, noCb, careful) {
   $("#confirm-text").style.whiteSpace = "pre-wrap";
   $("#confirm").hidden = false;
   confirmCb = cb; confirmNo = noCb || null; confirmCareful = !!careful;
-  $("#confirm-yes").innerHTML = careful ? "[ YES, RESET ]" : '[ YES <span class="k">Y</span> ]';
+  $("#confirm-yes").innerHTML = careful ? (typeof careful === "string" ? careful : "[ YES, RESET ]") : '[ YES <span class="k">Y</span> ]';
   if (careful) $("#confirm-no").focus();
 }
 document.getElementById("confirm-yes").addEventListener("click", (ev) => { ev.stopPropagation(); confirmClose(true); });
@@ -63,7 +63,7 @@ function confirmClose(yes) {
   $("#confirm").hidden = true;
   const f = yes ? confirmCb : confirmNo;
   confirmCb = confirmNo = null;
-  if (f) f();
+  if (f) Promise.resolve().then(f).catch((e) => toast(e.message || String(e)));
   if (confirmWaiting.length) setTimeout(() => confirmBox(...confirmWaiting.shift()), 150);
 }
 
@@ -159,6 +159,7 @@ async function poll() {
   if (uiKey !== lastUI) {
     applyUI(state.ui, state.theme); lastUI = uiKey;
     $("#ver").textContent = "v" + state.version;
+    $("#pt-badge").hidden = !state.portable;
     $("#about-ver").textContent = `Joe v${state.version} · GPL-3.0-or-later`;
   }
 
@@ -297,6 +298,14 @@ async function doCommand(cmd, rt) {
     const r = await api("/api/park", { text: rt.idea });
     return r.ok ? r.say : r.error;
   }
+  if (cmd === "abilities" || cmd === "explain") {       // "what can you do?" / "how does X work?"
+    if (current !== "talk") {
+      await abilitiesOpen(cmd === "explain" ? rt.id : "");
+      return cmd === "explain" ? "Here's how that works. Pick anything else on the left." : "Here's everything Joe can do. Pick one for the long version.";
+    }
+    const r = cmd === "explain" ? await api("/api/abilities", { id: rt.id }) : await api("/api/abilities", {});
+    return cmd === "explain" ? `${r.title}\n\n${r.text}` : r.text;
+  }
   if (cmd === "run") {
     if (state && state.running) return "Joe is already working. Say stop to stop.";
     if (!$("#mission").value.trim()) return "There's no plan yet. Tell Joe what to make first, then say go.";
@@ -365,7 +374,45 @@ async function packsUse() {
   takePlan(r);
   $("#describe-msg").textContent = `Here's the ${packPick.name} plan. Change it, or press RUN IT.`;
 }
+["#tpl-new-name", "#tpl-new-about"].forEach((id) => $(id).addEventListener("keydown", (ev) => {
+  if (ev.key === "Enter") { ev.preventDefault(); tplAdd(); }          // not the Setup form's SAVE
+}));
+$("#pt-dest").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ptPlan(); } });
 $("#pk-for").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); packsUse(); } });
+
+/* ---------------- WHAT CAN JOE DO? (built from the code: abilities.py) ---------------- */
+let abData = null;
+let abBack = null;
+async function abilitiesOpen(id) {
+  if ($("#abilities").hidden) abBack = document.activeElement;
+  $("#abilities").hidden = false;
+  if (!abData) abData = await api("/api/abilities", {});
+  $("#ab-list").innerHTML = abData.groups.map((g) => `<h4>${esc(g.name.toUpperCase())}</h4>` +
+    g.items.map((a) => `<button type="button" data-ab="${esc(a.id)}" title="${esc(a.line)}">${esc(a.name)}</button>`).join("")).join("");
+  if (id) await abilityShow(id); else abilityAll();
+  const f = $("#ab-list .on") || $("#ab-list [data-ab]"); if (f) f.focus();
+}
+function abilitiesClose() {
+  $("#abilities").hidden = true;
+  if (abBack && abBack.focus) abBack.focus();
+}
+function abilityAll() {
+  $("#ab-list").querySelectorAll("[data-ab]").forEach((x) => x.classList.remove("on"));
+  $("#ab-text").textContent = abData ? abData.text : "";
+  $("#ab-text").scrollTop = 0;
+}
+async function abilityShow(id) {
+  const r = await api("/api/abilities", { id });
+  if (!r.ok) return;
+  $("#ab-list").querySelectorAll("[data-ab]").forEach((x) => x.classList.toggle("on", x.dataset.ab === id));
+  $("#ab-text").innerHTML = `<b>${esc(r.title)}</b>` + esc(r.text);
+  $("#ab-text").scrollTop = 0;
+  const on = $("#ab-list").querySelector(".on"); if (on) on.scrollIntoView({ block: "nearest" });
+}
+document.addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-ab]"); if (!b) return;
+  ev.stopPropagation(); abilityShow(b.dataset.ab);
+});
 
 /* ---------------- ASK A BIGGER AI: paste-ready message out, answer back in ---------------- */
 async function biggerLoad() {
@@ -854,8 +901,63 @@ async function loadThemes() {
       <button type="button" data-theme-del="${t.id}">[ DEL ]</button></div>`).join("") || '<span class="dim small">No custom themes yet.</span>';
   return r.themes;
 }
+/* ---------------- PORTABLE JOE: copy Joe to a USB drive ---------------- */
+let ptTimer = null;
+async function ptInfo() {
+  const r = await api("/api/portable", { action: "info" });
+  ptPoll().catch(() => {});                    // a copy may still be going from before
+  $("#pt-on").hidden = !r.active; $("#pt-off").hidden = !!r.active;
+  if (r.active) {
+    $("#pt-root").textContent = r.root;
+    $("#pt-where").textContent = `Writing: ${r.ollama_on_drive ? "Ollama on the drive" : "this computer's Ollama (not on the drive yet)"} · `
+      + `Pictures: ${r.comfy_on_drive ? "ComfyUI on the drive" : "this computer's ComfyUI (not on the drive yet)"} · `
+      + `${r.free_gb} GB free${r.filesystem ? " · " + r.filesystem : ""}`
+      + (r.fat32 ? " · FAT32 can't hold files over 4 GB (most models): use exFAT or NTFS." : "");
+  }
+}
+async function ptPlan() {
+  $("#pt-opts").textContent = "Looking…";
+  const p = await api("/api/portable", { action: "plan" });
+  const row = (id, label, gb, on, ok = true) => ok
+    ? `<label class="inline"><input type="checkbox" id="pt-${id}" ${on ? "checked" : ""}> ${label}${gb ? ` (${gb} GB)` : ""}</label><br>` : "";
+  $("#pt-opts").innerHTML = `Joe's program${p.python ? " and his Python" : ""}: ${p.program_gb} GB (always)<br>`
+    + (p.python_note ? `<span class="warn">${esc(p.python_note)}</span><br>` : "")
+    + row("settings", "My settings (program paths from this computer are left out)", 0, true, p.settings)
+    + row("work", "My work (Joe's folder)", p.work_gb, false)
+    + row("ollama_models", "My writing models (Ollama)", p.ollama_models_gb, false, p.ollama_models_gb > 0)
+    + row("comfy_models", "My picture and video models (ComfyUI)", p.comfy_models_gb, false, p.comfy_models_gb > 0)
+    + `<span class="dim">Models only get used once Ollama / ComfyUI are put on the drive (System check, when Joe runs from it).</span>`;
+}
+async function ptMake() {
+  const dest = $("#pt-dest").value.trim();
+  if (!dest) { $("#pt-status").textContent = "Choose the drive or folder first ([ + ])."; return; }
+  if (!$("#pt-settings") && !$("#pt-work")) await ptPlan();
+  const ck = (id) => !!($("#pt-" + id) && $("#pt-" + id).checked);
+  const opts = { settings: ck("settings"), work: ck("work"), ollama_models: ck("ollama_models"), comfy_models: ck("comfy_models") };
+  confirmBox(`Copy Joe to ${dest}?\n\nJoe makes a folder called Joe there with everything you ticked. Nothing on this computer changes, and you can run it again later to carry on.`, async () => {
+    const r = await api("/api/portable", { action: "make", approved: true, dest, ...opts });
+    if (!r.ok) { $("#pt-status").textContent = r.error; return; }
+    $("#pt-stop").hidden = false; ptPoll();
+  });
+}
+async function ptPoll() {
+  clearTimeout(ptTimer);
+  let st;
+  try { st = await api("/api/portable", { action: "status" }); }
+  catch (e) { $("#pt-status").textContent = "Lost touch with Joe: " + e.message; return; }
+  const pct = st.total ? Math.min(100, Math.round(100 * st.done / st.total)) : 0;
+  if (st.running) {
+    $("#pt-status").textContent = `${st.msg} ${pct}%`; $("#pt-stop").hidden = false;
+    ptTimer = setTimeout(ptPoll, 1500);
+    return;
+  }
+  $("#pt-stop").hidden = true;
+  $("#pt-status").textContent = st.error ? st.error
+    : st.finished ? `Done. Portable Joe is in ${st.dest}. Open that folder and double-click "Start Joe" (on a Mac: "Start Joe.command").` : "";
+}
+
 async function loadSetup() {
-  loadDoctor(); showPerms();
+  loadDoctor(); showPerms(); ptInfo().catch(() => {});
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
@@ -936,13 +1038,36 @@ async function loadTemplates() {
   };
   $("#tpl-list").innerHTML = tplData.rows.map((r) => {
     const changed = r.fields.some((f) => f.changed);
-    return `<details class="wf" data-tpl="${r.id}"><summary>${esc(r.label)} <span class="dim">· TEMPLATE: ${r.id}${changed ? " · your changes" : ""}</span></summary>
+    const from = r.custom ? `the template it started from` : `Joe's`;
+    return `<details class="wf" data-tpl="${r.id}"><summary>${esc(r.label)} <span class="dim">· TEMPLATE: ${r.id}${r.custom ? " · yours" : ""}${changed ? " · your changes" : ""}</span></summary>
       <div class="dim small">${esc(r.about)}</div>
-      ${r.fields.map((f) => `<label title="${esc(f.help || "")}${f.changed ? " (Joe's: " + esc(String(f.joe)) + ")" : ""}">${esc(f.label)}${f.changed ? " *" : ""} ${input(f)}</label>`).join("")}
+      ${r.fields.map((f) => `<label title="${esc(f.help || "")}${f.changed ? ` (${from}: ` + esc(String(f.joe)) + ")" : ""}">${esc(f.label)}${f.changed ? " *" : ""} ${input(f)}</label>`).join("")}
       <div class="row"><button type="button" data-act="tpl-edit" title="Unlock the boxes to change this template.">[ EDIT ]</button>
         <button type="button" data-act="tpl-save" class="primary" hidden>[ SAVE THIS TEMPLATE ]</button>
-        <button type="button" data-act="tpl-reset" title="Back to Joe's choices for this template. Asks first.">[ RESET THIS TEMPLATE ]</button></div></details>`;
+        <button type="button" data-act="tpl-reset" title="Back to ${from} choices for this template. Asks first.">[ RESET THIS TEMPLATE ]</button>
+        ${r.custom ? `<button type="button" data-act="tpl-delete" title="Delete this template of yours. Asks first.">[ DELETE ]</button>` : ""}</div></details>`;
   }).join("");
+  $("#tpl-new-base").innerHTML = tplData.rows.filter((r) => !r.custom).map((r) =>
+    `<option value="${r.id}">${esc(r.label)}</option>`).join("");
+}
+async function tplAdd() {
+  const name = $("#tpl-new-name").value.trim();
+  if (!name) { $("#tpl-add-msg").textContent = "Give it a name first."; return; }
+  const r = await api("/api/templates/add", { name, base: $("#tpl-new-base").value, about: $("#tpl-new-about").value });
+  if (!r.ok) { $("#tpl-add-msg").textContent = r.error; return; }
+  $("#tpl-new-name").value = ""; $("#tpl-new-about").value = "";
+  $("#tpl-add-msg").textContent = `Added. Tasks use it with TEMPLATE: ${r.id}. Press EDIT to make it yours.`;
+  await loadTemplates();
+  const box = document.querySelector(`[data-tpl="${r.id}"]`);
+  if (box) { box.open = true; box.scrollIntoView({ block: "nearest" }); }
+}
+function tplDelete(btn) {
+  const box = btn.closest("[data-tpl]");
+  confirmBox("Delete this template of yours?\n\nCopies already made don't change. Tasks that ask for it will use the usual template instead.\n\nAre you sure?", async () => {
+    const r = await api("/api/templates/delete", { id: box.dataset.tpl });
+    if (!r.ok) { toast(r.error); return; }
+    toast("Template deleted"); loadTemplates();
+  }, null, "[ YES, DELETE ]");
 }
 function tplEdit(btn) {
   const box = btn.closest("[data-tpl]");
@@ -1193,6 +1318,9 @@ document.addEventListener("click", async (ev) => {
                       : `Saved for tonight (${r.waiting} waiting). Turn the night shift on in Setup > General.`);
     }
     if (act === "mcp-show") await mcpShow();
+    if (act === "pt-plan") { await ptPlan(); return; }
+    if (act === "pt-make") { await ptMake(); return; }
+    if (act === "pt-stop") { await api("/api/portable", { action: "stop" }); return; }
     if (act === "mcp-connect" || act === "mcp-disconnect") {
       const on = act === "mcp-connect", name = b.dataset.name;
       confirmBox(on ? `Connect Joe to ${name}?\n\nJoe adds his own entry to ${name}'s settings file (a copy of the old file is kept next to it). ${name} can then see Joe's status, queue plans, make pictures, run tools on Inbox files and read results. Restart ${name} afterwards.`
@@ -1212,6 +1340,8 @@ document.addEventListener("click", async (ev) => {
     if (act === "tpl-edit") tplEdit(b);
     if (act === "tpl-save") await tplSave(b);
     if (act === "tpl-reset") tplReset(b);
+    if (act === "tpl-add") { await tplAdd(); return; }
+    if (act === "tpl-delete") { tplDelete(b); return; }
     if (act === "tpl-defaults") await tplDefaults();
     if (act === "restart-later") { restartHidden = state.restart_hint || ""; restartBar(); }
     if (act === "download-all") await downloadAll();
@@ -1219,6 +1349,10 @@ document.addEventListener("click", async (ev) => {
     if (act === "wf-joes") wfJoes(b);
     if (act === "reset-page") resetPage(b);
     if (act === "reset-all") resetAll();
+    if (act === "abilities-open") { await abilitiesOpen(); return; }
+    if (act === "abilities-all") { abilityAll(); return; }
+    if (act === "abilities-close") { abilitiesClose(); return; }
+    if (act === "tool-learn") { if (toolOpen) await abilitiesOpen("tool:" + toolOpen.id); return; }
     if (act === "packs-open") await packsOpen();
     if (act === "packs-use") await packsUse();
     if (act === "packs-close") $("#packs").hidden = true;
@@ -1393,7 +1527,11 @@ function handleKey(key) {
   return false;
 }
 document.addEventListener("keydown", (ev) => {
-  if (ev.key === "F4") { ev.preventDefault(); if (!ev.repeat && $("#welcome").hidden) f6Down(); return; }
+  if (ev.key === "F4") {                       // push-to-talk, but never behind an open dialog
+    ev.preventDefault();
+    if (!ev.repeat && !document.querySelector(".modal:not([hidden])")) f6Down();
+    return;
+  }
   if (!$("#confirm").hidden) {
     ev.preventDefault();
     if (!confirmCareful && (ev.key === "y" || ev.key === "Y" || ev.key === "Enter")) confirmClose(true);
@@ -1403,6 +1541,11 @@ document.addEventListener("keydown", (ev) => {
   if (!$("#maskbox").hidden) {
     if (/^F\d+$/.test(ev.key)) ev.preventDefault();
     if (ev.key === "Escape") { ev.preventDefault(); $("#maskbox").hidden = true; }
+    return;
+  }
+  if (!$("#abilities").hidden) {              // WHAT CAN JOE DO? is open: Esc closes it
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); abilitiesClose(); }
     return;
   }
   if (!$("#packs").hidden) {
@@ -2833,6 +2976,7 @@ function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting 
       return `<button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
       ` title="${esc(!t.ready ? "Coming soon: " + t.blurb : miss ? "Not ready yet: " + st.why + ". Open it to get what's missing." : t.blurb)}"${t.ready ? "" : " disabled"}>` +
       `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
+      (t.ready ? `<span class="tlearn" data-learn="${t.id}" role="link" title="How this tool works, what to give it, options, time and tips.">learn more</span>` : "") +
       (!t.ready ? `<span class="tsoon">Coming soon</span>` : miss ? `<span class="tsoon tneed">${esc(st.why.replace(/^needs /, "Needs "))} · GET IT</span>`
         : st ? `<span class="tsoon tok">√ Ready</span>` : "") + `</button>`; }).join("") +
     `</div></div>`).join("");
@@ -3026,6 +3170,8 @@ $("#tf-logo").addEventListener("change", async (ev) => {       // a logo .png as
 $("#tf-drop").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#tf-file").click(); } });
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("#tf-drop")) { $("#tf-file").click(); return; }
+  const lm = ev.target.closest("[data-learn]");
+  if (lm) { ev.preventDefault(); abilitiesOpen("tool:" + lm.dataset.learn); return; }
   const b = ev.target.closest("button"); if (!b) return;
   if (b.dataset.tool) {
     openTool(b.dataset.tool);

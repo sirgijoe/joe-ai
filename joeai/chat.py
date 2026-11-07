@@ -174,6 +174,11 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if to_read:                               # just read it, word for word: no model needed
         return {"final": {"ok": True, "say": speakable(to_read)[:6000], "mission": "",
                           "raw": "(read the pasted text aloud)"}}
+    if not files:                             # "what can you do?" / "how does X work?": straight from the code
+        from . import abilities
+        ab = abilities.answer(text)
+        if ab:
+            return {"final": {"ok": True, "say": ab["text"], "mission": "", "raw": ab["text"]}}
     text = text[:2000]
     if busy_drawing(app):
         return {"final": {"ok": True, "say": "I'm busy drawing right now, so I'll keep this short. "

@@ -928,7 +928,7 @@ def _to_wav(ffmpeg: str | None, src: Path, dest: Path, log) -> Path | None:
     try:
         p = subprocess.run([ffmpeg, "-y", "-v", "error", "-i", str(src), "-vn", "-ac", "1",
                             "-ar", "16000", "-c:a", "pcm_s16le", str(dest)],
-                           capture_output=True, text=True, timeout=7200,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=7200,
                            creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError) as e:
         log(f"  FFmpeg couldn't read {src.name}: {e}")
@@ -977,7 +977,6 @@ def _notes(engine: "Engine", job: "Job", st: "JobState", title: str, transcript:
 
 
 def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
-    from .addons import VoiceWorker, voice_python
     from .doctor import ffmpeg_exe
     from .engine import PartFailed, Stopped
     from .mission import slug
@@ -1000,7 +999,6 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                    "(Setup > System check installs it).")
     folder = tool_dir(engine, job, st)
     opts = chosen_options(job)
-    worker = engine.voice or VoiceWorker(engine.log)
     lang = option_value(job, "language") or "english"
     if lang not in WHISPER_CODES and lang != "auto":
         lang = "english"
@@ -1046,7 +1044,7 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 engine.log(f"  {src.name}: {r.get('error', 'transcribing failed')}")
                 continue
             segs = r.get("segments") or []
-            stem = slug(src.stem) or f"recording-{i + 1}"
+            stem = unique_stem(files, i)
             heard = code_language(r.get("language") or "") or (
                 language_name(lang) if lang != "auto" else "")
             if lang == "auto" and heard:
@@ -1259,7 +1257,7 @@ def to_mp3(ffmpeg: str, wav: Path, mp3: Path, title: str, log) -> bool:
         p = subprocess.run([ffmpeg, "-y", "-v", "error", "-i", str(wav), "-codec:a", "libmp3lame",
                             "-q:a", "4", "-metadata", f"title={title[:120]}",
                             "-metadata", "artist=Read aloud by Joe", str(mp3)],
-                           capture_output=True, text=True, timeout=3600,
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3600,
                            creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError) as e:
         log(f"  FFmpeg couldn't make the MP3: {e}")
@@ -1350,7 +1348,7 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
             engine.log(f"  {i + 1}/{len(files)} {src.name}: {words} words, about "
                        f"{how_long(words / LISTEN_WPM * 60)} of listening"
                        + (f" in {len(plan)} tracks" if len(plan) > 1 else ""))
-            stem = slug(src.stem) or f"document-{i + 1}"
+            stem = unique_stem(files, i)
             sig = hashlib.sha1(f"{raw}|{voice}|{speed}|{sorted(opts)}".encode("utf-8", "replace")).hexdigest()[:10]
             tmp = work / f"{stem}-{sig}"                 # finished pieces survive a stop
             tmp.mkdir(parents=True, exist_ok=True)
@@ -1456,6 +1454,7 @@ def proof_halves(engine, job, ci: int, system: str, wish: str, chunk: str, st) -
     paras = chunk.strip().split("\n\n")
     if len(paras) < 2:
         return None
+    from .engine import PartFailed
     mid = len(paras) // 2
     out: list[dict] = []
     for half in ("\n\n".join(paras[:mid]), "\n\n".join(paras[mid:])):
@@ -1605,7 +1604,7 @@ def changes_report(title: str, applied: list, noted: list, missed: list, copy_na
               f": {_q(c['find'])} → {_q(c['replace'])}" for i, c in enumerate(applied, 1)] or ["None needed."]
     if noted:
         lines += ["", "## Worth a look (not changed)", ""]
-        lines += [f"- " + (f"Paragraph {c['par']}: " if c["par"] else "") + _q(c["find"]) +
+        lines += ["- " + (f"Paragraph {c['par']}: " if c["par"] else "") + _q(c["find"]) +
                   (f": {c['why']}" if c["why"] else "") for c in noted]
     if missed:
         lines += ["", "## Suggestions Joe couldn't apply (check these yourself)", ""]
@@ -1617,7 +1616,6 @@ def changes_report(title: str, applied: list, noted: list, missed: list, copy_na
 def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .addons import export_document, pandoc_exe
     from .engine import PartFailed, Stopped
-    from .mission import slug
 
     if (bad := _no_files(engine, job, st, "documents to proofread")) is not None:
         return bad
@@ -1687,7 +1685,7 @@ def run_proofread(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 noted += nt
                 missed += m
                 par += len(re.findall(r"\n[ \t]*\n", chunk))
-            stem = slug(src.stem) or f"document-{i + 1}"
+            stem = unique_stem(files, i)
             ext = src.suffix.lower() if src.suffix.lower() in RAW_TEXT_EXT else ".md"
             made = []
             copy_name = ""
@@ -1769,7 +1767,7 @@ def image_size(ffmpeg: str, p: Path) -> tuple[int, int] | None:
     from .system import no_window_flags
     try:
         r = subprocess.run([ffmpeg, "-hide_banner", "-noautorotate", "-i", str(p)], capture_output=True,
-                           text=True, timeout=60, creationflags=no_window_flags())
+                           text=True, encoding="utf-8", errors="replace", timeout=60, creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError):
         return None
     m = re.search(r"Video:.*?(\d{2,5})x(\d{2,5})", r.stderr or "")
@@ -1784,10 +1782,19 @@ def fit_size(w: int, h: int, longest: int | None) -> tuple[int, int]:
     return max(1, round(w * k)), max(1, round(h * k))
 
 
+def unique_stem(files: list[Path], i: int) -> str:
+    """File i's name for its results; two 'notes.txt' (or notes.txt and notes.md) never share one."""
+    from .mission import slug
+    from .picturetools import unique_stems
+    return unique_stems([{"stem": slug(f.stem)} for f in files])[i]["stem"]
+
+
 def _ff_path(p: Path | str) -> str:
     """A path inside an FFmpeg filter: forward slashes, ':' and quotes escaped."""
-    s = str(p).replace("\\", "/").replace(":", "\\:").replace("'", "\\'")
-    return f"'{s}'"
+    s = str(p).replace("\\", "/").replace(":", "\\:")
+    # inside '...' nothing is escaped, and a filter graph is read twice: close the quote, add a
+    # twice-escaped ' (\\\'), open it again. Checked with FFmpeg on a path like O'Brien.
+    return "'" + s.replace("'", "'" + "\\\\\\'" + "'") + "'"
 
 
 def _spot(corner: str, w: str, h: str, m: str) -> tuple[str, str]:
@@ -1921,7 +1928,7 @@ def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
             out = fit_size(w, h, longest)
             cmd = photo_command(ffmpeg, src, folder / name, out, turn, fmt, text_file, logo, font, corner)
             try:
-                p = subprocess.run(cmd, capture_output=True, text=True, timeout=300,
+                p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300,
                                    creationflags=no_window_flags())
                 ok = p.returncode == 0 and (folder / name).exists()
                 err = (p.stderr or "").strip().splitlines()[-1:] if not ok else []
@@ -2030,7 +2037,7 @@ def run_translate(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 continue
             chunks = proof_chunks(text, TRANSLATE_WORDS)
             words = count_words(text)
-            stem = slug(src.stem) or f"document-{i + 1}"
+            stem = unique_stem(files, i)
             ext = src.suffix.lower() if src.suffix.lower() in RAW_TEXT_EXT else ".md"
             for lang in todo:
                 if engine.stop.is_set():
@@ -2220,7 +2227,6 @@ def tidy_report(title: str, notes: list[str], dropped: list[tuple[int, str]], fi
 
 def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import Stopped
-    from .mission import slug
     from .sheets import SheetError, read_table, write_csv
 
     if (bad := _no_files(engine, job, st, "spreadsheets to tidy")) is not None:
@@ -2373,7 +2379,7 @@ def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                             unsure.append(f"Row {rownum[k]}: category {_q(c)} isn't on the list [CHECK]")
                         cats[c or "(none)"] = cats.get(c or "(none)", 0) + 1
                     notes.append(f"Added a \"{name}\" column: {', '.join(wanted)}.")
-            stem = slug(src.stem) or f"sheet-{i + 1}"
+            stem = unique_stem(files, i)
             out_name = f"{stem}-tidy.csv"
             write_csv(folder / out_name, header, rows)
             atomic_write_text(folder / f"{stem}-changes.md",
@@ -2426,7 +2432,7 @@ def picture_b64(ffmpeg: str | None, src: Path, tmp: Path, longest: int) -> str:
         tmp.parent.mkdir(parents=True, exist_ok=True)
         cmd = photo_command(ffmpeg, src, tmp, fit_size(w, h, longest), turn, "jpg", None, None, None, "")
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=300, creationflags=no_window_flags())
+            p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, creationflags=no_window_flags())
         except (OSError, subprocess.SubprocessError) as e:
             raise ValueError(f"couldn't prepare the picture: {e}") from e
         if p.returncode != 0 or not tmp.exists():
@@ -2611,7 +2617,6 @@ RECEIPT_COLS = ["File", "Date", "Store", "Total", "Tax", "Currency", "Items"]
 
 def run_read_scans(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import Stopped
-    from .mission import slug
     from .sheets import write_csv
     got = _vision_start(engine, job, st, "scans or receipts")
     if not isinstance(got, tuple):
@@ -2642,7 +2647,7 @@ def run_read_scans(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                 continue
             o = _look(engine, job, st, i, "read-scans", system,
                       wish + SCAN_ASK[mode].format(name=src.name), img, model)
-            stem = slug(src.stem) or f"scan-{i + 1}"
+            stem = unique_stem(files, i)
             if mode == "text" and o and _s(o.get("text")):
                 text = str(o.get("text")).strip()
                 atomic_write_text(folder / f"{stem}.md", f"# {src.stem}\n\n{text}\n")
@@ -2710,7 +2715,6 @@ JSON keys: "category": the one category, "tags": up to 8 short tags (a list),
 def run_sort_photos(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     import shutil
     from .engine import Stopped
-    from .mission import slug
     from .sheets import write_csv
     got = _vision_start(engine, job, st, "photos to sort")
     if not isinstance(got, tuple):
@@ -2984,7 +2988,6 @@ def grounded(summary: str, source: str, need: float = 0.6) -> tuple[str, list[st
 
 def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import PartFailed, Stopped
-    from .mission import slug
 
     if (bad := _no_files(engine, job, st, "documents to read")) is not None:
         return bad

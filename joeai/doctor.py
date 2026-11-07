@@ -72,6 +72,14 @@ def install_how(tool: str) -> str:
     k, mgr = plan["kind"], system.manager_label(plan.get("manager"))
     if k == "run":
         return f"Install it now with {mgr}? Your computer may ask for permission."
+    from . import portable
+    if k == "joe" and portable.active():
+        return {"ollama": "Put Ollama on the drive now? Joe downloads Ollama's official release from "
+                          "GitHub (about 2 GB on Windows) into his folder on the drive. It runs on its own "
+                          "port, so this computer's Ollama (if any) is left alone.",
+                "comfyui": "Put ComfyUI on the drive now? Joe downloads ComfyUI from its official GitHub "
+                           "page into his folder on the drive, with a private Python (about 3-5 GB in all). "
+                           "It takes a while, and a fast USB 3 drive helps."}.get(tool, "Set it up now?")
     if k == "joe":
         return {"ollama": "Download Ollama's official Mac app into your Applications folder now?",
                 "comfyui": "Set it up now? Joe downloads ComfyUI from its official GitHub page into his "
@@ -97,6 +105,9 @@ def run_install(tool: str, label: str, page: str, log: Log) -> bool:
         return False
     if plan["kind"] == "joe":
         from . import upkeep
+        from . import portable
+        if tool == "ollama" and portable.active():
+            return portable.install_ollama(log)
         if tool == "ollama":
             return upkeep.install_ollama_mac(log)
         if tool == "comfyui":
@@ -109,7 +120,7 @@ def run_install(tool: str, label: str, page: str, log: Log) -> bool:
         return False
     log(f"Installing {label} with {mgr} (your system may ask for permission)...")
     try:
-        p = subprocess.run(plan["cmd"], capture_output=True, text=True, timeout=1800,
+        p = subprocess.run(plan["cmd"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800,
                            creationflags=system.no_window_flags())
     except (OSError, subprocess.SubprocessError) as e:
         log(f"{mgr} failed to run: {e}")
@@ -288,6 +299,18 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                                f"smaller model to switch to. {small} ({gb} GB) writes faster drafts.",
                                "action": "pull", "model": small, "optional": True,
                                "what": f"{small} ({gb} GB)"})
+    from . import portable
+    if portable.active() and eng == "ollama" and (oll_exe or oll_up) and not portable.drive_ollama():
+        waiting = (" The writing models you copied are already on the drive, waiting for it."
+                   if (portable.ollama_models_dir() / "manifests").is_dir() else "")
+        issues.append({"id": "portable-ollama", "text": "Joe is running from a drive, but Ollama isn't on "
+                       "the drive yet: he's using this computer's. Put Ollama on the drive so writing works "
+                       "on any computer." + waiting, "action": "install", "tool": "ollama", "optional": True})
+    if portable.active() and (comfy_exe or comfy_up) and not portable.drive_comfy():
+        issues.append({"id": "portable-comfyui", "text": "Joe is running from a drive, but ComfyUI isn't on "
+                       "the drive yet: he's using this computer's. Put ComfyUI on the drive so pictures and "
+                       "video work on any computer (about 3-5 GB, plus models).",
+                       "action": "install", "tool": "comfyui", "optional": True})
     if not comfy_exe and not comfy_up:
         issues.append({"id": "install-comfyui", "text": "ComfyUI is not installed (only needed for "
                        "image/video tasks).", "action": "install", "tool": "comfyui", "optional": True})
@@ -462,7 +485,8 @@ def install(tool: str, log: Log, approved: bool = False) -> bool:
         return False
     ok = run_install(tool, t["label"], t["page"], log)
     log(f"{t['label']}: {'installed' if ok else 'not installed yet'}")
-    if ok and tool == "comfyui":
+    from . import system as _sys
+    if ok and tool == "comfyui" and _sys.install_plan(tool)["kind"] == "run":
         log("ComfyUI Desktop runs a one-time setup the first time it opens. Finish that, then "
             "Joe can start it by itself.")
     return ok
@@ -525,6 +549,8 @@ def _download(url: str, dest: Path, log: Log, progress: Callable[[float], None] 
                     if pct - last >= 10:
                         log(f"  {dest.name}: {pct:.0f}%")
                         last = pct
+            if total and got != total:          # the connection dropped: never keep a cut-short file
+                raise OSError(f"the download stopped early ({got // 1_000_000} of {total // 1_000_000} MB); try again")
         part.replace(dest)
         return True
     except OSError as e:

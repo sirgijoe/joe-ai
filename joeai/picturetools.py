@@ -533,7 +533,7 @@ def measure(ffmpeg: str, src: Path) -> dict:
     try:
         r = subprocess.run([ffmpeg, "-v", "info", "-noautorotate", "-i", str(src), "-frames:v", "1", "-vf",
                             "signalstats,metadata=print", "-f", "null", "-"], capture_output=True,
-                           text=True, timeout=120, creationflags=no_window_flags())
+                           text=True, encoding="utf-8", errors="replace", timeout=120, creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError):
         return {}
     import re as _re
@@ -594,6 +594,7 @@ def run_true_restore(engine, job, st, files, keys):
     engine._save_state(job, st)
     engine.log(f"Starting '{job.name}': {len(files)} photo(s), true to the photo (no AI redraw) -> {st.output}")
     failed: list[str] = []
+    stems = [it["stem"] for it in unique_stems([{"stem": slug(f.stem)} for f in files])]
     try:
         for i, (src, key) in enumerate(zip(files, keys)):
             if key in st.titles:
@@ -601,7 +602,7 @@ def run_true_restore(engine, job, st, files, keys):
             if engine.stop.is_set():
                 raise Stopped()
             engine._progress(f"{job.name}: {i + 1}/{len(files)} {src.name}")
-            dest = folder / f"{slug(src.stem) or f'photo-{i + 1}'}-restored.png"
+            dest = folder / f"{stems[i]}-restored.png"
             turn = jpeg_orientation(src) if src.suffix.lower() in (".jpg", ".jpeg") else 1
             want = option_value(job, "strength") or "auto"
             stats = measure(ffmpeg, src) if want == "auto" else {}
@@ -616,7 +617,7 @@ def run_true_restore(engine, job, st, files, keys):
                 try:
                     p = subprocess.run(true_restore_command(ffmpeg, src, dest, turn, factor, level, cast,
                                                             sepia),
-                                       capture_output=True, text=True, timeout=600,
+                                       capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=600,
                                        creationflags=no_window_flags())
                     ok = p.returncode == 0 and dest.exists()
                     err = (p.stderr or "").strip()[:200]
@@ -679,6 +680,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         return run_true_restore(engine, job, st, items, keys)
     if tid in NEW_EDITORS or tid in makers.TOOLS:
         items, keys, why = (makers.plan_items if tid in makers.TOOLS else plan_items)(engine, job, tid, items)
+        if tid != "restyle-video":                # its pieces are joined by name afterwards
+            items = unique_stems(items)
         if not items:
             st.status, st.note = "failed", why
             engine.log(f"'{job.name}' failed: {why}")
@@ -829,7 +832,7 @@ def _on_white(engine, folder: Path, name: str) -> str:
            "color=white[c];[c][0]scale2ref[c][i];[c][i]overlay=format=auto:shortest=1",
            "-frames:v", "1", "-q:v", "2", str(dest)]
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=300, creationflags=no_window_flags())
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=300, creationflags=no_window_flags())
     except (OSError, subprocess.SubprocessError):
         return name
     if p.returncode == 0 and dest.exists():
@@ -879,7 +882,11 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu),
                 stem + "-restored", ".png")
     if tid == "animate-photo":
-        w, h = video_size(*picture_size(src))
+        pw, ph = picture_size(src)
+        from .tools import jpeg_orientation
+        if src.suffix.lower() in (".jpg", ".jpeg") and jpeg_orientation(src) >= 5:
+            pw, ph = ph, pw                       # phone portrait stored sideways: ComfyUI turns it upright
+        w, h = video_size(pw, ph)
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
         prompt = (f"{motion}. Keep the people, objects and setting from the photo exactly as they are; "
                   "smooth, natural movement.")
@@ -928,6 +935,27 @@ def _work_dir(engine) -> Path:
     return d
 
 
+def wkey(f: Path) -> str:
+    """A work-folder name for one source file: two 'photo.jpg' from different folders (or
+    photo.jpg and photo.png) never share a scratch file."""
+    import hashlib
+    from .mission import slug
+    return f"{slug(f.stem)[:40]}-{hashlib.sha1(str(f).encode('utf-8', 'replace')).hexdigest()[:6]}"
+
+
+def unique_stems(items: list[dict]) -> list[dict]:
+    """Output names: the second 'photo-relit' becomes 'photo-relit-2', so nothing is overwritten."""
+    seen: set[str] = set()
+    for it in items:
+        base = s = str(it.get("stem") or "picture")
+        n = 2
+        while s.lower() in seen:
+            s, n = f"{base}-{n}", n + 1
+        it["stem"] = s
+        seen.add(s.lower())
+    return items
+
+
 def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], list[str], str]:
     """Files -> one dict per picture to make: src, prompt, extra images, stem, label, key and
     what to do afterwards. ([], [], why) when it can't run."""
@@ -948,7 +976,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
             if not ff:
                 return [], [], "needs FFmpeg to mark the spot (Setup > System check installs it)"
             orig, f = f, _upright(engine, ff, f)      # phone photos: the mark was painted on the upright view
-            marked = media.outline_spot(ff, f, mask, _work_dir(engine) / f"{slug(f.stem)}-marked.png")
+            marked = media.outline_spot(ff, f, mask, _work_dir(engine) / f"{wkey(orig)}-marked.png")
             if not marked:
                 return [], [], f"couldn't read {f.name} or its marked spot"
             what = extra or "remove what is there and fill it in so it matches the surroundings naturally"
@@ -1012,13 +1040,14 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
         if not ff:
             return [], [], "needs FFmpeg (Setup > System check installs it)"
         shape = option_value(job, "shape") or "wider"
-        for f in files:
-            pad = media.pad_for_outpaint(ff, f, _work_dir(engine) / f"{slug(f.stem)}-padded.png", shape)
+        for f0 in files:
+            f = _upright(engine, ff, f0)          # phone photos stored sideways: pad the upright view
+            pad = media.pad_for_outpaint(ff, f, _work_dir(engine) / f"{wkey(f0)}-padded.png", shape)
             if not pad:
                 engine.log(f"  Couldn't read {f.name}; skipped.")
                 continue
-            items.append({"src": pad[0], "stem": slug(f.stem) + f"-{shape}", "label": f.name,
-                          "key": f"bigger {f.name} {shape}", "padded": pad[0], "inner": pad[1],
+            items.append({"src": pad[0], "stem": slug(f0.stem) + f"-{shape}", "label": f0.name,
+                          "key": f"bigger {f0.name} {shape}", "padded": pad[0], "inner": pad[1],
                           "prompt": "The sharp middle of this picture is the real photo; the blurry parts around "
                                     "it are empty space to fill. Replace every blurry part with sharp, detailed "
                                     "scenery that continues the middle naturally, with the same light, style, "
@@ -1055,9 +1084,8 @@ def _upright(engine, ff: str, f: Path) -> Path:
     if turn not in _TURN:
         return f
     import subprocess
-    from .mission import slug
     from .system import no_window_flags
-    dest = _work_dir(engine) / f"{slug(f.stem)}-upright.png"
+    dest = _work_dir(engine) / f"{wkey(f)}-upright.png"
     try:
         subprocess.run([ff, "-y", "-v", "error", "-noautorotate", "-i", str(f), "-vf", _TURN[turn],
                         "-frames:v", "1", str(dest)], capture_output=True, timeout=300,
@@ -1093,7 +1121,9 @@ def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces
             truer = _work_dir(engine) / f"{out.stem}-true.png"
             import subprocess
             from .system import no_window_flags
-            subprocess.run(true_restore_command(ff, item, truer, 1, 0, auto_level(measure(ff, item))),
+            from .tools import jpeg_orientation
+            turn = jpeg_orientation(item) if item.suffix.lower() in (".jpg", ".jpeg") else 1
+            subprocess.run(true_restore_command(ff, item, truer, turn, 0, auto_level(measure(ff, item))),
                            capture_output=True, timeout=600, creationflags=no_window_flags())
             size = media.size_of(ff, out)
             mask = _work_dir(engine) / f"{out.stem}-faces.png"

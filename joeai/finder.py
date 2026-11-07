@@ -13,7 +13,6 @@ import json
 import os
 import re
 import shutil
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -155,6 +154,10 @@ def find_tool(tool: str, configured: str = "", program_dirs: tuple[str, ...] = (
 
 
 def ollama_exe(configured: str = "") -> str | None:
+    from . import portable
+    drive = portable.drive_ollama()
+    if drive and not configured:                   # portable Joe: the drive's own Ollama first
+        return str(drive)
     if MAC:
         app = Path("/Applications/Ollama.app/Contents/Resources/ollama")
         if not configured and not shutil.which("ollama") and _exists(app):
@@ -375,9 +378,13 @@ def find_comfy(start_command: str = "", start_dir: str = "", models_dir: str = "
         if guess:
             inst.base, inst.port = guess.base, guess.port
     else:
-        exe = desktop_exe()
-        base = desktop_base_path()
-        if exe:
+        from . import portable
+        own = _inspect(portable.own_comfy_dir()) if portable.drive_comfy() else None
+        exe = None if own else desktop_exe()
+        base = None if own else desktop_base_path()
+        if own:                                    # portable Joe: the ComfyUI on the drive first
+            inst = own
+        elif exe:
             inst = ComfyInstall("desktop", [str(exe)], str(exe.parent), str(base or ""), 8000)
         else:
             ports = portable_installs()

@@ -40,7 +40,10 @@ def pretty_name() -> str:
 
 # --------------------------------------------------------------------------- folders
 def config_dir() -> Path:
-    """Settings, chats index, window profile. Small files."""
+    """Settings, chats index, window profile. Small files. (Portable Joe: on the drive.)"""
+    from . import portable
+    if portable.active():
+        return portable.config_dir()
     if WINDOWS:
         base = Path(os.environ.get("APPDATA") or Path.home() / "AppData" / "Roaming")
     elif MAC:
@@ -51,7 +54,10 @@ def config_dir() -> Path:
 
 
 def data_dir() -> Path:
-    """Add-ons, voice environment, logs. Can be big (gigabytes)."""
+    """Add-ons, voice environment, logs. Can be big (gigabytes). (Portable Joe: on the drive.)"""
+    from . import portable
+    if portable.active():
+        return portable.data_dir()
     if WINDOWS:
         base = Path(os.environ.get("LOCALAPPDATA") or Path.home() / "AppData" / "Local")
     elif MAC:
@@ -65,7 +71,7 @@ def documents_dir() -> Path:
     docs = Path.home() / "Documents"
     if LINUX:                                   # respect a renamed Documents folder
         try:
-            out = subprocess.run(["xdg-user-dir", "DOCUMENTS"], capture_output=True, text=True,
+            out = subprocess.run(["xdg-user-dir", "DOCUMENTS"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=3).stdout.strip()
             if out and Path(out).is_dir() and Path(out) != Path.home():
                 docs = Path(out)
@@ -75,6 +81,9 @@ def documents_dir() -> Path:
 
 
 def default_workspace() -> Path:
+    from . import portable
+    if portable.active():
+        return portable.workspace()
     return documents_dir() / "Joe-ai"
 
 
@@ -264,7 +273,7 @@ def ram_total_gb() -> float:
         return 0.0
     if MAC:
         try:
-            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True,
+            out = subprocess.run(["sysctl", "-n", "hw.memsize"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=5).stdout.strip()
             return round(int(out) / 2**30, 1)
         except (OSError, subprocess.SubprocessError, ValueError):
@@ -315,6 +324,9 @@ def install_plan(tool: str) -> dict:
                       terminal (Linux apt/dnf/pacman); Joe never asks for or types passwords
     kind 'page'    -> no package here; open the official download page
     """
+    from . import portable
+    if portable.active() and tool in ("ollama", "comfyui"):   # portable: onto the drive, not the PC
+        return {"kind": "joe", "manager": "joe"}
     ids = PACKAGES.get(tool, {})
     pm = package_manager()
     pid = ids.get(pm or "")
@@ -386,15 +398,15 @@ def pids_on_port(port: int) -> list[int]:
     import re as _re
     try:
         if WINDOWS:
-            out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True,
+            out = subprocess.run(["netstat", "-ano", "-p", "TCP"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=15, creationflags=no_window_flags()).stdout
             pids = {int(m.group(1)) for m in _re.finditer(rf"[:.]{port}\s+\S+\s+LISTENING\s+(\d+)", out)}
         elif shutil.which("lsof"):
             out = subprocess.run(["lsof", "-nP", f"-iTCP:{port}", "-sTCP:LISTEN", "-t"],
-                                 capture_output=True, text=True, timeout=15).stdout
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=15).stdout
             pids = {int(x) for x in out.split() if x.isdigit()}
         elif shutil.which("ss"):
-            out = subprocess.run(["ss", "-ltnpH", f"sport = :{port}"], capture_output=True, text=True,
+            out = subprocess.run(["ss", "-ltnpH", f"sport = :{port}"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=15).stdout
             pids = {int(x) for x in _re.findall(r"pid=(\d+)", out)}
         else:
@@ -408,7 +420,7 @@ def pids_named(prefix: str) -> list[int]:
     """Running programs whose name starts with prefix (e.g. 'ollama': its model runners too)."""
     try:
         if WINDOWS:
-            out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True,
+            out = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=15, creationflags=no_window_flags()).stdout
             pids = []
             for line in out.splitlines():
@@ -417,7 +429,7 @@ def pids_named(prefix: str) -> list[int]:
                     pids.append(int(cells[1]))
             return pids
         if shutil.which("pgrep"):
-            out = subprocess.run(["pgrep", "-i", f"^{prefix}"], capture_output=True, text=True,
+            out = subprocess.run(["pgrep", "-i", f"^{prefix}"], capture_output=True, text=True, encoding="utf-8", errors="replace",
                                  timeout=15).stdout
             return [int(x) for x in out.split() if x.isdigit()]
     except (OSError, subprocess.SubprocessError, ValueError):
@@ -486,13 +498,15 @@ def _pick_cmds(kind: str, title: str, start: str) -> list[list[str]]:
     cmds: list[list[str]] = [[sys.executable, "-c", _PICK_TK, kind, title, start]]
     if WINDOWS:
         if kind == "folder":
+            # title and start come in through the environment (JOE_PICK_T / JOE_PICK_S), never
+            # pasted into the command, so no quote in a folder name can break or change it
             ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.FolderBrowserDialog; "
-                  f"$d.Description = '{title.replace(chr(39), '')}'; $d.ShowNewFolderButton = $true; "
-                  f"$d.SelectedPath = '{start.replace(chr(39), '')}'; "
+                  "$d.Description = $env:JOE_PICK_T; $d.ShowNewFolderButton = $true; "
+                  "$d.SelectedPath = $env:JOE_PICK_S; "
                   "if ($d.ShowDialog() -eq 'OK') { [Console]::Write($d.SelectedPath) }")
         else:
             ps = ("Add-Type -AssemblyName System.Windows.Forms; $d = New-Object System.Windows.Forms.OpenFileDialog; "
-                  f"$d.Title = '{title.replace(chr(39), '')}'; "
+                  "$d.Title = $env:JOE_PICK_T; "
                   "if ($d.ShowDialog() -eq 'OK') { [Console]::Write($d.FileName) }")
         cmds.append(["powershell", "-NoProfile", "-STA", "-Command", ps])
     elif MAC:
@@ -515,9 +529,11 @@ def pick_path(kind: str = "folder", title: str = "Choose a folder", start: str =
     kind = "file" if kind == "file" else "folder"
     if start and not Path(start).exists():
         start = str(Path(start).parent) if Path(start).parent.exists() else ""
+    env = dict(os.environ, JOE_PICK_T=title, JOE_PICK_S=start)
     for cmd in _pick_cmds(kind, title, start):
         try:
-            p = subprocess.run(cmd, capture_output=True, text=True, timeout=900, creationflags=no_window_flags())
+            p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900,
+                               creationflags=no_window_flags(), env=env)
         except (OSError, subprocess.SubprocessError):
             continue
         if p.returncode == 0 or (p.stdout or "").strip():

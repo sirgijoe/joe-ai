@@ -99,7 +99,7 @@ def install(log, approved: bool = False, progress=None) -> bool:
         brew = shutil.which("brew") or "/opt/homebrew/bin/brew"
         log("Installing whisper.cpp with Homebrew (brew install whisper-cpp)...")
         try:
-            p = subprocess.run([brew, "install", "whisper-cpp"], capture_output=True, text=True, timeout=1800)
+            p = subprocess.run([brew, "install", "whisper-cpp"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=1800)
         except (OSError, subprocess.SubprocessError) as e:
             log(f"Homebrew couldn't install it: {e}")
             return False
@@ -182,7 +182,7 @@ def transcribe(wav: Path, stt_model: str, language: str = "", words: bool = Fals
         cmd += ["-ml", "1", "-sow"]
     from .system import no_window_flags
     try:
-        p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=no_window_flags())
+        p = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, creationflags=no_window_flags())
     except subprocess.TimeoutExpired:
         return {"ok": False, "error": "whisper.cpp took too long"}
     except OSError as e:

@@ -33,7 +33,7 @@
     <button type="button" id="runbtn" class="runbtn" data-key="F5" title="Run the plan on the Home screen, or stop the run that's going (F5).">RUN<b>F5</b></button>
     <span id="toolsbadge" class="toolsbadge" tabindex="0" role="button" title="What's installed for the tools. Click for Setup > System check.">TOOLS …</span>
     <span id="title-screen" class="dim" hidden>QUEUE</span>
-    <span id="ver" class="dim"></span>
+    <span id="ver" class="dim"></span> <span id="pt-badge" class="dim" hidden title="Joe is running from a drive: everything stays in that folder.">PORTABLE</span>
     <span id="clock">--:--</span>
   </header>
 
@@ -65,6 +65,7 @@ fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
       <div class="row buttons">
         <button data-act="describe" id="btn-describe" class="primary" title="Joe answers, does it, or makes a plan. Nothing big runs until you press RUN IT. (Ctrl+Enter)">[ ASK JOE ]</button>
         <button data-act="packs-open" title="Ready-made bundles: a shop starter, a month of social posts, a blog starter, a party kit, a coloring book. Answer one question and Joe plans it all.">[ STARTER PACKS ]</button>
+        <button data-act="abilities-open" title="Everything Joe can do, in plain words, and how each part works. Or just ask: what can you do?">[ WHAT CAN JOE DO? ]</button>
         <button data-act="bigger-open" title="Joe's own model is small. This makes one message you paste into any chatbot (ChatGPT, Claude, Gemini...); paste its answer back and Joe uses the plan. Free, no keys.">[ ASK A BIGGER AI ]</button>
         <span id="describe-msg" class="dim"></span>
       </div>
@@ -195,6 +196,7 @@ FORMAT: ...
           <label class="tfrow" title="A short name for this job. It becomes the folder name in Output.">Name <input id="tf-name" placeholder="e.g. Tuesday meeting"></label>
           <label class="tfrow" title="Anything Joe should know, like who the speakers are or what to focus on in the notes."><span id="tf-extra-label">Anything else?</span> <input id="tf-extra" placeholder="optional, e.g. focus on dates and to-dos"></label>
           <div id="tf-help" class="dim small"></div>
+          <div class="row"><button type="button" data-act="tool-learn" title="How this tool works behind the scenes, what to give it, each option, time, needs and tips.">[ LEARN MORE ABOUT THIS TOOL ]</button></div>
           <div class="row buttons">
             <button type="button" class="primary" data-act="tool-run" title="Check it, show the plan, and start (or queue it if Joe is busy).">[ RUN IT ]</button>
             <button type="button" data-act="tool-plan" title="See the plan and the mission text without running.">[ SHOW THE PLAN ]</button>
@@ -364,6 +366,22 @@ FORMAT: ...
                   <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
                 </details>
               </fieldset>
+              <fieldset id="portable-box"><legend>PORTABLE JOE (RUN FROM A USB DRIVE)</legend>
+                <div id="pt-on" hidden>
+                  <div class="small">Joe is running from <b id="pt-root"></b>. His settings, your work, and anything he sets up (voice, Ollama, ComfyUI, models) stay in that folder.</div>
+                  <div id="pt-where" class="dim small"></div>
+                  <div class="dim small">Put Ollama and ComfyUI on the drive from <b>System check</b>, so writing and pictures work on any computer. The night shift is off while Joe runs from a drive (it would leave a task on this computer).</div>
+                </div>
+                <div id="pt-off">
+                  <div class="dim small">Carry Joe with you: copy him to a USB drive (or any folder) and start him there with "Start Joe". He keeps everything on the drive instead of this computer's folders. You can also bring your work and your models along. Each computer still needs its own graphics driver, and Windows may still remember that a program ran: portable means "carried with you", not "leaves no trace". A fast USB 3 drive (an SSD is best), formatted as exFAT or NTFS, works best.</div>
+                  <label title="The drive or folder to put the portable Joe in. Joe makes a folder called Joe inside it.">Put Joe on <input id="pt-dest" data-pick="folder" data-pick-title="Choose the USB drive or folder" placeholder="e.g. E:\  or  /Volumes/MYDRIVE"></label>
+                  <div id="pt-opts" class="ptopts dim small" role="group" aria-label="What to bring along">Press LOOK to see what can come along.</div>
+                  <div class="row"><button type="button" data-act="pt-plan" title="Show what Joe can copy and how big it is.">[ LOOK ]</button>
+                    <button type="button" data-act="pt-make" class="primary" title="Copy Joe (and what you ticked) to the drive. Asks first.">[ MAKE A PORTABLE JOE ]</button>
+                    <button type="button" data-act="pt-stop" id="pt-stop" hidden>[ STOP ]</button></div>
+                  <div id="pt-status" class="dim small" aria-live="polite"></div>
+                </div>
+              </fieldset>
               <fieldset><legend>NIGHT SHIFT</legend>
                 <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. On Windows, Joe wakes the PC from sleep for it (it must be signed in, and not shut down). On a Mac or Linux, the PC has to be awake at that time.</div>
                 <label title="Start the plans saved for tonight at the time below.">Night shift on <input type="checkbox" data-path="schedule.enabled"></label>
@@ -407,9 +425,16 @@ FORMAT: ...
                 </details>
               </fieldset>
               <fieldset><legend>TEMPLATES (HOW FINISHED COPIES LOOK)</legend>
-                <p class="dim small">When Joe makes a finished copy (Word, PDF, EPUB, or an Excel copy of a spreadsheet), it follows a template: page size, margins, fonts, text size, line spacing, indents and more. Each one is filled in with Joe's choices; press EDIT to change it. A task can pick one with TEMPLATE: and its name (book, manuscript, kids, ebook, report, largeprint, poetry, screenplay, letter, resume, cookbook, recipecard, coloring, school; pricelist for spreadsheets).</p>
+                <p class="dim small">When Joe makes a finished copy (Word, PDF, EPUB, or an Excel copy of a spreadsheet), it follows a template: page size, margins, fonts, text size, line spacing, indents and more. Each one is filled in with Joe's choices; press EDIT to change it. A task can pick one with TEMPLATE: and its name (book, manuscript, kids, ebook, report, largeprint, poetry, screenplay, letter, resume, cookbook, recipecard, coloring, school; pricelist for spreadsheets). Missing one? Add your own at the bottom.</p>
                 <div id="tpl-defaults" class="small"></div>
                 <div id="tpl-list" class="dim">Loading…</div>
+                <fieldset class="tpladd"><legend>ADD YOUR OWN TEMPLATE</legend>
+                  <div class="dim small">Need a look Joe doesn't have (a church bulletin, a newsletter, a club handbook, your company's report style)? Give it a name and pick the template that's closest; Joe copies it so you can change anything with EDIT. A task uses it with TEMPLATE: and its name, and you can make it the default for a kind of file above. Joe's own templates are never changed.</div>
+                  <label>Name <input id="tpl-new-name" maxlength="60" placeholder="e.g. Church bulletin"></label>
+                  <label>Start from <select id="tpl-new-base"></select></label>
+                  <label>What it's for <input id="tpl-new-about" maxlength="300" placeholder="optional, e.g. the weekly 2-page bulletin"></label>
+                  <div class="row"><button type="button" data-act="tpl-add" class="primary">[ + ADD TEMPLATE ]</button><span id="tpl-add-msg" class="dim small"></span></div>
+                </fieldset>
               </fieldset>
             </div>
 
@@ -739,6 +764,8 @@ FORMAT: ...
   <main id="s-help" class="view">
     <section class="panel full help">
       <h2>HELP</h2>
+      <div class="row"><button type="button" data-act="abilities-open" class="primary" title="Everything Joe can do, grouped, and the long version of each part.">[ WHAT CAN JOE DO? ]</button>
+        <span class="dim small">Or ask Joe: "what can you do?" or "how does restore photo work?"</span></div>
 <pre>
  GETTING STARTED
  1. Home screen: type what you need in your own words,
@@ -868,6 +895,11 @@ FORMAT: ...
     <div id="pk-err" class="small warn"></div>
     <div class="row buttons"><button type="button" data-act="packs-use" class="primary">[ MAKE THE PLAN ]</button></div></div>
   <div class="row buttons"><button type="button" data-act="packs-close">[ CLOSE ]</button></div></div></div>
+<div id="abilities" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="ab-title"><div class="panel bigger"><h2 id="ab-title">WHAT CAN JOE DO?</h2>
+  <p class="small">Everything Joe can do. Pick one for the long version: how he does it behind the scenes, what to give him, the options, time, what it needs and tips. You can also just ask him, like "how does restore photo work?"</p>
+  <div class="abwrap"><div id="ab-list" class="ablist"></div><div id="ab-text" class="abtext small" aria-live="polite"></div></div>
+  <div class="row buttons"><button type="button" data-act="abilities-all">[ SHOW EVERYTHING ]</button>
+    <button type="button" data-act="abilities-close">[ CLOSE ]</button></div></div></div>
 <div id="bigger" class="modal" hidden><div class="panel bigger"><h2>ASK A BIGGER AI</h2>
   <p class="small">1. Copy this message and paste it into any chatbot you like (ChatGPT, Claude, Gemini...). Read it first: nothing leaves your PC unless you paste it. Folder paths and your user name are hidden.</p>
   <textarea id="bg-msg" readonly spellcheck="false" rows="9"></textarea>

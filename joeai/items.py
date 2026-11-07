@@ -6,7 +6,8 @@ from dataclasses import dataclass
 
 _HEAD = re.compile(r"^\s*#{2,3}\s+(.+?)\s*#*\s*$")
 FLAG_RE = re.compile(r"\[(?:CHECK|PRICE|CONFIRM|SHORT|TODO)[^\]\n]{0,60}\]")
-_WORD = re.compile(r"[A-Za-z0-9']+(?:[-'][A-Za-z0-9]+)*")
+_WORD = re.compile(r"[^\W_]+(?:[-'][^\W_]+)*")     # words in any language with spaces
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uf900-\ufaff]")  # Chinese/Japanese: no spaces
 
 
 @dataclass
@@ -23,7 +24,12 @@ class Item:
 
 
 def count_words(text: str) -> int:
-    return len(_WORD.findall(text))
+    """Words; for Chinese and Japanese (written without spaces) about two characters = one word."""
+    cjk = len(_CJK.findall(text or ""))
+    if not cjk:
+        return len(_WORD.findall(text or ""))
+    rest = _CJK.sub(" ", text)
+    return len(_WORD.findall(rest)) + (cjk + 1) // 2
 
 
 def split_items(text: str) -> list[Item]:
@@ -101,7 +107,8 @@ def _strip_md(t: str) -> str:
 
 def norm_title(t: str) -> str:
     t = re.sub(r"[-_/]", " ", t.lower())                  # "hand-thrown" -> "hand thrown"
-    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9 ]", "", t)).strip()
+    n = re.sub(r"\s+", " ", re.sub(r"[^\w ]", "", t)).strip()   # letters of every language count
+    return n or " ".join(t.split())
 
 
 _STOP = frozenset("a an the and or of for to in on with my your our its this that is are be "

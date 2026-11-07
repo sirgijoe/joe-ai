@@ -56,7 +56,7 @@ def _flags() -> int:
 
 def _run(cmd: list[str], timeout: int = 1800) -> subprocess.CompletedProcess | None:
     try:
-        return subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, creationflags=_flags())
+        return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=timeout, creationflags=_flags())
     except (OSError, subprocess.SubprocessError):
         return None
 
@@ -388,13 +388,15 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
         if not look:
             return [], [], "say what the new look should be"
         secs = int(option_value(job, "length") or SEGMENT_S)
-        for v in videos:
+        from .picturetools import unique_stems, wkey
+        vbases = [it["stem"] for it in unique_stems([{"stem": slug(v.stem)} for v in videos])]
+        for vi, v in enumerate(videos):
             from . import media
             size = restyle_size(engine, *(media.size_of(ff, v) or (0, 0)))
             total = duration_s(ff, v)
             parts = max(1, min(-(-int(min(total or SEGMENT_S, secs)) // SEGMENT_S), secs // SEGMENT_S))
             for k in range(parts):
-                seg = cut_segment(ff, v, k * SEGMENT_S, _work(engine) / f"{slug(v.stem)}-part{k + 1:02d}.mp4", size)
+                seg = cut_segment(ff, v, k * SEGMENT_S, _work(engine) / f"{wkey(v)}-part{k + 1:02d}.mp4", size)
                 n = frame_count(ff, seg) if seg else 0
                 length = wan_length(n)
                 if not length:
@@ -403,7 +405,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                     break
                 items.append({"maker": True, "src": seg, "video": v, "part": k + 1, "size": size,
                               "length": length, "ref": pics[0] if pics else None,
-                              "stem": f"{slug(v.stem)}-restyled-part{k + 1:02d}",
+                              "stem": f"{vbases[vi]}-restyled-part{k + 1:02d}",
                               "label": f"{v.name} part {k + 1}" if parts > 1 else v.name,
                               "key": f"restyle-video {v.name} {want} {k + 1}",
                               "prompt": f"{look}. Keep the same motion, people, objects and camera movement as "
@@ -414,7 +416,8 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
             return [], [], "couldn't read the video(s)"
     elif tid == "make-3d":
         for f in files:
-            sq = square_on_white(ff, f, _work(engine) / f"{slug(f.stem)}-square.png") if ff else None
+            from .picturetools import wkey
+            sq = square_on_white(ff, f, _work(engine) / f"{wkey(f)}-square.png") if ff else None
             items.append({"maker": True, "src": sq or f, "stem": slug(f.stem) + "-3d", "label": f.name,
                           "key": f"3d {f.name}"})
     else:

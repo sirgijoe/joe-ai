@@ -15,7 +15,16 @@ def atomic_write_text(path: Path, text: str) -> None:
             f.write(text)
             f.flush()
             os.fsync(f.fileno())
-        os.replace(tmp, path)
+        for attempt in range(6):          # Windows: a file open in Excel or a viewer can't be replaced
+            try:
+                os.replace(tmp, path)
+                break
+            except PermissionError:
+                if attempt == 5:
+                    raise PermissionError(f"{path.name} is open in another program (Excel?). "
+                                          "Close it and run again.") from None
+                import time
+                time.sleep(0.5 * (attempt + 1))
     except BaseException:
         try:
             os.unlink(tmp)

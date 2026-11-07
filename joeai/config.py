@@ -174,15 +174,27 @@ class Settings:
             try:
                 data = json.loads(path.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError):
+                data = None
+            if not isinstance(data, dict):        # broken file: keep a copy before it's ever saved over
+                try:
+                    import shutil
+                    shutil.copy2(path, path.with_name("settings.broken.json"))
+                except OSError:
+                    pass
                 data = {}
-            _merge(s, data)
+            from . import portable
+            _merge(s, portable.unpack(data))
         if s.ui.hello_text == "Hello! Joe here, reporting for duty.":   # old default ran together when spoken
             s.ui.hello_text = UISettings.hello_text
+        s.engine.max_retries = max(1, min(int(s.engine.max_retries or 3), 10))   # 0 would never ask the model
+        from . import portable
+        portable.adjust_settings(s)
         return s
 
     def save(self, path: Path | None = None) -> Path:
         path = path or config_path()
-        atomic_write_text(path, json.dumps(asdict(self), indent=2))
+        from . import portable
+        atomic_write_text(path, json.dumps(portable.pack(asdict(self)), indent=2))
         return path
 
 

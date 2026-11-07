@@ -86,6 +86,8 @@ def open_window(url: str) -> None:
 
 
 def main() -> int:
+    from . import portable
+    portable.start()
     config_dir().mkdir(parents=True, exist_ok=True)
     url = _existing_url()
     if url:                                  # already running (maybe mid-run): just reopen
@@ -95,8 +97,13 @@ def main() -> int:
     app = App()
     httpd = _serve_stable(app)
     port = httpd.server_address[1]
-    _lock_path().write_text(json.dumps({"port": port, "token": app.token, "pid": os.getpid()}),
-                            encoding="utf-8")
+    from .fsutil import atomic_write_text
+    atomic_write_text(_lock_path(), json.dumps({"port": port, "token": app.token, "pid": os.getpid()}))
+    try:                                     # the token is only for this user (mkstemp already makes 0600)
+        if os.name != "nt":
+            os.chmod(config_dir(), 0o700)
+    except OSError:
+        pass
     open_window(f"http://127.0.0.1:{port}/")
     try:
         httpd.serve_forever()
@@ -106,9 +113,10 @@ def main() -> int:
         app.voice.close()
         app.tool_voice.close()
         app.clone.close()
-        try:
-            _lock_path().unlink()
-        except OSError:
+        try:                                 # only our own lock: a newer Joe may already have written its own
+            if json.loads(_lock_path().read_text(encoding="utf-8")).get("pid") == os.getpid():
+                _lock_path().unlink()
+        except (OSError, ValueError):
             pass
     return 0
 

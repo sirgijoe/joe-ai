@@ -1,5 +1,6 @@
 # Double-click this file to start Joe (01000001 01001001). No console window.
 # Needs Python 3.11+ from python.org. Crashes are written to %APPDATA%\joe-ai\crash.log
+# (portable Joe: JoeData\settings\crash.log on the drive).
 import os
 import sys
 

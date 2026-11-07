@@ -481,7 +481,19 @@ def _again_block(block: str) -> str:
         first = first[: m.start(1)] + new + first[m.end(1):]
     first = re.sub(r"^(\s*TASK\s*:\s*)(.+?)(\s{2,}[A-Z ]+:|$)", lambda k: k.group(1) + k.group(2).rstrip()
                    + " (again)" + k.group(3), first, count=1)
-    return "\n".join([first] + lines[1:])
+    out = "\n".join([first] + lines[1:])
+    # FROM: an earlier task -> that task's new name (it's planned again too)
+    return re.sub(r"(\bFROM\s*:\s*)(.+?)(\s{2,}[A-Z ]+:|$)",
+                  lambda k: k.group(1) + k.group(2).rstrip() + " (again)" + k.group(3), out, flags=re.M)
+
+
+def _task_name(block: str) -> str:
+    return re.sub(r"^\s*TASK\s*:\s*", "", block.splitlines()[0]).split("  ")[0].strip()
+
+
+def _from_name(block: str) -> str:
+    m = re.search(r"\bFROM\s*:\s*(.+?)(?:\s{2,}[A-Z ]+:|$)", block, re.M)
+    return m.group(1).strip() if m else ""
 
 
 def rerun_plan(app, request: str) -> dict | None:
@@ -499,6 +511,13 @@ def rerun_plan(app, request: str) -> dict | None:
                 continue
         else:                                  # "run it again": the whole last mission
             picked = blocks
+        by_name = {_task_name(b).lower(): b for b in blocks}
+        while True:                            # a picked task that uses FROM: needs its source too
+            need = [by_name[_from_name(b).lower()] for b in picked
+                    if _from_name(b) and _from_name(b).lower() in by_name and by_name[_from_name(b).lower()] not in picked]
+            if not need:
+                break
+            picked = [b for b in blocks if b in picked or b in need]
         text = "\n".join(x for x in [head] + [_again_block(b) for b in picked] if x)
         names = [re.sub(r"^\s*TASK\s*:\s*", "", b.splitlines()[0]).split("  ")[0] for b in picked]
         try:
@@ -514,6 +533,8 @@ def rerun_plan(app, request: str) -> dict | None:
         return {"ok": True, "mission": text, "summary": plain_summary(chk),
                 "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
                 "eta_min": chk["eta_min"], "warnings": warns + list(chk.get("warnings", []))}
+    if want and len(request.split()) > 6:      # "...finds his way home again": new work, not a rerun
+        return None
     what = " ".join(sorted(want)) or "the last run"
     return {"ok": False, "error": f"I couldn't find an earlier task matching \"{what}\". "
             "Say what to make in your own words, or pick it from a past chat (Talk > PAST CHATS)."}

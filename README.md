@@ -132,7 +132,16 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring book, school paper (MLA),
   everyday, spreadsheet and price list. They set page size, margins (with binding gutter), fonts,
   spacing, page numbers, headers, drop caps and more for Word, PDF, EPUB and Excel copies; every one
-  is shown and editable in Setup > Writing.
+  is shown and editable in Setup > Writing. Need a look that isn't there? **Add your own**: name it,
+  start from the closest one, change anything, and use it with `TEMPLATE:` and its name.
+- **Portable Joe**: copy Joe to a USB drive (Setup > General > MAKE A PORTABLE JOE) and start him on
+  any computer with "Start Joe". His settings, your work and anything he sets up (voice, Ollama,
+  ComfyUI, models) stay on the drive. Each computer still needs its own graphics driver, and
+  Windows may still remember that a program ran: portable means carried with you, not invisible.
+- **"What can Joe do?"**: ask him (in Talk or the Home box), or press WHAT CAN JOE DO? on Home or
+  Help (F1). He lists everything in plain words, and "how does restore photo work?" gets the long
+  version: how he does it behind the scenes, what to give him, every option, time, needs and tips.
+  Every tool card has a "learn more" link. It's all built from Joe's own code, so it stays true.
 - **Use what you already have**: write with **LM Studio, llama.cpp or LocalAI** instead of Ollama
   (Setup > Writing > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
   folders without downloading them again (System check > SHARE THEM), and transcribe with
@@ -179,7 +188,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Send your files, chats or recordings anywhere. They stay on your PC.
 - Do the overnight work online. Writing, pictures and video are made on your PC.
 - Send email, post online, or spend money.
-- Touch anything outside his own folder (`Documents\Joe-ai`).
+- Touch your files outside his own folder (`Documents\Joe-ai`, or `Joe-ai` on the drive for Portable Joe). Programs and models he installs with your OK go where those programs normally live.
 - Install or download anything without asking you first.
 - Collect data about you. There's no tracking and no analytics. (The update check below asks
   GitHub for the newest version number and nothing else.)
@@ -198,6 +207,7 @@ internet. None of them send your files, chats or recordings.
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
+| Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in System check | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
 | Talk looks things up | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current | Off until you turn it on |
 

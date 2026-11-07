@@ -253,6 +253,8 @@ class Joe:
         p = (out / (rel or "").replace("\\", "/").lstrip("/")).resolve()
         if p != out and out not in p.parents:
             raise SandboxError("That's outside Joe's Output folder.")
+        if any(part.startswith(".") for part in p.relative_to(out).parts):   # .joe = chats, state: private
+            raise SandboxError("That's one of Joe's private folders (chats and run state stay on this PC).")
         return p
 
     def list_files(self, folder: str = "") -> str:
@@ -485,9 +487,18 @@ def serve(stdin=None, stdout=None) -> int:
         except ValueError:
             reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32700, "message": "Parse error"}}
         else:
-            if joe is None and msg.get("method") == "tools/call":
-                joe = Joe()
-            reply = handle(joe, msg) if isinstance(msg, dict) else None
+            if not isinstance(msg, dict):          # a batch or a stray value: say so, keep running
+                reply = {"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "Invalid request"}}
+            else:
+                if joe is None and msg.get("method") == "tools/call":
+                    try:
+                        joe = Joe()
+                    except Exception as e:     # noqa: BLE001 (settings unreadable etc.: answer, don't die)
+                        stdout.write(json.dumps({"jsonrpc": "2.0", "id": msg.get("id"),
+                                                 "error": {"code": -32603, "message": f"Joe couldn't start: {e}"}}) + "\n")
+                        stdout.flush()
+                        continue
+                reply = handle(joe, msg)
         if reply is not None:
             stdout.write(json.dumps(reply) + "\n")
             stdout.flush()

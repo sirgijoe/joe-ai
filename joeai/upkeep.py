@@ -292,7 +292,7 @@ def install_ollama_mac(log: Log, fetch=request_json, download=None) -> bool:
     apps = Path.home() / "Applications"
     apps.mkdir(exist_ok=True)
     import subprocess
-    p = subprocess.run(["ditto", "-x", "-k", str(tmp), str(apps)], capture_output=True, text=True)
+    p = subprocess.run(["ditto", "-x", "-k", str(tmp), str(apps)], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=900)
     tmp.unlink(missing_ok=True)
     if p.returncode != 0:
         log("Couldn't unpack Ollama: " + (p.stderr or "").strip()[:200])
@@ -325,7 +325,8 @@ def _unpack_source(zpath: Path, dest: Path) -> None:
     if dest.exists():                         # update: keep the Python and the models
         for p in src.iterdir():
             target = dest / p.name
-            if target in (venv, keep_models, dest / "output", dest / "input", dest / "user"):
+            if target in (venv, keep_models, dest / "output", dest / "input", dest / "user",
+                          dest / "custom_nodes"):           # never wipe the add-on nodes someone installed
                 continue
             if target.is_dir():
                 shutil.rmtree(target)

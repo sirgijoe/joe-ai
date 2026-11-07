@@ -314,6 +314,10 @@ def trash(p: Path) -> None:
     p = Path(p)
     if not p.exists():
         return
+    from . import portable
+    if portable.active() and sys.platform != "win32":   # Portable Joe: keep it on the drive
+        _move_unique(p, portable.data_root() / "Trash")
+        return
     if sys.platform == "win32":
         _win_recycle(p)
     elif sys.platform == "darwin":

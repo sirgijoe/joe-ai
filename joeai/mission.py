@@ -147,8 +147,10 @@ class Mission:
 
 
 def slug(text: str) -> str:
-    s = re.sub(r"[^a-z0-9]+", "-", text.lower()).strip("-")
-    return s[:48] or "job"
+    """A safe file/folder name part. Letters of every language are kept (a Japanese or Russian
+    name stays itself instead of turning into 'job', so two of them never collide)."""
+    s = re.sub(r"[\W_]+", "-", (text or "").lower()).strip("-")
+    return s[:48].strip("-") or "job"
 
 
 def parse(text: str) -> Mission:
@@ -358,13 +360,20 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
             raise MissionError(f"Task '{name}': a spreadsheet (.csv) task can EXPORT: xlsx and social.")
         if "xlsx" in export and not d["SAVE"].strip().lower().endswith(".csv"):
             raise MissionError(f"Task '{name}': EXPORT: xlsx is for spreadsheet tasks (SAVE: name.csv).")
-    template = (d.get("TEMPLATE") or "").strip().lower().replace("'", "").replace(" ", "-")
+    template = (d.get("TEMPLATE") or "").strip()
     if template:
-        from .doctemplates import TEMPLATES as _TPL
-        from .doctemplates import ALIASES as aliases
-        template = aliases.get(template, template)
-        if template not in _TPL:
-            raise MissionError(f"Task '{name}': TEMPLATE can be {', '.join(_TPL)}.")
+        from . import doctemplates as _dt
+        found = _dt.resolve(None, template)               # Joe's own templates
+        if not found:                                     # one of yours (Setup > Writing > Templates)
+            try:
+                from .config import Settings
+                found = _dt.resolve(Settings.load(), template)
+            except Exception:                             # noqa: BLE001 (unreadable settings: Joe's only)
+                found = ""
+        if not found:
+            raise MissionError(f"Task '{name}': TEMPLATE can be {', '.join(_dt.TEMPLATES)}, "
+                               "or the name of one of your own (Setup > Writing > Templates).")
+        template = found
     watermark = " ".join(d.get("WATERMARK", "").split())[:120]
     if watermark:
         from .tools import TOOLS as _T

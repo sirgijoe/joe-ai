@@ -15,7 +15,7 @@ from typing import Callable
 
 from .config import Settings
 from .http import HttpError, request_json
-from .textengines import engine_id, engine_label, installed as engine_installed, make_client
+from .textengines import engine_id, engine_label, make_client
 
 Log = Callable[[str], None]
 COMFY_START_WAIT_S = 300      # ComfyUI Desktop can be slow to open after an update or big download

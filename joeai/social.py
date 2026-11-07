@@ -89,11 +89,13 @@ def write(folder: Path, stem: str, posts: list[dict]) -> list[Path]:
              "# Pictures and videos must be uploaded first: postiz upload <file> (use the path it gives back).",
              "# Joe never posts for you; this file only saves typing.", ""]
     for n, p in enumerate(posts, 1):
-        text = p["text"].replace('"', '\\"').replace("\n", "\\n")
+        # single quotes: bash, zsh and PowerShell keep $20, `backticks` and the rest exactly as written;
+        # an apostrophe becomes a typographic one so it can't end the quote
+        text = p["text"].replace("'", "\u2019").replace("\n", "\\n")
         media = p.get("media") or []
         if media:
             lines.append(f"# post {n}: upload first ->  postiz upload \"{media[0]}\"")
-        lines.append(f'postiz posts:create -c "{text}" -s "2026-01-01T12:00:00Z" -i "CHANNEL-ID"'
+        lines.append(f"postiz posts:create -c '{text}' -s \"2026-01-01T12:00:00Z\" -i \"CHANNEL-ID\""
                      + (' -m "UPLOADED-PATH"' if media else ""))
     f = folder / f"{stem}-postiz.txt"
     atomic_write_text(f, "\n".join(lines) + "\n")

@@ -17,7 +17,7 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     "run": ("run", "go", "start", "run it", "do it", "start it", "go ahead", "begin", "start the run",
             "run the plan", "make it", "do the plan", "start working", "get to work", "f5"),
     "stop": ("stop", "pause", "halt", "cancel", "stop it", "stop the run", "quit it", "enough"),
-    "help": ("help", "?", "??", "what can you do", "how does this work", "commands", "help me",
+    "help": ("help", "?", "??", "how does this work", "commands", "help me",
              "how do i use this", "what do i do", "instructions", "guide", "f1"),
     "report": ("report", "results", "morning report", "the report", "show report", "what did you make",
                "what did you do", "show results", "f8"),
@@ -68,6 +68,11 @@ def classify(text: str) -> dict:
     pm = _PARK.match(raw)
     if pm and (pm.group(1).strip() or raw.lower().strip(" .!") in ("park this", "park that", "park it")):
         return {"kind": "command", "cmd": "park", "idea": pm.group(1).strip()}
+    from . import abilities                     # "what can you do?" / "how does restore photo work?"
+    ab = abilities.answer(raw)
+    if ab:
+        return ({"kind": "command", "cmd": "abilities"} if ab["kind"] == "overview"
+                else {"kind": "command", "cmd": "explain", "id": ab["id"]})
     n = _norm(raw)
     if raw.strip().lower() in _LOOKUP:
         return {"kind": "command", "cmd": _LOOKUP[raw.strip().lower()]}

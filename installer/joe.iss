@@ -25,6 +25,8 @@ AppPublisherURL=https://github.com/sirgijoe/joe-ai
 AppSupportURL=https://github.com/sirgijoe/joe-ai/issues
 AppUpdatesURL=https://github.com/sirgijoe/joe-ai/releases
 DefaultDirName={localappdata}\Programs\Joe
+; the uninstaller removes the whole folder, so never let it be a folder with other things in it
+DisableDirPage=yes
 DefaultGroupName=Joe
 DisableProgramGroupPage=yes
 PrivilegesRequired=lowest

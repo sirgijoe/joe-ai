@@ -15,7 +15,6 @@ import os
 import re
 import shutil
 import subprocess
-import sys
 from pathlib import Path
 
 from .system import LINUX, MAC, WINDOWS, no_window_flags
@@ -90,13 +89,19 @@ def cron_lines(current: str, hh: int | None = None, mm: int | None = None,
 
 
 def _run(cmd: list[str], **kw) -> subprocess.CompletedProcess:
-    return subprocess.run(cmd, capture_output=True, text=True, timeout=30,
+    return subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=30,
                           creationflags=no_window_flags(), **kw)
 
 
 def apply(settings, log=lambda *_: None) -> dict:
     """Make the computer's scheduler match Setup: add/update the entry, or remove it."""
     sc = settings.schedule
+    from . import portable
+    if portable.active():                  # never touch this computer's scheduler (or its Joe's task)
+        if not sc.enabled:
+            return {"ok": True}
+        return {"ok": False, "error": "Night shift isn't available while Joe runs from a drive: it would "
+                                      "leave a task in this computer's scheduler. Press RUN before bed instead."}
     if not sc.enabled:
         return remove(log)
     t = parse_time(sc.time)

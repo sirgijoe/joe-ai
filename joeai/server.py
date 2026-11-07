@@ -40,6 +40,7 @@ from . import addons as addons_mod
 from . import chat as chat_mod
 from .chats import Chats
 from . import notify as notify_mod
+from . import portable as portable_mod
 
 UI_DIR = Path(__file__).parent / "ui"
 
@@ -68,6 +69,7 @@ class App:
         storage_mod.cap_logs(self.sb)
         self.token = secrets.token_urlsafe(24)
         self.held_plan: dict = {}                 # a request that waits for the pictures to finish
+        self.portable_job = portable_mod.Job()    # MAKE A PORTABLE JOE (one copy at a time)
         self.lock = threading.RLock()
         self.logs: collections.deque[str] = collections.deque(maxlen=400)
         self.log_count = 0                   # lines logged since Joe started (never goes down)
@@ -127,6 +129,14 @@ class App:
         if any(p == ".." for p in rel.split("/")):
             raise SandboxError("'..' not allowed")
         return self.sb.check(self.sb.root / rel) if rel else self.sb.root
+
+    def background_work(self) -> bool:
+        """A download, install or portable copy is still going (closing the window mustn't kill it)."""
+        try:
+            return bool(self.busy or (self.dl_all or {}).get("running")
+                        or self.portable_job.status().get("running"))
+        except Exception:                          # noqa: BLE001
+            return False
 
     def refresh_services(self) -> None:
         try:
@@ -336,7 +346,9 @@ class App:
                  "text": ("Queued: " if self.running else "Started: ") + entry["label"],
                  "summary": describe_mod.plain_summary(chk)}, title=entry["label"])
             (self.sb.missions / "_last_mission.txt").write_text(text, encoding="utf-8")
-            if self.running:
+            if self.running and not getattr(self, "accepting", True):
+                self.thread.join(timeout=180)      # the run is wrapping up: let it finish, then start fresh
+            if self.running and getattr(self, "accepting", True):
                 self.queue.append((text, mission, entry))
                 self.run_log.append(entry)
                 self._write_last_run()
@@ -349,6 +361,7 @@ class App:
             self.queue_finished = None
             self._write_last_run()
             self.stop = threading.Event()
+            self.accepting = True                  # the run thread still takes queued work
             self.run_started = time.time()
             self.parts_at_start = 0
             self.thread = threading.Thread(target=self._work, daemon=False, name="joe-run")
@@ -367,6 +380,7 @@ class App:
         while True:
             with self.lock:
                 if not self.queue or self.stop.is_set():
+                    self.accepting = False         # from here on, new work starts a new run
                     break
                 text, mission, entry = self.queue.pop(0)
                 self.mission_text = text
@@ -380,6 +394,8 @@ class App:
                 self.log(f"!! Run crashed: {e!r}")
                 self.run_result(entry, list(self.engine.live), self.capture or [])
                 self.capture = None
+                with self.lock:
+                    self.accepting = False
                 break
             lines, self.capture = self.capture or [], None
             self.run_result(entry, states, lines)
@@ -659,7 +675,7 @@ class App:
                 "theme": self.theme_vars(), "hw": hardware.gpu(), "cpu_pct": hardware.cpu_pct(), "pause_c": s.engine.gpu_temp_pause_c,
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
                 "dl_all": {k: v for k, v in self.dl_all.items() if k != "stop"}, "restart_hint": self.restart_advice(),
-                "attention": self.services.attention,
+                "attention": self.services.attention, "portable": portable_mod.active(),
                 "queued": [e["label"] for _, _, e in self.queue],
                 "queued_eta_s": 60 * sum(int(e.get("eta_min") or 0) for _, _, e in self.queue),
                 "media": media[-12:][::-1],
@@ -816,9 +832,9 @@ class App:
                             webbrowser.open(b["page"])          # the license and model card
                         webbrowser.open(link)
                         if "/resolve/" in link:
-                            self.log(f"Opened the model's page (license) and started the download in your "
-                                     f"browser. When it's finished, press GET IT again and Joe moves it "
-                                     f"into ComfyUI.")
+                            self.log("Opened the model's page (license) and started the download in your "
+                                     "browser. When it's finished, press GET IT again and Joe moves it "
+                                     "into ComfyUI.")
                         else:
                             self.log(f"Opened {link}. Read its license, download the .safetensors file "
                                      "there (into your Downloads folder), then press GET IT again and Joe "
@@ -1383,7 +1399,6 @@ def make_handler(app: App):
                     packs = {p: {"ready": picturetools.pack_ready(mdir, p), "offer": picturetools.pack_offer(p, mdir),
                                  "short": picturetools.pack_short(p, mdir)} for p in picturetools.PACKS}
                     from .doctor import find_ollama_exe
-                    from . import whispercpp
                     have = {"voice": voice, "vision": vision,
                             "whispercpp": tools_mod.hearing_backend(app.settings) == "whisper.cpp",
                             "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
@@ -1508,6 +1523,10 @@ def make_handler(app: App):
                         return self._json({"ok": False, "error": "The upload stopped part way."})
                     part.replace(p)
                 except (OSError, SandboxError) as e:
+                    try:
+                        part.unlink(missing_ok=True)       # never leave a huge half-file behind
+                    except (OSError, NameError):
+                        pass
                     return self._json({"ok": False, "error": str(e)})
                 rel = str(p.relative_to(app.sb.inbox)).replace("\\", "/")
                 return self._json({"ok": True, "input": rel, "name": p.name, "bytes": n})
@@ -1662,6 +1681,34 @@ def make_handler(app: App):
                     return self._json(app.download_all(b))
                 if u.path == "/api/doctor/fix":
                     return self._json(app.doctor_fix(b))
+                if u.path == "/api/abilities":                  # WHAT CAN JOE DO?
+                    from . import abilities
+                    aid = str(b.get("id", ""))
+                    if aid:
+                        e = abilities.explain(aid)
+                        return self._json({"ok": bool(e), **(e or {"error": "unknown"})})
+                    if b.get("ask"):
+                        a = abilities.answer(str(b["ask"]))
+                        return self._json({"ok": bool(a), **(a or {})})
+                    return self._json({"ok": True, "groups": abilities.groups(), "text": abilities.overview()})
+                if u.path == "/api/portable":                   # Setup > General > PORTABLE JOE
+                    act = b.get("action", "info")
+                    job = app.portable_job
+                    if act == "info":
+                        return self._json({"ok": True, **portable_mod.info(app.settings)})
+                    if act == "plan":
+                        return self._json({"ok": True, **portable_mod.plan(app.settings)})
+                    if act == "status":
+                        return self._json({"ok": True, **job.status()})
+                    if act == "stop":
+                        job.stop = True
+                        return self._json({"ok": True})
+                    if act == "make":
+                        if not b.get("approved"):
+                            return self._json({"ok": False, "error": "Needs your OK first."})
+                        opts = {k: bool(b.get(k)) for k in ("work", "settings", "ollama_models", "comfy_models")}
+                        return self._json(job.start(app.settings, str(b.get("dest", "")), opts, app.log))
+                    return self._json({"ok": False, "error": "unknown action"})
                 if u.path == "/api/help-file":                  # a zip to send when asking for help
                     from . import support
                     try:
@@ -1725,6 +1772,13 @@ def make_handler(app: App):
                 if u.path == "/api/templates":         # Setup > Writing > Templates
                     from . import doctemplates
                     return self._json({"ok": True, **doctemplates.entries(app.settings)})
+                if u.path == "/api/templates/add":     # a template of your own, copied from one of Joe's
+                    from . import doctemplates
+                    return self._json(doctemplates.add_custom(app.settings, str(b.get("name", "")),
+                                                              str(b.get("base", "")), str(b.get("about", ""))))
+                if u.path == "/api/templates/delete":
+                    from . import doctemplates
+                    return self._json(doctemplates.delete_custom(app.settings, str(b.get("id", ""))))
                 if u.path in ("/api/templates/save", "/api/templates/reset", "/api/templates/defaults"):
                     from . import doctemplates
                     if u.path.endswith("defaults"):
@@ -1985,12 +2039,18 @@ def make_handler(app: App):
             start, end = 0, size - 1
             if rng and rng.startswith("bytes="):
                 a, _, z = rng[6:].partition("-")
-                start = int(a) if a else 0
-                end = min(int(z), size - 1) if z else min(start + 4_000_000, size - 1)
+                try:
+                    start = min(max(int(a), 0), max(size - 1, 0)) if a else 0
+                    end = min(int(z), size - 1) if z else min(start + 4_000_000, size - 1)
+                except ValueError:
+                    start, end, rng = 0, size - 1, None
+                if end < start:
+                    start, end, rng = 0, size - 1, None
             with open(p, "rb") as f:
                 f.seek(start)
                 data = f.read(end - start + 1)
-            extra = {"Accept-Ranges": "bytes"}
+            # a made or dropped-in .html/.svg must never run script on Joe's own address
+            extra = {"Accept-Ranges": "bytes", "Content-Security-Policy": "sandbox", "X-Content-Type-Options": "nosniff"}
             if rng:
                 extra["Content-Range"] = f"bytes {start}-{end}/{size}"
             self._send(206 if rng else 200, data, ctype, extra)
@@ -1999,7 +2059,12 @@ def make_handler(app: App):
 
 
 def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
-    httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
+    if system.WINDOWS:          # SO_REUSEADDR on Windows lets two programs share a port: never fall into that
+        class _Server(ThreadingHTTPServer):
+            allow_reuse_address = False
+        httpd = _Server(("127.0.0.1", port), make_handler(app))
+    else:
+        httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
     httpd.daemon_threads = True
 
     def background():
@@ -2014,7 +2079,8 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             for _ in range(10):
                 time.sleep(1)
                 idle = time.monotonic() - app.last_seen
-                if (app.quit_now or idle > IDLE_EXIT_S) and not app.running:
+                working = app.running or (not app.quit_now and app.background_work())
+                if (app.quit_now or idle > IDLE_EXIT_S) and not working:
                     httpd.shutdown()
                     return
     threading.Thread(target=background, daemon=True, name="joe-bg").start()

@@ -139,6 +139,7 @@ class JobState:
     media_files: list[str] = field(default_factory=list)
     checkpoint: str = ""
     phase: str = ""                   # prompts | render
+    prompt_parts: int = 0             # prompt parts finished or skipped (resume point; 0 = older state)
 
 
 def thin_reply_words(words_so_far: int, parts_done: int) -> int:
@@ -226,17 +227,17 @@ class Engine:
                 if self._stopped(st):
                     continue
                 self.current = job.job_id
-                done[job.job_id] = self.run_job(mission, job, st)
+                done[job.job_id] = self._guard(job, st, self.run_job, mission, job, st)
             for job, st in media_jobs:
                 if self._stopped(st):
                     continue
                 self.current = job.job_id
-                self.write_prompts(mission, job, st)
+                self._guard(job, st, self.write_prompts, mission, job, st)
             for job, st in media_jobs:
                 if st.status in ("failed", "stopped") or self._stopped(st):
                     continue
                 self.current = job.job_id
-                self.render(mission, job, st)
+                self._guard(job, st, self.render, mission, job, st)
         states = [done.get(j.job_id, st) for j, st in jobs]
         self.current = ""
         report = write_report(self.sb, mission, states, earlier)
@@ -245,6 +246,22 @@ class Engine:
         if finish and not self.stop.is_set():
             when_finished(self.s.engine.when_finished, self.log)
         return states
+
+    def _guard(self, job: Job, st: JobState, fn, *a):
+        """One task going wrong (a file locked by Excel, a bad path...) fails that task only:
+        the rest still run and the morning report is still written."""
+        try:
+            return fn(*a)
+        except Stopped:
+            raise
+        except Exception as e:                     # noqa: BLE001
+            st.status, st.note = "failed", f"{type(e).__name__}: {e}"[:300]
+            self.log(f"'{job.name}' failed: {st.note}")
+            try:
+                self._save_state(job, st)
+            except Exception:                      # noqa: BLE001
+                pass
+            return st
 
     def _stopped(self, st: JobState) -> bool:
         if self.stop.is_set():
@@ -387,12 +404,27 @@ class Engine:
             self._model_checked = True
         return True
 
+    def _under_output(self, target: Path) -> Path:
+        """SAVE may name another top folder (Projects/x.md); results always go inside Output."""
+        try:
+            target.relative_to(self.sb.output)
+            return target
+        except ValueError:
+            try:
+                rel = target.relative_to(self.sb.root)
+            except ValueError:
+                rel = Path(target.name)
+            return self.sb.output / rel
+
     def _output_path(self, job: Job, st: JobState) -> Path:
-        if st.output and st.parts_done > 0:                   # resuming: same file
+        if st.output:
             p = self.sb.resolve(st.output)
-            if p.exists():
+            if p.exists() and st.parts_done > 0:              # resuming: same file
                 return p
-        target = self.sb.resolve(job.save)
+            if p.exists() and st.parts_done == 0:             # stopped before part 1: start it over
+                p.unlink(missing_ok=True)
+                return p
+        target = self._under_output(self.sb.resolve(job.save))
         if not target.suffix:
             target = target.with_suffix(".md")
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -401,7 +433,9 @@ class Engine:
             cand = target.with_name(f"{target.stem}_v{n}{target.suffix}")
             n += 1
         st.output = str(cand.relative_to(self.sb.output)).replace("\\", "/")
-        st.parts_done = 0
+        st.parts_done = 0                                      # a new file: earlier counts don't belong to it
+        st.items = st.words = st.short_items = st.duplicates_dropped = 0
+        st.titles, st.flags, st.skipped_parts = [], [], []
         return cand
 
     def _cool_down(self) -> None:
@@ -847,7 +881,7 @@ class Engine:
             p = self.sb.resolve(st.output)
             p.mkdir(parents=True, exist_ok=True)
             return p
-        target = self.sb.resolve(job.save)
+        target = self._under_output(self.sb.resolve(job.save))
         if target.suffix:                                  # "art/kiln.png" -> folder art/kiln
             target = target.with_suffix("")
         cand, n = target, 2
@@ -935,7 +969,8 @@ class Engine:
                              f"vary only angle, framing, lighting and small details):\n{job.format}"
                              if job.format else "")
                     pj = dc_replace(job, format=IMAGE_FORMAT + brief, min_words=0)
-                    for part in range(len(st.prompts) // max(job.part_size, 1), job.parts):
+                    start = st.prompt_parts or len(st.prompts) // max(job.part_size, 1)
+                    for part in range(start, job.parts):
                         if self.stop.is_set():
                             raise Stopped()
                         self._progress(f"{job.name}: prompts part {part + 1}/{job.parts}")
@@ -943,10 +978,13 @@ class Engine:
                             items = self._run_part(pj, part, st, system, kind="prompt")
                         except PartFailed as e:
                             self.log(f"  prompt part {part + 1} skipped: {e}")
+                            st.prompt_parts = part + 1
+                            self._save_state(job, st)
                             continue
                         for it in items:
                             st.prompts.append({"title": it.title, "prompt": " ".join(it.body.split())})
                             st.titles.append(it.title)
+                        st.prompt_parts = part + 1
                         self._save_state(job, st)
             except Stopped:
                 st.status, st.note = "stopped", f"stopped while writing prompts ({len(st.prompts)} done)"
@@ -1432,7 +1470,7 @@ def _parse_rows(text: str, cols: list[str]) -> tuple[list[list[str]], int]:
     for o in objs:
         norm = {lower.get(str(k).lower().strip()): v for k, v in o.items()}
         hits = sum(1 for c in cols if c in norm)
-        if hits < max(2, len(cols) // 2):
+        if hits < max(1, min(2, len(cols)), len(cols) // 2):   # a one-column sheet still counts
             bad += 1
             continue
         rows.append([_cell(norm.get(c, "")) for c in cols])

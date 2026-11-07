@@ -21,7 +21,8 @@ from pathlib import Path
 from . import __version__
 
 LOG_TAIL = 300_000                  # bytes kept from the end of each log
-SECRET = re.compile(r"(?<!ptt_)key$|token|topic|password|secret", re.I)   # not the push-to-talk key
+SECRET = re.compile(r"(?<!ptt_)key$|token|topic|password|secret|_start$|start_command", re.I)   # not the push-to-talk key
+_USERINFO = re.compile(r"(\w+://)[^/@\s:]+(?::[^/@\s]*)?@")             # https://user:pass@host -> https://host
 
 README = """JOE HELP FILE
 =============
@@ -48,15 +49,16 @@ def _scrub_text(text: str) -> str:
         user = getpass.getuser()
     except Exception:                                  # noqa: BLE001 (no user name: nothing to hide)
         user = ""
-    if user and len(user) >= 3:
-        text = re.sub(re.escape(user), "<user>", text, flags=re.I)
-    return text
+    if user and len(user) >= 3:                    # whole words only, so "joe" doesn't eat every "Joe"
+        text = re.sub(rf"(?<![A-Za-z0-9]){re.escape(user)}(?![A-Za-z0-9])", "<user>", text, flags=re.I)
+    return _USERINFO.sub(r"\1", text)
 
 
 def _scrub_settings(d):
     if isinstance(d, dict):
         return {k: ("(hidden)" if SECRET.search(k) and v not in ("", None, 0, False)
-                    and not isinstance(v, (dict, list)) else _scrub_settings(v))
+                    and not isinstance(v, (dict, list))
+                    else _USERINFO.sub(r"\1", v) if isinstance(v, str) else _scrub_settings(v))
                 for k, v in d.items()}
     if isinstance(d, list):
         return [_scrub_settings(x) for x in d]

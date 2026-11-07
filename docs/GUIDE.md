@@ -15,7 +15,9 @@ Workflows\  ComfyUI workflows in API format (optional; image tasks have a built-
 Themes\     custom color themes (made in F10, or by hand)
 ```
 
-Settings live in `%APPDATA%\joe-ai\settings.json`, never in the app folder.
+Settings live in `%APPDATA%\joe-ai\settings.json` (Mac: `~/Library/Application Support/joe-ai`,
+Linux: `~/.config/joe-ai`), never in the app folder. A Portable Joe keeps everything on its drive
+instead (see Portable Joe below).
 
 ## Just describe it (Queue, F2)
 
@@ -47,6 +49,18 @@ Every chatbot writes the plan a little differently, so Joe tidies the answer fir
 what he changed: lost line breaks, bold or bulleted keys, a list in one huge part (1 x 30 becomes
 5 x 6), a style name he doesn't know (black and white becomes bw), a price list that says it
 "matches" the descriptions (he adds FROM: so it really does).
+
+### What can Joe do?
+
+Ask "what can you do?" (in Talk or the box) and Joe lists everything, grouped, one line each. Ask
+about one part ("how does restore photo work?", "tell me about the night shift", "how do I use make
+shorts?") and you get the long version: what it does, how Joe does it step by step behind the
+scenes, what to give it, every option and when to pick it, time, what it needs (models, sizes,
+licenses), limits and tips. No AI is used for these answers, so they're instant and always match
+the program. The same is behind **WHAT CAN JOE DO?** on Home and Help (F1), and the "learn more"
+link on every Tools card (and LEARN MORE ABOUT THIS TOOL in its form). Developers: the text lives in
+`joeai/abilities.py`; tools are explained from their own help and options plus a short STEPS list,
+and a test fails if a new tool has no STEPS.
 
 ### Matching names between tasks (FROM:)
 
@@ -119,6 +133,43 @@ he just runs them; if not, he starts without a window, works through them (keep-
 finished", phone ping all apply) and closes when done. Open Joe during the night to watch. The PC
 has to be signed in; on a Mac or Linux it also has to be awake. Turning it off, or uninstalling Joe, removes
 the scheduler entry. Plans saved for tonight sit in `Missions\Tonight`.
+
+### Portable Joe (Setup > General)
+
+**MAKE A PORTABLE JOE** copies Joe to a USB drive or any folder you pick (into a folder called
+`Joe`). Press LOOK first to see what can come along and how big it is: Joe's program (and his
+private Python, when he came with one) always; your settings (paths to programs on this PC are left out),
+your work, your writing models (Ollama) and your picture and video models (ComfyUI) if you tick
+them. Nothing on this computer changes, and you can press it again later to carry on: files
+already copied are skipped.
+
+On the drive:
+
+```
+Joe\Start Joe.bat        (Windows; Start Joe.command on a Mac, start-joe.sh on Linux)
+Joe\portable.txt         (tells Joe he's portable; delete it and he uses the PC's folders again)
+Joe\app\                 Joe's program (+ python\ when he has his own)
+Joe\Joe-ai\              your work (Inbox, Output, Missions...)
+Joe\JoeData\settings\    settings, chats, the window's profile, crash.log
+Joe\JoeData\data\        add-ons: voice, Ollama, Joe's own ComfyUI and its models, caches
+```
+
+Started from the drive, Joe shows PORTABLE next to his version and keeps everything there:
+downloads and caches (uv, Python, Hugging Face, PyTorch) go to the drive too. System check offers
+**Put Ollama on the drive** (Ollama's official release from GitHub, run on its own port 11435 with
+its models in `JoeData\data\ollama-models`, so the computer's own Ollama is left alone) and **Put
+ComfyUI on the drive** (Joe's own copy with a private Python; models you copied are already in
+place). Until then Joe uses the computer's Ollama and ComfyUI if it has them. Paths are saved
+relative to the drive, so a different drive letter on another PC is fine; helper environments are
+pointed at the new place by themselves.
+
+Good to know: each computer still needs its own graphics driver, and Joe uses its Edge or Chrome
+for the window (with a profile kept on the drive). Windows may still remember that a program ran
+(prefetch, the page file): portable means carried with you, not invisible. The night shift is off
+while Joe runs from a drive (it would leave a task in that computer's scheduler). Use a fast USB 3
+drive (an SSD is best) formatted as exFAT or NTFS: FAT32 can't hold files over 4 GB, which most
+models are. On a Mac or Linux the drive copy uses the computer's Python 3.11+ unless Joe came with
+his own.
 
 ### Keep my PC usable (Setup > General)
 
@@ -684,7 +735,15 @@ Joe sets each part where scripts put it, in Word too (styles Scene Heading, Char
 
 Each is shown filled in; EDIT unlocks it and RESET THIS TEMPLATE brings Joe's back. Pick which one
 each kind of file uses by default at the top, or put `TEMPLATE: book` (or kids, manuscript, ebook,
-report) on a task. Word copies get the template through a "reference document" Joe builds from
+report) on a task.
+
+**Your own templates**: missing one (a church bulletin, a newsletter, your company's report style)?
+At the bottom of the list, **ADD YOUR OWN TEMPLATE**: give it a name, pick the closest of Joe's to
+start from, and Joe copies it (with any changes you made to that one). EDIT changes anything,
+RESET THIS TEMPLATE takes it back to where it started, DELETE removes it. A task uses it with
+`TEMPLATE:` and its name (`TEMPLATE: church bulletin`, or its id `my-church-bulletin`), and it can be
+the default for a kind of file. Your templates are saved in your settings (up to 50); Joe's own are
+never changed, and ASK A BIGGER AI tells the chatbot their names. Word copies get the template through a "reference document" Joe builds from
 Pandoc's own; PDF, EPUB and web pages through a style sheet. A font must be on the computer that
 opens the file; list a few (comma-separated) and the first one there is used (Word uses the first).
 

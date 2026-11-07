@@ -51,6 +51,13 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("tonight", help="start the plans saved for tonight (run by the night shift)")
     sub.add_parser("restart", help="start Joe's window after the old Joe has closed (RESTART JOE)")
     a = ap.parse_args(argv)
+    for stream in (sys.stdout, sys.stderr):        # Windows consoles: an emoji in a title mustn't crash
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):
+            pass
+    from . import portable
+    portable.start()
     if a.cmd == "mcp":
         from .mcp import serve
         return serve()

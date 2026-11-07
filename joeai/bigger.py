@@ -136,6 +136,15 @@ def message(app, request: str = "", with_report: bool = True, mission: str = "")
     from .tools import inbox_media
     fmt_text = format_text()
     parts = [INTRO.format(pc=_pc_line(app)), "--- THE MISSION FORMAT ---", fmt_text, extra_keys(), HOW_TO_ANSWER]
+    try:                                    # templates the person made (Setup > Writing > Templates)
+        from . import doctemplates
+        mine = [r for r in doctemplates.entries(app.settings)["rows"] if r.get("custom")]
+    except Exception:                       # noqa: BLE001
+        mine = []
+    if mine:
+        parts.insert(3, "My own TEMPLATE names (use them when they fit): "
+                     + "; ".join(f"{r['id']} ({r['label']}, for {'.csv' if r['for'] == 'sheet' else 'documents'})"
+                                 for r in mine[:20]))
     request = (request or "").strip()
     try:
         waiting = inbox_media(app.sb)

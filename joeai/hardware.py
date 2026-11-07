@@ -56,7 +56,7 @@ def _nvidia() -> dict | None:
     try:
         out = subprocess.run(
             [smi, "--query-gpu=" + ",".join(_FIELDS), "--format=csv,noheader,nounits"],
-            capture_output=True, text=True, timeout=5,
+            capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5,
             creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         cells = out.stdout.strip().splitlines()[0].split(",")
     except (OSError, IndexError, subprocess.SubprocessError):
@@ -82,7 +82,7 @@ def _linux_name(dev: Path, vendor: str) -> str:
     lspci = shutil.which("lspci")
     if lspci:
         try:
-            out = subprocess.run([lspci, "-s", slot], capture_output=True, text=True, timeout=3).stdout
+            out = subprocess.run([lspci, "-s", slot], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3).stdout
             m = re.search(r"(?:VGA compatible controller|Display controller|3D controller):\s*(.+)", out)
             if m:
                 name = re.sub(r"\s*\(rev [0-9a-f]+\)\s*$", "", m.group(1).strip())
@@ -212,7 +212,7 @@ def _mac() -> dict | None:
     name = "Apple Silicon"
     try:
         out = subprocess.run(["sysctl", "-n", "machdep.cpu.brand_string"],
-                             capture_output=True, text=True, timeout=3).stdout.strip()
+                             capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=3).stdout.strip()
         if out:
             name = out
     except (OSError, subprocess.SubprocessError):
@@ -366,7 +366,7 @@ def cpu_pct() -> int | None:
         return _cpu_last["pct"]
     if sys.platform == "darwin":
         try:
-            out = subprocess.run(["ps", "-A", "-o", "%cpu"], capture_output=True, text=True, timeout=5).stdout
+            out = subprocess.run(["ps", "-A", "-o", "%cpu"], capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=5).stdout
             pct = sum(float(x) for x in out.split()[1:] if re.match(r"^[\d.]+$", x)) / (os.cpu_count() or 1)
             _cpu_last.update(t=now, pct=max(0, min(100, round(pct))))
             return _cpu_last["pct"]

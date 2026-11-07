@@ -64,7 +64,8 @@ def drop_task(text: str, name: str) -> str:
     """The mission without one task (a pack part this PC can't do yet)."""
     import re as _re
     parts = _re.split(r"(?m)^(?=TASK:)", text)
-    keep = [p for p in parts if not _re.match(rf"TASK:[ \t]*{_re.escape(name)}[ \t]*$", p.splitlines()[0] if p else "")]
+    keep = [p for p in parts if not _re.match(rf"TASK:[ \t]*{_re.escape(name)}(?:[ \t]*$|[ \t]{{2,}}[A-Z][A-Z ]*:)",
+                                              p.splitlines()[0] if p else "")]
     out = "".join(keep)
     if "=== END ===" not in out:
         out = out.rstrip() + "\n=== END ===\n"
