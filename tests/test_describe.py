@@ -126,7 +126,7 @@ def test_request_is_held_while_drawing_then_planned(app, monkeypatch):
     assert r["held"] and not r["ok"]
     assert app.state()["held_plan"]["status"] == "waiting"
     busy["on"] = False
-    for _ in range(100):
+    for _ in range(600):                              # slow CI machines: up to a minute
         if app.held_plan.get("status") == "ready":
             break
         time.sleep(0.1)

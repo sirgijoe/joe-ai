@@ -170,7 +170,9 @@ def test_uv_unpacks_from_tar_and_zip(tmp_path):
             t.addfile(info, io.BytesIO(data))
     _unpack_uv(buf.getvalue(), "x.tar.gz", tmp_path / "a")
     assert sorted(p.name for p in (tmp_path / "a").iterdir()) == ["uv", "uvx"]
-    assert (tmp_path / "a" / "uv").stat().st_mode & 0o100
+    import sys
+    if sys.platform != "win32":                       # Windows files have no "can run" bit
+        assert (tmp_path / "a" / "uv").stat().st_mode & 0o100
     zb = io.BytesIO()
     with zipfile.ZipFile(zb, "w") as z:
         z.writestr("uv.exe", b"MZ")
