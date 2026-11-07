@@ -129,8 +129,9 @@ SPIN_VIEWS = (("front", "front view, facing the viewer"),
               ("back", "back view, facing away from the viewer"),
               ("right", "right side profile view"),
               ("three-quarter-right", "three-quarter view, turned to the right"))
-SAME_CHARACTER = ("the exact same character as in the picture: same face, hair, body shape, outfit, colors "
-                  "and art style")
+SAME_CHARACTER = ("the exact same character or object as in the picture, unchanged: for a person or creature the "
+                  "same face, hair, body shape, outfit, colors and art style; for a thing (a mug, a toy, a car) the "
+                  "same shape, size, colors and details, still an ordinary object with no face, arms or legs added")
 OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",), "make-3d": ("bg",)}
 COMFY_TOOLS = tuple(TOOL_PACKS)
 
@@ -964,8 +965,10 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
             pw, ph = ph, pw                       # phone portrait stored sideways: ComfyUI turns it upright
         w, h = video_size(pw, ph)
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
-        prompt = (f"{motion}. Keep the people, objects and setting from the photo exactly as they are; "
-                  "smooth, natural movement.")
+        # Don't name things the photo may not have: "keep the people" made the model grow a face
+        # out of a simple beach picture (with the fast 4-step video, the no-list isn't used).
+        prompt = (f"{motion}. Everything in the picture stays exactly as it is, the same scene from start to "
+                  "end; nothing new appears and nothing turns into something else. Smooth, natural movement.")
         from .doctor import comfy_models_dir
         turbo = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
         steps, cfg = (4, 1.0) if turbo else (20, 5.0)

@@ -113,3 +113,27 @@ def test_illusion_art_without_a_picture_can_be_queued(tmp_path, monkeypatch):
     app = next(gen)
     chk = app.check("TASK: Spiral  TYPE: illusion-art\nOPTIONS: hidden spiral\nFORMAT: a village")
     assert chk["ok"], chk
+
+
+def test_character_scenes_dont_give_objects_legs():
+    from joeai.picturetools import SAME_CHARACTER
+    assert "object" in SAME_CHARACTER and "no face, arms or legs" in SAME_CHARACTER
+
+
+def test_ask_files_lists_the_excerpt_that_backs_an_uncited_answer():
+    from joeai.tools import best_line, tidy_citations
+    texts = ["Kiln Warranty. The warranty lasts 2 years.", "# Apartment Lease\nSection 9. Pets are allowed.",
+             "Section 31. Rent is due on the 1st of each month. A late fee of $35 is added after the 5th."]
+    ans = "The rent is due on the 1st of each month, and a late fee of $35 is added after the 5th."
+    _, shown = tidy_citations(ans, 3, texts)
+    assert shown == [2]
+    assert best_line(texts[2], "When is rent due and what is the late fee?", answer=ans).startswith(("Rent is due", "A late fee"))
+    assert tidy_citations("Yes [2].", 3, texts)[1] == [1]
+
+
+def test_stray_script():
+    from joeai.engine import stray_script
+    assert stray_script("He had been her companion for十五 years.", "A story") == "十五"
+    assert stray_script("ホットサイダー と コーヒー", "Translate") == ""
+    assert stray_script("Order the 寿司 set", "Menu with Japanese 寿司 names") == ""
+    assert stray_script("Plain English only.", "x") == ""

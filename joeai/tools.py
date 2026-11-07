@@ -2831,9 +2831,10 @@ ASK_CHUNK_WORDS = 220                 # words per searchable piece
 ASK_TOP = 8                           # pieces shown to the writing model per question
 ANSWER_SYSTEM = """You answer questions using ONLY the numbered excerpts from the person's own
 documents. Say which excerpts you used with their EXCERPT numbers, like [2] or [1][4], right
-after the sentence (never a section or page number from inside the text). If the
-excerpts don't answer the question, say plainly that the documents don't seem to say, and what
-they do say that comes closest. Never use outside knowledge, never guess numbers, dates or names.
+after the sentence (never a section or page number from inside the text). When an excerpt
+answers the question, just give the answer: don't also say the documents don't say it. Only when
+none of them answers it, say plainly that the documents don't seem to say, and what they do say
+that comes closest. Never use outside knowledge, never guess numbers, dates or names.
 Plain, friendly English."""
 SUMMARY_SYSTEM = """You summarize one of the person's documents using only what it says. Every
 bullet must be something the document actually states. Never add outside facts, typical
@@ -2978,9 +2979,10 @@ def _embed_all(engine: "Engine", model: str, texts: list[str]) -> list[list[floa
     return [cache[k] for k in keys]
 
 
-def tidy_citations(answer: str, n: int) -> tuple[str, list[int]]:
+def tidy_citations(answer: str, n: int, texts: list[str] | None = None) -> tuple[str, list[int]]:
     """Drop citations to excerpts that don't exist (like a section number), and say which
-    excerpts to list under the answer: the ones it cited, else the top three."""
+    excerpts to list under the answer: the ones it cited, else the ones that share the most
+    words with the answer (`texts`), else the top three."""
     cited: list[int] = []
 
     def keep(m):
@@ -2993,16 +2995,26 @@ def tidy_citations(answer: str, n: int) -> tuple[str, list[int]]:
     answer = re.sub(r"\[(\d+)\]", keep, answer)
     answer = re.sub(r"[ \t]+([.,;:!?])", r"\1", answer)
     answer = re.sub(r"[ \t]{2,}", " ", answer)
+    if not cited and texts:
+        a = set(_terms(answer))
+        a |= set(re.findall(r"\d+(?:[.,]\d+)?", answer))
+        score = [len(a & (set(_terms(t)) | set(re.findall(r"\d+(?:[.,]\d+)?", t)))) for t in texts[:n]]
+        top = max(score, default=0)
+        if top:
+            cited = [i for i, sc in enumerate(score) if sc >= max(2, top * 0.6)][:3] or [score.index(top)]
     return answer.strip(), sorted(cited) or list(range(min(3, n)))
 
 
-def best_line(text: str, question: str, words: int = 45) -> str:
-    """The sentence in an excerpt that best fits the question, for the person to check."""
+def best_line(text: str, question: str, words: int = 45, answer: str = "") -> str:
+    """The sentence in an excerpt that best fits the question (and the answer given), for the
+    person to check."""
     q = set(_terms(question))
+    a = set(_terms(answer)) | set(re.findall(r"\d+(?:[.,]\d+)?", answer))
     sents = [x.strip() for x in re.split(r"(?<=[.!?])\s+|\n+", text) if x.strip()]
     if not sents:
         return ""
-    best = max(sents, key=lambda x: len(q & set(_terms(x))))
+    best = max(sents, key=lambda x: len(q & set(_terms(x))) + 2 * len(
+        a & (set(_terms(x)) | set(re.findall(r"\d+(?:[.,]\d+)?", x)))))
     ws = best.split()
     return " ".join(ws[:words]) + ("\u2026" if len(ws) > words else "")
 
@@ -3109,10 +3121,10 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                     except PartFailed as e:
                         failed.append(f"question {qi + 1}: {e}"[:200])
                         continue
-                answer, shown = tidy_citations(answer, len(pick))
+                answer, shown = tidy_citations(answer, len(pick), [chunks[i]["text"] for i in pick])
                 src_lines = "\n".join(
                     f"- [{k + 1}] {chunks[pick[k]]['file']}, part {chunks[pick[k]]['n']}: \u201c"
-                    + best_line(chunks[pick[k]]["text"], q) + "\u201d" for k in shown)
+                    + best_line(chunks[pick[k]]["text"], q, answer=answer) + "\u201d" for k in shown)
                 done_md += f"\n## {q}\n\n{answer}\n\n" + (f"**Excerpts used:**\n{src_lines}\n" if pick else "")
                 atomic_write_text(answers_p, done_md)
                 st.titles.append(f"Q: {q}")

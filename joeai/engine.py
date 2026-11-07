@@ -92,6 +92,21 @@ REF_WORDS_EACH = 1200      # cap per Inbox reference file
 REF_FILE_TYPES = {".txt", ".md", ".csv", ".json"}
 
 
+_CJK = re.compile(r"[\u3040-\u30ff\u3400-\u4dbf\u4e00-\u9fff\uac00-\ud7af]+")
+
+
+def stray_script(text: str, brief: str) -> str:
+    """Chinese/Japanese/Korean characters that slipped into a Latin-script answer (qwen models
+    sometimes write "for十五 years"). '' when there are none or the brief itself uses them."""
+    if _CJK.search(brief or ""):
+        return ""
+    hits = _CJK.findall(text or "")
+    letters = len(re.findall(r"[^\W\d_]", text or ""))
+    if not hits or sum(map(len, hits)) > letters * 0.2:     # mostly CJK: that's the language asked for
+        return ""
+    return hits[0][:12]
+
+
 def research_query(job) -> str:
     """Search words for a task: what it's about, not its label ("T3 Mug care" -> "Mug care")."""
     name = re.sub(r"^(?:[A-Z]{0,3}\d+[a-z]?|test|task)\s*[-:.)]?\s+", "", job.name or "", flags=re.I).strip()
@@ -812,6 +827,16 @@ class Engine:
                 score = (1, -words)
                 if best is None or score < best[0]:
                     best = (score, text, items, short)
+            stray = stray_script(text, f"{job.format}\n{job.part_prompts[part]}")
+            if stray:
+                if best is not None and best[1] is text:
+                    best = ((best[0][0] + 1,) + best[0][1:], text, items, short)
+                if attempt < tries:
+                    st.retries += 1
+                    self.log(f"  part {part + 1}: slipped into another language ('{stray}'), retrying")
+                    extra = (f"Your last attempt slipped into another language ('{stray}'). Write every "
+                             "word in the language of the brief.")
+                    continue
             if not short and not too_thin:
                 break
             if attempt < tries and too_thin:
@@ -831,6 +856,9 @@ class Engine:
                          f"{job.min_words} words. Write every item fully.")
         _, text, items, short = best
         flags = [(i.title, f) for i in items for f in find_flags(i.title + "\n" + i.body)]
+        stray = stray_script(text, f"{job.format}\n{job.part_prompts[part]}")
+        if stray:
+            flags.append((f"part {part + 1}", f"[CHECK: stray foreign words '{stray}']"))
         if not items:
             flags += [(f"part {part + 1}", f) for f in find_flags(text)]
         for i in short:
