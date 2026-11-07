@@ -10,18 +10,20 @@ Default: `Documents\Joe-ai`.
 Inbox\      reference files you drop in (facts, price lists) — read with INPUT:
 Output\     everything Joe writes, plus _REPORT.md, _log.txt, _progress.txt
 Projects\   project profiles: brand voice, facts, rules (one .md per project)
-Missions\   saved mission files; Missions\Queue\ = drop a mission file here to queue it
+Missions\   saved mission files; Missions\Queue\ = drop a mission file here to queue it;
+            Missions\Tonight\ = plans saved for the night shift; Missions\Packs\ = your own starter packs
 Workflows\  ComfyUI workflows in API format (optional; image tasks have a built-in one)
-Themes\     custom color themes (made in F10, or by hand)
+Themes\     custom color themes and screen savers (made in F10, or by hand)
+Ideas.md    ideas you parked ("park this: ...")
 ```
 
 Settings live in `%APPDATA%\joe-ai\settings.json` (Mac: `~/Library/Application Support/joe-ai`,
 Linux: `~/.config/joe-ai`), never in the app folder. A Portable Joe keeps everything on its drive
 instead (see Portable Joe below).
 
-## Just describe it (Queue, F2)
+## Just describe it (Home, F2)
 
-The big box on the Queue screen takes plain words: "40 product descriptions for handmade mugs,
+The big box on the Home screen takes plain words: "40 product descriptions for handmade mugs,
 friendly and short, plus 8 pictures of mugs on a wooden table". Press **MAKE A PLAN** (or
 Ctrl+Enter). Joe's local model writes the mission and you see it in plain words:
 
@@ -31,7 +33,7 @@ JOE'S PLAN — about 14 minutes
  • 8 pictures: Mugs on a table
 ```
 
-**RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in the Builder,
+**RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in Step by step (F6),
 **START OVER** clears it. Nothing runs until you press RUN IT.
 Time estimates learn from your own runs; until then they're marked as a rough guess. TEST MY
 SPEED (in the setup helper or Setup > System check) times one small batch to get them right at once. The mission text itself is under
@@ -227,7 +229,7 @@ Queued plans run when Joe's window is open, or at the night-shift time.
 
 ## Building it step by step (F6)
 
-The Builder makes the mission for you with simple forms:
+Step by step (the Builder) makes the mission for you with simple forms:
 
 - **+ ADD SOMETHING**, pick what it is (a list of things, a document, a spreadsheet, pictures,
   short video clips) and fill in the blanks: **How many?**, what each one looks like, how many
@@ -240,7 +242,9 @@ The Builder makes the mission for you with simple forms:
   run one after another until all are done, with one combined morning report. Sleep/shut down
   happens only after the last one.
 - **SAVE** keeps it in `Missions\` under a name. **PAST MISSIONS** lists every mission you've
-  run, how many tasks finished, and LOAD / RUN buttons to revisit one.
+  run, how many tasks finished, and LOAD / RUN buttons to revisit one. **DEL** removes one from
+  the list and **CLEAN UP** clears them all (both ask first and use the Recycle Bin; only the saved
+  plans go, never what they made or plans you saved yourself).
 - **Drop-in queue:** any `.txt` or `.md` mission file put in `Missions\Queue\` while Joe is open
   is queued on its own within about 10 seconds (oldest first), then moved to `Queue\done\`.
   A file with a problem goes to `Queue\problems\` with a `.problem.txt` note saying what's
@@ -257,9 +261,9 @@ another; more choices appear once Ollama and ComfyUI are in. The later steps (wr
 talking, extras) still explain each piece with its own **YES**, and the last one picks a look.
 Reopen it any time: Setup (F10) > System check > **SETUP HELPER**.
 
-**The top bar**, left to right: making things (Queue F2, Tools F3, Talk F4, Builder F6), seeing
+**The top bar**, left to right: making things (Home F2, Tools F3, Talk F4, Step by step F6), seeing
 results (Files F7, Report F8, Stats F9), then Setup F10 and Help F1 (ABOUT JOE is at the bottom of
-Help). On the right: **RUN/STOP** (F5) and the **TOOLS n/15** badge. Hover the badge to see every
+Help). On the right: **RUN/STOP** (F5) and the **TOOLS n/28** badge. Hover the badge to see every
 tool with √ (ready) or × and what it still needs; click it for System check. Ollama and ComfyUI
 keep their up/down lights in the status bar.
 
@@ -387,7 +391,7 @@ document on the Tools tab lights up the tools that can use it (Read aloud, Proof
 All the tools are ready. The picture and sound tools need ComfyUI and their model once (see
 "Picture and sound tools" below).
 
-You can also just ask on the Queue screen ("turn the call I added into notes", "read my story
+You can also just ask on the Home screen ("turn the call I added into notes", "read my story
 aloud"): Joe sees the files waiting in Inbox and plans the right tool task. In a mission:
 
 ```
@@ -659,7 +663,7 @@ READ IT TO ME; the About page has HEAR JOE TELL IT.
 
 Your chats are listed on the left of every screen, newest first (Today, Yesterday, Previous
 7 days...). Hide the list with **«** or the **☰** button at the top left; Joe remembers your choice.
-A chat is a whole session, not just Talk: what you asked for on the Queue screen, Joe's plan,
+A chat is a whole session, not just Talk: what you asked for on the Home screen, Joe's plan,
 each run that started (with its mission), and when it ends the results (every task, an
 **OPEN** button for its folder, the pictures and videos it made, the report and the log).
 Every time Joe opens you get a fresh chat and a clean screen; **+ NEW CHAT** does the same at
@@ -860,15 +864,21 @@ itself, or you can type `{{PROMPT}}`, `{{NEGATIVE}}`, `{{SEED}}`, `{{WIDTH}}`, `
 into the workflow before exporting. With your own video workflow, frames or GIFs are
 turned into MP4 with FFmpeg (`FPS: 16`).
 
+Or skip the copying: Setup > Images & video > **Your own workflows** > pick the exported file >
+**IMPORT WORKFLOW**. Joe checks it's in API format and saves it to `Workflows\`. Give it a picture
+style and Joe uses it for every picture in that style (`Workflows\style-<style>.json`); leave the
+style blank to pick it per task with `WORKFLOW:`.
+
 Each folder gets `_prompts.md` and `_media.json` (prompt, seed, model, review marks).
 These are AI pictures: never present them as photos of real products.
 
 ## Storage (F9)
 
-F9 shows how much room each folder takes, the disk's free space, and four CLEAN buttons
+F9 shows how much room each folder takes, the disk's free space, and five CLEAN buttons
 (each asks first and moves files to the Recycle Bin): pictures you marked X, old `_v2`/`_v3`
 versions (the newest is kept, and picture folders with a K or S mark are never touched),
-reports older than 30 days, and leftover ComfyUI copies. Logs trim themselves at 2 MB.
+reports older than 30 days, leftover ComfyUI copies, and past missions (the saved plans in the
+Step by step list; what they made stays in Output). Logs trim themselves at 2 MB.
 ComfyUI keeps its own copy of every picture; Joe removes it once he has saved his
 (Setup > Images & video, on by default). Only ComfyUI's `output\Joe` folder is ever touched.
 
@@ -886,10 +896,10 @@ Double-click again to check on it. F1 shows all keys.
 | Key | Screen |
 |---|---|
 | F1 | Help |
-| F2 | Queue: mission box, progress, log (R = morning report, C there copies it) |
+| F2 | Home: the box for plans and questions, progress, log (R = morning report, C there copies it) |
 | F3 | Tools: ready-made jobs for your own files, pictures, sound and video |
 | F4 | Talk: talk or type to Joe, drop a file to ask about it |
-| F6 | Builder: make a plan with simple forms |
+| F6 | Step by step: make a plan with simple forms |
 | F7 | Files: arrows, Enter, Backspace; O = Explorer, E = Notepad, C = copy path; T = thumbnails, K/X/S = keep/reject/star, M = make MP4 |
 | F5 | Run / stop |
 | F8 | Report: what finished and what needs a look |

@@ -65,7 +65,7 @@ Postiz (AGPL-3.0); he never installs or runs Postiz or Mixpost and never posts f
 | Wan 2.2 Turbo LoRA (Kijai) | faster video | Apache-2.0 |
 | BiRefNet (repackaged by Comfy-Org) | Remove background | MIT |
 | Real-ESRGAN x4plus (Xintao Wang et al.) | Upscale / sharpen | BSD-3-Clause |
-| Qwen-Image-Edit 2511 + Qwen2.5-VL 7B text encoder (Alibaba Qwen) | Edit a picture, Restore old photos | Apache-2.0 |
+| Qwen-Image-Edit 2511 + Qwen2.5-VL 7B text encoder (Alibaba Qwen) | Edit a picture, Restore old photos (AI repair), Fix one spot, Put pictures together, Change the lighting, Redraw in a new style, Change a picture a little or a lot, Make a picture wider or taller, Same character new scenes, Character turnaround | Apache-2.0 |
 | Qwen-Image-Edit 2511 Lightning 4-step LoRA (lightx2v) | faster picture edits | Apache-2.0 |
 | ACE-Step 1.5 Turbo (ACE Studio / StepFun) | music | MIT |
 | Stable Audio Open 1.0 + T5-base (Stability AI; Google) | sound effects | Stability AI Community License (free under US$1M annual revenue; paid license above that); T5: Apache-2.0 |
@@ -74,6 +74,23 @@ Postiz (AGPL-3.0); he never installs or runs Postiz or Mixpost and never posts f
 | QR Code Monster SDXL (Monster Labs) | Hidden-picture illusion | CreativeML Open RAIL++-M |
 | Wan 2.2 Fun Control 5B (Alibaba PAI, repackaged by Comfy-Org) | Restyle a video | Apache-2.0 |
 | Hunyuan3D 2.1 (Tencent, repackaged by Comfy-Org) | Picture to 3D model | Tencent Hunyuan 3D 2.1 Community License (does not apply in the EU, UK or South Korea) |
+
+**Picture models Joe recommends but doesn't download himself** (GET IT opens the model's page in
+your browser, and on Hugging Face starts the download there; you read its terms, then Joe moves the
+file into ComfyUI)
+
+| What | Used for | Where |
+|---|---|---|
+| Juggernaut XL | photo style (also used for 3D, sci-fi, cyberpunk) | Civitai |
+| RealVisXL V5 | product style (also photo, sci-fi) | Hugging Face (SG161222) |
+| DreamShaper XL | illustration style (also painting, concept, fantasy and other art styles) | Civitai |
+| Animagine XL 4.0 | anime and manga | Hugging Face (cagliostrolab) |
+| Pixel Art XL (style add-on) | pixel art | Hugging Face (nerijs) |
+| ColoringBookRedmond V2 (style add-on) | coloring pages | Hugging Face (artificialguybr) |
+| Watercolor SDXL (style add-on) | watercolor | Hugging Face (cbo305) |
+
+Their licenses differ (several are CreativeML Open RAIL++-M, some add their own terms) and can
+change, so the model's own page is the one to read.
 
 Models you install yourself, ComfyUI workflows and custom nodes keep their own licenses; Joe
 doesn't check them. If you want to use what Joe makes commercially, read the license of the

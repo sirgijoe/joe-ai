@@ -6,9 +6,10 @@
 
 **Meet 01000001 01001001. Humans can't say that, so we just call him Joe.**
 
-> **🧪 Beta (early preview).** Joe is free to use and works today, and it's tested on Windows, but the one-click installer isn't ready
-> yet: for now you need Python 3.11.4+ (see [What you need](#what-you-need)). Expect rough edges,
-> and please [open an issue](https://github.com/sirgijoe/joe-ai/issues/new/choose) if something breaks.
+> **🧪 Beta (early preview).** Joe is free to use and works today, and it's tested on Windows. The
+> installers (Windows, Mac and Linux) are built and tested but not released yet: for now you need
+> Python 3.11.4+ (see [What you need](#what-you-need)). Expect rough edges, and please
+> [open an issue](https://github.com/sirgijoe/joe-ai/issues/new/choose) if something breaks.
 
 Joe does the grunt work on your own computer while you sleep. You hand him a list of jobs
 before bed — product descriptions, long lists, design notes, spreadsheets, pictures, short
@@ -46,16 +47,51 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 
 **Pictures and short videos** (with ComfyUI, a free image program)
 - Joe writes the image prompts himself from your brief, then draws them overnight.
-- Uses the image models you already have, or helps you get one.
+- 21 picture styles: photo, product, black and white, anime, manga, cartoon, comic, painting,
+  watercolor, concept art, fantasy, sci-fi, cyberpunk, 3D, pixel art, surreal, abstract,
+  illustration, characters and mascots, coloring pages, and an all-round general one. Name one or
+  let Joe guess from your words;
+  he picks the installed model that suits it best and adds the style's own words.
+- "An image of a fox in the snow" gets you 4 versions of that one picture to pick from.
+- Coloring pages always come out as clean black-and-white outlines (a colored example is kept).
+- Uses the image models you already have, or helps you get one (System check shows free picks
+  for each style, with their licenses). Bring your own ComfyUI workflow too
+  (Setup > Images & video > IMPORT WORKFLOW).
+- Short video clips (Wan 2.2), black-and-white films, and looping GIFs (`EXPORT: gif`). The
+  Turbo add-on makes video several times faster; **Keep my PC usable** makes smaller videos so
+  you can still use the computer while Joe works.
 - A viewer to flip through the results and mark them keep / reject / star.
-- Turns animations and frames into MP4 video.
 - Every picture is labelled **AI-GENERATED**. Joe is built to make mood boards, art and
   mockups, not fake photos of real products, places or people.
+
+**Lines up the night for you**
+- **Queue** as much as you like: plans run one after another, with one combined morning report.
+- **Night shift** (Setup > General): SAVE FOR TONIGHT and Joe starts those plans at the time you
+  set, even with his window closed (Windows can wake the PC for it). Uses your computer's own
+  scheduler, and turning it off removes the entry again.
+- **Starter packs**: one question ("what's your shop called?") and Joe plans a whole bundle: a shop
+  starter, a month of social posts, a blog starter, a party kit or a coloring book. Make your own
+  in `Missions\Packs`. Parts your PC can't do are left out.
+- **Looks things up first** (`RESEARCH: yes`): a writing task can check facts online and list its
+  sources. Only when you've turned online lookups on.
+- **Matching lists** (`FROM:`): a price list or a set of pictures that uses the exact names from a
+  list above it.
+- **Park an idea**: type "park this: a recipe book for my mom" and Joe saves it, dated, in
+  `Ideas.md` for later.
+
+**Works with bigger AIs** (no keys, no accounts)
+- **ASK A BIGGER AI** (Home): Joe writes one message you paste into any chatbot (ChatGPT, Claude,
+  Gemini...). Paste its answer back and Joe tidies it, checks it and shows it as a plan. Folder
+  paths and your user name are left out of the message, and nothing is sent unless you paste it.
+- **Use Joe from another AI app**: Joe is an MCP connector, so Claude Desktop, ChatGPT desktop
+  (and Codex), Gemini CLI, Cursor and LM Studio can see what Joe can do, queue plans, run his tools
+  and read the results. One-click CONNECT in Setup > General (it keeps a copy of that app's
+  settings first and only touches Joe's own entry).
 
 **Talks, and listens** (optional, one-time setup)
 - Open Talk (**F4**) and just say what you need: the mic stays open while that screen is up,
   and Joe answers when you pause. Prefer push-to-talk? Pick any key in Setup. Joe hears you, answers out loud, and can draft
-  the night's mission into the Builder for you to check. He never starts a run on his own.
+  the night's mission into Step by step (F6) for you to check. He never starts a run on his own.
 - He can read the morning report to you, or tell you his own backstory.
 - Ask him something current and, with online lookups on, he searches and shows his sources.
   **STOP** (or Esc) cuts him off mid-answer.
@@ -66,7 +102,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**Tools for your own files** (Tools tab, **F3**)
+**28 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -109,6 +145,12 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   - **Edit a picture by asking**: "swap the background for a marble counter", "remove the cup"
     (Qwen-Image-Edit 2511, Apache-2.0, about 31 GB; best with 12 GB graphics + 32 GB memory).
   - **Restore old photos**: fading and color casts undone true to the photo (no AI redraw); optional AI repair for scratches and tears.
+  - The same picture editor also does: **Fix one spot** (brush over it; only that spot changes),
+    **Put pictures together** (two or three into one), **Change the lighting** (golden hour,
+    studio, night...), **Redraw in a new style** (watercolor, anime, a sketch...), **Change a
+    picture a little or a lot**, **Make a picture wider or taller** (the original stays in the
+    middle), **Same character, new scenes**, and a **Character turnaround** (front, side and back,
+    plus a sheet).
   - **Animate a photo**: a 5-second clip that starts from your photo (Wan 2.2, the video model).
   - **Music and sound effects**: instrumental tracks (ACE-Step 1.5, MIT) or sound effects
     (Stable Audio Open 1.0: free under US$1 million revenue a year), one per line, as MP3.
@@ -153,7 +195,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Better words in pictures**: with FLUX.2 [klein] 4B installed (Apache-2.0, about 16 GB, offered
   in Setup > Models), Joe uses it by himself for pictures with words in them (a sign, a poster
   title), or for every picture when you pick it in Setup > Workflows.
-- Or skip the tab and just ask on the Queue screen: "turn my meeting recording into notes",
+- Or skip the tab and just ask on the Home screen (**F2**): "turn my meeting recording into notes",
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
   website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".
 
@@ -183,8 +225,16 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Modern light and dark looks, a futuristic one, or the retro green, amber and white screens
   with CRT glow — or describe your own theme in words and Joe designs it for you. An
   easy-to-read font (Atkinson Hyperlegible) works with every look.
-- Stats for the number nerds: words written, items, files, hours of work, and how much
-  you'd have paid a cloud AI for the same thing.
+- Stats for the number nerds (**F9**): words written, items, pictures, video, hours of work, and
+  how much you'd have paid a cloud AI for the same thing, for today, this week, month, year or all
+  time. The same screen shows how much room Joe takes up, with clean-up buttons (everything goes
+  to the Recycle Bin, after asking).
+- Setup has a page for everything, a find box, **Setup > Models** (downloads by kind, or DOWNLOAD
+  ALL for an overnight download) and **Setup > Workflows** (see and edit the exact words Joe adds
+  for each picture style, video and tool, or pick the model). Every page has RESET THIS PAGE,
+  and there's one RESET ALL SETTINGS; both ask first.
+- Screen savers for Joe's window (coffee mug, binary rain, starfield...; they can show how the run
+  is going), or describe your own and MAKE SCREEN SAVER designs it.
 - A morning report sized to paste straight into a bigger AI for review.
 
 ## What Joe won't do
@@ -192,10 +242,10 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Send your files, chats or recordings anywhere. They stay on your PC.
 - Do the overnight work online. Writing, pictures and video are made on your PC.
 - Send email, post online, or spend money.
-- Touch your files outside his own folder (`Documents\Joe-ai`, or `Joe-ai` on the drive for Portable Joe). Programs and models he installs with your OK go where those programs normally live.
+- Touch your files outside his own folder (`Documents\Joe-ai`, or `Joe-ai` on the drive for Portable Joe). Programs and models he installs with your OK go where those programs normally live. A few buttons reach further, only when you press them: CONNECT adds Joe to that AI app's settings (a copy of the old file is kept), the night shift adds one entry to your computer's scheduler, and a model file you downloaded from a model page is moved from Downloads into ComfyUI.
 - Install or download anything without asking you first.
-- Collect data about you. There's no tracking and no analytics. (The update check below asks
-  GitHub for the newest version number and nothing else.)
+- Collect data about you. There's no tracking and no analytics. (The update checks below only
+  ask for version numbers and model lists, nothing about you.)
 - Listen unless the Talk screen is open with the mic on (or you're holding the talk key).
 
 ## When Joe uses the internet
@@ -210,10 +260,12 @@ internet. None of them send your files, chats or recordings.
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
+| Helper and model update check | GitHub (newest Ollama and ComfyUI versions, Joe's list of recommended models), Ollama's model library (are your models up to date?) | At most once a week, when System check runs | Nothing installs until you say yes; off with the update check (Setup > General > Updates) |
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
 | Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in System check | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
-| Talk looks things up | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current | Off until you turn it on |
+| Looking things up (Talk, and writing tasks with `RESEARCH: yes`) | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current, or a task asks to research | Off until you turn it on |
+| Model pages | Hugging Face or Civitai, in your browser (for Hugging Face, the browser also starts the download) | When you press GET IT on a recommended picture model | You read its terms; the download is yours |
 
 Ollama and ComfyUI are separate programs with their own update checks and settings; Joe
 doesn't control those. Once everything is installed, you can unplug the internet and the
@@ -247,11 +299,12 @@ System check (Setup) says what your own graphics mean for Joe.
 
 ## How a night with Joe goes
 
-1. **Before bed:** tell Joe what you need in your own words, check his plan, press **RUN IT**.
-   (Or build it step by step in the Builder, or paste a job list you or a bigger AI wrote.)
+1. **Before bed:** tell Joe what you need in your own words, check his plan, press **RUN IT**
+   (or SAVE FOR TONIGHT and let the night shift start it). You can also build it step by step
+   (F6), pick a starter pack, or ask a bigger AI to write the plan.
 2. **Overnight:** Joe writes first, then makes the pictures, so your graphics card only has
    to switch jobs once.
-3. **In the morning:** press **R** for the report. Your files are in `Documents\Joe-ai\Output`.
+3. **In the morning:** open the Report (**F8**). Your files are in `Documents\Joe-ai\Output`.
    Review them, fix what he flagged, and finish the good stuff.
 
 Under the hood, a job list looks like this (you never have to write one):
@@ -294,8 +347,8 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
   off as real, copy someone else's work, or pretend to be a real person. Joe and his makers aren't
   liable for what you do with him or what he makes.
 - **Models from other sites are your download.** When Joe recommends a community model
-  (Civitai or similar), he only opens its page: you read its terms and download it yourself,
-  then Joe moves the file into ComfyUI. Joe's makers don't make, check or vouch for those models.
+  (Civitai, Hugging Face or similar), he only opens its page in your browser (on Hugging Face the
+  browser starts the download too): you read its terms, then Joe moves the file into ComfyUI. Joe's makers don't make, check or vouch for those models.
 - **It's a hobby project** built by one person with help from AI, shared for free. It comes
   with no warranty.
 
