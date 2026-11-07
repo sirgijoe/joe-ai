@@ -927,6 +927,8 @@ async function loadTemplates() {
     if (f.kind === "bool") return `<input type="checkbox" data-tplf="${f.key}"${f.value ? " checked" : ""}${dis}>`;
     if (f.kind === "page") return `<select data-tplf="${f.key}"${dis}>` + Object.entries(tplData.pages).map(([k, v]) =>
       `<option value="${k}"${k === f.value ? " selected" : ""}>${esc(v)}</option>`).join("") + "</select>";
+    if (f.kind === "choice") return `<select data-tplf="${f.key}"${dis}>` + Object.entries(f.choices || {}).map(([k, v]) =>
+      `<option value="${k}"${k === String(f.value) ? " selected" : ""}>${esc(v)}</option>`).join("") + "</select>";
     if (f.kind === "align") return `<select data-tplf="${f.key}"${dis}>` + [["left", "Left"], ["justify", "Justified"], ["center", "Centered"]].map(([k, v]) =>
       `<option value="${k}"${k === f.value ? " selected" : ""}>${v}</option>`).join("") + "</select>";
     if (f.kind === "number") return `<input type="number" step="0.05" min="0" data-tplf="${f.key}" value="${f.value}"${dis}>`;

@@ -476,30 +476,54 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
     cache = cache or (md.parent / ".joe-templates")
 
     def tpl(fmt: str) -> dict:
-        tid = template if template in dt.TEMPLATES and dt.TEMPLATES[template]["for"] == "doc" else \
+        template_ = dt.ALIASES.get(template, template)
+        tid = template_ if template_ in dt.TEMPLATES and dt.TEMPLATES[template_]["for"] == "doc" else \
             (dt.default_for(settings, fmt) if settings is not None else dt.DEFAULTS.get(fmt, "standard"))
         return dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
+
+    def source(t: dict) -> tuple[list[str], Path | None]:
+        """Pandoc's input: the .md itself, or a screenplay-marked copy; plus title / line-break options."""
+        args = ["--metadata", f"title={title}"] if t.get("show_title", True) else ["--metadata", f"pagetitle={title}"]
+        if t.get("line_breaks"):
+            args = ["-f", "markdown+hard_line_breaks"] + args
+        if t.get("screenplay"):
+            tmp = md.with_name(md.stem + ".script.md")
+            try:
+                tmp.write_text(dt.screenplay_md(md.read_text(encoding="utf-8", errors="replace")), encoding="utf-8")
+                return [str(tmp)] + args, tmp
+            except OSError:
+                pass
+        return [str(md)] + args, None
+
+    def tidy(tmp: Path | None) -> None:
+        if tmp:
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
     for fmt in formats:
         fmt = fmt.strip().lower().lstrip(".")
         if fmt in ("docx", "epub", "odt", "html"):
             t = tpl(fmt)
             out = md.with_suffix("." + fmt)
-            cmd = [pandoc, str(md), "-s", "-o", str(out), "--metadata", f"title={title}"]
+            src_args, tmp_md = source(t)
+            cmd = [pandoc, *src_args, "-s", "-o", str(out)]
             css = None
             if fmt == "docx":
-                ref = dt.reference_docx(pandoc, t, cache, log)
+                ref = dt.reference_docx(pandoc, t, cache, log, title=title)
                 if ref:
                     cmd += ["--reference-doc", str(ref)]
             elif fmt in ("epub", "html"):
                 css = md.with_suffix(f".{fmt}.css")
-                css.write_text(dt.css(t, epub=fmt == "epub"), encoding="utf-8")
+                css.write_text(dt.css(t, epub=fmt == "epub", title=title), encoding="utf-8")
                 cmd += ["--css", css.name if fmt == "html" else str(css)]
                 if fmt == "html":
                     cmd += ["--embed-resources"] if _pandoc_embeds(pandoc) else []
                 if fmt == "epub" and t.get("chapter_break"):
                     cmd += ["--split-level=1"] if _pandoc_split_level(pandoc) else []
             ok = _run(cmd, log, 300, cwd=str(md.parent)) and out.exists()
+            tidy(tmp_md)
             if css and (fmt == "epub" or _pandoc_embeds(pandoc)):
                 try:
                     css.unlink()
@@ -513,9 +537,10 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             html = md.with_suffix(".print.html")
             out = md.with_suffix(".pdf")
             css = md.with_suffix(".print.css")
-            css.write_text(dt.css(t), encoding="utf-8")
-            ok = _run([pandoc, str(md), "-s", "-o", str(html), "--metadata", f"title={title}",
-                       "--css", css.name], log, 300, cwd=str(md.parent))
+            css.write_text(dt.css(t, title=title), encoding="utf-8")
+            src_args, tmp_md = source(t)
+            ok = _run([pandoc, *src_args, "-s", "-o", str(html), "--css", css.name], log, 300, cwd=str(md.parent))
+            tidy(tmp_md)
             edge = _edge()
             if ok and edge:
                 ok = _print_pdf(edge, html, out, log)
@@ -535,7 +560,8 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             if not src:
                 log("  xlsx: only a spreadsheet (.csv) result can become an .xlsx.")
                 continue
-            tid = template if template in dt.TEMPLATES and dt.TEMPLATES[template]["for"] == "sheet" else \
+            template_ = dt.ALIASES.get(template, template)
+            tid = template_ if template_ in dt.TEMPLATES and dt.TEMPLATES[template_]["for"] == "sheet" else \
                 (dt.default_for(settings, "xlsx") if settings is not None else "sheet")
             t = dt.get(settings, tid) if settings is not None else {**dt.TEMPLATES[tid], "id": tid}
             try:

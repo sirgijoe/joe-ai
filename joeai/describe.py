@@ -42,7 +42,10 @@ Kinds of task:
   when they want a GIF.
 - Finished copies (EXPORT: docx/pdf/epub, or xlsx for a .csv) can take TEMPLATE: book (printed
   novel) | manuscript (for an editor/agent) | kids (children's picture book) | ebook | report |
-  standard. Only add it when the request names that kind of project.
+  largeprint | poetry | screenplay | letter (incl. cover letter) | resume | cookbook | recipecard |
+  coloring (coloring/activity book) | school (MLA paper) | standard; for a .csv: sheet | pricelist.
+  Only add it when the request names that kind of project. A screenplay's FORMAT says: scene headings
+  (INT./EXT.), character names in capitals on their own line, dialogue under them.
 - Social media posts (a list of posts): add EXPORT: social so Joe also makes files a post
   scheduler or spreadsheet can take (Joe never posts by himself).
 - When they ask to research, look things up, or want current facts, add RESEARCH: yes to that

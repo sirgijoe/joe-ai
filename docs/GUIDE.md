@@ -657,7 +657,30 @@ centered headings, each chapter on a new page, and a title page. Joe's built-in 
 | `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (22 pt), centered, a new page per part |
 | `ebook` | EPUB (the default for .epub) | light styling, since e-readers use their own settings |
 | `report` | business reports | Calibri 11, block paragraphs |
+| `largeprint` | older readers, low vision | Atkinson Hyperlegible 18, 1.5 lines, page numbers |
+| `poetry` | poems, a chapbook | 5.5 x 8.5 in, every line kept as written, one poem per page |
+| `screenplay` | scripts | Courier 12, 1.5 in left margin, scene headings, character names and dialogue set in, page numbers top right |
+| `letter` | letters, cover letters | no printed title, block paragraphs |
+| `resume` | a resume | compact, tight spacing, a line under each section heading, no printed title |
+| `cookbook` | recipes | 7 x 10 in, one recipe per page, big pictures, page numbers |
+| `recipecard` | recipe cards | 5 x 7 in (change to 4 x 6 for index cards), one recipe per card |
+| `coloring` | coloring and activity books | one big picture per page, small caption |
+| `school` | school papers (MLA) | Times 12, double spaced, last name + page number top right (put your name in Header text) |
 | `sheet` | Excel copies of a spreadsheet (`EXPORT: xlsx` on a .csv task) | bold blue header that stays in place, filter buttons, fitted columns |
+| `pricelist` | price lists, inventory (.xlsx) | money columns as $1,234.50, a totals row with real formulas, striped rows |
+
+Settings in every document template: page size (now also 7 x 10, 5 x 7 and 4 x 6), margins, an
+**extra inside margin for binding** and **mirror margins** (printed books), fonts, size, spacing,
+indents, alignment, centered headings, a **line under section headings**, **new pages** at
+chapters (#) or at every section (##), **print the title** on/off, title page, **page numbers**
+(bottom middle, bottom outside corner, or top right with the **header text**: `{title}` = the
+document's title), a **big first letter** in each chapter (PDF/EPUB/web), **keep line breaks as
+written** (poems), **screenplay layout**, and **pictures fill the page**. Spreadsheet templates also
+have **money columns** (auto = columns named price, cost, total, amount...), the **money sign**, and
+a **totals row**. Word copies use the first font in the list that nearly every PC has (Garamond,
+Georgia, Verdana, Courier New...), so they look right on other computers too. Screenplays: write
+scene headings (INT./EXT.), character names in capitals on their own line and dialogue under them;
+Joe sets each part where scripts put it, in Word too (styles Scene Heading, Character, Dialogue...).
 
 Each is shown filled in; EDIT unlocks it and RESET THIS TEMPLATE brings Joe's back. Pick which one
 each kind of file uses by default at the top, or put `TEMPLATE: book` (or kids, manuscript, ebook,

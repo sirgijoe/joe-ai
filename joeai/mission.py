@@ -361,9 +361,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     template = (d.get("TEMPLATE") or "").strip().lower().replace("'", "").replace(" ", "-")
     if template:
         from .doctemplates import TEMPLATES as _TPL
-        aliases = {"novel": "book", "children": "kids", "childrens-book": "kids", "picture-book": "kids",
-                   "epub": "ebook", "e-book": "ebook", "business": "report", "default": "standard",
-                   "spreadsheet": "sheet", "excel": "sheet"}
+        from .doctemplates import ALIASES as aliases
         template = aliases.get(template, template)
         if template not in _TPL:
             raise MissionError(f"Task '{name}': TEMPLATE can be {', '.join(_TPL)}.")

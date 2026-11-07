@@ -191,3 +191,52 @@ def test_screen_savers_validate_save_list(tmp_path):
             return ChatResult('Sure! {"name": "Ocean", "kind": "waves", "colors": ["#001020", "#55ddff", "#ffcc66"], '
                               '"speed": 2, "density": 3, "text": "", "status": true}', 1, 1, 0.1)
     assert savers.generate(C(), "m", "calm ocean")["kind"] == "waves"
+
+
+def test_dev127_new_templates_and_settings():
+    from joeai import doctemplates as dt
+    for tid in ("largeprint", "poetry", "screenplay", "letter", "resume", "cookbook", "recipecard", "coloring",
+                "school", "pricelist"):
+        assert tid in dt.TEMPLATES
+        for k in dt.fields_of(tid):
+            assert k in dt.TEMPLATES[tid], (tid, k)
+    c = dt.css(dt.get(None, "manuscript"), title="Skeeter")
+    assert '@top-right { content: "Skeeter " counter(page)' in c and "@page :first" in c
+    c = dt.css(dt.get(None, "school"))
+    assert '"Lastname " counter(page)' in c and "@page :first" not in c          # MLA: number on page 1 too
+    c = dt.css(dt.get(None, "book"))
+    assert "@page :left" in c and "@bottom-left" in c and "::first-letter" in c and "1.0in 0.6in" not in c
+    assert "h1, h2 { break-before: page" in dt.css(dt.get(None, "poetry"))
+    assert "#title-block-header { display: none; }" in dt.css(dt.get(None, "letter"))
+    assert "border-bottom" in dt.css(dt.get(None, "resume")) and "max-height" in dt.css(dt.get(None, "coloring"))
+    parts = dt.docx_parts(dt.get(None, "manuscript"), "Skeeter")
+    assert "Skeeter" in parts["header"] and "PAGE" in parts["header"] and "footer" not in parts
+    doc = dt.docx_page("<w:document x><w:body><w:sectPr/></w:body></w:document>", dt.get(None, "book"), "", "rIdF")
+    assert 'w:gutter="216"' in doc and "footerReference" in doc and "<w:titlePg/>" in doc and "xmlns:r=" in doc
+    st = dt.docx_styles("<w:styles><w:docDefaults><w:rPrDefault/></w:docDefaults></w:styles>", dt.get(None, "screenplay"))
+    assert 'w:styleId="Character"' in st and 'w:styleId="Transition"' in st
+    assert dt.word_font(dt.TEMPLATES["screenplay"]["font"]) == "Courier New"
+
+
+def test_screenplay_markup():
+    from joeai import doctemplates as dt
+    out = dt.screenplay_md("INT. KITCHEN - NIGHT\n\nRain falls.\n\nJOE\n(quietly)\nHello there.\n\nCUT TO:\n")
+    assert '{.scene custom-style="Scene Heading"}\nINT. KITCHEN - NIGHT' in out
+    assert '{.character custom-style="Character"}\nJOE' in out and '{.parenthetical' in out
+    assert '{.dialogue custom-style="Dialogue"}\nHello there.' in out and '{.transition' in out
+    assert '{.action custom-style="Action"}\nRain falls.' in out
+
+
+def test_pricelist_money_and_totals(tmp_path):
+    import zipfile
+    from joeai import doctemplates as dt
+    src = tmp_path / "p.csv"
+    src.write_text('Item,Price,Stock\nMug,12.50,40\nBowl,$30.00,12\nVase,"1,250",2\n', encoding="utf-8")
+    z = zipfile.ZipFile(dt.csv_to_xlsx(src, dt.TEMPLATES["pricelist"]))
+    sheet, styles = z.read("xl/worksheets/sheet1.xml").decode(), z.read("xl/styles.xml").decode()
+    assert "<v>1250</v>" in sheet and "<v>30.00</v>" in sheet and "<f>SUM(B2:B4)</f>" in sheet
+    assert "<v>40</v>" in sheet and '<autoFilter ref="A1:C4"/>' in sheet and "Total" in sheet
+    assert styles.index("<numFmts") < styles.index("<fonts") and "#,##0.00" in styles
+    assert dt.money_columns(["Item", "Retail price", "Qty"], "auto") == {1}
+    assert dt.money_columns(["Item", "Retail price", "Qty"], "qty") == {2}
+    assert dt.money_value("abc") is None and dt.money_value("$1,234.5") == "1234.5"

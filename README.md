@@ -128,9 +128,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Social posts for a scheduler**: add `EXPORT: social` to a list of posts (Joe adds it himself when you
   ask for Facebook/Instagram/TikTok... posts) and he also writes a CSV, a JSON file and ready Postiz
   command lines, for Postiz, Mixpost or a spreadsheet. Joe never posts for you.
-- **Templates for finished copies**: book, manuscript, children's picture book, e-book, report,
-  everyday and spreadsheet templates set the page size, margins, fonts, spacing and more for Word,
-  PDF, EPUB and Excel copies; every one is shown and editable in Setup > Writing.
+- **Templates for finished copies**: book, manuscript, children's picture book, e-book, report, large
+  print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring book, school paper (MLA),
+  everyday, spreadsheet and price list. They set page size, margins (with binding gutter), fonts,
+  spacing, page numbers, headers, drop caps and more for Word, PDF, EPUB and Excel copies; every one
+  is shown and editable in Setup > Writing.
 - **Use what you already have**: write with **LM Studio, llama.cpp or LocalAI** instead of Ollama
   (Setup > Writing > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
   folders without downloading them again (System check > SHARE THEM), and transcribe with

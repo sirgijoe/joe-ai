@@ -30,7 +30,8 @@ def extra_keys() -> str:
 - PROMPTS: as written (use each PART line as the exact picture prompt)
 - NEGATIVE: things to leave out of pictures, comma separated
 - INPUT: file names from Joe's Inbox (for tools)   OPTIONS: tool options, comma separated
-- TEMPLATE: book | manuscript | kids | ebook | report | standard (how the EXPORT copies look) | sheet (.xlsx)
+- TEMPLATE: book | manuscript | kids | ebook | report | largeprint | poetry | screenplay | letter | resume |
+  cookbook | recipecard | coloring | school | standard (how the EXPORT copies look); sheet | pricelist (.xlsx)
 - EXPORT: docx | pdf | epub | odt | html (a finished copy of a document); xlsx (a .csv task's Excel copy); social (posts for a scheduler:
   csv/json/Postiz lines; also works on a .csv task); gif on a video task
 - FROM: the name of an earlier list or spreadsheet task. Each task is written on its own and
