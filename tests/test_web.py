@@ -77,6 +77,8 @@ def test_update_picks_the_right_installer_and_checks_it(tmp_path, monkeypatch):
     assert update.install_kind(f) == "source"
 
     monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
+    import joeai
+    monkeypatch.setattr(joeai, "SIGN_PUBLIC_KEY", "")   # checksum path (signed path: test_dev129)
     good = b"installer bytes"
     sums = f"{hashlib.sha256(good).hexdigest()}  Joe-Setup-2.0.0b1-windows-x64.exe\n".encode()
 
