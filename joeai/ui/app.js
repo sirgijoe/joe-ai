@@ -734,10 +734,13 @@ async function loadStorage() {
   let s;
   try { s = await api("/api/storage"); } catch (e) { $("#storage").textContent = e.message; return; }
   const max = Math.max(1, ...s.rows.map((r) => r.bytes));
-  const disk = s.disk ? `<div class="srow total"><span class="sl">Disk free</span><span class="sb">${fmtBytes(s.disk.free)} of ${fmtBytes(s.disk.total)}</span><span class="sbar">${bar(s.disk.total - s.disk.free, s.disk.total, 24)}</span></div>` : "";
+  // a thin CSS bar on its own line under each row (a text bar was wider than the panel and
+  // covered the sizes)
+  const meter = (n, of) => `<span class="sbar" aria-hidden="true"><i style="width:${of ? Math.min(100, Math.round((n / of) * 100)) : 0}%"></i></span>`;
+  const disk = s.disk ? `<div class="srow total"><span class="sl">Disk used</span><span class="sb">${fmtBytes(s.disk.free)} free of ${fmtBytes(s.disk.total)}</span>${meter(s.disk.total - s.disk.free, s.disk.total)}</div>` : "";
   $("#storage").innerHTML =
-    s.rows.map((r) => `<div class="srow" title="${esc(r.path)}"><span class="sl">${esc(r.label)}</span><span class="sb">${fmtBytes(r.bytes)} · ${Number(r.files).toLocaleString()} file${r.files === 1 ? "" : "s"}</span><span class="sbar">${bar(r.bytes, max, 24)}</span></div>`).join("") +
-    `<div class="srow total"><span class="sl">Workspace total</span><span class="sb">${fmtBytes(s.workspace_bytes)}</span><span class="sbar"></span></div>` + disk;
+    s.rows.map((r) => `<div class="srow" title="${esc(r.path)}"><span class="sl">${esc(r.label)}</span><span class="sb">${fmtBytes(r.bytes)} · ${Number(r.files).toLocaleString()} file${r.files === 1 ? "" : "s"}</span>${meter(r.bytes, max)}</div>`).join("") +
+    `<div class="srow total"><span class="sl">Workspace total</span><span class="sb">${fmtBytes(s.workspace_bytes)}</span></div>` + disk;
   $("#cleanups").innerHTML = s.cleanups.map((c) =>
     `<div class="issue"><span class="t">${esc(c.label)}: ${c.count ? `${c.count} item${c.count === 1 ? "" : "s"}, ${fmtBytes(c.bytes)}` : '<span class="dim">nothing to clean</span>'}</span>` +
     (c.count ? `<button type="button" title="Move these to the Recycle Bin (asks first)." data-clean="${esc(c.kind)}" data-label="${esc(c.label)}" data-count="${c.count}" data-bytes="${c.bytes}">[ CLEAN ]</button>` : "") + "</div>").join("");
