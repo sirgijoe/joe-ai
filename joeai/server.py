@@ -1981,6 +1981,16 @@ def make_handler(app: App):
                             app.settings.ui.phosphor = "modern-auto"
                             app.settings.save()
                     return self._json({"ok": True})
+                if u.path == "/api/history/delete":       # Step by step > PAST MISSIONS > DEL
+                    p = app.sb.root / str(b.get("file", "")).replace("\\", "/")
+                    ok = p.is_file() and p in storage_mod.past_runs(app.sb)
+                    if not ok:
+                        return self._json({"ok": False, "error": "That past mission isn't there any more."})
+                    try:
+                        storage_mod.trash(p)
+                    except OSError as e:
+                        return self._json({"ok": False, "error": f"Couldn't move it to the Recycle Bin: {e}"})
+                    return self._json({"ok": True})
                 if u.path == "/api/storage/clean":
                     kind = b.get("kind", "")
                     if kind not in storage_mod.CLEANUPS:

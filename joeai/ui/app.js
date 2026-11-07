@@ -753,7 +753,7 @@ $("#cleanups").addEventListener("click", (ev) => {
       const r = await api("/api/storage/clean", { kind: d.clean });
       toast(r.error ? r.error : `Freed ${fmtBytes(r.freed)} (${r.moved} moved to the Recycle Bin)` + (r.errors && r.errors.length ? `, ${r.errors.length} skipped` : ""));
     } catch (e) { toast(e.message); }
-    loadStorage();
+    loadStorage(); if (d.clean === "runs") loadHistory();
   });
 });
 
@@ -1493,6 +1493,23 @@ document.addEventListener("click", async (ev) => {
     if (b.dataset.unqueue !== undefined) { await api("/api/queue/remove", { index: +b.dataset.unqueue }); return; }
     if (b.dataset.b) { await builderAction(b.dataset.b); return; }
     if (b.dataset.hload) { const r = await api("/api/load_mission", { path: b.dataset.hload }); if (r.ok) { await importToBuilder(r.text); toast("Loaded into the builder"); } return; }
+    if (b.dataset.hdel) {
+      confirmBox(`Remove "${b.dataset.label}" from past missions?\n\nIt goes to the Recycle Bin. What it made stays in Output.`, async () => {
+        const r = await api("/api/history/delete", { file: b.dataset.hdel });
+        if (!r.ok) toast(r.error);
+        loadHistory(); loadStorage();
+      });
+      return;
+    }
+    if (b.dataset.hclean) {
+      const n = document.querySelectorAll("#b-history [data-hdel]").length;
+      confirmBox(`Clean up all past missions (${n} in the list)?\n\nThe saved plans go to the Recycle Bin. What they made stays in Output.`, async () => {
+        const r = await api("/api/storage/clean", { kind: "runs" });
+        toast(r.error ? r.error : `Removed ${r.moved} past mission${r.moved === 1 ? "" : "s"} (Recycle Bin)`);
+        loadHistory(); loadStorage();
+      });
+      return;
+    }
     if (b.dataset.hrun) {
       const r0 = await api("/api/load_mission", { path: b.dataset.hrun });
       if (!r0.ok) { toast(r0.error); return; }
@@ -2047,7 +2064,8 @@ async function builderAction(a) {
 async function loadHistory() {
   let r; try { r = await api("/api/history"); } catch (e) { return; }
   $("#b-history").innerHTML = r.missions.length ? r.missions.map((m) =>
-    `<div class="h"><span class="dim">${esc(m.when)}</span><span class="t">${esc(m.label)}</span><span class="dim">${m.done}/${m.tasks} done</span><button data-hload="${esc(m.file)}" title="Open it here so you can change it.">[ LOAD ]</button><button data-hrun="${esc(m.file)}" title="Run it again.">[ RUN ]</button></div>`).join("")
+    `<div class="h"><span class="dim">${esc(m.when)}</span><span class="t">${esc(m.label)}</span><span class="dim">${m.done}/${m.tasks} done</span><button data-hload="${esc(m.file)}" title="Open it here so you can change it.">[ LOAD ]</button><button data-hrun="${esc(m.file)}" title="Run it again.">[ RUN ]</button><button data-hdel="${esc(m.file)}" data-label="${esc(m.label)}" title="Remove it from this list (to the Recycle Bin). What it made stays in Output.">[ DEL ]</button></div>`).join("") +
+    `<div class="row buttons"><button data-hclean="1" title="Move every past mission in this list to the Recycle Bin. What they made stays in Output.">[ CLEAN UP ]</button></div>`
     : '<div class="dim small">Missions you run show up here.</div>';
 }
 document.addEventListener("keydown", (ev) => {

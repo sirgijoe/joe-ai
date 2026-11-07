@@ -157,3 +157,35 @@ def test_update_check_compares_versions(monkeypatch):
     def nope(*a, **k):
         raise HttpError("HTTP 404 from x")
     assert update.check(force=True, fetch=nope)["error"] == "No releases published yet."
+
+
+def test_past_missions_delete_and_clean_up(ws):
+    """Step by step > PAST MISSIONS: DEL one, CLEAN UP all (Recycle Bin); other Missions files stay."""
+    from joeai.server import App, serve
+    from urllib.request import Request, urlopen
+    import threading
+    s, sb, tmp = ws
+    plan = "=== JOE MISSION ===\nTASK: a\nCHUNKS: 1 x 4\nFORMAT: x\n=== END ===\n"
+    for n in ("mission_20261101_0101.txt", "mission_20261102_0101.txt", "mission_20261103_0101.txt"):
+        (sb.missions / n).write_text(plan, encoding="utf-8")
+    (sb.missions / "my-own-plan.txt").write_text(plan, encoding="utf-8")
+    app = App(s)
+    srv = serve(app, 0)
+    threading.Thread(target=srv.serve_forever, daemon=True).start()
+    try:
+        base = f"http://127.0.0.1:{srv.server_address[1]}"
+        h = {"X-NR-Token": app.token, "Content-Type": "application/json"}
+        post = lambda path, body: json.loads(urlopen(Request(base + path, data=json.dumps(body).encode(),
+                                                             headers=h), timeout=10).read())
+        assert len(app.history()["missions"]) == 3
+        assert post("/api/history/delete", {"file": "Missions/mission_20261101_0101.txt"})["ok"]
+        assert not (sb.missions / "mission_20261101_0101.txt").exists() and len(app.history()["missions"]) == 2
+        assert not post("/api/history/delete", {"file": "Missions/my-own-plan.txt"})["ok"]      # not a past run
+        assert not post("/api/history/delete", {"file": "../outside.txt"})["ok"]
+        u = json.loads(urlopen(Request(base + "/api/storage", headers=h), timeout=10).read())
+        assert next(c for c in u["cleanups"] if c["kind"] == "runs")["count"] == 2
+        r = post("/api/storage/clean", {"kind": "runs"})
+        assert r["ok"] and r["moved"] == 2 and app.history()["missions"] == []
+        assert (sb.missions / "my-own-plan.txt").exists()
+    finally:
+        srv.shutdown()

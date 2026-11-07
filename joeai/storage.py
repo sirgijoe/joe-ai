@@ -33,6 +33,7 @@ CLEANUPS = {
     "versions": "Old versions (_v2, _v3 ... kept: the newest of each)",
     "reports": f"Reports older than {REPORT_MAX_AGE_DAYS} days",
     "comfy": "Leftover ComfyUI copies of Joe's pictures",
+    "runs": "Past missions (the Step by step list; what they made stays in Output)",
 }
 
 
@@ -177,11 +178,20 @@ def candidates(settings: Settings, sb: Sandbox, kind: str) -> list[Path]:
         return _old_versions(sb)
     if kind == "reports":
         return _old_reports(sb)
+    if kind == "runs":
+        return past_runs(sb)
     if kind == "comfy":
         cd = comfy_output_dir(settings)
         d = cd / JOE_COMFY_SUBFOLDER if cd else None
         return sorted(p for p in d.rglob("*") if p.is_file()) if d and d.is_dir() else []
     raise ValueError(f"unknown cleanup: {kind}")
+
+
+def past_runs(sb: Sandbox) -> list[Path]:
+    """The saved copies of missions that ran (Missions/mission_*.txt): the Step by step list.
+    Only the plans; the files they made stay in Output."""
+    d = sb.missions
+    return sorted(p for p in d.glob("mission_*.txt") if p.is_file()) if d.is_dir() else []
 
 
 def _rejected(sb: Sandbox) -> list[Path]:
@@ -243,7 +253,7 @@ def _mtime(p: Path) -> float:
 def clean(settings: Settings, sb: Sandbox, kind: str) -> dict:
     """Move one kind of clutter to the Recycle Bin / Trash. Returns counts."""
     paths = candidates(settings, sb, kind)
-    allowed = [sb.output]
+    allowed = [sb.missions] if kind == "runs" else [sb.output]
     if kind == "comfy":
         cd = comfy_output_dir(settings)
         allowed = [cd / JOE_COMFY_SUBFOLDER] if cd else []
