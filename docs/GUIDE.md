@@ -250,6 +250,16 @@ Step by step (the Builder) makes the mission for you with simple forms:
   A file with a problem goes to `Queue\problems\` with a `.problem.txt` note saying what's
   wrong. Handy for missions written somewhere else (by another app, a helper, or Claude).
 
+### Installer warnings (Mac and Windows)
+
+**Mac:** macOS says Joe can't be checked for malicious software. Apple charges developers $99 a
+year to remove that warning; Joe is free and makes no money, so we don't pay it. All of Joe's code
+is open on GitHub for anyone (or any AI) to check. Open it once with System Settings > Privacy &
+Security > **Open Anyway** next to Joe > **Open**.
+
+**Windows:** until Joe's free SignPath Foundation certificate is in place, SmartScreen may say
+"Windows protected your PC": **More info** > **Run anyway**.
+
 ## First start, tabs and looks
 
 The first time Joe opens, a setup helper walks through it one step at a time: your graphics card

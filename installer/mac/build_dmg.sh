@@ -63,12 +63,18 @@ Installing Joe on a Mac
 
 1. Drag Joe onto the Applications folder.
 2. Open Joe from Applications.
-3. The first time, macOS says Joe can't be checked for malicious software, because Joe isn't
-   registered with Apple (that costs money every year, and Joe is free).
+3. The first time, macOS says Joe can't be checked for malicious software.
    Click Done (or OK), then open System Settings > Privacy & Security, scroll down and click
    "Open Anyway" next to Joe, then Open. You only do this once.
 
-Joe is free and open source (GPL-3.0): https://github.com/sirgijoe/joe-ai
+Why the warning?
+Apple charges developers $99 every year before a Mac will open their apps without this
+warning. Joe is free, makes no money and never will, so we won't pay a yearly toll for the right to
+give something away. Instead, all of Joe is open source: check the code yourself, or have an AI
+check it for you, if you don't feel safe installing it. Complete transparency, free and at your
+disposal: https://github.com/sirgijoe/joe-ai
+
+Joe is licensed GPL-3.0.
 TXT
 mkdir -p dist
 out="dist/Joe-${version}-macos-${arch}.dmg"

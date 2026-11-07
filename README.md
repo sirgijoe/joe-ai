@@ -297,6 +297,25 @@ other people, each under their own license. AI models are big downloads (2–20 
 
 System check (Setup) says what your own graphics mean for Joe.
 
+## Why your computer may warn you about Joe
+
+**Mac:** the first time you open Joe, macOS says it can't check Joe for malicious software.
+Apple charges developers $99 every year before a Mac will open their apps without that warning.
+Joe is free, makes no money and never will, so we won't pay a yearly toll for the right to give
+something away. Instead, all of Joe is open source: every line is right here. If you don't feel
+safe installing it, check the code yourself, or have an AI check it for you. Complete
+transparency for everything included, free and at your disposal.
+To open Joe anyway (once): System Settings > Privacy & Security, scroll down, **Open Anyway** next
+to Joe, then **Open**. The disk image's "Read me first.txt" says the same.
+
+**Windows:** until Joe's free code-signing certificate is in place (applied for through
+SignPath Foundation, which signs open-source projects at no cost), Windows may show "Windows
+protected your PC". Click **More info**, then **Run anyway**.
+
+**Updates:** each release lists a SHA-256 checksum for every file, and releases are signed with
+Joe's own key, so Joe refuses an update that was changed or didn't come from this project.
+[SECURITY_REVIEW.md](SECURITY_REVIEW.md) lists what an outside reviewer should check.
+
 ## How a night with Joe goes
 
 1. **Before bed:** tell Joe what you need in your own words, check his plan, press **RUN IT**
