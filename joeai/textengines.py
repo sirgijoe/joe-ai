@@ -110,6 +110,36 @@ GET = {"lmstudio": "lmstudio.ai", "llamacpp": "github.com/ggml-org/llama.cpp/rel
        "localai": "localai.io", "openai": "the program's own site (jan.ai, github.com/LostRuins/koboldcpp, docs.vllm.ai)"}
 
 
+PAGES = {"lmstudio": "https://lmstudio.ai/download",
+         "llamacpp": "https://github.com/ggml-org/llama.cpp/releases",
+         "localai": "https://localai.io/basics/getting_started/"}
+
+
+def engine_check(cfg: OllamaSettings, timeout: float = 2) -> dict:
+    """Setup > Writing program was just changed: is that program on this PC (or answering)?"""
+    e = engine_id(cfg)
+    label = ENGINES[e]["label"]
+    if e == "ollama":
+        return {"found": True, "engine": e, "label": label}
+    try:
+        request_json("GET", f"{engine_url(cfg)}/v1/models", timeout=timeout, headers=auth_headers(cfg))
+        return {"found": True, "running": True, "engine": e, "label": label}
+    except (HttpError, OSError, ValueError):
+        pass
+    if e != "openai" and installed(cfg):
+        return {"found": True, "running": False, "engine": e, "label": label}
+    if e == "openai":
+        return {"found": False, "engine": e, "label": label, "page": "",
+                "text": f"Nothing answers at {engine_url(cfg)} yet. Start the program (Jan, KoboldCpp, vLLM...) "
+                        "and put its address in More options, then press TEST CONNECTION. Joe can't install "
+                        "these for you: each has its own download page."}
+    extra = " (Joe looks for its 'lms' helper, which it adds the first time it opens)" if e == "lmstudio" else ""
+    return {"found": False, "engine": e, "label": label, "page": PAGES[e],
+            "text": f"{label} isn't on this PC{extra}. It's a free program made by other people: get it from "
+                    f"its download page, open it once, add a model there, then come back. Joe keeps installing "
+                    f"only Ollama himself."}
+
+
 def start_problem(cfg: OllamaSettings, url: str) -> str:
     """Why START IT couldn't start the chosen program, in plain words ('' = Ollama, not ours to say)."""
     e = engine_id(cfg)

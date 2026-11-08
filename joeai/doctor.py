@@ -462,7 +462,14 @@ def _engine_issues(issues: list[dict], settings: Settings, up: bool, models: lis
     label = textengines.engine_label(settings.ollama)
     how = textengines.ENGINES[textengines.engine_id(settings.ollama)]["how"]
     keep = [i for i in issues if i.get("tool") != "ollama" and i.get("action") not in ("pull", "use")]
-    if not up:
+    chk = textengines.engine_check(settings.ollama, timeout=1) if not up else {"found": True}
+    if not up and not chk["found"]:
+        keep.insert(0, {"id": "use-ollama", "text": "Or go back to Ollama for writing (Joe installs and sets it up).",
+                        "action": "use-ollama", "optional": True})
+        keep.insert(0, {"id": "get-engine", "text": chk["text"], "action": "get-engine",
+                        "page": chk.get("page", ""), "tool": "engine"} if chk.get("page") else
+                    {"id": "get-engine", "text": chk["text"], "tool": "engine"})
+    elif not up:
         keep.insert(0, {"id": "start-ollama", "text": f"{label} isn't answering at "
                         f"{textengines.engine_url(settings.ollama)}. {how}", "action": "start", "tool": "ollama"})
     elif not [m for m in models if m["writer"]]:

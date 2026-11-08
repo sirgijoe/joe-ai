@@ -179,3 +179,23 @@ def test_start_problem_says_not_installed(monkeypatch):
     assert "Start it yourself" in textengines.start_problem(c, "http://127.0.0.1:8000")
     c.engine = "ollama"
     assert textengines.start_problem(c, "") == ""
+
+
+def test_engine_check_and_system_check_offer(app, monkeypatch):  # noqa: F811
+    from joeai import doctor, textengines
+    monkeypatch.setattr(textengines, "lms_cli", lambda: None)
+    c = app.settings.ollama
+    c.engine, c.engine_url = "lmstudio", "http://127.0.0.1:9"
+    r = textengines.engine_check(c, timeout=0.5)
+    assert not r["found"] and r["page"] == "https://lmstudio.ai/download" and "isn't on this PC" in r["text"]
+    c.engine = "openai"
+    r = textengines.engine_check(c, timeout=0.5)
+    assert not r["found"] and not r["page"] and "TEST CONNECTION" in r["text"]
+    c.engine = "ollama"
+    assert textengines.engine_check(c)["found"]
+    c.engine = "lmstudio"
+    issues = doctor._engine_issues([], app.settings, False, [])
+    assert [i["id"] for i in issues[:2]] == ["get-engine", "use-ollama"]
+    assert issues[0]["action"] == "get-engine" and issues[0]["page"].startswith("https://lmstudio.ai")
+    r = app.doctor_fix({"action": "use-ollama", "approved": True})
+    assert r["ok"] and app.settings.ollama.engine == "ollama"

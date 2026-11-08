@@ -796,6 +796,23 @@ class App:
         if self.busy:
             return {"ok": False, "error": f"Busy: {self.busy}"}
         action, tool, model = b.get("action"), b.get("tool", ""), b.get("model", "")
+        if action == "get-engine":                 # another writing program: its own download page
+            from . import textengines
+            page = textengines.PAGES.get(textengines.engine_id(self.settings.ollama), "")
+            if not page:
+                return {"ok": False, "error": "No download page for that one: get it from its own site."}
+            import webbrowser
+            webbrowser.open(page)
+            self.log(f"Opened {page} in your browser.")
+            return {"ok": True}
+        if action == "use-ollama":
+            if self.running:
+                return {"ok": False, "error": "Can't change the writing program during a run."}
+            self.settings.ollama.engine = "ollama"
+            self.settings.save()
+            self.services = ServiceManager(self.settings, log=self.log)
+            self.log("Writing program set back to Ollama.")
+            return {"ok": True}
         if action == "use":
             if self.running:
                 return {"ok": False, "error": "Can't change the model during a run."}
@@ -2075,6 +2092,14 @@ def make_handler(app: App):
                     if not isinstance(paths, list) or not paths:
                         return self._json({"ok": False, "error": "Nothing to reset on this page."})
                     return self._json(app.reset_settings([str(x) for x in paths][:200]))
+                if u.path == "/api/engine/check":         # Writing program just changed: is it there?
+                    from copy import deepcopy
+                    from . import textengines
+                    cfg = deepcopy(app.settings.ollama)
+                    for k in ("engine", "engine_url", "engine_key", "engine_start"):
+                        if k in b:
+                            setattr(cfg, k, str(b.get(k) or "").strip())
+                    return self._json(textengines.engine_check(cfg))
                 if u.path == "/api/engine/test":          # Setup > Writing > TEST CONNECTION
                     from copy import deepcopy
                     from . import textengines

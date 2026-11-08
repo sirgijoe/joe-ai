@@ -920,7 +920,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
   const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
   const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
   const needMods = mods.filter(([it]) => !it.optional).length;
@@ -958,6 +958,8 @@ function askFix(it) {
     "install-pandoc": viaPkg,
     "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. Then press GET IT again: Joe moves it into ComfyUI."
       : "Move it into ComfyUI's models folder now?",
+    "get-engine": "Open its download page in your browser? It's a free program made by other people; Joe doesn't install it for you.",
+    "use-ollama": "Write with Ollama again? Joe installs, starts and fills it for you.",
     "install-whispercpp": "Install it now? Joe downloads the small whisper.cpp program (MIT license) and the hearing model it uses. Only the program and the model, never your recordings.",
     "share-models": "Let ComfyUI use them? Joe adds a few lines to ComfyUI's extra model folders file (a copy of the old file is kept next to it). Nothing is copied or moved. Restart ComfyUI afterwards.",
     "install-clone": "Set it up now? About 3 GB (PyTorch for NVIDIA cards + the Chatterbox model). It can take a while." }[it.action];
@@ -1395,6 +1397,31 @@ $("#set-find").addEventListener("keydown", (ev) => {
 });
 $("#setup").addEventListener("input", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
 $("#setup").addEventListener("change", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
+/* Writing program changed to one Joe can't find: say so right away, with the download page,
+   a way back to Ollama, or keep it (they may install it later). Joe never installs these himself. */
+let ebPage = "";
+$("#setup").addEventListener("change", async (ev) => {
+  if (!ev.target.dataset || ev.target.dataset.path !== "ollama.engine" || ev.target.value === "ollama") return;
+  const v = (k) => (document.querySelector(`[data-path="ollama.${k}"]`) || {}).value || "";
+  let r;
+  try { r = await api("/api/engine/check", { engine: v("engine"), engine_url: v("engine_url"), engine_key: v("engine_key"), engine_start: v("engine_start") }); }
+  catch (e) { return; }
+  if (r.found) { if (r.running === false) toast(`${r.label} is on this PC. Press START IT (or Joe starts it when needed).`, 6000); return; }
+  ebPage = r.page || "";
+  $("#eb-text").textContent = r.text;
+  $("#eb-get").hidden = !ebPage;
+  $("#eb-keep").innerHTML = ebPage ? "[ KEEP IT ]" : "[ OK ]";
+  $("#engine-box").hidden = false;
+  (ebPage ? $("#eb-get") : $("#eb-keep")).focus();
+});
+$("#eb-get").addEventListener("click", () => { if (ebPage) window.open(ebPage, "_blank", "noopener"); $("#engine-box").hidden = true; });
+$("#eb-ollama").addEventListener("click", () => {
+  const sel = document.querySelector('[data-path="ollama.engine"]');
+  if (sel) { sel.value = "ollama"; sel.dispatchEvent(new Event("change", { bubbles: true })); }
+  $("#engine-box").hidden = true;
+  toast("Back to Ollama. Press SAVE to keep it.");
+});
+$("#eb-keep").addEventListener("click", () => { $("#engine-box").hidden = true; });
 setupPage(setupPageName);
 
 /* ---------------- buttons ---------------- */
@@ -1682,6 +1709,11 @@ document.addEventListener("keydown", (ev) => {
   if (!$("#abilities").hidden) {              // WHAT CAN JOE DO? is open: Esc closes it
     if (/^F\d+$/.test(ev.key)) ev.preventDefault();
     if (ev.key === "Escape") { ev.preventDefault(); abilitiesClose(); }
+    return;
+  }
+  if (!$("#engine-box").hidden) {             // "that writing program isn't on this PC": Esc = keep it
+    if (/^F\d+$/.test(ev.key)) ev.preventDefault();
+    if (ev.key === "Escape") { ev.preventDefault(); $("#engine-box").hidden = true; }
     return;
   }
   if (!$("#packs").hidden) {
@@ -2653,7 +2685,7 @@ setTimeout(() => checkUpdate(false), 8000);
 // and one button; things that only appear after an install (the writing model once Ollama is
 // in, picture models once ComfyUI is in) are added to the same run by themselves.
 const W_GROUPS = [
-  { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "engine-model", "pull-model", "use-model", "upgrade-model"] },
+  { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "get-engine", "use-ollama", "engine-model", "pull-model", "use-model", "upgrade-model"] },
   { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d", "share-models"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
   { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
@@ -2667,6 +2699,8 @@ const W_STEPS = [
 const W_TEXT = {
   "install-ollama": ["Joe needs Ollama: a free program that runs AI writing models on your own PC.", "YES, INSTALL OLLAMA", "Your computer may ask for permission."],
   "start-ollama": ["Ollama is installed but switched off.", "YES, START IT", ""],
+  "get-engine": [null, "OPEN ITS DOWNLOAD PAGE", "It's a free program made by other people: Joe doesn't install it."],
+  "use-ollama": [null, "YES, USE OLLAMA", "Joe installs, starts and fills it for you."],
   "pull-model": [null, "YES, DOWNLOAD IT", "It can take a while. You can keep going while it downloads."],
   "use-model": [null, "YES, USE IT", ""],
   "upgrade-model": [null, "YES, GET THE BETTER ONE", "It can take a while. Joe uses it as soon as it's done."],
