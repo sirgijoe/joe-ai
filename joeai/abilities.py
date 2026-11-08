@@ -103,6 +103,14 @@ OTHER: tuple[Ability, ...] = (
             "Options: the port (8770) in Setup > Phone; REMOVE a phone there any time.\n"
             "Limits: works only while this PC is on and Joe's window is open, and only at home (reminders still reach your phone with the PC off through phone pings). From the phone Joe can't change settings, install anything or open files outside his Output folder. Home Wi-Fi traffic isn't encrypted, so don't use it on public Wi-Fi.",
             ("phone", "joe phone", "my phone", "from my phone", "phone app", "mobile", "pair a phone")),
+    Ability("language", "Working for you", "Joe in your language",
+            "Joe's own screens in Spanish and 22 other languages (Setup > Display & sound > Language).",
+            "What it does: switches Joe's window (buttons, settings, tooltips, messages) into another language. Spanish comes with the main screens done.\n"
+            "How Joe does it: a language file maps each English line of the window to the other language, and the window swaps them as it shows them. MAKE IT has Joe translate every remaining line himself with the writing model, in small batches, saving as he goes.\n"
+            "What to give it: pick the language and press SAVE; press MAKE IT to fill in the rest (it's queued like any task).\n"
+            "Options: fix any line in Languages/<code>.json in Joe's folder; your lines win over Joe's.\n"
+            "Limits: lines not translated yet stay in English. It's a machine translation until someone checks it. Your own words (the log, Talk, files) are never changed.",
+            ("language", "languages", "spanish", "español", "translate joe", "in my language", "other language")),
     Ability("addons", "Working for you", "Add-ons from other people",
             "New tools, starter packs, picture workflows and themes other people made, added in Setup > Add-ons.",
             "What it does: an add-on plugs new things into Joe without changing his code: tools on the Tools tab, starter packs, picture workflows and themes.\n"
@@ -253,6 +261,9 @@ STEPS: dict[str, tuple[str, ...]] = {
     "tidy-speech": ("Joe listens to the recording word by word, with the time of every word.",
                     "He marks every um, uh and er, and every silence longer than you picked.",
                     "FFmpeg cuts them out (long pauses become a short natural gap) and Joe lists every cut."),
+    "joe-language": ("Joe collects every line of his own window (buttons, settings, tooltips, messages).",
+                     "The writing model translates them in small numbered batches, keeping names and {1} places as they are.",
+                     "Joe saves them to Languages/<code>.json as he goes; pick the language in Setup > Display & sound."),
     "edit-words": ("Joe listens word by word, with the time of every word, and writes what was said as plain text.",
                    "You delete the words you don't want and give the file back; Joe lines it up with what he heard.",
                    "FFmpeg cuts each deleted word (and the gap after it) out of a copy, and Joe lists every cut."),

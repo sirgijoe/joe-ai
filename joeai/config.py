@@ -84,6 +84,7 @@ class UISettings:
     startup_sound: str = "both"      # when Joe opens: off | jingle | voice (Joe says hello) | both
     jingle: str = "theme"            # theme = Joe's 8-bit intro (ui/sounds/intro.wav) | chime = short tones
     hello_text: str = "Joe is now reporting for duty."
+    language: str = "en"             # Joe's own screens (i18n.LANGUAGES); English when a line isn't translated
 
 
 @dataclass

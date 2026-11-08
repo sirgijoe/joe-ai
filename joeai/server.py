@@ -1623,6 +1623,13 @@ def make_handler(app: App):
                         pk = None
                     return self._json(stylemodels.inventory(comfy_models_dir(app.settings),
                                                             ollama_models(app.services), pk))
+                if u.path == "/api/lang":                  # Joe's screens in the chosen language
+                    from . import i18n
+                    code = (q.get("code") or [app.settings.ui.language])[0]
+                    return self._json({"ok": True, "code": code, "rtl": code in i18n.RTL, "lines": i18n.load(code, app.sb)})
+                if u.path == "/api/lang/choices":
+                    from . import i18n
+                    return self._json({"ok": True, "choices": i18n.choices(app.sb)})
                 if u.path == "/api/addons":                # Setup > Add-ons: what's in the Add-ons folder
                     from . import community
                     return self._json({"ok": True, "folder": str(community.root(app.sb)),
@@ -1991,6 +1998,15 @@ def make_handler(app: App):
                     app.last_seen = 0.0                    # idle check exits within ~1 s
                     app.quit_now = True
                     return self._json({"ok": True})
+                if u.path == "/api/lang/make":             # Joe translates his own screens (a queued task)
+                    from . import i18n
+                    code = str(b.get("code", ""))
+                    if code not in i18n.LANGUAGES or code == "en":
+                        return self._json({"ok": False, "error": "Pick a language first."})
+                    name = i18n.LANGUAGES[code][0]
+                    text = f"TASK: Joe's screens in {name}\nTYPE: joe-language\nOPTIONS: to {name.lower()}"
+                    r = app.run(text) if not app.running else app.enqueue(text)
+                    return self._json(r)
                 if u.path == "/api/addons/enable":         # turn an add-on on (after the person read it) or off
                     from . import community
                     return self._json(community.enable(app.sb, str(b.get("id", "")), bool(b.get("on")), log=app.log))

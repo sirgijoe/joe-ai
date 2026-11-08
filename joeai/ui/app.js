@@ -1067,6 +1067,8 @@ async function loadSetup() {
   const s = await api("/api/settings");
   document.querySelectorAll("#setup [data-path]").forEach((el) => {
     const v = getPath(s, el.dataset.path);
+    if (el.tagName === "SELECT" && v != null && v !== "" && ![...el.options].some((o) => o.value === String(v)))
+      el.add(new Option(String(v), String(v)));          // a choice whose list isn't loaded yet (e.g. the language)
     if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
   });
   qualityHelp();
@@ -1097,7 +1099,8 @@ async function saveSetup(ev) {
     return;
   }
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
-  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500); }
+  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500);
+    if ((out.ui || {}).language !== I18N.code) i18nStart(); }
 }
 $("#setup").addEventListener("submit", saveSetup);
 
@@ -1365,6 +1368,7 @@ function setupPage(name) {
   if (name === "writing" && typeof loadTemplates === "function") loadTemplates();
   if (name === "phone") loadPhone();
   if (name === "addons") loadAddons();
+  if (name === "display") loadLangChoices();
 }
 // --- Setup > Add-ons -----------------------------------------------------------------------------
 let addonList = [];
@@ -1712,6 +1716,13 @@ document.addEventListener("click", async (ev) => {
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
     if (act === "perm-mic") { await allowMic(); return; }
     if (act === "phone-pair") { await phonePair(); return; }
+    if (act === "lang-make") {
+      const code = $("#lang-select").value;
+      if (code === "en") { toast("Pick a language first"); return; }
+      const r = await api("/api/lang/make", { code });
+      toast(r.ok ? (r.queued ? "Added to the queue: Joe will translate his screens" : "Joe is translating his screens now") : r.error);
+      return;
+    }
     if (act === "addon-add") { $("#addon-file").click(); return; }
     if (act === "addon-reload") { await loadAddons(); return; }
     if (act === "addon-on") {
@@ -3614,3 +3625,114 @@ $("#addon-file").addEventListener("change", async (ev) => {
   } catch (e) { $("#addon-msg").textContent = "ERROR: " + e.message; }
   loadAddons();
 });
+
+// --- Joe's screens in other languages (Setup > Display & sound > Language) ----------------------
+// The window is written in English; a language file maps English screen text to the other language.
+// Every text piece, tooltip and box hint that matches is swapped (and swapped again when the window
+// changes it). Lines with {1}, {2}... match text that has numbers or names in those places.
+// Your own words never change: the log, Talk, previews, files and anything you type are left alone.
+const I18N = { on: false, code: "en", exact: new Map(), pats: [], orig: new WeakMap(), busy: false };
+const i18nNorm = (t) => t.replace(/\s+/g, " ").trim();
+function i18nLookup(text) {
+  const key = i18nNorm(text);
+  if (!key || key.length > 900) return null;
+  const hit = I18N.exact.get(key);
+  if (hit !== undefined) return hit;
+  if (key.length > 300) return null;
+  for (const [re, out] of I18N.pats) {
+    const m = re.exec(key);
+    if (m) return out.replace(/\{(\d+)\}/g, (_, n) => m[Number(n)] ?? "");
+  }
+  return null;
+}
+function i18nSkip(el) {
+  return !el || el.closest('[translate="no"], textarea, pre, code, script, style, [contenteditable="true"]');
+}
+function i18nText(node) {
+  const cur = node.nodeValue;
+  let o = I18N.orig.get(node);
+  if (o === undefined || (cur !== o.out)) o = { src: cur, out: null };       // new or changed by the window: English again
+  const t = i18nLookup(o.src);
+  if (t === null) { I18N.orig.delete(node); return; }
+  const lead = o.src.match(/^\s*/)[0], tail = o.src.match(/\s*$/)[0];
+  o.out = lead + t + tail;
+  I18N.orig.set(node, o);
+  if (cur !== o.out) node.nodeValue = o.out;
+}
+function i18nAttrs(el) {
+  for (const a of ["title", "placeholder", "aria-label"]) {
+    const v = el.getAttribute && el.getAttribute(a);
+    if (!v) continue;
+    const mark = "data-en-" + a;
+    let src = el.getAttribute(mark);
+    if (src === null || el.getAttribute("data-i18n-" + a) !== v) src = v;      // changed by the window
+    const t = i18nLookup(src);
+    if (t === null) continue;
+    el.setAttribute(mark, src); el.setAttribute("data-i18n-" + a, t);
+    if (v !== t) el.setAttribute(a, t);
+  }
+}
+function i18nWalk(root) {
+  if (!I18N.on || !root) return;
+  if (root.nodeType === 3) { if (!i18nSkip(root.parentElement)) i18nText(root); return; }
+  if (root.nodeType !== 1 || i18nSkip(root)) return;
+  i18nAttrs(root);
+  const w = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
+    acceptNode: (n) => (n.nodeType === 1 && i18nSkip(n)) ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT });
+  for (let n = w.nextNode(); n; n = w.nextNode()) { if (n.nodeType === 3) i18nText(n); else i18nAttrs(n); }
+}
+const i18nObs = new MutationObserver((list) => {
+  if (I18N.busy) return;
+  I18N.busy = true;
+  try {
+    for (const m of list) {
+      if (m.type === "characterData") { if (!i18nSkip(m.target.parentElement)) i18nText(m.target); }
+      else if (m.type === "attributes") i18nAttrs(m.target);
+      else m.addedNodes.forEach(i18nWalk);
+    }
+  } finally { I18N.busy = false; }
+});
+async function i18nStart(code) {
+  let r;
+  try { r = await api("/api/lang" + (code ? "?code=" + encodeURIComponent(code) : "")); } catch (e) { return; }
+  const was = I18N.on;
+  I18N.code = r.code; I18N.exact = new Map(); I18N.pats = [];
+  for (const [k, v] of Object.entries(r.lines || {})) {
+    if (/\{\d+\}/.test(k)) {
+      const re = new RegExp("^" + k.replace(/[.*+?^$()|[\]\\]/g, "\\$&").replace(/\\?\{(\d+)\\?\}/g, "(.+?)") + "$");
+      I18N.pats.push([re, v]);
+    } else {
+      I18N.exact.set(k, v);
+      const bare = (t) => t.replace(/^\[\s?/, "").replace(/\s?\]$/, "").trim();   // modern looks drop the [ ] on buttons
+      if (/^\[|\]$/.test(k) && !I18N.exact.has(bare(k))) I18N.exact.set(bare(k), bare(v));
+    }
+  }
+  I18N.on = I18N.exact.size > 0 || I18N.pats.length > 0;
+  document.documentElement.lang = r.code || "en";
+  document.documentElement.dir = r.rtl ? "rtl" : "ltr";
+  if (was && !I18N.on) { location.reload(); return; }      // back to English: simplest is a fresh window
+  if (I18N.on) {
+    i18nWalk(document.body);
+    if (!was) i18nObs.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true,
+                                               attributeFilter: ["title", "placeholder", "aria-label"] });
+  }
+}
+async function loadLangChoices() {
+  try {
+    const r = await api("/api/lang/choices");
+    const sel = $("#lang-select"), cur = sel.value;
+    const keep = cur || I18N.code;
+    sel.innerHTML = r.choices.map((c) => `<option value="${esc(c.code)}">${esc(c.name)}${c.code !== "en" ? ` — ${c.pct}%` : ""}</option>`).join("");
+    sel.value = keep;
+    langCover();
+  } catch (e) {}
+}
+function langCover() {
+  const sel = $("#lang-select"); if (!sel) return;
+  const opt = sel.selectedOptions[0];
+  const pct = opt && /— (\d+)%/.exec(opt.textContent);
+  $("#lang-cover").textContent = sel.value === "en" ? "" :
+    `${pct ? pct[1] : 0}% of Joe's screens are translated; the rest stays English. MAKE IT has Joe translate the rest.`;
+}
+$("#lang-select").addEventListener("change", langCover);
+i18nStart();

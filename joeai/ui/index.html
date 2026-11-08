@@ -116,7 +116,7 @@ FORMAT: ...
         <div id="joblist"><div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F6.</div></div>
         <div id="queued"></div>
         <h2 class="sub">LOG</h2>
-        <pre id="log" class="out log"></pre>
+        <pre id="log" class="out log" translate="no"></pre>
       </section>
       <section class="panel viewer">
         <h2>PICTURES <span class="dim">AI-GENERATED · big one opens in F7</span></h2>
@@ -213,7 +213,7 @@ FORMAT: ...
       <div class="row"><span id="talk-note" class="dim small"></span><span class="grow"></span>
         <label class="small talkspeed">VOICE SPEED <input type="range" id="talk-speed" min="0.7" max="1.8" step="0.05" value="1"> <span id="talk-speed-v">1.00×</span></label>
         <span id="mic-meter" class="small"></span></div>
-      <div id="talk-log" class="talklog"></div>
+      <div id="talk-log" class="talklog" translate="no"></div>
       <div id="talk-files" class="talkfiles"></div>
       <div class="talkin">
         <textarea id="talk-in" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
@@ -248,7 +248,7 @@ FORMAT: ...
     </section>
     <section class="panel preview">
       <h2>PREVIEW <span class="dim">O folder · E edit · C copy · L load · T thumbs · K/X/S review · M mp4</span></h2>
-      <div id="preview" class="pv"></div>
+      <div id="preview" class="pv" translate="no"></div>
     </section>
   </main>
 
@@ -569,6 +569,9 @@ FORMAT: ...
                     <option value="2">Normal</option><option value="3">Heavy</option></select></label>
                 <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
                 <label title="Atkinson Hyperlegible, a font made by the Braille Institute so letters like I, l and 1 never look alike. Works with every look.">Easy-to-read font <input type="checkbox" data-path="ui.easy_read"></label>
+                <label title="The language of Joe's own screens. Lines not translated yet stay in English.">Language <select data-path="ui.language" id="lang-select"><option value="en">English</option></select></label>
+                <div class="row"><span class="dim small" id="lang-cover"></span>
+                  <button type="button" data-act="lang-make" title="Joe translates the rest of his screens into this language with his writing model (queued like any task; good for the night shift).">[ MAKE IT ]</button></div>
                 <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
               </fieldset>
               <fieldset><legend>SCREEN SAVER</legend>

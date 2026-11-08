@@ -172,6 +172,16 @@ From the phone Joe can't change settings, install anything or open files outside
 Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on
 public Wi-Fi.
 
+### Joe's screens in other languages (Setup > Display & sound > Language)
+
+Pick a language and press SAVE: Joe's window switches right away. Spanish comes with the main
+screens done; anything not translated yet stays in English, so a half-made language still works.
+**MAKE IT** has Joe translate the rest of his screens himself with the writing model (a queued task,
+good for the night shift; a stopped run carries on next time). He saves it to
+`Languages/<code>.json` in Joe's folder: English on the left, the translation on the right. Fix any
+line there and it wins over Joe's built-in file. Your own words (the log, Talk, files, what you type)
+are never changed.
+
 ### Add-ons from other people (Setup > Add-ons)
 
 Add-ons bring new tools, starter packs, picture workflows and themes that other people made.

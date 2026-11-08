@@ -94,6 +94,7 @@ class Tool:
 from .makers import LOOKS, NO_INPUT_OK, PATTERNS as ILLUSION_PATTERNS  # noqa: E402  (batch 3 tools' choices)
 from .writetools import CODE_EXT  # noqa: E402
 from .avtools import SIZES as SOCIAL_SIZES  # noqa: E402
+from .i18n import LANGUAGES as UI_LANGUAGES  # noqa: E402  (Joe's own screens)
 
 # light name -> (label, words for the editor)
 RELIGHTS = {
@@ -388,6 +389,18 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          plan_hint="Remove ums / filler words / long pauses from a recording or talking video: TYPE: tidy-speech, "
                    "INPUT: the file(s), OPTIONS: fillers, pauses, pause 0.7|1.0|1.5|2.5. No CHUNKS.",
          examples=("Cut the ums out of my podcast", "Remove the long pauses from this video")),
+    Tool("joe-language", "Joe's screens in another language", "Writing",
+         "Joe translates his own window into another language with the writing model.",
+         options=(Option("to", "Into", choices=tuple((en.lower(), own if own == en else f"{own} ({en})")
+                                                     for c, (en, own) in UI_LANGUAGES.items()
+                                                     if c != "en"), required=True),),
+         needs=("ollama",), ready=True,
+         help="Joe collects every line of his own screens and the writing model translates them in small batches, "
+              "saved to Languages/<code>.json in Joe's folder as he goes (a stopped run carries on next time). Then pick "
+              "the language in Setup > Display & sound. A machine translation: fix any line in that file.",
+         plan_hint="Translate Joe's own screens / app window into another language: TYPE: joe-language, OPTIONS: to <language>. "
+                   "No INPUT, no CHUNKS.",
+         examples=("Translate Joe's screens into Spanish",)),
     Tool("edit-words", "Edit a video by its words", "Video",
          "Delete words from what was said and Joe cuts them out of the video or recording (like Descript).",
          accepts=VIDEO_IN_EXT + AUDIO_EXT + (".txt", ".md"),
@@ -1084,6 +1097,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     from . import community
     if community.is_addon_tool(job.type):
         fn = community.run
+    if job.type == "joe-language":
+        from . import i18n
+        fn = i18n.run
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
