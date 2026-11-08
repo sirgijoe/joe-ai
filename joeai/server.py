@@ -398,9 +398,31 @@ class App:
         finally:
             self._starting = None
 
+    def _past_stop_time(self) -> bool:
+        """Night shift "stop by": past it, missions not started yet wait for the next night."""
+        from . import schedule
+        until = schedule.read_stop(self.sb)
+        return until is not None and datetime.now() >= until
+
+    def _leave_for_tomorrow(self) -> None:
+        """(under self.lock) Queue -> Missions/Tonight, noted in the log, report and phone ping."""
+        from . import schedule
+        left = [(e.get("label") or "plan", t) for t, _, e in self.queue]
+        self.queue = []
+        names = schedule.put_back(self.sb, left)
+        self.left_labels += [lbl for lbl, _ in left][:len(names)]
+        self.left_for_tomorrow = len(self.left_labels)
+        if names:
+            self.log(f"Stop time reached: {len(names)} mission{'s' if len(names) != 1 else ''} saved in "
+                     "Missions/Tonight for tomorrow night.")
+
     def _work(self) -> None:
+        self.left_for_tomorrow = 0
+        self.left_labels: list[str] = []
         while True:
             with self.lock:
+                if self.queue and not self.stop.is_set() and self._past_stop_time():
+                    self._leave_for_tomorrow()
                 if not self.queue or self.stop.is_set():
                     self.accepting = False         # from here on, new work starts a new run
                     break
@@ -430,6 +452,11 @@ class App:
         if self.queue and stopped:
             self.log(f"Run stopped; {len(self.queue)} queued mission(s) were not started.")
         self.queue = []
+        from . import schedule
+        schedule.clear_stop(self.sb)
+        if self.left_labels:
+            from . import report as report_mod
+            report_mod.add_left_note(self.sb, self.left_labels)
         if not stopped:
             self._run_finished()
             from .power import when_finished
@@ -442,6 +469,9 @@ class App:
 
     def _run_finished(self) -> None:
         text = notify_mod.summary_line(self.chain)
+        n = getattr(self, "left_for_tomorrow", 0)
+        if n:
+            text += f" {n} mission{'s' if n != 1 else ''} left for tomorrow night."
         ok = all(s.status == "done" for _, st in self.chain for s in st)
         self.finished = {"n": self.finished["n"] + 1, "ok": ok, "text": text}
         if not self.settings.comfort.ntfy_topic.strip():
@@ -1245,7 +1275,7 @@ class App:
         if self.running:
             return {"ok": False, "error": "Can't change settings during a run."}
         old_ws = self.settings.workspace_path
-        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time)
+        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         _merge(self.settings, data)
         return self._settings_changed(old_ws, old_sched)
 
@@ -1255,7 +1285,7 @@ class App:
             return {"ok": False, "error": "Can't change settings during a run."}
         from .config import reset_paths
         old_ws = self.settings.workspace_path
-        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time)
+        old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         changed = reset_paths(self.settings, paths)
         if paths is None:
             self.settings.workflows = {}
@@ -1271,7 +1301,7 @@ class App:
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()
         self.services = ServiceManager(self.settings, log=self.log)
-        if (self.settings.schedule.enabled, self.settings.schedule.time) != old_sched:
+        if (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop) != old_sched:
             from . import schedule
             r = schedule.apply(self.settings, self.log)
             if not r.get("ok"):
@@ -1543,7 +1573,7 @@ def make_handler(app: App):
                 if app.running:
                     return self._json({"ok": False, "error": "Can't change settings during a run."})
                 old_ws = app.settings.workspace_path
-                old_sched = (app.settings.schedule.enabled, app.settings.schedule.time)
+                old_sched = (app.settings.schedule.enabled, app.settings.schedule.time, app.settings.schedule.stop)
                 try:
                     r = backup.restore(app.settings, app.sb, self.rfile.read(n))
                 except (ValueError, OSError) as e:
@@ -2033,6 +2063,14 @@ def make_handler(app: App):
                     if not isinstance(paths, list) or not paths:
                         return self._json({"ok": False, "error": "Nothing to reset on this page."})
                     return self._json(app.reset_settings([str(x) for x in paths][:200]))
+                if u.path == "/api/engine/test":          # Setup > Writing > TEST CONNECTION
+                    from copy import deepcopy
+                    from . import textengines
+                    cfg = deepcopy(app.settings.ollama)
+                    for k in ("engine", "engine_url", "engine_key", "text_model"):
+                        if k in b:
+                            setattr(cfg, k, str(b.get(k) or "").strip())
+                    return self._json(textengines.test_connection(cfg))
                 if u.path == "/api/services/start":
                     which = b.get("which")
                     ok = app.services.ensure_ollama() if which == "ollama" else app.services.ensure_comfy()

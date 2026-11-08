@@ -1618,6 +1618,15 @@ document.addEventListener("click", async (ev) => {
       await loadThemes();
       return;
     }
+    if (act === "test-engine") {
+      const v = (k) => (document.querySelector(`[data-path="ollama.${k}"]`) || {}).value || "";
+      const out = $("#engine-test");
+      out.textContent = "Testing…";
+      const r = await api("/api/engine/test", { engine: v("engine"), engine_url: v("engine_url"),
+                                                engine_key: v("engine_key"), text_model: v("text_model") });
+      out.textContent = r.ok ? (r.say + (r.warning ? " " + r.warning : "")) : "ERROR: " + r.error;
+      return;
+    }
     if (act === "start-ollama" || act === "start-comfy") {
       $("#setup-msg").textContent = "Starting…";
       const r = await api("/api/services/start", { which: act === "start-ollama" ? "ollama" : "comfyui" });

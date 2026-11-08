@@ -136,6 +136,15 @@ finished", phone ping all apply) and closes when done. Open Joe during the night
 has to be signed in; on a Mac or Linux it also has to be awake. Turning it off, or uninstalling Joe, removes
 the scheduler entry. Plans saved for tonight sit in `Missions\Tonight`.
 
+**Stop by (optional):** put a stop time next to the start time (24-hour, e.g. 07:00; blank = run
+until done). At the stop time Joe finishes the mission he's working on, puts every plan he hasn't
+started back in `Missions\Tonight` for the next night, and the morning report (and phone ping)
+says so: "3 missions left for tomorrow night". Then he closes if he started without a window. A
+stop time earlier than the start time means the next morning (start 23:00, stop 06:00). If the PC
+was asleep or off and the scheduler only starts Joe after the stop time, he leaves the plans for
+the next night instead of running into your day. A mission that's already running is never cut
+off half-way.
+
 ### Check my model files (Setup > Models)
 
 **CHECK MY MODEL FILES** makes sure every picture, video and sound model (`.safetensors`, in ComfyUI's
@@ -333,6 +342,14 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
   start them yourself. Joe only talks to programs on this PC or your home network. One catch:
   llama.cpp and LocalAI keep their model in the graphics card, so pictures and video get less room
   while they run (LM Studio's is unloaded for picture work, like Ollama's).
+- **Other (OpenAI-compatible)**: for Jan, KoboldCpp, vLLM, Text Generation WebUI and anything else
+  that speaks the OpenAI-style language. Put its address in More options > Other program's address
+  (usual ports: Jan 1337, KoboldCpp 5001, vLLM 8000), the model name in Model (exactly as that
+  program lists it; blank = the first one it has), and a Key only if the server asks for one (vLLM
+  started with `--api-key`, a KoboldCpp password). **TEST CONNECTION** checks that it answers, lists
+  its models and says plainly what's wrong if not (not running, wrong port, key needed, model not
+  there). The key stays in your settings and is blanked in help files. Online addresses are refused
+  even with a key: Joe never sends your work to a paid online service.
 - **AUTOMATIC1111 / Forge / reForge models**: when System check finds a Stable Diffusion WebUI folder,
   SHARE THEM adds it to ComfyUI's extra model folders file (Desktop: `extra_models_config.yaml` in its
   settings folder; portable and own installs: `extra_model_paths.yaml` next to ComfyUI). Checkpoints,

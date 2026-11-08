@@ -91,7 +91,7 @@ OTHER: tuple[Ability, ...] = (
             "Save plans for tonight and Joe starts them at a set time, even with his window closed.",
             "What it does: SAVE FOR TONIGHT keeps a plan for later; at the time you pick, Joe starts by himself and runs them.\n"
             "How Joe does it: he asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux). On Windows he can wake the PC from sleep. With no window open he works through the plans and closes when done.\n"
-            "Options: Setup > General > Night shift on, and the time (24-hour clock).\n"
+            "Options: Setup > General > Night shift on, the start time (24-hour clock) and an optional Stop by time: then Joe finishes the mission he's on and leaves the rest for the next night, noted in the morning report. A stop time before the start time means the next morning.\n"
             "Limits: the PC must be signed in; on a Mac or Linux it must be awake. Turned off, or Joe uninstalled, the scheduler entry is removed. Not available while Joe runs from a USB drive.",
             ("night shift", "tonight", "schedule", "scheduled", "save for tonight", "timer")),
     Ability("starter-packs", "Working for you", "Starter packs",

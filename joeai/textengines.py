@@ -4,8 +4,9 @@ All three speak the same "OpenAI-style" language (/v1/models, /v1/chat/completio
 /v1/embeddings), so one small client covers them. It has the same methods as OllamaClient,
 so the rest of Joe doesn't care which engine writes.
 
-Only programs on this PC (or your own network) are used: there is no key box on purpose.
-Joe never sends your work to a paid online service.
+Only programs on this PC (or your own network) are used. The optional key is only for local
+servers that ask for one (vLLM --api-key, a KoboldCpp password): Joe never sends your work to a
+paid online service, so an online address is refused even with a key.
 """
 from __future__ import annotations
 
@@ -143,22 +144,68 @@ def detect_running(timeout: float = 1.0) -> list[dict]:
     return out
 
 
+def auth_headers(cfg: OllamaSettings) -> dict:
+    key = (getattr(cfg, "engine_key", "") or "").strip()
+    return {"Authorization": f"Bearer {key}"} if key else {}
+
+
+def test_connection(cfg: OllamaSettings, timeout: float = 5) -> dict:
+    """Setup > Writing > TEST CONNECTION: is the other program there, and does it have the model?
+    Plain words for every way it can go wrong."""
+    e = engine_id(cfg)
+    if e == "ollama":
+        return {"ok": False, "error": "Pick a writing program other than Ollama first (Ollama is checked in System check)."}
+    raw = (getattr(cfg, "engine_url", "") or "").strip()
+    url = engine_url(cfg)
+    label = ENGINES[e]["label"]
+    if raw and not is_local(raw if re.match(r"^https?://", raw) else "http://" + raw):
+        return {"ok": False, "url": url, "error": "That address is on the internet. Joe only writes with programs on "
+                "this PC or your home network (never a paid online service). Use an address like "
+                "http://127.0.0.1:1337 or http://192.168.1.20:8000."}
+    try:
+        r = request_json("GET", f"{url}/v1/models", timeout=timeout, headers=auth_headers(cfg))
+    except HttpError as err:
+        msg = str(err)
+        if "HTTP 401" in msg or "HTTP 403" in msg:
+            return {"ok": False, "url": url, "error": f"{label} at {url} answered but wants a key (or the key is "
+                    "wrong). Put the server's key in Key, the same one you started it with."}
+        if "HTTP 404" in msg:
+            return {"ok": False, "url": url, "error": f"Something answers at {url}, but not like an OpenAI-compatible "
+                    "server (no /v1/models). Check the port, and that the program's OpenAI/API server is on."}
+        return {"ok": False, "url": url, "error": f"Nothing answered at {url}. Is {label} running? Start it (or put "
+                "its start line in Start command), then check the address and port. Usual ports: Jan 1337, "
+                "KoboldCpp 5001, vLLM 8000, LM Studio 1234, llama.cpp 8080."}
+    names = [m.get("id", "") for m in (r.get("data") or []) if isinstance(m, dict) and m.get("id")]
+    want = (cfg.text_model or "").strip()
+    out = {"ok": True, "url": url, "label": label, "models": names[:50]}
+    if not names:
+        out["warning"] = "It's running but has no model loaded. Load one in that program."
+    elif want and want not in names:
+        out["warning"] = (f"It's running, but it doesn't list the model '{want}'. It has: "
+                          + ", ".join(names[:8]) + (" ..." if len(names) > 8 else "") + ". Put one of those in Model.")
+    out["say"] = (f"Connected to {label} at {url}: {len(names)} model{'s' if len(names) != 1 else ''}"
+                  + (f", using {want}." if want and want in names else
+                     f", Joe will use {names[0]}." if names and not want else "."))
+    return out
+
+
 class OpenAICompatClient:
-    """Same methods as OllamaClient, for LM Studio / llama.cpp / LocalAI."""
+    """Same methods as OllamaClient, for LM Studio / llama.cpp / LocalAI / any OpenAI-compatible one."""
 
     def __init__(self, cfg: OllamaSettings):
         self.cfg = cfg
         self.engine = engine_id(cfg)
         self.base = engine_url(cfg)
         self.label = ENGINES[self.engine]["label"]
+        self.headers = auth_headers(cfg)
 
     # -- what's there ----------------------------------------------------
     def version(self, timeout: float = 3) -> str:
-        request_json("GET", f"{self.base}/v1/models", timeout=timeout)
+        request_json("GET", f"{self.base}/v1/models", timeout=timeout, headers=self.headers)
         return self.label
 
     def list_models(self) -> list[str]:
-        r = request_json("GET", f"{self.base}/v1/models", timeout=10)
+        r = request_json("GET", f"{self.base}/v1/models", timeout=10, headers=self.headers)
         return [m.get("id", "") for m in (r.get("data") or []) if isinstance(m, dict) and m.get("id")]
 
     def model_rows(self) -> list[dict]:
@@ -219,7 +266,7 @@ class OpenAICompatClient:
         t0 = time.monotonic()
         r = request_json("POST", f"{self.base}/v1/chat/completions",
                          self._payload(messages, model, max_tokens, think, False),
-                         timeout=self.cfg.request_timeout_s)
+                         timeout=self.cfg.request_timeout_s, headers=self.headers)
         choice = (r.get("choices") or [{}])[0]
         text = _THINK.sub("", (choice.get("message") or {}).get("content") or "").strip()
         u = r.get("usage") or {}
@@ -232,7 +279,7 @@ class OpenAICompatClient:
         import urllib.request
         payload = self._payload(messages, model, max_tokens, None, True)
         req = urllib.request.Request(f"{self.base}/v1/chat/completions", data=json.dumps(payload).encode(),
-                                     method="POST", headers={"Content-Type": "application/json"})
+                                     method="POST", headers={"Content-Type": "application/json", **self.headers})
         in_think = False
         with urllib.request.urlopen(req, timeout=self.cfg.request_timeout_s) as r:
             for raw in r:
@@ -262,7 +309,7 @@ class OpenAICompatClient:
 
     def embed(self, texts: list[str], model: str) -> list[list[float]]:
         r = request_json("POST", f"{self.base}/v1/embeddings", {"model": model, "input": texts},
-                         timeout=self.cfg.request_timeout_s)
+                         timeout=self.cfg.request_timeout_s, headers=self.headers)
         rows = sorted(r.get("data") or [], key=lambda d: d.get("index", 0))
         out = [d.get("embedding") or [] for d in rows]
         if len(out) != len(texts):

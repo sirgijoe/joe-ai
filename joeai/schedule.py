@@ -8,6 +8,12 @@ At the set time `python -m joeai tonight` moves Missions/Tonight/* into Missions
 window is open he runs them as usual; if not, Joe starts without a window, works through the
 queue (keep-awake, "when finished" and phone pings all apply) and closes when it's done.
 Opening Joe during a night run shows the run in progress.
+
+"Stop by" (optional): at that time Joe finishes the mission he's on, puts everything not yet
+started back in Missions/Tonight for the next night and says so in the morning report. A stop
+time earlier than the start time means the next morning (start 23:00, stop 06:00). If the
+scheduler starts Joe outside that window (the PC was asleep or off), he leaves the plans for the
+next night instead of running into the day.
 """
 from __future__ import annotations
 
@@ -28,6 +34,68 @@ _TIME = re.compile(r"^\s*([01]?\d|2[0-3]):([0-5]\d)\s*$")
 def parse_time(text: str) -> tuple[int, int] | None:
     m = _TIME.match(text or "")
     return (int(m.group(1)), int(m.group(2))) if m else None
+
+
+STOP_FILE = "night_stop.json"
+
+
+def stop_deadline(start: str, stop: str, now):
+    """When tonight's run must stop taking new missions, or None (no stop time). A time at or
+    before `now` means "already past": don't start anything."""
+    from datetime import timedelta
+    st = parse_time(stop)
+    if not st:
+        return None
+    sa = parse_time(start)
+    stop_at = now.replace(hour=st[0], minute=st[1], second=0, microsecond=0)
+    if not sa:                                      # no start time: the next stop time
+        return stop_at if stop_at > now else stop_at + timedelta(days=1)
+    if sa == st:
+        return None
+    start_at = now.replace(hour=sa[0], minute=sa[1], second=0, microsecond=0)
+    if sa < st:                                     # same day (01:00 -> 06:00)
+        return stop_at if start_at <= now < stop_at else now
+    if now >= start_at:                             # past midnight (23:00 -> 06:00), evening side
+        return stop_at + timedelta(days=1)
+    return stop_at if now < stop_at else now        # morning side, or outside the window
+
+
+def read_stop(sb):
+    """The stop time the night shift left for this run, or None (none set, or stale)."""
+    import json
+    from datetime import datetime, timedelta
+    try:
+        until = datetime.fromisoformat(json.loads((sb.meta / STOP_FILE).read_text(encoding="utf-8"))["until"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return None
+    return until if datetime.now() - until < timedelta(hours=20) else None
+
+
+def clear_stop(sb) -> None:
+    try:
+        (sb.meta / STOP_FILE).unlink()
+    except OSError:
+        pass
+
+
+def put_back(sb, texts: list[tuple[str, str]]) -> list[str]:
+    """Missions not started before the stop time -> Missions/Tonight, for the next night."""
+    import re as _re
+    dst = sb.missions / "Tonight"
+    dst.mkdir(parents=True, exist_ok=True)
+    out = []
+    for label, text in texts:
+        stem = _re.sub(r"[^\w-]+", "-", label.lower()).strip("-")[:40] or "plan"
+        target, n = dst / f"{stem}.txt", 2
+        while target.exists():
+            target = dst / f"{stem}_{n}.txt"
+            n += 1
+        try:
+            target.write_text(text, encoding="utf-8")
+            out.append(target.name)
+        except OSError:
+            continue
+    return out
 
 
 def windows_commands(hh: int, mm: int, cmd: list[str]) -> list[list[str]]:
@@ -108,6 +176,8 @@ def apply(settings, log=lambda *_: None) -> dict:
     if not t:
         return {"ok": False, "error": "Night shift time should look like 23:00 (24-hour clock)."}
     hh, mm = t
+    if (sc.stop or "").strip() and not parse_time(sc.stop):
+        return {"ok": False, "error": "Stop time should look like 07:00 (24-hour clock), or leave it blank."}
     from .system import joe_command
     joe = joe_command("tonight", console=False)
     try:
@@ -199,8 +269,19 @@ def tonight() -> int:
     from .app import main as app_main
     from .config import Settings
     from .sandbox import Sandbox
+    import json
+    from datetime import datetime
     s = Settings.load()
     sb = Sandbox(s.workspace_path).ensure()
+    now = datetime.now()
+    until = stop_deadline(s.schedule.time, s.schedule.stop, now)
+    if until is not None and until <= now:              # started too late (PC was off/asleep)
+        return 0                                        # the plans wait for the next night
+    clear_stop(sb)
+    if until is not None:
+        sb.meta.mkdir(parents=True, exist_ok=True)
+        (sb.meta / STOP_FILE).write_text(json.dumps({"until": until.isoformat(timespec="seconds")}),
+                                         encoding="utf-8")
     moved = move_tonight(sb)
     waiting = [p for p in (sb.missions / "Queue").glob("*.txt")]
     if not moved and not waiting:

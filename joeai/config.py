@@ -42,6 +42,7 @@ class OllamaSettings:
     engine: str = "ollama"       # ollama | lmstudio | llamacpp | localai | openai (textengines.ENGINES)
     engine_url: str = ""         # blank = that engine's usual address
     engine_start: str = ""       # blank = auto (LM Studio: lms server start); llama.cpp/LocalAI: your start line
+    engine_key: str = ""         # optional key some local servers ask for (vLLM --api-key, KoboldCpp password)
 
 
 @dataclass
@@ -132,6 +133,7 @@ class ScheduleSettings:
     # computer's own scheduler (Task Scheduler, launchd, cron) starts Joe; Joe keeps nothing running.
     enabled: bool = False
     time: str = "23:00"              # 24-hour clock, the PC's own time zone
+    stop: str = ""                   # optional "stop by" time (24-hour); blank = run until done
 
 
 @dataclass

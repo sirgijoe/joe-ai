@@ -31,6 +31,26 @@ def write_report(sb: Sandbox, mission: Mission, states: list, earlier: list | No
     return path
 
 
+def add_left_note(sb: Sandbox, labels: list[str]) -> None:
+    """Night shift "stop by": add the missions left for tomorrow night to the morning report."""
+    n = len(labels)
+    if not n:
+        return
+    L = ["", f"## {n} mission{'s' if n != 1 else ''} left for tomorrow night", "",
+         "The night shift's stop time came first. These weren't started; they're back in "
+         "Missions/Tonight and run at the next night shift (or press RUN).", ""]
+    L += [f"- {x}" for x in labels] + [""]
+    path = sb.output / "_REPORT.md"
+    try:
+        old = path.read_text(encoding="utf-8") if path.exists() else f"# Joe report — {datetime.now():%Y-%m-%d %H:%M}\n"
+        atomic_write_text(path, old.rstrip("\n") + "\n" + "\n".join(L))
+        reports = sorted((sb.meta / "reports").glob("REPORT_*.md"))
+        if reports:
+            atomic_write_text(reports[-1], reports[-1].read_text(encoding="utf-8").rstrip("\n") + "\n" + "\n".join(L))
+    except OSError:
+        pass
+
+
 def _mission_lines(mission: Mission, states: list) -> list[str]:
     L = [f"Project: {mission.project or '(none)'}", ""]
 
