@@ -108,10 +108,22 @@ def check(force: bool = False, fetch=request_json) -> dict:
         return _CACHE["r"]
     url = f"https://api.github.com/repos/{REPO}/releases/latest"
     try:
-        rel = fetch("GET", url, timeout=8)
+        rel = fetch("GET", url, timeout=15, headers={"Accept": "application/vnd.github+json",
+                                                     "User-Agent": f"joe-ai/{__version__}"})
     except HttpError as e:
-        msg = "No releases published yet." if "HTTP 404" in str(e) else "Couldn't reach GitHub."
-        r = {"ok": False, "current": __version__, "error": msg}
+        err = str(e)
+        if "HTTP 404" in err:
+            msg = "No releases published yet."
+        elif "HTTP 403" in err or "HTTP 429" in err:
+            msg = "GitHub is limiting update checks from this network right now. Try again in an hour."
+        elif "CERTIFICATE" in err.upper() or "SSL" in err.upper():
+            msg = "Couldn't make a secure connection to GitHub (a firewall or antivirus may be checking web traffic)."
+        elif "timed out" in err.lower():
+            msg = "GitHub took too long to answer. Try again in a minute."
+        else:
+            msg = "Couldn't reach GitHub."
+        r = {"ok": False, "current": __version__, "error": msg, "detail": err[:300]}
+        return r  # don't remember failures: the next check tries again
     else:
         latest = str(rel.get("tag_name") or rel.get("name") or "")
         kind = install_kind()

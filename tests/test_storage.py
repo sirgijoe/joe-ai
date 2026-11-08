@@ -157,6 +157,11 @@ def test_update_check_compares_versions(monkeypatch):
     def nope(*a, **k):
         raise HttpError("HTTP 404 from x")
     assert update.check(force=True, fetch=nope)["error"] == "No releases published yet."
+    def limited(*a, **k):
+        raise HttpError("HTTP 403 from x: API rate limit exceeded")
+    assert "limiting" in update.check(force=True, fetch=limited)["error"]
+    # failures aren't cached: the next (unforced) check asks GitHub again
+    assert update.check(fetch=lambda *a, **k: {"tag_name": "v2.0.0", "html_url": "https://x"})["ok"]
 
 
 def test_past_missions_delete_and_clean_up(ws):
