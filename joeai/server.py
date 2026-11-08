@@ -1274,6 +1274,13 @@ class App:
     def save_settings(self, data: dict) -> dict:
         if self.running:
             return {"ok": False, "error": "Can't change settings during a run."}
+        from . import schedule
+        times = schedule.check_times(data or {})
+        if times.get("error"):
+            return {"ok": False, "error": times["error"]}
+        if times.get("fixes"):                       # "7am" -> "07:00": ask before saving it that way
+            return {"ok": False, "fixes": times["fixes"],
+                    "error": "Joe needs times on the 24-hour clock. Check the change and save again."}
         old_ws = self.settings.workspace_path
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         _merge(self.settings, data)

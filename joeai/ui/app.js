@@ -1063,6 +1063,20 @@ async function saveSetup(ev) {
     setPath(out, el.dataset.path, v);
   });
   const r = await api("/api/settings", out);
+  if (!r.ok && r.fixes && r.fixes.length) {          // "7am" -> "07:00": Joe asks before using it
+    const lines = r.fixes.map((f) => `${f.label}: you typed "${f.said}", so Joe changed it to "${f.fixed}".`).join("\n");
+    $("#setup-msg").textContent = "Check the time change.";
+    confirmBox(`Joe needs times on the 24-hour clock (like 07:00 or 23:30), so he changed what you typed to fit:\n\n${lines}\n\nIs that right?`,
+      () => {
+        r.fixes.forEach((f) => { const el = document.querySelector(`#setup [data-path="${f.path}"]`); if (el) el.value = f.fixed; });
+        return saveSetup();
+      },
+      () => {
+        $("#setup-msg").textContent = "Not saved. Type the time the way you want (24-hour clock, like 07:00) and save again.";
+        const el = document.querySelector(`#setup [data-path="${r.fixes[0].path}"]`); if (el) el.focus();
+      });
+    return;
+  }
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
   if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; }
 }

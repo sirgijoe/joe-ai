@@ -36,6 +36,60 @@ def parse_time(text: str) -> tuple[int, int] | None:
     return (int(m.group(1)), int(m.group(2))) if m else None
 
 
+_LOOSE = re.compile(r"^\s*(\d{1,2})(?:\s*[:.h]\s*(\d{2}))?\s*(a\.?\s*m\.?|p\.?\s*m\.?|am|pm|a|p)?\s*$", re.I)
+
+
+def loose_time(text: str) -> str | None:
+    """A time typed any everyday way -> the 24-hour 'HH:MM' Joe needs, or None if it can't tell.
+    '7am' -> 07:00, '7:30 pm' -> 19:30, '0700' -> 07:00, '19.30' -> 19:30, 'noon', 'midnight'."""
+    t = (text or "").strip().lower()
+    if not t:
+        return None
+    if t in ("noon", "midday", "12 noon"):
+        return "12:00"
+    if t in ("midnight", "12 midnight"):
+        return "00:00"
+    m = re.match(r"^(\d{3,4})$", t)                          # 0700, 700, 2330
+    if m:
+        t = f"{m.group(1)[:-2]}:{m.group(1)[-2:]}"
+    m = _LOOSE.match(t)
+    if not m:
+        return None
+    h, mins, ap = int(m.group(1)), int(m.group(2) or 0), (m.group(3) or "").replace(".", "").replace(" ", "")
+    if mins > 59:
+        return None
+    if ap:
+        if not 1 <= h <= 12:
+            return None
+        h = (0 if h == 12 else h) + (12 if ap.startswith("p") else 0)
+    elif h > 23:
+        return None
+    return f"{h:02d}:{mins:02d}"
+
+
+TIME_FIELDS = {"schedule.time": "Night shift start", "schedule.stop": "Stop by",
+               "comfort.quiet_start": "Quiet hours from", "comfort.quiet_end": "Quiet hours until"}
+
+
+def check_times(data: dict) -> dict:
+    """Setup's time boxes before saving. Returns {} (all fine), {"fixes": [...]} (Joe can tell what
+    was meant: ask the person to confirm), or {"error": ...} (he can't)."""
+    fixes = []
+    for path, label in TIME_FIELDS.items():
+        a, _, b = path.partition(".")
+        v = (data.get(a) or {}).get(b) if isinstance(data.get(a), dict) else None
+        if not isinstance(v, str) or not v.strip():
+            continue
+        good = parse_time(v)
+        fixed = f"{good[0]:02d}:{good[1]:02d}" if good else loose_time(v)
+        if fixed is None:
+            return {"error": f"{label}: Joe couldn't tell what time \"{v.strip()}\" means. Use the 24-hour "
+                             "clock, like 07:00 or 23:30."}
+        if fixed != v.strip():
+            fixes.append({"path": path, "label": label, "said": v.strip(), "fixed": fixed})
+    return {"fixes": fixes} if fixes else {}
+
+
 STOP_FILE = "night_stop.json"
 
 

@@ -151,8 +151,17 @@ def test_engine_key_is_hidden_in_help_files():
     assert support.SECRET.search("engine_key")
 
 
-def test_bad_stop_time_refused_even_with_night_shift_off(app):  # noqa: F811
-    assert not app.settings.schedule.enabled
-    r = app.save_settings({"schedule": {"stop": "7am"}})
-    assert not r["ok"] and "07:00" in r["error"] and app.settings.schedule.stop == ""
+def test_loose_times_are_fixed_then_confirmed(app):  # noqa: F811
+    lt = schedule.loose_time
+    assert [lt(x) for x in ("7am", "7 AM", "7:30 pm", "7.30 p.m.", "0700", "700", "19.30", "12am", "12pm",
+                            "noon", "midnight", "7")] == \
+        ["07:00", "07:00", "19:30", "19:30", "07:00", "07:00", "19:30", "00:00", "12:00", "12:00", "00:00", "07:00"]
+    assert lt("13pm") is None and lt("banana") is None and lt("25:00") is None and lt("7:75") is None
+    r = app.save_settings({"schedule": {"stop": "7am"}, "comfort": {"quiet_start": "10pm"}})
+    assert not r["ok"] and app.settings.schedule.stop == ""         # nothing saved until they say yes
+    assert {(f["path"], f["said"], f["fixed"]) for f in r["fixes"]} == \
+        {("schedule.stop", "7am", "07:00"), ("comfort.quiet_start", "10pm", "22:00")}
+    r = app.save_settings({"schedule": {"stop": "banana"}})
+    assert not r["ok"] and "couldn't tell" in r["error"] and not r.get("fixes")
     assert app.save_settings({"schedule": {"stop": "07:00"}})["ok"] and app.settings.schedule.stop == "07:00"
+    assert app.save_settings({"schedule": {"time": "23:00", "stop": ""}})["ok"]   # blank = until done
