@@ -105,7 +105,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**42 ready-made tools** (Tools tab, **F3**)
+**43 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -142,6 +142,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   recording or a video's sound (FFmpeg, no AI, seconds).
 - **Cut out ums and long pauses**: Joe listens word by word, cuts the "um", "uh" and long silences,
   and lists every cut.
+- **Dub or voice-over a video**: Joe listens, translates each line and makes subtitles in the new
+  language; for English, Spanish, French, Italian, Portuguese and Hindi his voice also says each line at
+  its time over the original sound turned down. A machine translation: have it checked before publishing.
 - **Privacy blur**: faces, license plates, house numbers and screens blurred before you post (the
   vision model finds them, FFmpeg blurs them, GPS details left out). Always look before posting.
 - **Social graphics and flyers**: your exact words on a photo or a plain color, at Instagram, story,

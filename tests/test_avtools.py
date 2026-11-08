@@ -116,3 +116,32 @@ def test_new_tools_planned_and_summarized(app):  # noqa: F811
     chk = app.check("TASK: C  TYPE: clean-audio\nINPUT: a.wav")
     assert chk["ok"], chk
     assert describe.plain_summary(chk)
+
+
+def test_dub_helpers():
+    assert avtools.srt_time(3725.5) == "01:02:05,500"
+    srt = avtools.make_srt([{"s": 0, "e": 1.5, "t": "Hola"}])
+    assert srt.startswith("1\n00:00:00,000 --> 00:00:01,500\nHola\n")
+    assert avtools.parse_numbered("1| Hola\n[2] Adiós\n3) tres\nnoise", 2) == {1: "Hola", 2: "Adiós"}
+
+
+@need_ff
+def test_dub_video_subtitles_and_voice(ffapp, monkeypatch):
+    subprocess.run([FF, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:d=8", "-f", "lavfi", "-i",
+                    "sine=f=300:d=8", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
+                    str(ffapp.sb.inbox / "talk.mp4")], check=True)
+    monkeypatch.setattr(tools, "hearing_ready", lambda settings, voice_ok=None: True)
+    monkeypatch.setattr("joeai.addons.voice_python", lambda: __import__("sys").executable)
+    st = Engine(ffapp.settings, ffapp.sb, log=lambda x: None, voice=ffapp.voice).run_mission(
+        parse("TASK: Dub  TYPE: dub-video\nINPUT: talk.mp4\nOPTIONS: to spanish, voice, voice-of woman"))[0]
+    assert st.status == "done", st.note
+    out = ffapp.sb.output / st.output
+    srt = (out / "talk-spanish.srt").read_text(encoding="utf-8")
+    assert "[ES] Welcome to the planning meeting." in srt and "We will ship the new mugs on Friday. [CHECK]" in srt
+    assert (out / "talk-spanish.mp4").exists() and avtools.media_seconds(FF, out / "talk-spanish.mp4") > 7
+    probe = subprocess.run([FF, "-hide_banner", "-i", str(out / "talk-spanish.mp4")], capture_output=True, text=True).stderr
+    assert "Subtitle: mov_text" in probe
+    assert any("machine-translated Spanish voice-over" in f["flag"] for f in st.flags)
+    st = Engine(ffapp.settings, ffapp.sb, log=lambda x: None, voice=ffapp.voice).run_mission(
+        parse("TASK: Dub2  TYPE: dub-video\nINPUT: talk.mp4\nOPTIONS: to german, voice"))[0]
+    assert st.status == "done" and sorted(p.name for p in (ffapp.sb.output / st.output).iterdir()) == ["talk-german.srt"]

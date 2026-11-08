@@ -7,6 +7,9 @@
   model finds them; FFmpeg blurs them. The person checks the result: nothing found is never "safe".
 - tidy-speech: "um", "uh" and long pauses cut out of a recording or talking video, from a word-by-word
   transcript. A list of every cut is saved.
+- dub-video: a video (or recording) heard, translated line by line, saved as subtitles in the new
+  language and, for languages Joe's voice speaks, a voice-over placed at each line's time over the
+  original sound turned down.
 
 Originals are never changed.
 """
@@ -25,7 +28,7 @@ if TYPE_CHECKING:
     from .engine import Engine, JobState
     from .mission import Job, Mission
 
-AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech")
+AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video")
 
 # --------------------------------------------------------------------------- clean a recording
 STRENGTH = {"light": -18, "normal": -25, "strong": -35}       # afftdn noise floor (dB)
@@ -255,6 +258,171 @@ def tidy_command(ffmpeg: str, src: Path, out: Path, keep: list[tuple[float, floa
     return cmd + [str(out)]
 
 
+# --------------------------------------------------------------------------- dub a video
+# Joe's voice (Kokoro) speaks these; other languages get translated subtitles only.
+DUB_VOICES = {"english": ("en-us", "am_adam", "af_heart"), "spanish": ("es", "em_alex", "ef_dora"),
+              "french": ("fr-fr", "ff_siwis", "ff_siwis"), "italian": ("it", "im_nicola", "if_sara"),
+              "portuguese": ("pt-br", "pm_alex", "pf_dora"), "hindi": ("hi", "hm_omega", "hf_alpha")}
+DUB_SYSTEM = ("You translate video subtitles. Keep each line's meaning, short enough to read (or say) in the "
+              "same time. Keep names, numbers and brands. Never add or drop lines. Reply with ONLY the numbered lines.")
+DUB_ASK = "Translate each numbered line into {lang}. Reply with the same numbers, one line each, like '3| text'.\n\n{lines}"
+
+
+def srt_time(t: float) -> str:
+    ms = int(round(max(0.0, t) * 1000))
+    return f"{ms // 3600000:02d}:{ms // 60000 % 60:02d}:{ms // 1000 % 60:02d},{ms % 1000:03d}"
+
+
+def make_srt(segs: list[dict]) -> str:
+    out = []
+    for i, sg in enumerate(segs, 1):
+        out += [str(i), f"{srt_time(sg['s'])} --> {srt_time(sg['e'])}", sg["t"].strip(), ""]
+    return "\n".join(out)
+
+
+def parse_numbered(raw: str, n: int) -> dict[int, str]:
+    got: dict[int, str] = {}
+    for ln in re.sub(r"(?s)<think>.*?</think>", "", raw or "").splitlines():
+        m = re.match(r"^\s*(?:\[(\d{1,4})\]\s*[|.):-]?|(\d{1,4})\s*[|.):-])\s*(.+)$", ln)
+        k = int(m.group(1) or m.group(2)) if m else 0
+        if m and 1 <= k <= n and m.group(3).strip():
+            got[k] = m.group(3).strip()
+    return got
+
+
+def place_voice(parts: list[tuple[float, Path]], length: float, dest: Path) -> None:
+    """One WAV as long as the video with each spoken line starting at its time (24 kHz, 16-bit mono).
+    A line that would run into the next one starts right after it instead of on top of it."""
+    import wave
+    rate, width = 24000, 2
+    total = int(length * rate) + rate
+    buf = bytearray(total * width)
+    free_at = 0
+    for start, wav in parts:
+        with wave.open(str(wav), "rb") as w:
+            if (w.getnchannels(), w.getsampwidth(), w.getframerate()) != (1, width, rate):
+                continue
+            data = w.readframes(w.getnframes())
+        at = max(int(start * rate) * width, free_at)
+        end = min(len(buf), at + len(data))
+        buf[at:end] = data[:end - at]
+        free_at = end
+    with wave.open(str(dest), "wb") as out:
+        out.setnchannels(1)
+        out.setsampwidth(width)
+        out.setframerate(rate)
+        out.writeframes(bytes(buf))
+
+
+def _dub(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+    import tempfile
+    from .addons import voice_python
+    from .engine import PartFailed
+    from .tools import (VIDEO_IN_EXT, _to_wav, chosen_options, hear, hearing_model, language_name, option_value,
+                        whisper_language)
+    lang = option_value(job, "to")
+    if not lang:
+        raise RuntimeError("pick the language to dub into")
+    name = language_name(lang)
+    opts = chosen_options(job)
+    video = src.suffix.lower() in VIDEO_IN_EXT
+    heard = option_value(job, "language") or "english"
+    with tempfile.TemporaryDirectory() as tmp:
+        tmpd = Path(tmp)
+        wav = _to_wav(ffmpeg, src, tmpd / "a.wav", engine.log)
+        if not wav:
+            raise RuntimeError("couldn't read the sound")
+        length = media_seconds(ffmpeg, src)
+        try:
+            got = hear(engine, wav, hearing_model(engine.s.voice.stt_model, heard), whisper_language(heard),
+                       timeout=max(900.0, length * 4 + 600))
+        except Exception as e:                                   # noqa: BLE001
+            raise RuntimeError(f"couldn't hear it: {e}") from e
+        segs = [{"s": float(x.get("s", 0)), "e": float(x.get("e", 0)), "t": str(x.get("t", "")).strip()}
+                for x in (got.get("segments") or []) if str(x.get("t", "")).strip()]
+        if not segs:
+            raise RuntimeError("no speech heard in it")
+        out_segs, unsure = [], 0
+        for a in range(0, len(segs), 40):
+            batch = segs[a:a + 40]
+            lines = "\n".join(f"{i + 1}| {sg['t']}" for i, sg in enumerate(batch))
+            try:
+                r = engine._chat(job, a // 40, "dub", DUB_SYSTEM, DUB_ASK.format(lang=name, lines=lines), st)
+            except PartFailed as e:
+                raise RuntimeError(str(e)) from e
+            got_lines = parse_numbered(r.text, len(batch))
+            for i, sg in enumerate(batch):
+                t = got_lines.get(i + 1)
+                if not t:
+                    unsure += 1
+                    t = sg["t"] + " [CHECK]"
+                out_segs.append({**sg, "t": t})
+        srt = folder / f"{stem}-{lang}.srt"
+        atomic_write_text(srt, make_srt(out_segs))
+        made = [srt.name]
+        if unsure:
+            st.flags.append({"item": src.name, "flag": f"[CHECK] {unsure} line(s) weren't translated (kept as heard)"})
+        if "voice" not in opts:
+            return made
+        if lang not in DUB_VOICES:
+            st.flags.append({"item": src.name, "flag": f"[CHECK] Joe's voice can't speak {name} yet: subtitles only"})
+            engine.log(f"  Joe's voice can't speak {name} yet, so {src.name} gets {name} subtitles only.")
+            return made
+        if not Path(voice_python()).exists() and engine.voice is None:
+            raise RuntimeError("the voice-over needs Joe's voice add-on (Setup > System check)")
+        from .addons import VoiceWorker
+        worker = engine.voice or VoiceWorker(engine.log)
+        code, male, female = DUB_VOICES[lang]
+        voice = female if option_value(job, "voice-of") == "woman" else male
+        parts = []
+        for i, sg in enumerate(out_segs):
+            if engine.stop.is_set():
+                from .engine import Stopped
+                raise Stopped()
+            text = sg["t"].replace("[CHECK]", "").strip()
+            if not text:
+                continue
+            w = tmpd / f"v{i:04d}.wav"
+            engine._progress(f"{job.name}: {name} voice, line {i + 1}/{len(out_segs)}")
+            r = worker.call({"cmd": "tts", "text": text, "out": str(w), "voice": voice, "speed": 1.0, "lang": code},
+                            timeout=max(300.0, len(text) * 0.5))
+            if not r.get("ok") or not w.exists():
+                raise RuntimeError(r.get("error") or "the voice didn't make any sound")
+            slot = (out_segs[i + 1]["s"] if i + 1 < len(out_segs) else length) - sg["s"]
+            have = media_seconds(ffmpeg, w) or 0
+            if slot > 0.5 and have > slot * 1.08:                   # too long for its spot: speak a bit faster
+                fast = tmpd / f"v{i:04d}f.wav"
+                tempo = min(1.5, have / slot)
+                if not _ff([ffmpeg, "-y", "-v", "error", "-i", str(w), "-filter:a", f"atempo={tempo:.3f}",
+                            "-ar", "24000", "-ac", "1", "-c:a", "pcm_s16le", str(fast)], 120):
+                    w = fast
+            parts.append((sg["s"], w))
+        track = tmpd / "voice.wav"
+        place_voice(parts, length or (out_segs[-1]["e"] + 2), track)
+        keep = {"low": 0.15, "half": 0.4, "off": 0.0}.get(option_value(job, "original") or "low", 0.15)
+        if video:
+            out = folder / f"{stem}-{lang}.mp4"
+            graph = (f"[0:a]volume={keep}[o];[1:a]aresample=48000[v];[o][v]amix=inputs=2:normalize=0:duration=first[a]"
+                     if keep else "[1:a]aresample=48000[a]")
+            cmd = [ffmpeg, "-y", "-v", "error", "-i", str(src), "-i", str(track), "-i", str(srt),
+                   "-filter_complex", graph, "-map", "0:v", "-map", "[a]", "-map", "2:s", "-c:v", "copy",
+                   "-c:a", "aac", "-b:a", "192k", "-c:s", "mov_text", "-metadata:s:s:0", f"language={code[:2]}",
+                   "-shortest", str(out)]
+        else:
+            out = folder / f"{stem}-{lang}.mp3"
+            graph = (f"[0:a]volume={keep}[o];[1:a]aresample=44100[v];[o][v]amix=inputs=2:normalize=0:duration=first[a]"
+                     if keep else "[1:a]aresample=44100[a]")
+            cmd = [ffmpeg, "-y", "-v", "error", "-i", str(src), "-i", str(track), "-filter_complex", graph,
+                   "-map", "[a]", "-c:a", "libmp3lame", "-q:a", "2", str(out)]
+        err = _ff(cmd)
+        if err:
+            raise RuntimeError(err)
+        made.insert(0, out.name)
+        st.flags.append({"item": src.name, "flag": f"[CHECK] machine-translated {name} voice-over: have someone who "
+                                                   "speaks it listen before you publish"})
+    return made
+
+
 # --------------------------------------------------------------------------- run
 def _ff(cmd: list[str], timeout: float = 3600) -> str:
     """Run FFmpeg; '' = fine, else its error in a line."""
@@ -323,10 +491,13 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                                             "Setup (F10) > System check offers a free one")
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
-    if tid == "tidy-speech":
+    if tid == "dub-video" and not engine._text_ready(st):
+        engine._save_state(job, st)
+        return st
+    if tid in ("tidy-speech", "dub-video"):
         from .tools import hearing_ready
         if not hearing_ready(engine.s) and engine.voice is None:
-            st.status, st.note = "failed", "cutting ums needs Joe's hearing (Setup > System check > voice add-on)"
+            st.status, st.note = "failed", "this needs Joe's hearing (Setup > System check > voice add-on)"
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
     folder = tool_dir(engine, job, st)
@@ -335,7 +506,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine._save_state(job, st)
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}' ({TOOLS[tid].name}) -> {st.output}")
     failed: list[str] = []
-    fn = {"clean-audio": _clean, "social-graphic": _graphic, "privacy-blur": _blur, "tidy-speech": _tidy}[tid]
+    fn = {"clean-audio": _clean, "social-graphic": _graphic, "privacy-blur": _blur, "tidy-speech": _tidy,
+          "dub-video": _dub}[tid]
     work = files if (files or tid != "social-graphic") else [None]
     try:
         for i, src in enumerate(work):

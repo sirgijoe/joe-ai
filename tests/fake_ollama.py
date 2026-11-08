@@ -203,6 +203,9 @@ class FakeOllama:
                 if "weather" in q:
                     return 200, self._reply('{"op": "none", "why": "the sheet has no weather"}')
                 return 200, self._reply('{"op": "average", "column": "Nope"}')
+            if sysmsg.startswith("You translate video subtitles"):
+                nums = re.findall(r"^(\d+)\| (.+)$", user, re.M)
+                return 200, self._reply("\n".join(f"{n}| [ES] {t}" for n, t in nums if n != "2"))
             if sysmsg.startswith("You brainstorm"):
                 return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
             if sysmsg.startswith("You are a patient tutor"):

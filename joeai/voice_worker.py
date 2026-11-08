@@ -3,7 +3,7 @@
 Reads one JSON request per line on stdin, writes one JSON reply per line on stdout:
   {"cmd": "warmup", "stt_model": "base.en"}
   {"cmd": "stt", "audio": "C:/.../clip.webm", "stt_model": "base.en"}  -> {"ok": true, "text": "..."}
-  {"cmd": "tts", "text": "...", "out": "C:/.../reply.wav", "voice": "am_adam", "speed": 1.0}
+  {"cmd": "tts", "text": "...", "out": "C:/.../reply.wav", "voice": "am_adam", "speed": 1.0, "lang": "en-us"}
   {"cmd": "transcribe", "audio": ".../rec.wav", "stt_model": "base", "language": "es", "words": false}
       -> {"ok": true, "segments": [{"s": 0.0, "e": 2.5, "t": "..."}], "seconds": 63.2,
           "language": "es"}   (language "" = Whisper finds out; *.en models hear English only)
@@ -122,7 +122,7 @@ def handle(req):
         audio, rate = [], 24000
         for piece in chunks(req.get("text", "")[:6000]):
             samples, rate = k.create(piece, voice=req.get("voice", "am_adam"),
-                                     speed=float(req.get("speed", 1.0)), lang="en-us")
+                                     speed=float(req.get("speed", 1.0)), lang=req.get("lang") or "en-us")
             audio.append(samples)
             audio.append(np.zeros(int(rate * 0.18), dtype=samples.dtype))   # small pause
         sf.write(req["out"], np.concatenate(audio) if audio else np.zeros(1), rate,

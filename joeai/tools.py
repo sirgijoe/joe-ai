@@ -357,6 +357,26 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          plan_hint="Remove ums / filler words / long pauses from a recording or talking video: TYPE: tidy-speech, "
                    "INPUT: the file(s), OPTIONS: fillers, pauses, pause 0.7|1.0|1.5|2.5. No CHUNKS.",
          examples=("Cut the ums out of my podcast", "Remove the long pauses from this video")),
+    Tool("dub-video", "Dub or voice-over a video", "Video",
+         "Your video in another language: translated subtitles, and a voice-over for many languages.",
+         accepts=VIDEO_IN_EXT + AUDIO_EXT,
+         options=(Option("to", "Into", choices=LANGUAGES, required=True),
+                  Option("voice", "Add a voice-over", True, "Joe's voice speaks English, Spanish, French, Italian, "
+                         "Portuguese and Hindi; other languages get subtitles only."),
+                  Option("voice-of", "Voice", choices=(("man", "A man's voice"), ("woman", "A woman's voice")), value="man"),
+                  Option("original", "Original sound", choices=(("low", "Turned down (you hear it softly)"),
+                                                                ("half", "Half volume"), ("off", "Off")), value="low"),
+                  Option("language", "Spoken in", choices=HEAR_LANGUAGES[:1] + HEAR_LANGUAGES[2:], value="english")),
+         needs=("voice", "ffmpeg", "ollama"), ready=True,
+         help="Joe listens (like Transcribe), the writing model translates each line, and you get a subtitles "
+              "file in the new language. With a voice-over, Joe's voice says each line at its time (a little "
+              "faster where it has to fit) over the original sound turned down; the video gets the voice-over and "
+              "subtitles built in. It's a machine translation: have someone who speaks the language check it "
+              "before you publish.",
+         plan_hint="Dub / voice-over / translate a video or recording into another language: TYPE: dub-video, INPUT: "
+                   "the file(s), OPTIONS: to <language>, voice (unless they only want subtitles), voice-of man|woman, "
+                   "original low|half|off. No CHUNKS.",
+         examples=("Dub my video into Spanish", "Spanish subtitles for this video")),
     Tool("privacy-blur", "Privacy blur", "Pictures",
          "Blur faces, license plates, house numbers and screens before you post a photo.",
          accepts=PHOTO_EXT,
@@ -854,7 +874,7 @@ def missing_required(tool: Tool, tokens: list[str]) -> str:
     """A plain problem when a must-pick option (like the language) wasn't given ('' = fine)."""
     for o in tool.options:
         if o.required and not any(t.partition(" ")[0] == o.key and t.partition(" ")[2] for t in tokens):
-            if tool.id == "translate":
+            if tool.id in ("translate", "dub-video"):
                 return "say which language to translate into, e.g. OPTIONS: to spanish (on the Tools tab, tick a language)"
             return f"pick a {o.label.lower()} (OPTIONS: {o.key} ...)"
     return ""
@@ -1061,7 +1081,7 @@ def hearing_model(stt_model: str, language: str) -> str:
     return name
 
 
-HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech")
+HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "dub-video")
 
 
 def hearing_backend(settings) -> str:
