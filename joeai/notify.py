@@ -71,4 +71,29 @@ def send_ntfy(server: str, topic: str, message: str, title: str = "Joe", timeout
     except urllib.error.HTTPError as e:
         return f"ntfy said HTTP {e.code}"
     except (urllib.error.URLError, TimeoutError, ConnectionError, OSError) as e:
+        if "CERTIFICATE_VERIFY_FAILED" in str(e):
+            # Python's copy of the computer's trusted certificates can be out of date (common on Windows
+            # with Let's Encrypt sites like ntfy.sh). The computer's own curl uses the system's up-to-date
+            # list, so try that before giving up. Still a fully checked, secure connection.
+            if not _curl_post(f"{server}/{topic}", message[:2000], headers, timeout + 5):
+                return ""
         return f"couldn't reach {server} ({e})"
+
+
+def _curl_post(url: str, body: str, headers: dict, timeout: float) -> str:
+    """POST with the system's curl (Windows 10+, Mac and Linux have it). '' = sent."""
+    import shutil
+    import subprocess
+    curl = shutil.which("curl")
+    if not curl:
+        return "no curl"
+    cmd = [curl, "-sS", "-f", "--max-time", str(int(timeout)), "-X", "POST", "--data-binary", "@-"]
+    for k, v in headers.items():
+        cmd += ["-H", f"{k}: {v}"]
+    try:
+        from .system import no_window_flags
+        r = subprocess.run(cmd + [url], input=body.encode("utf-8"), capture_output=True, timeout=timeout + 5,
+                           creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    return "" if r.returncode == 0 else (r.stderr.decode("utf-8", "replace").strip()[:200] or "curl failed")

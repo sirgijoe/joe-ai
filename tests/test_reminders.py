@@ -79,3 +79,18 @@ def test_directions_and_shopping(app):  # noqa: F811
     assert reminders.directions(app.settings, "x")["open"].startswith("https://www.openstreetmap.org/")
     assert "duckduckgo.com/?q=air%20fryer" in reminders.shopping(app.settings, "air fryer")["open"]
     assert not reminders.shopping(app.settings, " ")["ok"]
+
+
+def test_ntfy_falls_back_to_system_curl_on_old_certificates(monkeypatch):
+    import ssl
+    import urllib.error
+    from joeai import notify
+    def bad(req, timeout=0):
+        raise urllib.error.URLError(ssl.SSLCertVerificationError("[SSL: CERTIFICATE_VERIFY_FAILED] certificate has expired"))
+    monkeypatch.setattr(notify.urllib.request, "urlopen", bad)
+    seen = {}
+    monkeypatch.setattr(notify, "_curl_post", lambda url, body, headers, timeout: seen.update(url=url, h=headers) or "")
+    assert notify.send_ntfy("https://ntfy.sh", "joe-test-123", "hi", at=1800000000) == ""
+    assert seen["url"] == "https://ntfy.sh/joe-test-123" and seen["h"]["At"] == "1800000000"
+    monkeypatch.setattr(notify, "_curl_post", lambda *a: "curl failed")
+    assert "couldn't reach" in notify.send_ntfy("https://ntfy.sh", "joe-test-123", "hi")
