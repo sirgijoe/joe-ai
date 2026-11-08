@@ -167,6 +167,21 @@ class FakeOllama:
                     return 200, self._reply("Hi")
                 return 200, self._reply("Sure, here it is:\n" + "\n".join("[RW] " + ln if ln.strip() else ln
                                                                           for ln in body.split("\n")))
+            if sysmsg.startswith("You help a small business get found"):
+                if "reply with ONLY JSON" in user or "Reply with ONLY JSON" in sysmsg:
+                    return 200, self._reply('{"name": "Corner Bakery", "type": "Bakery", "description": "Fresh bread.", '
+                                            '"street": "12 Main St", "city": "Springfield", "phone": "", "hours": ["Tu-Sa 07:00-15:00"], '
+                                            '"services": ["Bread", "Cakes"]}')
+                if "10 questions" in user:
+                    return 200, self._reply("### Are you open Monday?\nNo, Tuesday to Saturday.\n### Do you deliver?\nContact us [CHECK].")
+                return 200, self._reply("## Short description\nFresh bread in Springfield.")
+            if sysmsg.startswith("You plan cheap, filling"):
+                own = "THE PERSON'S PRICE LIST" in user
+                return 200, self._reply(json.dumps({"meals": [{"day": "Day 1", "breakfast": "Oats", "lunch": "Beans", "dinner": "Rice"}],
+                    "shopping": [{"item": "Rice", "amount": "10 lb", "price": 9.5, "from_list": own},
+                                 {"item": "Beans", "amount": "4 lb", "price": "$6.25", "from_list": False},
+                                 {"item": "Eggs", "amount": "5 dozen", "price": 80, "from_list": False}],
+                    "tips": ["Cook beans from dry"]}))
             if sysmsg.startswith("You brainstorm"):
                 return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
             if sysmsg.startswith("You are a patient tutor"):

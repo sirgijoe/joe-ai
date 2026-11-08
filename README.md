@@ -103,7 +103,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**33 ready-made tools** (Tools tab, **F3**)
+**39 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -130,6 +130,20 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   questions first so you learn it instead of just getting answers.
 - **Explain or review my code**: what it does, likely bugs and risks with fixes, tests to add. Real
   line numbers; Joe reads the code and never runs it.
+- **Get found by AI search**: from the facts you give (never invented ones), a FAQ, a short
+  description, schema code for your website and an llms.txt file, so AI assistants describe your
+  business correctly. A README says where each goes and lists any missing facts.
+- **Budget meal planner**: "$80 this week for a family of 8" -> a week of cheap meals and a shopping
+  list. Joe adds up the total himself and says plainly if it goes over. Real prices come from your own
+  receipts (Read scans and receipts); otherwise prices are estimates marked [CHECK].
+- **Clean up a recording**: less background noise and electrical hum, and an even volume, for a
+  recording or a video's sound (FFmpeg, no AI, seconds).
+- **Cut out ums and long pauses**: Joe listens word by word, cuts the "um", "uh" and long silences,
+  and lists every cut.
+- **Privacy blur**: faces, license plates, house numbers and screens blurred before you post (the
+  vision model finds them, FFmpeg blurs them, GPS details left out). Always look before posting.
+- **Social graphics and flyers**: your exact words on a photo or a plain color, at Instagram, story,
+  Facebook, X, YouTube thumbnail, Pinterest or printable flyer size. Real font, so no AI spelling mistakes.
 - **Translate**: finished writing into one or more of 24 languages, on your own computer.
   Formatting, names, prices and links stay as they are; anything Joe isn't sure about is
   marked [CHECK], and each copy says plainly it's a machine translation to be checked by

@@ -93,6 +93,7 @@ class Tool:
 
 from .makers import LOOKS, NO_INPUT_OK, PATTERNS as ILLUSION_PATTERNS  # noqa: E402  (batch 3 tools' choices)
 from .writetools import CODE_EXT  # noqa: E402
+from .avtools import SIZES as SOCIAL_SIZES  # noqa: E402
 
 # light name -> (label, words for the editor)
 RELIGHTS = {
@@ -299,6 +300,103 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "explain, bugs, tests, tidy (what they asked for). No CHUNKS.",
          examples=("Explain what this script does", "Find bugs in my Python file"),
          extra_hint="optional, e.g. it crashes when the list is empty"),
+    Tool("ai-search", "Get found by AI search", "Writing",
+         "FAQ, website code and llms.txt so AI assistants can describe your business correctly.",
+         accepts=DOC_EXT,
+         needs=("ollama",), ready=True,
+         help="Tell Joe about the business in the box (name, what you do, where, hours, phone, website), or add "
+              "your About page or menu. You get a FAQ, a short description, schema code for your website and an "
+              "llms.txt file, with a README saying where each goes. Joe only uses the facts you give: missing "
+              "ones are listed, never guessed. He can't check how AI search ranks you (that needs paid services).",
+         plan_hint="Help a business get found by AI search / answer engines (AEO, FAQ, schema, llms.txt): TYPE: "
+                   "ai-search, FORMAT: the business details they gave, word for word. INPUT only if they point at "
+                   "a file (about page, menu). No CHUNKS.",
+         examples=("Help my pottery studio show up in ChatGPT answers", "Make an FAQ and schema for my shop"),
+         extra_hint="e.g. Corner Bakery, fresh bread and cakes, 12 Main St, Springfield, open Tue-Sat 7-3, 555-0100",
+         extra_label="About the business"),
+    Tool("meal-plan", "Budget meal planner", "Writing",
+         "A week of meals and a shopping list that fits your budget, with the total added up.",
+         accepts=(".csv",) + DOC_EXT,
+         options=(Option("days", "Days", choices=(("3", "3"), ("5", "5"), ("7", "7")), value="7"),),
+         needs=("ollama",), ready=True,
+         help="Say your budget, how many people and anything to avoid (allergies, picky eaters). Joe adds up "
+              "the shopping list himself and says plainly if it goes over. For real prices, add a spreadsheet "
+              "from Read scans and receipts (or your own price list): otherwise prices are estimates marked "
+              "[CHECK], because Joe can't see store prices online.",
+         plan_hint="Budget meal plan / feed a family on a budget: TYPE: meal-plan, FORMAT: their words (budget, "
+                   "people, diet), word for word, OPTIONS: days 3|5|7. INPUT only a receipts spreadsheet or price "
+                   "list if they point at one. No CHUNKS.",
+         examples=("I have $80 this week to feed a family of 8", "Cheap dinners for 2 for 5 days, no pork"),
+         extra_hint="e.g. $80 for the week, family of 8, one is allergic to peanuts",
+         extra_label="Budget, people, anything to avoid"),
+    Tool("clean-audio", "Clean up a recording", "Audio",
+         "Less background noise and hum, and an even volume, for a recording or a video's sound.",
+         accepts=AUDIO_EXT + VIDEO_IN_EXT,
+         options=(Option("strength", "Noise removal", choices=(("light", "Light"), ("normal", "Normal"),
+                                                              ("strong", "Strong (can sound a bit hollow)")), value="normal"),
+                  Option("hum", "Remove electrical hum", False, "The low buzz from lights or a cable (50/60 Hz)."),
+                  Option("level", "Even out the volume", True, "The usual level for podcasts and YouTube.")),
+         needs=("ffmpeg",), ready=True,
+         help="FFmpeg does it on this PC in seconds; no AI involved, so nothing is made up. A video keeps its "
+              "picture as it was; only the sound is cleaned. Your original is never changed. Try Normal first.",
+         plan_hint="Clean up / denoise a recording or a video's sound: TYPE: clean-audio, INPUT: the file(s), "
+                   "OPTIONS: strength light|normal|strong, plus hum (only if they mention a buzz or hum), level. No CHUNKS.",
+         examples=("Clean up the background noise in my podcast", "Fix the hum in this video")),
+    Tool("tidy-speech", "Cut out ums and long pauses", "Audio",
+         "A recording or talking video without the 'um', 'uh' and long silences.",
+         accepts=AUDIO_EXT + VIDEO_IN_EXT,
+         options=(Option("fillers", "Cut um, uh, er", True),
+                  Option("pauses", "Shorten long pauses", True),
+                  Option("pause", "A pause is longer than", choices=(("0.7", "0.7 s"), ("1.0", "1 s"), ("1.5", "1.5 s"),
+                                                                     ("2.5", "2.5 s")), value="1.0"),
+                  Option("language", "Spoken in", choices=HEAR_LANGUAGES[:1] + HEAR_LANGUAGES[2:], value="english")),
+         needs=("voice", "ffmpeg"), ready=True,
+         help="Joe listens word by word (like Transcribe), then FFmpeg cuts out the fillers and trims long "
+              "silences to a short natural gap. You get the tidy copy and a list of every cut. Listen through "
+              "once before you post it. Videos are re-saved (that takes a little while).",
+         plan_hint="Remove ums / filler words / long pauses from a recording or talking video: TYPE: tidy-speech, "
+                   "INPUT: the file(s), OPTIONS: fillers, pauses, pause 0.7|1.0|1.5|2.5. No CHUNKS.",
+         examples=("Cut the ums out of my podcast", "Remove the long pauses from this video")),
+    Tool("privacy-blur", "Privacy blur", "Pictures",
+         "Blur faces, license plates, house numbers and screens before you post a photo.",
+         accepts=PHOTO_EXT,
+         options=(Option("blur", "Blur", choices=tuple((k, {"faces": "Faces", "plates": "License plates",
+                                                            "addresses": "House numbers and addresses",
+                                                            "screens": "Screens and papers",
+                                                            "kids": "Children (whole body)"}[k]) for k in
+                                                       ("faces", "plates", "addresses", "screens", "kids")),
+                         multi=True),),
+         needs=("ollama", "vision", "ffmpeg"), ready=True,
+         help="The vision model on this PC finds them; FFmpeg blurs a little more than each spot, hard enough "
+              "that it can't be read back. Hidden details like GPS location are left out of the copy. AI can "
+              "miss things: always look at the picture before posting. Nothing picked = faces, plates, "
+              "addresses and screens.",
+         plan_hint="Blur faces / license plates / addresses / screens in photos: TYPE: privacy-blur, INPUT: the "
+                   "photo(s), OPTIONS: blur faces, blur plates, blur addresses, blur screens, blur kids (what they "
+                   "asked for; none = the first four). No CHUNKS.",
+         examples=("Blur the faces in these party photos", "Hide the license plate in my car photo")),
+    Tool("social-graphic", "Social graphics and flyers", "Pictures",
+         "Your exact words on a photo or a plain color, at each social site's size.",
+         accepts=PHOTO_EXT,
+         options=(Option("size", "Sizes", hint="Pick one or more: each gets its own picture.",
+                         choices=tuple((k, v[0]) for k, v in SOCIAL_SIZES.items()),
+                         multi=True),
+                  Option("place", "Words go", choices=(("bottom", "At the bottom"), ("middle", "In the middle"),
+                                                       ("top", "At the top")), value="bottom"),
+                  Option("color", "Background (no photo)", choices=(("dark", "Dark"), ("white", "White"), ("navy", "Navy"),
+                                                                     ("green", "Green"), ("red", "Red"), ("purple", "Purple"),
+                                                                     ("teal", "Teal"), ("warm", "Warm orange")), value="dark")),
+         needs=("ffmpeg",), ready=True,
+         help="Type the words in the box: the first line is the big headline, the rest is smaller. Joe places "
+              "them with a real font (no AI drawing letters), so spelling is exactly yours. Add a photo for the "
+              "background, or leave it out for a plain color. Want a picture made first? Make one, then use it here.",
+         plan_hint="Social media graphic / post image / flyer with exact text: TYPE: social-graphic, FORMAT: their "
+                   "words, word for word (first line = headline), OPTIONS: size ig-post|ig-portrait|story|fb-post|"
+                   "fb-cover|x-post|yt-thumb|pinterest|flyer|flyer-a4 (one or more), place bottom|middle|top. INPUT "
+                   "only a photo they point at. No CHUNKS.",
+         examples=("Make an Instagram post that says Grand Opening Saturday", "A flyer for our yard sale"),
+         extra_hint="e.g. Grand opening Saturday!\n10% off everything, 9am-3pm, 12 Main St",
+         extra_label="The words (first line = headline)"),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
          "Fix duplicates, spelling and categories in a CSV.",
          accepts=SHEET_EXT,
@@ -846,9 +944,11 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
           "translate": run_translate, "tidy-sheet": run_tidy_sheet,
           "photo-listing": run_photo_listing, "read-scans": run_read_scans,
           "sort-photos": run_sort_photos, "ask-files": run_ask_files}.get(job.type)
-    from . import writetools
+    from . import avtools, writetools
     if job.type in writetools.WRITE_TOOLS:
         fn = writetools.run
+    if job.type in avtools.AV_TOOLS:
+        fn = avtools.run
     if job.type == "make-shorts":
         from . import shorts
         fn = shorts.run
@@ -921,7 +1021,7 @@ def hearing_model(stt_model: str, language: str) -> str:
     return name
 
 
-HEARING_TOOLS = ("transcribe", "make-shorts")
+HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech")
 
 
 def hearing_backend(settings) -> str:

@@ -362,6 +362,11 @@ def _plain_summary(chk: dict) -> list[str]:
                 tail += ", with wording suggestions" if "clarity" in opts else ""
                 out.append(f"Proofread {_n(n, 'document', 'documents')} with a list of every change"
                            f"{tail}: {name}")
+            elif t == "ai-search":
+                out.append(f"Get found by AI search (FAQ, schema code, llms.txt): {name}")
+            elif t == "meal-plan":
+                d = next((x.split(" ", 1)[1] for x in (j.get("options") or []) if x.startswith("days ")), "7")
+                out.append(f"Budget meal plan for {d} days with a shopping list: {name}")
             elif t in ("summarize", "rewrite", "brainstorm", "study", "code-review"):
                 o = j.get("options") or []
                 pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731

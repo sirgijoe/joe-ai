@@ -17,7 +17,7 @@ from pathlib import Path
 from . import comfy as comfy_mod
 
 TOOLS = ("sketch-to-picture", "illusion-art", "restyle-video", "make-3d")
-NO_INPUT_OK = ("illusion-art", "brainstorm")          # can make its own hidden pattern
+NO_INPUT_OK = ("illusion-art", "brainstorm", "ai-search", "meal-plan", "social-graphic")          # can make its own hidden pattern
 SDXL_TOOLS = ("sketch-to-picture", "illusion-art")
 VIDEO_EXT = (".mp4", ".mov", ".webm", ".mkv", ".avi", ".m4v")
 

@@ -21,7 +21,8 @@ if TYPE_CHECKING:
     from .engine import Engine, JobState
     from .mission import Job, Mission
 
-WRITE_TOOLS = ("summarize", "rewrite", "brainstorm", "study", "code-review")
+WRITE_TOOLS = ("summarize", "rewrite", "brainstorm", "study", "code-review", "ai-search", "meal-plan")
+NO_FILE_TOOLS = ("brainstorm", "ai-search", "meal-plan")    # the box is enough; a file is optional
 CODE_EXT = (".py", ".pyw", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".java",
             ".c", ".h", ".cpp", ".hpp", ".cs", ".go", ".rs", ".rb", ".php", ".sh", ".ps1", ".bat",
             ".sql", ".lua", ".swift", ".kt", ".gd", ".json", ".yaml", ".yml", ".toml", ".ini", ".txt", ".md")
@@ -166,12 +167,15 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     from .tools import TOOLS, _finish, _key, _no_files, resolve_inputs, tool_dir, unique_stem
 
     tid = job.type
-    if tid == "brainstorm":
+    if tid in NO_FILE_TOOLS:
         files, problems = resolve_inputs(engine, job)
         for pr in problems:
             engine.log(f"  INPUT: {pr}")
         if not job.format.strip() and not files:
-            st.status, st.note = "failed", "say what you need ideas for (the box on the Tools tab, or FORMAT:)"
+            st.status, st.note = "failed", {"brainstorm": "say what you need ideas for",
+                                            "ai-search": "tell Joe about the business",
+                                            "meal-plan": "say your budget and how many people"}[tid] + \
+                " (the box on the Tools tab, or FORMAT:)"
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
     else:
@@ -214,11 +218,12 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
 
     failed: list[str] = []
     try:
-        if tid == "brainstorm":
+        if tid in NO_FILE_TOOLS:
             total = 1
             if not st.titles:
-                _brainstorm(engine, job, files, ask, save, model)
-                st.titles.append("ideas")
+                {"brainstorm": _brainstorm, "ai-search": _ai_search, "meal-plan": _meal_plan}[tid](
+                    engine, job, files, ask, save, model)
+                st.titles.append(tid)
                 st.items += 1
                 engine._save_state(job, st)
         else:
@@ -387,3 +392,190 @@ def _review(engine, job, src, stem, text, ask, save, model) -> list[str]:
     save(name, note("Code review", model).replace("check names, numbers", "test every suggested fix")
          + f"# Code review: {src.name}\n\nJoe read this code; he never ran it.\n\n" + "\n\n---\n\n".join(out), src.name)
     return [name]
+
+
+def _context(engine, files, limit: int = 8000) -> str:
+    out = ""
+    for f in files[:4]:
+        try:
+            out += f"\n\nMATERIAL ({f.name}):\n<<<\n{_text(engine, f)[:limit]}\n>>>"
+        except (ValueError, OSError):
+            continue
+    return out
+
+
+# --------------------------------------------------------------------------- get found by AI search
+AEO_SYSTEM = ("You help a small business get found by AI search engines and answer engines. Use ONLY the "
+              "facts the person gave. Never invent addresses, phone numbers, hours, prices, awards, reviews "
+              "or claims. Missing facts stay missing. Plain, friendly words.")
+AEO_FACTS = ('From the details below, reply with ONLY JSON: {"name": "", "type": "one schema.org type like '
+             'LocalBusiness, Store, Restaurant, ProfessionalService", "description": "1-2 sentences", '
+             '"url": "", "phone": "", "email": "", "street": "", "city": "", "region": "", "postal": "", '
+             '"country": "", "hours": ["Mo-Fr 09:00-17:00"], "price_range": "", "area_served": "", '
+             '"services": [""]}. Leave a field "" (or []) when the details don\'t say it.')
+AEO_FAQ = ("Write 10 questions real customers would ask an AI assistant about this business, each with a short, "
+           "direct answer (2-3 sentences) using only the given facts. If a fact is missing, the answer says to "
+           "contact the business and adds [CHECK]. Markdown: '### question' then the answer.")
+AEO_DESC = ("Write: '## Short description' (under 160 characters), '## About' (one paragraph), '## What we "
+            "offer' (bullets). Only the given facts.")
+
+
+def schema_jsonld(f: dict) -> str:
+    """schema.org JSON-LD for the website, built by code from the facts (never by the model)."""
+    import json
+    t = re.sub(r"[^A-Za-z]", "", str(f.get("type") or "")) or "LocalBusiness"
+    d: dict = {"@context": "https://schema.org", "@type": t}
+    for k, key in (("name", "name"), ("description", "description"), ("url", "url"), ("phone", "telephone"),
+                   ("email", "email"), ("price_range", "priceRange"), ("area_served", "areaServed")):
+        v = str(f.get(k) or "").strip()
+        if v:
+            d[key] = v
+    addr = {k2: str(f.get(k) or "").strip() for k, k2 in (("street", "streetAddress"), ("city", "addressLocality"),
+            ("region", "addressRegion"), ("postal", "postalCode"), ("country", "addressCountry"))}
+    if any(addr.values()):
+        d["address"] = {"@type": "PostalAddress", **{k: v for k, v in addr.items() if v}}
+    hours = [str(h).strip() for h in (f.get("hours") or []) if str(h).strip()]
+    if hours:
+        d["openingHours"] = hours
+    serv = [str(x).strip() for x in (f.get("services") or []) if str(x).strip()]
+    if serv:
+        d["makesOffer"] = [{"@type": "Offer", "itemOffered": {"@type": "Service", "name": x}} for x in serv[:20]]
+    return ('<script type="application/ld+json">\n' + json.dumps(d, indent=2, ensure_ascii=False) + "\n</script>\n")
+
+
+def llms_txt(f: dict, faq: str) -> str:
+    """llms.txt: a plain summary file some AI tools read from a website's root."""
+    name = str(f.get("name") or "Our business").strip()
+    L = [f"# {name}", "", f"> {str(f.get('description') or '').strip()}", ""]
+    facts = [(lbl, str(f.get(k) or "").strip()) for k, lbl in (("url", "Website"), ("phone", "Phone"),
+             ("email", "Email"), ("area_served", "Area served"), ("price_range", "Prices"))]
+    where = ", ".join(x for x in (str(f.get(k) or "").strip() for k in ("street", "city", "region", "postal", "country")) if x)
+    if where:
+        facts.append(("Address", where))
+    if f.get("hours"):
+        facts.append(("Hours", "; ".join(str(h) for h in f["hours"])))
+    L += [f"- {a}: {b}" for a, b in facts if b] + [""]
+    if f.get("services"):
+        L += ["## Services", ""] + [f"- {x}" for x in f["services"] if str(x).strip()] + [""]
+    qs = re.findall(r"^###\s+(.+)$", faq, re.M)
+    if qs:
+        L += ["## Common questions", ""] + [f"- {q.strip()}" for q in qs[:10]] + [""]
+    return "\n".join(L)
+
+
+def _ai_search(engine, job, files, ask, save, model) -> None:
+    import json
+    details = (job.format.strip() + _context(engine, files)).strip()
+    raw = ask("ai-search", AEO_SYSTEM + " Reply with ONLY JSON.", AEO_FACTS + f"\n\nDETAILS:\n{details}", 10)
+    m = re.search(r"\{.*\}", raw or "", re.S)
+    try:
+        facts = json.loads(m.group(0)) if m else {}
+    except json.JSONDecodeError:
+        facts = {}
+    if not isinstance(facts, dict):
+        facts = {}
+    faq = ask("ai-search", AEO_SYSTEM, AEO_FAQ + f"\n\nFACTS:\n{json.dumps(facts, ensure_ascii=False)}\n\nDETAILS:\n{details[:6000]}")
+    desc = ask("ai-search", AEO_SYSTEM, AEO_DESC + f"\n\nFACTS:\n{json.dumps(facts, ensure_ascii=False)}\n\nDETAILS:\n{details[:6000]}")
+    head = note("Written", model).replace(" Your original wasn't changed.", "")
+    missing = [lbl for k, lbl in (("phone", "phone"), ("street", "address"), ("hours", "hours"), ("url", "website"))
+               if not facts.get(k)]
+    howto = ("# Get found by AI search: what's here\n\n"
+             "- **faq.md**: questions people ask AI assistants, with answers. Put them on a FAQ page.\n"
+             "- **description.md**: a short description, an About paragraph and what you offer. Use the same words "
+             "on your site, Google Business Profile and social pages: matching facts everywhere help AI tools trust them.\n"
+             "- **schema.html**: paste this into your website's <head> (WordPress: a header-code plugin). It tells "
+             "search engines and AI tools your business facts in a form they read directly.\n"
+             "- **llms.txt**: put it at your website's root (yoursite.com/llms.txt). Some AI tools read it.\n\n"
+             + (f"Missing (add them to the box and run again, never guessed): {', '.join(missing)}.\n" if missing else "")
+             + "\nJoe can't check whether ChatGPT or others recommend you (that needs paid online services).\n")
+    save("README.md", howto, "ai-search")
+    save("faq.md", head + "# Frequently asked questions\n\n" + faq, "faq")
+    save("description.md", head + desc, "description")
+    save("schema.html", schema_jsonld(facts), "schema")
+    save("llms.txt", llms_txt(facts, faq), "llms.txt")
+
+
+# --------------------------------------------------------------------------- budget meal planner
+MEAL_SYSTEM = ("You plan cheap, filling, healthy-enough family meals on a tight budget: batch cooking, beans, "
+               "rice, eggs, oats, seasonal vegetables, leftovers used up. Respect any diet or allergy the person "
+               "names. Use the person's own price list when there is one. Reply with ONLY JSON.")
+MEAL_ASK = ('Plan {days} days of meals for {people} people{budget}. {wish}{prices}\n\nReply with ONLY JSON: '
+            '{{"meals": [{{"day": "Day 1", "breakfast": "", "lunch": "", "dinner": ""}}], '
+            '"shopping": [{{"item": "", "amount": "e.g. 2 lb", "price": 0.00, "from_list": true}}], '
+            '"tips": ["short money-saving tip"]}}. price = total for that amount in dollars. from_list = true only '
+            'when the price comes from the person\'s price list; otherwise it is your estimate.')
+_MONEY = re.compile(r"[$£€]\s?(\d+(?:[.,]\d{1,2})?)|(\d+(?:[.,]\d{1,2})?)\s?(?:dollars|bucks|usd)", re.I)
+_PEOPLE = re.compile(r"(?:family of|feed|for)\s+(\d{1,2})\b|(\d{1,2})\s+(?:people|persons|of us|kids|mouths)", re.I)
+
+
+def budget_from(text: str) -> float | None:
+    m = _MONEY.search(text or "")
+    return float((m.group(1) or m.group(2)).replace(",", ".")) if m else None
+
+
+def people_from(text: str) -> int | None:
+    m = _PEOPLE.search(text or "")
+    return int(m.group(1) or m.group(2)) if m else None
+
+
+def _meal_plan(engine, job, files, ask, save, model) -> None:
+    import json
+    from .tools import option_value
+    days = int(option_value(job, "days") or 7)
+    wish = job.format.strip()
+    budget = budget_from(wish)
+    people = people_from(wish) or 4
+    prices = _context(engine, files, 6000)
+    raw = ask("meal-plan", MEAL_SYSTEM, MEAL_ASK.format(
+        days=days, people=people, budget=f" on ${budget:.2f}" if budget else "", wish=f"They said: {wish}. " if wish else "",
+        prices=("\n\nTHE PERSON'S PRICE LIST (receipts or their own list):" + prices) if prices else ""), 20)
+    m = re.search(r"\{.*\}", raw or "", re.S)
+    try:
+        plan = json.loads(m.group(0)) if m else {}
+    except json.JSONDecodeError:
+        plan = {}
+    meals = [x for x in (plan.get("meals") or []) if isinstance(x, dict)]
+    shop = [x for x in (plan.get("shopping") or []) if isinstance(x, dict) and str(x.get("item", "")).strip()]
+
+    def num(v) -> float:
+        try:
+            return round(float(str(v).replace("$", "").replace(",", "")), 2)
+        except ValueError:
+            return 0.0
+    total = round(sum(num(x.get("price")) for x in shop), 2)        # Joe adds it up, not the model
+    est = [x for x in shop if not x.get("from_list")]
+    L = [note("Planned", model).replace(" Your original wasn't changed.", ""),
+         f"# Meal plan: {days} days, {people} people" + (f", ${budget:.2f} budget" if budget else ""), ""]
+    if budget is not None:
+        left = round(budget - total, 2)
+        L += [f"**Shopping total: ${total:.2f}** " + (f"(${left:.2f} under budget)" if left >= 0 else
+              f"(**${-left:.2f} over budget**: see the tips, or swap the priciest items)"), ""]
+    else:
+        L += [f"**Shopping total: ${total:.2f}**", ""]
+    if est:
+        L += [f"{len(est)} of {len(shop)} prices are Joe's estimates, marked [CHECK]: real prices differ by store "
+              "and town. For your own prices, run Read scans and receipts on a few receipts and add that "
+              "spreadsheet here. Joe can't see store prices online.", ""]
+    L += ["## Meals", "", "| Day | Breakfast | Lunch | Dinner |", "|---|---|---|---|"]
+    L += [f"| {x.get('day', '')} | {x.get('breakfast', '')} | {x.get('lunch', '')} | {x.get('dinner', '')} |" for x in meals]
+    L += ["", "## Shopping list", "", "| Item | Amount | Price |", "|---|---|---|"]
+    L += [f"| {x['item']} | {x.get('amount', '')} | ${num(x.get('price')):.2f}{'' if x.get('from_list') else ' [CHECK]'} |"
+          for x in shop]
+    L += [f"| **Total** | | **${total:.2f}** |", ""]
+    tips = [str(t) for t in (plan.get("tips") or []) if str(t).strip()]
+    if tips:
+        L += ["## Money-saving tips", ""] + [f"- {t}" for t in tips[:8]] + [""]
+    if budget is not None and total > budget:
+        L += ["_If money is tight this week: food pantries and help programs can fill the gap. In the US, "
+              "calling or texting 211 finds local ones._", ""]
+    save("meal-plan.md", "\n".join(L), "meal plan")
+    import csv
+    import io
+    buf = io.StringIO()
+    w = csv.writer(buf, lineterminator="\r\n")
+    w.writerow(["Item", "Amount", "Price", "Price is"])
+    for x in shop:
+        w.writerow([x["item"], x.get("amount", ""), f"{num(x.get('price')):.2f}",
+                    "from your list" if x.get("from_list") else "estimate [CHECK]"])
+    w.writerow(["Total", "", f"{total:.2f}", ""])
+    save("shopping-list.csv", "\ufeff" + buf.getvalue(), "shopping list")

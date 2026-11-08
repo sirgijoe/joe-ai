@@ -99,3 +99,32 @@ def test_other_openai_compatible_engine():
     assert "Jan" in textengines.engine_label(cfg) or "OpenAI" in textengines.engine_label(cfg)
     cfg.engine_url = "https://api.example.com"                      # never an online service
     assert textengines.engine_url(cfg) == "http://127.0.0.1:8000"
+
+
+def test_ai_search_builds_schema_from_facts_only(app):  # noqa: F811
+    import json
+    st = _run(app, "TASK: AEO  TYPE: ai-search\nFORMAT: Corner Bakery, fresh bread, 12 Main St Springfield, Tue-Sat 7-3")
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    assert sorted(p.name for p in out.iterdir()) == ["README.md", "description.md", "faq.md", "llms.txt", "schema.html"]
+    schema = (out / "schema.html").read_text(encoding="utf-8")
+    d = json.loads(schema.split("\n", 1)[1].rsplit("</script>", 1)[0])
+    assert d["@type"] == "Bakery" and d["address"]["streetAddress"] == "12 Main St" and "telephone" not in d
+    assert "Missing" in (out / "README.md").read_text(encoding="utf-8") and "phone" in (out / "README.md").read_text(encoding="utf-8")
+    assert "- Are you open Monday?" in (out / "llms.txt").read_text(encoding="utf-8")
+
+
+def test_meal_plan_adds_up_and_flags_budget(app):  # noqa: F811
+    assert writetools.budget_from("I only have $80 this week") == 80.0
+    assert writetools.people_from("to feed a family of 8") == 8 and writetools.people_from("for 2 for 5 days") == 2
+    st = _run(app, "TASK: Food  TYPE: meal-plan\nFORMAT: I only have $80 this week to feed a family of 8\nOPTIONS: days 7")
+    assert st.status == "done", st.note
+    out = app.sb.output / st.output
+    plan = (out / "meal-plan.md").read_text(encoding="utf-8")
+    assert "Shopping total: $95.75" in plan and "$15.75 over budget" in plan and "211" in plan
+    assert "[CHECK]" in plan and "3 of 3 prices are Joe's estimates" in plan
+    assert "Total,,95.75" in (out / "shopping-list.csv").read_text(encoding="utf-8-sig")
+    (app.sb.inbox / "prices.csv").write_text("Item,Price\nRice 10 lb,9.50\n", encoding="utf-8")
+    st = _run(app, "TASK: Food2  TYPE: meal-plan\nINPUT: prices.csv\nFORMAT: $200 for 4 people")
+    plan = (app.sb.output / st.output / "meal-plan.md").read_text(encoding="utf-8")
+    assert "under budget" in plan and "2 of 3 prices" in plan and "211" not in plan
