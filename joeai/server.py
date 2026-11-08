@@ -494,6 +494,23 @@ class App:
             text, self.pending_ping = self.pending_ping, ""
             self.send_ping(text)
 
+    def reminder_tick(self) -> None:
+        """Reminders more than 3 days out go to ntfy once they're within its 3 days."""
+        if not (self.settings.comfort.ntfy_topic or "").strip():
+            return
+        now = time.time()
+        if now - getattr(self, "_rem_t", 0) < 600:
+            return
+        self._rem_t = now
+        from . import reminders
+        try:
+            n = reminders.tick(self.sb, self.settings)
+        except Exception as e:                      # noqa: BLE001 (never stop the background loop)
+            self.log(f"Reminders: {e}")
+            return
+        if n:
+            self.log(f"Sent {n} waiting reminder{'s' if n != 1 else ''} to your phone.")
+
     def dequeue(self, index: int) -> dict:
         with self.lock:
             if 0 <= index < len(self.queue):
@@ -1962,6 +1979,20 @@ def make_handler(app: App):
                                        "time": describe_mod.plain_time(chk["eta_min"])
                                        + ("" if chk.get("eta_learned") else describe_mod.ROUGH),
                                        "eta_min": chk["eta_min"], "warnings": notes + chk.get("warnings", [])})
+                if u.path == "/api/assistant":         # reminders and lists (Home box or Talk)
+                    from . import reminders
+                    cmd, lst = str(b.get("cmd", "")), str(b.get("list", ""))[:40]
+                    if cmd == "remind":
+                        return self._json(reminders.add(app.sb, app.settings, str(b.get("text", ""))[:500]))
+                    if cmd == "list-add":
+                        return self._json(reminders.list_add(app.sb, lst, str(b.get("items", ""))[:500]))
+                    if cmd == "list-done":
+                        return self._json(reminders.list_done(app.sb, lst, str(b.get("items", ""))[:500]))
+                    if cmd == "list-show":
+                        return self._json(reminders.list_show(app.sb, lst))
+                    if cmd == "list-send":
+                        return self._json(reminders.list_send(app.sb, app.settings, lst))
+                    return self._json({"ok": False, "error": "unknown"})
                 if u.path == "/api/park":              # "park this: <idea>" -> Ideas.md in Joe's folder
                     return self._json(app.park_idea(str(b.get("text", ""))[:4000]))
                 if u.path == "/api/tonight/add":       # save a plan for the night shift
@@ -2280,6 +2311,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             if not app.running:
                 app.tool_voice.idle_check()
             app.ping_tick()
+            app.reminder_tick()
             app.clone.idle_check()
             app.watch_queue_folder()                   # mission files dropped in Missions/Queue
             for _ in range(10):

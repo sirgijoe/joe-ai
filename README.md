@@ -234,6 +234,12 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   "read my story aloud", "proofread my cover letter", "shrink my product photos for the
   website", "translate my menu into Spanish", "remove the duplicates from my customer list", "put my receipts in a spreadsheet", "what do my lease papers say about pets?".
 
+**Reminders and lists** (by voice or in the box, no AI needed)
+- "Remind me at 3pm to call the vet", "in 20 minutes", "tomorrow at 9", "on Friday at 10": the
+  reminder comes to your phone through the free phone ping (ntfy), even if the PC is off by then.
+- "Add milk and eggs to my shopping list", "what's on my to-do list?", "take milk off my list",
+  "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
+
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F7. Uses
   Pandoc (free) and the PDF printer built into Microsoft Edge.
@@ -299,6 +305,7 @@ internet. None of them send your files, chats or recordings.
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
 | Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in System check | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
+| Reminders and lists sent to your phone | ntfy.sh (the reminder text, with the time to deliver it; or the list you asked to send) | When you say "remind me..." or "send my list to my phone" | Off until you type a topic name |
 | Looking things up (Talk, and writing tasks with `RESEARCH: yes`) | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current, or a task asks to research | Off until you turn it on |
 | Model pages | Hugging Face or Civitai, in your browser (for Hugging Face, the browser also starts the download) | When you press GET IT on a recommended picture model | You read its terms; the download is yours |
 

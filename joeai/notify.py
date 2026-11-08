@@ -50,15 +50,20 @@ def valid_topic(topic: str) -> bool:
     return bool(re.fullmatch(r"[A-Za-z0-9_-]{6,64}", topic or ""))
 
 
-def send_ntfy(server: str, topic: str, message: str, title: str = "Joe", timeout: float = 10) -> str:
-    """Post one line to ntfy. Returns '' on success, else a short reason."""
+def send_ntfy(server: str, topic: str, message: str, title: str = "Joe", timeout: float = 10,
+              at: int | None = None) -> str:
+    """Post a message to ntfy. Returns '' on success, else a short reason. `at` (Unix time) = ntfy
+    holds it and delivers it then (scheduled delivery, up to 3 days ahead), even if this PC is off."""
     if not valid_topic(topic):
         return "the topic name must be 6-64 letters, numbers, - or _"
     server = (server or "https://ntfy.sh").rstrip("/")
     if not re.match(r"^https?://", server):
         return "the ntfy server must start with https://"
-    req = urllib.request.Request(f"{server}/{topic}", data=message[:300].encode("utf-8"), method="POST",
-                                 headers={"Title": title, "Tags": "robot", "Content-Type": "text/plain"})
+    headers = {"Title": title, "Tags": "robot", "Content-Type": "text/plain"}
+    if at:
+        headers["At"] = str(int(at))
+    req = urllib.request.Request(f"{server}/{topic}", data=message[:2000].encode("utf-8"), method="POST",
+                                 headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as r:
             r.read()

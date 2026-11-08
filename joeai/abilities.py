@@ -87,6 +87,14 @@ OTHER: tuple[Ability, ...] = (
             "Options: Setup > General: keep the PC awake, sleep or shut down when finished, pause above a GPU temperature, retries, phone ping when done (ntfy), quiet hours.\n"
             "Tips: \"do it again\" or \"rerun the black and white videos\" finds those tasks in past runs and plans them again exactly.",
             ("queue", "run", "running", "report", "overnight", "morning report", "resume", "rerun", "do it again")),
+    Ability("reminders", "Working for you", "Reminders and lists",
+            "\"Remind me at 3pm to call the vet\", \"add milk to my shopping list\": by voice or in the box.",
+            "What it does: reminders come to your phone at the time you said, and simple lists (to-do, shopping, any name) live in Joe's folder.\n"
+            "How Joe does it: he works out the time from your words (at 3pm, in 20 minutes, tomorrow at 9, on Friday) and hands the reminder to ntfy, the free phone-ping service, with the time to deliver it. ntfy holds it, so it arrives even if this PC is off. ntfy keeps messages for up to 3 days, so a reminder further out waits in Joe's folder and is handed over when it's closer (whenever Joe is open). No AI is needed, so it's instant.\n"
+            "What to give it: say or type \"remind me ...\" with a time and what; \"add ... to my ... list\", \"what's on my ... list?\", \"take ... off my list\", \"send my shopping list to my phone\".\n"
+            "Options: phone pings are set up in Setup > Display & sound (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
+            "Limits: ntfy is an online service (only the reminder text goes there). Lists stay on this PC in the Lists folder.",
+            ("remind", "reminder", "reminders", "list", "lists", "shopping list", "to-do list", "todo list")),
     Ability("night-shift", "Working for you", "Night shift",
             "Save plans for tonight and Joe starts them at a set time, even with his window closed.",
             "What it does: SAVE FOR TONIGHT keeps a plan for later; at the time you pick, Joe starts by himself and runs them.\n"

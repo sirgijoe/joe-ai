@@ -338,6 +338,10 @@ async function doCommand(cmd, rt) {
     const r = await api("/api/park", { text: rt.idea });
     return r.ok ? r.say : r.error;
   }
+  if (["remind", "list-add", "list-done", "list-show", "list-send"].includes(cmd)) {   // reminders and lists
+    const r = await api("/api/assistant", { cmd, text: rt.text || "", items: rt.items || "", list: rt.list || "" });
+    return r.ok ? r.say : r.error;
+  }
   if (cmd === "abilities" || cmd === "explain") {       // "what can you do?" / "how does X work?"
     if (current !== "talk") {
       await abilitiesOpen(cmd === "explain" ? rt.id : "");
@@ -2228,7 +2232,8 @@ async function talkSend(textArg) {
   if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
-  if (text && !sent.length && text.length <= 40) {        // "go", "stop", "report"...: do it, no AI
+  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send )/i.test(text);
+  if (text && !sent.length && (text.length <= 40 || assist)) {        // "go", "stop", reminders, lists: do it, no AI
     const rt = await routeText(text);
     if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {
       $("#talk-in").value = "";

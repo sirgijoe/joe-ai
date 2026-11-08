@@ -61,10 +61,38 @@ _PARK = re.compile(r"^\s*(?:please\s+)?(?:park\s+(?:this|that|it|an?\s+idea|idea
                    r"\s*[:\-,]?\s*(.*)$", re.I | re.S)
 
 
+_HEY = r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?"
+_REMIND = re.compile(_HEY + r"remind me\b\s*(.*?)[.!?]*$", re.I | re.S)
+_LIST = r"(?:my\s+|the\s+)?(?:([a-z][a-z -]{0,20}?)\s+)?list"
+_LIST_ADD = re.compile(_HEY + r"(?:add|put)\s+(.+?)\s+(?:to|on)\s+" + _LIST + r"[.!?]*$", re.I)
+_LIST_DONE = re.compile(_HEY + r"(?:take|cross|remove|delete|check)\s+(.+?)\s+off(?:\s+of)?\s+" + _LIST + r"[.!?]*$", re.I)
+_LIST_SHOW = re.compile(_HEY + r"(?:what(?:'s| is)\s+on|read(?:\s+me)?|show(?:\s+me)?)\s+" + _LIST + r"[.!?]*$", re.I)
+_LIST_SEND = re.compile(_HEY + r"send\s+" + _LIST + r"\s+to\s+my\s+phone[.!?]*$", re.I)
+
+
+def assistant(raw: str) -> dict | None:
+    """Reminders and lists ("remind me at 3 to...", "add milk to my shopping list")."""
+    m = _REMIND.match(raw)
+    if m:
+        return {"kind": "command", "cmd": "remind", "text": m.group(1).strip()}
+    for rx, cmd in ((_LIST_SEND, "list-send"), (_LIST_SHOW, "list-show")):
+        m = rx.match(raw)
+        if m:
+            return {"kind": "command", "cmd": cmd, "list": (m.group(1) or "").strip()}
+    for rx, cmd in ((_LIST_ADD, "list-add"), (_LIST_DONE, "list-done")):
+        m = rx.match(raw)
+        if m:
+            return {"kind": "command", "cmd": cmd, "items": m.group(1).strip(), "list": (m.group(2) or "").strip()}
+    return None
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    hit = assistant(raw)
+    if hit:
+        return hit
     pm = _PARK.match(raw)
     if pm and (pm.group(1).strip() or raw.lower().strip(" .!") in ("park this", "park that", "park it")):
         return {"kind": "command", "cmd": "park", "idea": pm.group(1).strip()}

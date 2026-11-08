@@ -125,6 +125,27 @@ the plan warns you. Ask for research or current facts in the box and Joe adds it
 A video task with `EXPORT: gif` also saves a looping GIF next to each clip. Asking for "a gif of
 ..." in the box does this by itself.
 
+### Reminders and lists (Home box or Talk)
+
+Say or type it the way you'd say it to a person:
+
+```
+remind me at 3pm to call the vet
+remind me in 20 minutes to take the bread out
+remind me tomorrow at 9 to feed the horses
+add milk and eggs to my shopping list
+what's on my shopping list?
+take milk off my shopping list
+send my shopping list to my phone
+```
+
+Reminders come to your phone as a phone ping (Setup > Display & sound > phone ping, an ntfy topic
+name, free). Joe hands each one to ntfy with the time to deliver it, so it arrives even if your PC
+is off by then. ntfy holds messages for up to 3 days: a reminder further out waits in
+`Reminders.md` and Joe hands it over once it's within 3 days (whenever he's open). Without phone
+pings, reminders are still saved in `Reminders.md`. Lists are plain files in Joe's `Lists` folder
+(one per name: to-do, shopping, anything). No AI is used, so these are instant.
+
 ### Night shift (Setup > General)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >

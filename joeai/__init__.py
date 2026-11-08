@@ -4,7 +4,7 @@ Copyright (C) 2026 Joe contributors.
 Licensed under the GNU General Public License v3.0 (see LICENSE).
 """
 
-__version__ = "2.1.0.dev8"
+__version__ = "2.1.0.dev9"
 APP_NAME = "Joe"
 REPO = "sirgijoe/joe-ai"            # where releases are published (update check)
 # Release signing (joeai/sign.py): the public half of the key that signs each release's
