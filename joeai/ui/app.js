@@ -1448,9 +1448,17 @@ document.addEventListener("click", async (ev) => {
     if (act === "pt-stop") { await api("/api/portable", { action: "stop" }); return; }
     if (act === "mcp-connect" || act === "mcp-disconnect") {
       const on = act === "mcp-connect", name = b.dataset.name;
-      confirmBox(on ? `Connect Joe to ${name}?\n\nJoe adds his own entry to ${name}'s settings file (a copy of the old file is kept next to it). ${name} can then see Joe's status, queue plans, make pictures, run tools on Inbox files and read results. Restart ${name} afterwards.`
-                    : `Disconnect Joe from ${name}?\n\nJoe removes only his own entry from ${name}'s settings file.`,
-        async () => { const r = await api("/api/connect", { app: b.dataset.app, on }); toast(r.ok ? r.say : r.error); mcpShow(); });
+      const go = async () => {
+        const r = await api("/api/connect", { app: b.dataset.app, on });
+        if (!r.ok && r.running) {                      // still open: it would write over Joe's change
+          confirmBox(r.error + "\n\nClosed it? Press YES to try again.", go);
+          return;
+        }
+        toast(r.ok ? r.say : r.error, 9000); mcpShow();
+      };
+      confirmBox(on ? `Connect Joe to ${name}?\n\nFirst CLOSE ${name} completely (on Windows it can keep running in the tray: end it in Task Manager). Joe checks it's closed, then adds his own entry to its settings file (a copy of the old file is kept). ${name} can then see Joe's status, queue plans, make pictures, run tools on Inbox files and read results.`
+                    : `Disconnect Joe from ${name}?\n\nClose ${name} completely first. Joe removes only his own entry from its settings file.`,
+        go);
     }
     if (act === "mcp-copy") {
       try { await navigator.clipboard.writeText($("#mcp-lines").textContent); $("#mcp-msg").textContent = "Copied."; }

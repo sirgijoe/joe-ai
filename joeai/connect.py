@@ -154,11 +154,61 @@ def status() -> list[dict]:
     return out
 
 
+# The program each app runs as, to check it's closed before Joe touches its settings: an app that's
+# open keeps its own copy of the settings and writes it back later, wiping out Joe's entry.
+PROCESSES = {
+    "claude": {"win": ("claude.exe",), "mac": ("Claude",), "linux": ("claude-desktop", "Claude")},
+    "cursor": {"win": ("Cursor.exe",), "mac": ("Cursor",), "linux": ("cursor", "Cursor")},
+    "lmstudio": {"win": ("LM Studio.exe",), "mac": ("LM Studio",), "linux": ("lm-studio", "LM Studio")},
+    "chatgpt": {"win": ("ChatGPT.exe", "Codex.exe"), "mac": ("ChatGPT", "Codex"), "linux": ("chatgpt", "codex")},
+}
+CLOSE_HOW = {
+    "claude": "Claude Desktop keeps running in the tray when its window is closed: open Task Manager "
+              "(Ctrl+Shift+Esc), right-click every \"Claude\" under Processes and pick End task.",
+}
+
+
+def app_running(app_id: str, run=None) -> bool:
+    """True when the app's program is running (False when Joe can't tell)."""
+    import subprocess
+    names = PROCESSES.get(app_id)
+    if not names:
+        return False                                  # Gemini CLI: a terminal program, nothing to close
+    run = run or subprocess.run
+    try:
+        if WINDOWS:
+            from .system import no_window_flags
+            r = run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True, timeout=15,
+                    creationflags=no_window_flags())
+            have = {line.split('","')[0].strip('"').lower() for line in (r.stdout or "").splitlines() if line}
+            return any(n.lower() in have for n in names["win"])
+        for n in names["mac" if MAC else "linux"]:
+            r = run(["pgrep", "-x", n], capture_output=True, text=True, timeout=10)
+            if r.returncode == 0 and (r.stdout or "").strip():
+                return True
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return False
+    return False
+
+
+def closed_first(app_id: str, name: str) -> dict | None:
+    """None when the app is closed; else the plain-words 'close it first' answer."""
+    if not app_running(app_id):
+        return None
+    how = CLOSE_HOW.get(app_id, f"Quit {name} completely (not just its window), then try again.") if WINDOWS else \
+        f"Quit {name} completely (Cmd+Q on a Mac), then try again."
+    return {"ok": False, "running": True,
+            "error": f"{name} is still running. Close it first: while it's open it keeps its own copy of its "
+                     f"settings and would write over Joe's change. {how}"}
+
+
 def connect(app_id: str, entry: dict) -> dict:
     apps = app_paths()
     if app_id not in apps:
         return {"ok": False, "error": "Joe doesn't know that app."}
     name, p = apps[app_id]
+    if (busy := closed_first(app_id, name)) is not None:
+        return busy
     if not _installed(app_id, p):
         return {"ok": False, "error": f"{name} doesn't seem to be installed on this PC (no {p.parent})."}
     p.parent.mkdir(parents=True, exist_ok=True)
@@ -191,7 +241,7 @@ def connect(app_id: str, entry: dict) -> dict:
                     osv[ENTRY] = entry
                     od["mcpServers"] = osv
                     _write(other, json.dumps(od, indent=2))
-    return {"ok": True, "say": f"Joe is connected to {name}. Restart {name} to see him."}
+    return {"ok": True, "say": f"Joe is connected to {name}. Open {name} now and start a new chat to use him."}
 
 
 def disconnect(app_id: str) -> dict:
@@ -199,6 +249,8 @@ def disconnect(app_id: str) -> dict:
     if app_id not in apps:
         return {"ok": False, "error": "Joe doesn't know that app."}
     name, p = apps[app_id]
+    if (busy := closed_first(app_id, name)) is not None:
+        return busy
     if p.suffix == ".toml":
         text = p.read_text(encoding="utf-8") if p.exists() else ""
         if not _toml_has_joe(text):

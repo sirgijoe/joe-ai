@@ -310,3 +310,28 @@ def test_claude_desktop_data_outside_package(tmp_path, monkeypatch):
     d = json.loads(real.read_text(encoding="utf-8"))
     assert "joe" in d["mcpServers"] and d["preferences"]["sidebarMode"] == "chat"      # their settings kept
     assert connect.status()[0]["connected"]
+
+
+def test_connect_waits_until_the_app_is_closed(tmp_path, monkeypatch):
+    from joeai import connect
+    monkeypatch.setattr(connect, "WINDOWS", True)
+    monkeypatch.setattr(connect, "MAC", False)
+    monkeypatch.setenv("JOE_HOME_OVERRIDE", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    (tmp_path / "Roaming" / "Claude").mkdir(parents=True)
+
+    class R:
+        def __init__(self, out):
+            self.stdout, self.returncode = out, 0
+    running = '"claude.exe","1234","Console","1","200,000 K"\n"Joe.exe","9","Console","1","1 K"\n'
+    assert connect.app_running("claude", run=lambda *a, **k: R(running))
+    assert not connect.app_running("claude", run=lambda *a, **k: R('"explorer.exe","1"\n'))
+    assert not connect.app_running("gemini")
+    monkeypatch.setattr(connect, "app_running", lambda app_id, run=None: app_id == "claude")
+    r = connect.connect("claude", {"command": "python", "args": ["Joe.pyw", "mcp"]})
+    assert not r["ok"] and r["running"] and "Task Manager" in r["error"]
+    assert not (tmp_path / "Roaming" / "Claude" / "claude_desktop_config.json").exists()   # nothing touched
+    assert connect.disconnect("claude")["running"]
+    monkeypatch.setattr(connect, "app_running", lambda app_id, run=None: False)
+    assert connect.connect("claude", {"command": "python", "args": ["Joe.pyw", "mcp"]})["ok"]
