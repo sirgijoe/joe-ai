@@ -105,7 +105,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**43 ready-made tools** (Tools tab, **F3**)
+**44 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -113,6 +113,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Read a document aloud**: text, Word, PDF or a web page in, an MP3 out (one track per
   chapter if you like), in Joe's voice from Setup. Runs on the processor; a stopped run
   carries on where it left off.
+- **Find a book to read aloud**: by ISBN, title or a photo of the cover or barcode. Free public-domain
+  books (Project Gutenberg) are downloaded and read aloud; for books still under copyright, scan your
+  own copy's pages and Joe reads those. Needs online lookups on.
 - **Proofread my writing**: fixes spelling, grammar and punctuation (and, if you ask, unclear
   wording) and lists every change with the before and after. Nothing is changed silently, and
   your original file is never touched.
@@ -312,6 +315,7 @@ internet. None of them send your files, chats or recordings.
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
 | Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in System check | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
+| Find a book to read aloud | Open Library and Project Gutenberg (only the ISBN or title; the free book text comes back) | When you use that tool | Only with online lookups on |
 | Reminders and lists sent to your phone | ntfy.sh (the reminder text, with the time to deliver it; or the list you asked to send) | When you say "remind me..." or "send my list to my phone" | Off until you type a topic name |
 | Looking things up (Talk, and writing tasks with `RESEARCH: yes`) | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current, or a task asks to research | Off until you turn it on |
 | Model pages | Hugging Face or Civitai, in your browser (for Hugging Face, the browser also starts the download) | When you press GET IT on a recommended picture model | You read its terms; the download is yours |

@@ -163,6 +163,23 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "chapter, else none). No CHUNKS.",
          examples=("Read my short story aloud as an MP3", "Turn this guide into an audiobook"),
          extra_hint="optional, e.g. skip the table of contents"),
+    Tool("find-book", "Find a book to read aloud", "Audio",
+         "By ISBN, title or a photo of the cover: free public-domain books downloaded and read aloud.",
+         accepts=PHOTO_EXT,
+         options=(Option("aloud", "Then read it aloud", choices=(("yes", "Yes, queue Read aloud"), ("no", "No, just get it")),
+                         value="yes"),),
+         needs=(), ready=True,
+         help="Type the ISBN or the title (and author) in the box, or add a photo of the cover or the barcode. "
+              "Joe looks it up in Open Library; if it's in the public domain and Project Gutenberg has it, he "
+              "downloads the text and queues Read a document aloud. Books still under copyright can't be "
+              "downloaded: scan your own copy's pages (Read scans and receipts) and Joe reads those. Needs online "
+              "lookups on (Setup > Voice & Talk); only the ISBN or title is sent.",
+         plan_hint="Find / download / read aloud a book by ISBN, title or cover photo: TYPE: find-book, FORMAT: the "
+                   "ISBN or title and author, word for word, OPTIONS: aloud yes|no. INPUT only a cover/barcode photo "
+                   "they point at. No CHUNKS.",
+         examples=("Read me Pride and Prejudice", "Find the book with ISBN 978-0-14-143951-8"),
+         extra_hint="e.g. Pride and Prejudice, Jane Austen  or  978-0-14-143951-8",
+         extra_label="ISBN or title"),
     Tool("proofread", "Proofread my writing", "Writing",
          "Fix spelling and grammar, with a list of every change.",
          accepts=DOC_EXT,
@@ -1009,6 +1026,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     from . import filetools
     if job.type in filetools.FILE_TOOLS:
         fn = filetools.run
+    if job.type == "find-book":
+        from . import books
+        fn = books.run
     if job.type == "make-shorts":
         from . import shorts
         fn = shorts.run
