@@ -201,6 +201,11 @@ jobs:
           SHA256SUMS.txt lets you check any download; SHA256SUMS.txt.sig (when there) proves the list came from Joe's maker, and Joe checks it before he installs an update. If a Mac or Linux file is missing, that build failed this time; the next release will try again.
           NOTES
           if [ -f src/installer/RELEASE_NOTES.md ]; then cat src/installer/RELEASE_NOTES.md notes.md > all.md; else cp notes.md all.md; fi
-          gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Joe $GITHUB_REF_NAME" \
-            --notes-file all.md \
-            $( [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *rc* ]] && echo --prerelease )
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            # re-run after a failed build: add the missing files and the new checksum list
+            gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --title "Joe $GITHUB_REF_NAME" \
+              --notes-file all.md \
+              $( [[ "$GITHUB_REF_NAME" == *dev* || "$GITHUB_REF_NAME" == *rc* ]] && echo --prerelease )
+          fi
