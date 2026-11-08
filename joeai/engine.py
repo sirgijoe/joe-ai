@@ -49,7 +49,8 @@ Rules that always apply:
 - Never invent statistics, reviews, quotes, testimonials or people.
 - Output only the requested content. No introductions, no closing remarks."""
 
-LIST_RULE = "- Start every item with a heading line: ## <title>"
+LIST_RULE = ("- Start every item with a heading line: ## <title>. The title is a short name for the item, "
+             "not part of it: the whole item (every line of a poem, every sentence) goes under the heading.")
 CSV_RULES = """- This task fills a spreadsheet. Output ONLY JSON Lines: one JSON object per row,
   one per line, keys exactly the column names given. No header, no code fences, no commentary.
 - Every value is a string or number; use "" for an empty field."""
@@ -650,7 +651,8 @@ class Engine:
             lines.append(f"LENGTH: every item body must be at least {job.min_words} words.")
         lines += [f"This is part {part + 1} of {job.parts}. Write exactly {count} NEW item(s), "
                   f"numbered from {start} in your head (do not number the headings).",
-                  "Begin each item with a line: ## <title>"]
+                  "Begin each item with a line: ## <title> (a short name for the item, not its first line), "
+                  "then the complete item underneath."]
         given = self._source_slice(getattr(self, "_mission", None), job, part, count,
                                    offset=max(job.part_size - count, 0))
         if given:
