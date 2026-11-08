@@ -39,7 +39,8 @@ def test_routes():
 def test_reminder_to_phone_and_waiting(app):  # noqa: F811
     sent = []
 
-    def fake(server, topic, msg, title="Joe", at=None):
+    def fake(server, topic, msg, title="Joe", at=None, priority=""):
+        assert priority == "high"
         sent.append((topic, msg, at))
         return ""
     r = reminders.add(app.sb, app.settings, "at 3pm to call the vet", NOW, send=fake)

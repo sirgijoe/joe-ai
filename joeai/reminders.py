@@ -149,7 +149,7 @@ def add(sb, settings, text: str, now: datetime | None = None, send=None) -> dict
     err = ""
     if when - now <= NTFY_MAX:
         err = (send or notify.send_ntfy)(settings.comfort.ntfy_server, topic, f"Reminder: {what}",
-                                         title="Joe reminder", at=int(when.timestamp()))
+                                         title="Joe reminder", at=int(when.timestamp()), priority="high")
         item["sent"] = not err
     save(sb, items)
     if err:
@@ -176,7 +176,7 @@ def tick(sb, settings, now: datetime | None = None, send=None) -> int:
             continue                                            # long past: tidy away
         if topic and not r.get("sent") and when > now and when - now <= NTFY_MAX:
             if not (send or notify.send_ntfy)(settings.comfort.ntfy_server, topic, f"Reminder: {r['what']}",
-                                              title="Joe reminder", at=int(when.timestamp())):
+                                              title="Joe reminder", at=int(when.timestamp()), priority="high"):
                 r["sent"] = True
                 sent += 1
         keep.append(r)

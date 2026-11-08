@@ -51,7 +51,7 @@ def valid_topic(topic: str) -> bool:
 
 
 def send_ntfy(server: str, topic: str, message: str, title: str = "Joe", timeout: float = 10,
-              at: int | None = None) -> str:
+              at: int | None = None, priority: str = "") -> str:
     """Post a message to ntfy. Returns '' on success, else a short reason. `at` (Unix time) = ntfy
     holds it and delivers it then (scheduled delivery, up to 3 days ahead), even if this PC is off."""
     if not valid_topic(topic):
@@ -62,6 +62,8 @@ def send_ntfy(server: str, topic: str, message: str, title: str = "Joe", timeout
     headers = {"Title": title, "Tags": "robot", "Content-Type": "text/plain"}
     if at:
         headers["At"] = str(int(at))
+    if priority:
+        headers["Priority"] = priority                  # "high": pops up with sound, like an alarm
     req = urllib.request.Request(f"{server}/{topic}", data=message[:2000].encode("utf-8"), method="POST",
                                  headers=headers)
     try:
