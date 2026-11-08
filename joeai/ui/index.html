@@ -402,6 +402,11 @@ FORMAT: ...
                 <label title="Optional, 24-hour clock, e.g. 07:00. At this time Joe finishes the mission he's on and leaves the rest for the next night. Earlier than the start time = the next morning. Blank = run until everything is done.">Stop by <input data-path="schedule.stop" placeholder="blank = until done" size="12"></label>
                 <div class="dim small">Stop by (optional): at that time Joe finishes the mission he's working on, puts the plans he hasn't started back in Missions\Tonight for the next night and says so in the morning report ("3 missions left for tomorrow night"). A stop time earlier than the start means the next morning (start 23:00, stop 06:00). Blank = he runs until everything is done.</div>
               </fieldset>
+              <fieldset><legend>DIRECTIONS AND SHOPPING</legend>
+                <div class="dim small">"Directions to the feed store" or "where can I buy a cheap air fryer?" opens the site you pick here in your browser. Joe doesn't pick stores, track where you go, or get paid by anyone.</div>
+                <label title="Which map site opens for directions.">Maps <select data-path="comfort.maps"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option><option value="apple">Apple Maps</option><option value="bing">Bing Maps</option></select></label>
+                <label title="Which site opens for shopping searches.">Shopping search <select data-path="comfort.shop"><option value="google">Google Shopping</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing Shopping</option></select></label>
+              </fieldset>
               <fieldset><legend>WATCH FOLDERS</legend>
                 <div class="dim small">Drop a file into Inbox\Watch\&lt;tool&gt; (for example Inbox\Watch\clean-audio) and Joe runs that tool on it by himself while he's open, with the tool's usual options. Results go to Output\watch-&lt;tool&gt;. Turning this on makes the folders, with a READ ME listing them.</div>
                 <label title="Joe looks in Inbox\Watch every few seconds while he's open.">Watch folders on <input type="checkbox" data-path="schedule.watch"></label>

@@ -66,3 +66,16 @@ def test_lists(app):  # noqa: F811
     reminders.list_add(app.sb, "", "call Sam")
     assert reminders.read_list(app.sb, "to do") == ["call Sam"]
     assert not reminders.list_send(app.sb, app.settings, "shopping")["ok"]       # no phone pings set up
+
+
+def test_directions_and_shopping(app):  # noqa: F811
+    r = route.classify("directions to the hardware store in Springfield")
+    assert r["cmd"] == "directions" and r["text"] == "the hardware store in Springfield"
+    assert route.classify("how do I get to the airport?")["text"] == "the airport"
+    assert route.classify("where can I buy a cheap air fryer?") == {"kind": "command", "cmd": "shop", "text": "a cheap air fryer"}
+    d = reminders.directions(app.settings, "the airport")
+    assert d["open"] == "https://www.google.com/maps/dir/?api=1&destination=the%20airport"
+    app.settings.comfort.maps, app.settings.comfort.shop = "osm", "duckduckgo"
+    assert reminders.directions(app.settings, "x")["open"].startswith("https://www.openstreetmap.org/")
+    assert "duckduckgo.com/?q=air%20fryer" in reminders.shopping(app.settings, "air fryer")["open"]
+    assert not reminders.shopping(app.settings, " ")["ok"]

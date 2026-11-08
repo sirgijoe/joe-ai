@@ -241,6 +241,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   reminder comes to your phone through the free phone ping (ntfy), even if the PC is off by then.
 - "Add milk and eggs to my shopping list", "what's on my to-do list?", "take milk off my list",
   "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
+- "Directions to the feed store", "where can I buy a cheap air fryer?": opens your map or shopping
+  site (picked in Setup > General) in the browser. Joe doesn't pick stores or track you.
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F7. Uses

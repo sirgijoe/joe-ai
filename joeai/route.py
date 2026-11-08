@@ -70,8 +70,20 @@ _LIST_SHOW = re.compile(_HEY + r"(?:what(?:'s| is)\s+on|read(?:\s+me)?|show(?:\s
 _LIST_SEND = re.compile(_HEY + r"send\s+" + _LIST + r"\s+to\s+my\s+phone[.!?]*$", re.I)
 
 
+_DIRECTIONS = re.compile(_HEY + r"(?:give me\s+|get\s+|show me\s+)?(?:directions|the way|a route|route)\s+to\s+(.+?)[.!?]*$|"
+                         + _HEY + r"(?:how (?:do|can) i get|navigate|take me)\s+to\s+(.+?)[.!?]*$", re.I)
+_SHOP = re.compile(_HEY + r"(?:where (?:can|do|should) i (?:buy|get|find)|shop for|find (?:me )?(?:a |an |the )?(?:cheap |best )?deal on|"
+                   r"(?:find|look up) (?:the )?(?:price|prices) (?:of|for)|compare prices (?:of|for|on))\s+(.+?)[.!?]*$", re.I)
+
+
 def assistant(raw: str) -> dict | None:
-    """Reminders and lists ("remind me at 3 to...", "add milk to my shopping list")."""
+    """Reminders and lists ("remind me at 3 to...", "add milk to my shopping list"), directions and shopping."""
+    m = _DIRECTIONS.match(raw)
+    if m:
+        return {"kind": "command", "cmd": "directions", "text": (m.group(1) or m.group(2) or "").strip()}
+    m = _SHOP.match(raw)
+    if m:
+        return {"kind": "command", "cmd": "shop", "text": m.group(1).strip()}
     m = _REMIND.match(raw)
     if m:
         return {"kind": "command", "cmd": "remind", "text": m.group(1).strip()}

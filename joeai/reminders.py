@@ -251,3 +251,35 @@ def list_send(sb, settings, name: str, send=None) -> dict:
     err = (send or notify.send_ntfy)(settings.comfort.ntfy_server, topic, "\n".join(f"- {x}" for x in items),
                                      title=f"{list_name(name).capitalize()} list")
     return {"ok": not err, "say": f"Sent your {list_name(name)} list to your phone.", "error": err}
+
+
+# --------------------------------------------------------------------------- directions and shopping
+MAPS = {"google": "https://www.google.com/maps/dir/?api=1&destination={q}",
+        "osm": "https://www.openstreetmap.org/search?query={q}",
+        "apple": "https://maps.apple.com/?daddr={q}",
+        "bing": "https://www.bing.com/maps?rtp=~adr.{q}"}
+SHOPS = {"google": "https://www.google.com/search?tbm=shop&q={q}",
+         "duckduckgo": "https://duckduckgo.com/?q={q}&ia=shopping",
+         "bing": "https://www.bing.com/shop?q={q}"}
+
+
+def directions(settings, place: str) -> dict:
+    from urllib.parse import quote
+    place = (place or "").strip(" ?.!")
+    if not place:
+        return {"ok": False, "error": "Directions to where? Like: directions to the nearest hardware store."}
+    site = getattr(settings.comfort, "maps", "google")
+    url = MAPS.get(site, MAPS["google"]).format(q=quote(place))
+    return {"ok": True, "open": url, "say": f"Opening directions to {place} in your browser. Joe doesn't track "
+                                            "where you go; the map site works out the route from your location."}
+
+
+def shopping(settings, thing: str) -> dict:
+    from urllib.parse import quote
+    thing = (thing or "").strip(" ?.!")
+    if not thing:
+        return {"ok": False, "error": "Shop for what? Like: where can I buy a cheap air fryer?"}
+    site = getattr(settings.comfort, "shop", "google")
+    url = SHOPS.get(site, SHOPS["google"]).format(q=quote(thing))
+    return {"ok": True, "open": url, "say": f"Opening a shopping search for {thing} in your browser. Joe doesn't pick "
+                                            "for you or get paid by any store: compare the prices there."}

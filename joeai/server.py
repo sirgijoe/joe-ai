@@ -2065,6 +2065,10 @@ def make_handler(app: App):
                     cmd, lst = str(b.get("cmd", "")), str(b.get("list", ""))[:40]
                     if cmd == "remind":
                         return self._json(reminders.add(app.sb, app.settings, str(b.get("text", ""))[:500]))
+                    if cmd == "directions":
+                        return self._json(reminders.directions(app.settings, str(b.get("text", ""))[:200]))
+                    if cmd == "shop":
+                        return self._json(reminders.shopping(app.settings, str(b.get("text", ""))[:200]))
                     if cmd == "list-add":
                         return self._json(reminders.list_add(app.sb, lst, str(b.get("items", ""))[:500]))
                     if cmd == "list-done":

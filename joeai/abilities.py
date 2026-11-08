@@ -95,6 +95,13 @@ OTHER: tuple[Ability, ...] = (
             "Options: phone pings are set up in Setup > Display & sound (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
             "Limits: ntfy is an online service (only the reminder text goes there). Lists stay on this PC in the Lists folder.",
             ("remind", "reminder", "reminders", "list", "lists", "shopping list", "to-do list", "todo list")),
+    Ability("directions", "Working for you", "Directions and shopping",
+            "\"Directions to the feed store\" or \"where can I buy an air fryer?\" opens your map or shopping site.",
+            "What it does: opens directions or a shopping search in your browser, by voice or in the box.\n"
+            "How Joe does it: he takes the place or thing from your words and opens the site you picked with it filled in. No AI and no tracking; the map site works out the route from your location.\n"
+            "Options: Setup > General > Directions and shopping: Google Maps, OpenStreetMap, Apple Maps or Bing Maps; Google Shopping, DuckDuckGo or Bing Shopping.\n"
+            "Limits: Joe doesn't pick stores or compare prices himself, and nobody pays him: compare on the site.",
+            ("directions", "map", "maps", "navigate", "route", "shopping", "buy", "store", "price")),
     Ability("watch-folders", "Working for you", "Watch folders",
             "Drop a file into a tool's folder and Joe does it by himself.",
             "What it does: with watch folders on, Inbox\\Watch has a folder per tool (clean-audio, summarize, privacy-blur...). Anything you drop in is done with that tool's usual options, no plan or button needed.\n"

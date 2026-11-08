@@ -107,6 +107,8 @@ class ComfortSettings:
     quiet_end: str = ""              # ..."07:00" (a ping waits until quiet hours end)
     ntfy_topic: str = ""             # phone ping when a run is done (ntfy app); blank = off
     ntfy_server: str = "https://ntfy.sh"
+    maps: str = "google"             # "directions to...": google | osm | apple | bing (opens in your browser)
+    shop: str = "google"             # "where can I buy...": google | duckduckgo | bing
 
 
 @dataclass

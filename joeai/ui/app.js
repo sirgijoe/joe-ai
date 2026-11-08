@@ -338,8 +338,9 @@ async function doCommand(cmd, rt) {
     const r = await api("/api/park", { text: rt.idea });
     return r.ok ? r.say : r.error;
   }
-  if (["remind", "list-add", "list-done", "list-show", "list-send"].includes(cmd)) {   // reminders and lists
+  if (["remind", "list-add", "list-done", "list-show", "list-send", "directions", "shop"].includes(cmd)) {   // reminders, lists, maps, shopping
     const r = await api("/api/assistant", { cmd, text: rt.text || "", items: rt.items || "", list: rt.list || "" });
+    if (r.ok && r.open) window.open(r.open, "_blank", "noopener");
     return r.ok ? r.say : r.error;
   }
   if (cmd === "abilities" || cmd === "explain") {       // "what can you do?" / "how does X work?"
@@ -2232,7 +2233,7 @@ async function talkSend(textArg) {
   if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
-  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send )/i.test(text);
+  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send |directions|give me directions|get directions|how do i get|how can i get|navigate|take me to|where can i|where do i|where should i|shop for|find me|find the price|look up the price|compare prices)/i.test(text);
   if (text && !sent.length && (text.length <= 40 || assist)) {        // "go", "stop", reminders, lists: do it, no AI
     const rt = await routeText(text);
     if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {
