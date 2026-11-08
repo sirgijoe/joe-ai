@@ -144,7 +144,7 @@ def add(sb, settings, text: str, now: datetime | None = None, send=None) -> dict
     items = load(sb) + [item]
     nice = when.strftime("%a %b %d, %I:%M %p").replace(", 0", ", ")
     if when - now < timedelta(minutes=2):
-        nice = f"in {int((when - now).total_seconds())} seconds"
+        nice = f"in {round((when - now).total_seconds())} seconds"
     if not topic:
         save(sb, items)
         return {"ok": True, "say": f"Saved: {what}, {nice}. To get it on your phone, turn on phone pings in Setup > "
