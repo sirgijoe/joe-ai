@@ -62,7 +62,8 @@ _PARK = re.compile(r"^\s*(?:please\s+)?(?:park\s+(?:this|that|it|an?\s+idea|idea
 
 
 _HEY = r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?"
-_REMIND = re.compile(_HEY + r"remind me\b\s*(.*?)[.!?]*$", re.I | re.S)
+_REMIND = re.compile(_HEY + r"(?:remind (?:me|us)\b|(?:set|make|add|create) (?:me )?a reminder\b(?:\s+(?:for|to))?|"
+                     r"(?:don'?t|do not) let me forget\b|reminder:)\s*(.*?)[.!?]*$", re.I | re.S)
 _LIST = r"(?:my\s+|the\s+)?(?:([a-z][a-z -]{0,20}?)\s+)?list"
 _LIST_ADD = re.compile(_HEY + r"(?:add|put)\s+(.+?)\s+(?:to|on)\s+" + _LIST + r"[.!?]*$", re.I)
 _LIST_DONE = re.compile(_HEY + r"(?:take|cross|remove|delete|check)\s+(.+?)\s+off(?:\s+of)?\s+" + _LIST + r"[.!?]*$", re.I)

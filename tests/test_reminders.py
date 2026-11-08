@@ -95,3 +95,12 @@ def test_ntfy_falls_back_to_system_curl_on_old_certificates(monkeypatch):
     assert seen["url"] == "https://ntfy.sh/joe-test-123" and seen["h"]["At"] == "1800000000"
     monkeypatch.setattr(notify, "_curl_post", lambda *a: "curl failed")
     assert "couldn't reach" in notify.send_ntfy("https://ntfy.sh", "joe-test-123", "hi")
+
+
+def test_other_ways_to_ask_for_a_reminder():
+    for t in ("set a reminder for 3pm to call the vet", "Set me a reminder at 3pm to call the vet",
+              "don't let me forget to call the vet at 3pm", "reminder: call the vet at 3pm",
+              "hey Joe, can you remind us at 3pm to call the vet"):
+        r = route.classify(t)
+        assert r["cmd"] == "remind", t
+        assert reminders.parse_when(r["text"], NOW) == (datetime(2026, 11, 8, 15, 0), "call the vet"), t
