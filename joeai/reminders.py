@@ -44,7 +44,7 @@ def _clock(h: int, m: int, ap: str, now: datetime, day: datetime | None) -> date
 
 
 _IN = re.compile(r"\bin\s+(\d+(?:\.\d+)?|a|an|one|two|three|four|five|ten|fifteen|twenty|thirty|half an)\s*"
-                 r"(minutes?|mins?|hours?|hrs?|days?)\b", re.I)
+                 r"(seconds?|secs?|minutes?|mins?|hours?|hrs?|days?)\b", re.I)
 _AT = re.compile(r"\b(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(a\.?m\.?|p\.?m\.?)(?=\W|$)|\bat\s+(\d{1,2})(?::(\d{2}))?\b|\b(noon|midnight)\b", re.I)
 _DAY = re.compile(r"\b(today|tonight|tomorrow|(?:on\s+|next\s+)?(monday|tuesday|wednesday|thursday|friday|saturday|sunday))\b", re.I)
 
@@ -59,7 +59,8 @@ def parse_when(text: str, now: datetime | None = None) -> tuple[datetime | None,
         n = m.group(1).lower()
         val = float(_NUM.get(n, n)) if n in _NUM else float(n)
         unit = m.group(2).lower()
-        delta = (timedelta(minutes=val) if unit.startswith("m") else
+        delta = (timedelta(seconds=val) if unit.startswith("s") else
+                 timedelta(minutes=val) if unit.startswith("m") else
                  timedelta(hours=val) if unit.startswith("h") else timedelta(days=val))
         when = now + delta
         t = t[:m.start()] + " " + t[m.end():]
@@ -142,14 +143,18 @@ def add(sb, settings, text: str, now: datetime | None = None, send=None) -> dict
             "made": now.isoformat(timespec="seconds")}
     items = load(sb) + [item]
     nice = when.strftime("%a %b %d, %I:%M %p").replace(", 0", ", ")
+    if when - now < timedelta(minutes=2):
+        nice = f"in {int((when - now).total_seconds())} seconds"
     if not topic:
         save(sb, items)
         return {"ok": True, "say": f"Saved: {what}, {nice}. To get it on your phone, turn on phone pings in Setup > "
                                    "Display & sound (ntfy, free). It's in Reminders.md (Files, F7) meanwhile."}
     err = ""
     if when - now <= NTFY_MAX:
+        soon = (when - now).total_seconds() < 12           # ntfy holds messages 10 s at the least: just send it
         err = (send or notify.send_ntfy)(settings.comfort.ntfy_server, topic, f"Reminder: {what}",
-                                         title="Joe reminder", at=int(when.timestamp()), priority="high")
+                                         title="Joe reminder", at=None if soon else int(when.timestamp()),
+                                         priority="high")
         item["sent"] = not err
     save(sb, items)
     if err:

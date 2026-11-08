@@ -112,3 +112,13 @@ def test_ping_my_phone_is_a_reminder():
     assert route.classify("text me at 5pm to start dinner")["cmd"] == "remind"
     assert route.classify("send me a notification tomorrow at 8 to feed the horses")["cmd"] == "remind"
     assert route.classify("ping me when the run is done").get("cmd") != "remind"        # no time: not a reminder
+
+
+def test_seconds(app):  # noqa: F811
+    r = route.classify("ping my phone in 30 seconds for a test ping")
+    assert reminders.parse_when(r["text"], NOW) == (datetime(2026, 11, 8, 13, 0, 30), "a test ping")
+    app.settings.comfort.ntfy_topic = "joe-test-topic"
+    got = {}
+    r = reminders.add(app.sb, app.settings, "in 5 seconds to x", NOW,
+                      send=lambda *a, **k: got.update(k) or "")
+    assert r["ok"] and "in 5 seconds" in r["say"] and got["at"] is None        # too soon for ntfy to hold: sent now
