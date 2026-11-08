@@ -455,8 +455,9 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          help="Type the words in the box: the first line is the big headline, the rest is smaller. Joe places "
               "them with a real font (no AI drawing letters), so spelling is exactly yours. Add a photo for the "
               "background, or leave it out for a plain color. Want a picture made first? Make one, then use it here.",
-         plan_hint="Social media graphic / post image / flyer with exact text: TYPE: social-graphic, FORMAT: their "
-                   "words, word for word (first line = headline), OPTIONS: size ig-post|ig-portrait|story|fb-post|"
+         plan_hint="Social media graphic / post image / flyer with exact text: TYPE: social-graphic, FORMAT: ALL the "
+                   "words to put on the picture, word for word, headline first, lines separated by ' | ' (the TASK "
+                   "name is NOT shown on the picture, so never move words from FORMAT into it), OPTIONS: size ig-post|ig-portrait|story|fb-post|"
                    "fb-cover|x-post|yt-thumb|pinterest|flyer|flyer-a4 (one or more), place bottom|middle|top. INPUT "
                    "only a photo they point at. No CHUNKS.",
          examples=("Make an Instagram post that says Grand Opening Saturday", "A flyer for our yard sale"),
@@ -3522,7 +3523,7 @@ def mission_for(tool_id: str, files: list[str], options: list[str], name: str = 
     if tool.options:
         lines.append("OPTIONS: " + (", ".join(options) if options else "none"))
     if extra.strip():
-        sep = " | " if tool.id == "music" else " "             # music: one piece per line -> |
+        sep = " | " if tool.id in ("music", "social-graphic") else " "   # one piece / one line of words per |
         lines.append("FORMAT: " + sep.join(x.strip() for x in extra.strip().splitlines() if x.strip()))
     if mark.strip() and tool.mark:
         lines.append("WATERMARK: " + " ".join(mark.split())[:120])

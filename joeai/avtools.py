@@ -97,7 +97,7 @@ def wrap(text: str, width_chars: int) -> list[str]:
 def layout(text: str, w: int, h: int) -> tuple[list[str], list[str], int, int]:
     """(headline lines, other lines, headline font size, small font size) for a w x h picture.
     First line of the person's words = the headline; the rest is smaller."""
-    lines = [ln.strip() for ln in (text or "").strip().split("\n")]
+    lines = [ln.strip() for ln in re.split(r"\n|\s+\|\s+", (text or "").strip())]
     head, rest = (lines[0] if lines else ""), "\n".join(ln for ln in lines[1:] if ln)
     short = min(w, h)
     big = max(28, int(short * (0.10 if len(head) < 25 else 0.075)))

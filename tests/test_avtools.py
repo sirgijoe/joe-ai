@@ -217,3 +217,11 @@ def test_broll_end_to_end(ffapp, monkeypatch):
     assert abs(avtools.media_seconds(FF, out / "talk-broll.mp4") - 12) < 0.6
     lst = (out / "talk-broll.md").read_text(encoding="utf-8")
     assert "mugs-on-shelf" in lst and "nope" not in lst
+
+
+def test_social_graphic_keeps_lines_from_the_tools_form():
+    text = tools.mission_for("social-graphic", [], ["size ig-post"], "", "Grand opening Saturday!\n10% off everything")
+    assert "FORMAT: Grand opening Saturday! | 10% off everything" in text
+    fmt = parse(text).jobs[0].format
+    head, rest, big, small = avtools.layout(fmt, 1080, 1080)
+    assert " ".join(head) == "Grand opening Saturday!" and rest == ["10% off everything"]
