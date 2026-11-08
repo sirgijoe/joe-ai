@@ -1644,7 +1644,7 @@ document.addEventListener("click", async (ev) => {
     if (act === "start-ollama" || act === "start-comfy") {
       $("#setup-msg").textContent = "Starting…";
       const r = await api("/api/services/start", { which: act === "start-ollama" ? "ollama" : "comfyui" });
-      $("#setup-msg").textContent = r.ok ? "Running." : "Could not start it. Check the address / start command.";
+      $("#setup-msg").textContent = r.ok ? "Running." : (r.error || "Could not start it. Check the address / start command.");
     }
   } catch (e) { toast(e.message); }
 });

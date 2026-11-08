@@ -106,6 +106,28 @@ def localai_exe() -> str | None:
     return find_tool("local-ai", "", ("LocalAI", "local-ai"))
 
 
+GET = {"lmstudio": "lmstudio.ai", "llamacpp": "github.com/ggml-org/llama.cpp/releases",
+       "localai": "localai.io", "openai": "the program's own site (jan.ai, github.com/LostRuins/koboldcpp, docs.vllm.ai)"}
+
+
+def start_problem(cfg: OllamaSettings, url: str) -> str:
+    """Why START IT couldn't start the chosen program, in plain words ('' = Ollama, not ours to say)."""
+    e = engine_id(cfg)
+    if e == "ollama":
+        return ""
+    label = ENGINES[e]["label"]
+    if not installed(cfg) and e != "openai":
+        extra = (" (Joe looks for its 'lms' helper, which LM Studio adds the first time it opens)"
+                 if e == "lmstudio" else "")
+        return (f"Joe couldn't find {label} on this PC{extra}. It's free: get it from {GET[e]}, open it once, "
+                f"then press START IT again. Or set Writing program back to Ollama.")
+    if e == "openai" and not (cfg.engine_start or "").strip():
+        return (f"Nothing answered at {url}, and Joe doesn't know how to start this program. Start it yourself "
+                f"(or put its start line in More options > Start command), then press TEST CONNECTION. "
+                f"Not installed yet? Get it from {GET[e]}.")
+    return f"{label} didn't start or isn't answering at {url}. {ENGINES[e]['how']}"
+
+
 def installed(cfg: OllamaSettings) -> str:
     """Path of something that starts the chosen engine ('' = not found)."""
     e = engine_id(cfg)

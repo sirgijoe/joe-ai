@@ -165,3 +165,17 @@ def test_loose_times_are_fixed_then_confirmed(app):  # noqa: F811
     assert not r["ok"] and "couldn't tell" in r["error"] and not r.get("fixes")
     assert app.save_settings({"schedule": {"stop": "07:00"}})["ok"] and app.settings.schedule.stop == "07:00"
     assert app.save_settings({"schedule": {"time": "23:00", "stop": ""}})["ok"]   # blank = until done
+
+
+def test_start_problem_says_not_installed(monkeypatch):
+    from joeai import textengines
+    from joeai.config import OllamaSettings
+    monkeypatch.setattr(textengines, "lms_cli", lambda: None)
+    c = OllamaSettings()
+    c.engine = "lmstudio"
+    msg = textengines.start_problem(c, "http://127.0.0.1:1234")
+    assert "couldn't find LM Studio" in msg and "lmstudio.ai" in msg and "back to Ollama" in msg
+    c.engine = "openai"
+    assert "Start it yourself" in textengines.start_problem(c, "http://127.0.0.1:8000")
+    c.engine = "ollama"
+    assert textengines.start_problem(c, "") == ""

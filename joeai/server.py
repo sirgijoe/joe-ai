@@ -2087,7 +2087,11 @@ def make_handler(app: App):
                     which = b.get("which")
                     ok = app.services.ensure_ollama() if which == "ollama" else app.services.ensure_comfy()
                     app.refresh_services()
-                    return self._json({"ok": ok})
+                    why = ""
+                    if not ok and which == "ollama":
+                        from . import textengines
+                        why = textengines.start_problem(app.settings.ollama, textengines.engine_url(app.settings.ollama))
+                    return self._json({"ok": ok, "error": why})
                 if u.path == "/api/load_mission":
                     p = app.rel_path(b.get("path", ""))
                     if not p.is_file() or p.stat().st_size > 2_000_000:
