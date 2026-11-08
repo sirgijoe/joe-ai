@@ -113,6 +113,11 @@ class App:
         self.finished = {"n": 0, "ok": True, "text": ""}   # last finished queue run (UI chime)
         from .phone import Phone
         self.phone = Phone(self)             # Joe Phone (Setup > Phone): started by serve() when it's on
+        try:
+            from . import community
+            community.refresh(self.sb)       # tools from add-ons the person turned on
+        except Exception as e:               # noqa: BLE001 (a broken add-on never stops Joe starting)
+            self.log(f"Add-ons: {e}")
         # The mission box always opens empty ("What can I help you with?"). Past missions
         # stay in Missions/ (F7, L loads one); _last_mission.txt is kept only as a backup.
 
@@ -1468,6 +1473,8 @@ class App:
         self.settings.save()
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()
+            from . import community
+            community.refresh(self.sb)
         if self.settings.schedule.watch:
             self.watch_setup()
         self.services = ServiceManager(self.settings, log=self.log)
@@ -1616,6 +1623,10 @@ def make_handler(app: App):
                         pk = None
                     return self._json(stylemodels.inventory(comfy_models_dir(app.settings),
                                                             ollama_models(app.services), pk))
+                if u.path == "/api/addons":                # Setup > Add-ons: what's in the Add-ons folder
+                    from . import community
+                    return self._json({"ok": True, "folder": str(community.root(app.sb)),
+                                       "addons": [community.describe(x) for x in community.scan(app.sb)]})
                 if u.path == "/api/phone":                 # Setup > Phone: on?, address, paired phones
                     return self._json(app.phone.info())
                 if u.path == "/api/lists":
@@ -1728,6 +1739,12 @@ def make_handler(app: App):
             if not self._authed({}):
                 return self._json({"error": "bad token"}, 401)
             app.last_seen = time.monotonic()
+            if u.path == "/api/addons/upload":          # Setup > Add-ons > ADD AN ADD-ON (.zip body)
+                from . import community
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= 100_000_000:
+                    return self._json({"ok": False, "error": "That file is empty or too big (100 MB at most)."})
+                return self._json(community.install_zip(app.sb, self.rfile.read(n), log=app.log))
             if u.path == "/api/voice/myvoice":          # the user's own voice sample (WAV)
                 n = int(self.headers.get("Content-Length") or 0)
                 if not 0 < n <= 20_000_000:
@@ -1974,6 +1991,12 @@ def make_handler(app: App):
                     app.last_seen = 0.0                    # idle check exits within ~1 s
                     app.quit_now = True
                     return self._json({"ok": True})
+                if u.path == "/api/addons/enable":         # turn an add-on on (after the person read it) or off
+                    from . import community
+                    return self._json(community.enable(app.sb, str(b.get("id", "")), bool(b.get("on")), log=app.log))
+                if u.path == "/api/addons/remove":
+                    from . import community
+                    return self._json(community.remove(app.sb, str(b.get("id", "")), log=app.log))
                 if u.path == "/api/phone/pair":            # a one-time QR code for a new phone
                     return self._json(app.phone.new_pairing())
                 if u.path == "/api/phone/remove":

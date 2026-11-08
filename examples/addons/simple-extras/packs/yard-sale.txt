@@ -1,0 +1,15 @@
+PACK: Yard sale kit
+ABOUT: A sign's wording, price tags, a social post and a checklist for a yard or garage sale.
+ASK: When and where is the sale, and what are you selling? (e.g. Saturday 8am, 12 Oak St, kids' toys and tools)
+=== JOE MISSION ===
+RULES: For {for}. Friendly and short. Dates, times, places and prices are [CHECK].
+TASK: Sign wording
+CHUNKS: 1 x 5
+FORMAT: A short title for the style, then sign text of 6-15 words that can be read from a passing car.
+TASK: Social post
+CHUNKS: 1 x 4
+FORMAT: A short title, then a post of 40-80 words for a neighborhood group.
+TASK: Checklist
+CHUNKS: 2 x 8
+FORMAT: One thing to do before or on the day, then one short line on why.
+=== END ===

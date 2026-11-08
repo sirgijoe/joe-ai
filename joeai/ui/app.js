@@ -1364,7 +1364,47 @@ function setupPage(name) {
   if (name === "workflows" && typeof loadWorkflows === "function") loadWorkflows();
   if (name === "writing" && typeof loadTemplates === "function") loadTemplates();
   if (name === "phone") loadPhone();
+  if (name === "addons") loadAddons();
 }
+// --- Setup > Add-ons -----------------------------------------------------------------------------
+let addonList = [];
+async function loadAddons() {
+  let r;
+  try { r = await api("/api/addons"); } catch (e) { return; }
+  addonList = r.addons || [];
+  $("#addon-folder").textContent = r.folder ? `Add-ons folder: ${r.folder}` : "";
+  const what = (a) => [a.tools.length ? `${a.tools.length} tool${a.tools.length > 1 ? "s" : ""}` : "", a.packs.length ? `${a.packs.length} pack(s)` : "",
+    a.workflows.length ? `${a.workflows.length} workflow(s)` : "", a.themes.length ? `${a.themes.length} theme(s)` : ""].filter(Boolean).join(", ");
+  $("#addon-list").innerHTML = addonList.map((a) => {
+    if (a.state === "broken") return `<div class="row"><span><b>${esc(a.name)}</b> <span class="bad">can't be used: ${esc(a.problem)}</span></span>` +
+      `<button type="button" data-act="addon-remove" data-id="${esc(a.id)}">[ REMOVE ]</button></div>`;
+    const state = { on: "ON", off: "off", changed: "TURNED OFF: its files changed" }[a.state];
+    const missing = a.tools.filter((t) => !t.installed).map((t) => t.program);
+    return `<div class="addon"><div class="row"><span><b>${esc(a.name)}</b> ${esc(a.version)} <span class="dim">by ${esc(a.author || "unknown")}${a.license ? " · " + esc(a.license) : ""}</span> — <b>${esc(state)}</b></span>` +
+      (a.state === "on" ? `<button type="button" data-act="addon-off" data-id="${esc(a.id)}">[ TURN OFF ]</button>`
+                        : `<button type="button" data-act="addon-on" data-id="${esc(a.id)}">[ READ AND TURN ON ]</button>`) +
+      `<button type="button" data-act="addon-remove" data-id="${esc(a.id)}">[ REMOVE ]</button></div>` +
+      `<div class="dim">${esc(a.about)}${a.about ? " " : ""}Adds: ${esc(what(a))}.` +
+      (missing.length ? ` <span class="bad">Needs ${esc(missing.join(", "))} on this PC.</span>` : "") +
+      (a.homepage ? ` <a href="${esc(a.homepage)}" target="_blank" rel="noopener">${esc(a.homepage)}</a>` : "") + `</div></div>`;
+  }).join("") || "None yet. Add one with the button above.";
+}
+function addonDetails(a) {
+  const L = [`${a.name} ${a.version}`, `By: ${a.author || "unknown"}${a.license ? "   License: " + a.license : ""}`];
+  if (a.homepage) L.push(`Web page: ${a.homepage}`);
+  if (a.about) L.push("", a.about);
+  if (a.tools.length) {
+    L.push("", "TOOLS (each runs a program on copies of your files):");
+    for (const t of a.tools) L.push(`- ${t.name}: ${t.blurb}`, `  reads ${t.accepts.join(" ")}`,
+      `  runs: ${t.program}${t.inside ? "   (a program INSIDE this add-on)" : ""}${t.installed ? "" : "   (NOT on this PC yet)"}`, `  command: ${t.command}`);
+  }
+  if (a.packs.length) L.push("", "STARTER PACKS: " + a.packs.join(", "));
+  if (a.workflows.length) L.push("", "PICTURE WORKFLOWS (checked by Joe first): " + a.workflows.join(", "));
+  if (a.themes.length) L.push("", "THEMES: " + a.themes.join(", "));
+  if (a.tools.length) L.push("", "A tool's program can do anything a program can. Only turn this on if you trust the person who made it.");
+  return L.join("\n");
+}
+
 // --- Setup > Phone: on/off, pairing QR code, paired phones -------------------------------------
 async function loadPhone() {
   let r;
@@ -1672,6 +1712,24 @@ document.addEventListener("click", async (ev) => {
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
     if (act === "perm-mic") { await allowMic(); return; }
     if (act === "phone-pair") { await phonePair(); return; }
+    if (act === "addon-add") { $("#addon-file").click(); return; }
+    if (act === "addon-reload") { await loadAddons(); return; }
+    if (act === "addon-on") {
+      const a = addonList.find((x) => x.id === b.dataset.id); if (!a) return;
+      confirmBox(addonDetails(a) + "\n\nTurn it on?", async () => {
+        const r = await api("/api/addons/enable", { id: a.id, on: true });
+        $("#addon-msg").textContent = r.ok ? `${a.name} is on.${a.tools.length ? " Its tools are on the Tools tab (F3)." : ""}` : "ERROR: " + r.error;
+        loadAddons(); toolCat = null;          // the Tools tab picks up the add-on's tools
+      }, null, a.tools.length ? "[ YES, I TRUST IT ]" : false);
+      return;
+    }
+    if (act === "addon-off") { await api("/api/addons/enable", { id: b.dataset.id, on: false }); toolCat = null; loadAddons(); return; }
+    if (act === "addon-remove") {
+      confirmBox("Remove this add-on? Its folder is deleted (things it already made stay).", async () => {
+        await api("/api/addons/remove", { id: b.dataset.id }); toolCat = null; loadAddons();
+      });
+      return;
+    }
     if (act === "phone-remove") { confirmBox("Remove this phone? It stops working with Joe right away (pair it again any time).", async () => { await api("/api/phone/remove", { id: b.dataset.id }); loadPhone(); }); return; }
     if (act === "web-test") {
       await saveSetup(); $("#web-msg").textContent = "Searching…";
@@ -3544,3 +3602,15 @@ document.addEventListener("change", (ev) => {
     }
   });
 })();
+
+$("#addon-file").addEventListener("change", async (ev) => {
+  const f = ev.target.files && ev.target.files[0]; ev.target.value = "";
+  if (!f) return;
+  $("#addon-msg").textContent = "Adding…";
+  try {
+    const res = await fetch("/api/addons/upload", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": "application/zip" }, body: f });
+    const r = await res.json();
+    $("#addon-msg").textContent = r.ok ? r.say : "ERROR: " + r.error;
+  } catch (e) { $("#addon-msg").textContent = "ERROR: " + e.message; }
+  loadAddons();
+});

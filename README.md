@@ -257,6 +257,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
 - "Directions to the feed store", "where can I buy a cheap air fryer?": opens your map or shopping
   site (picked in Setup > General) in the browser. Joe doesn't pick stores or track you.
+- **Add-ons from other people** (Setup > Add-ons): new tools, starter packs, picture workflows and
+  themes in a .zip. Each stays off until you've read what it runs; changed files switch it off again.
+  Make your own: [docs/ADDONS.md](docs/ADDONS.md).
 - **Joe Phone** (Setup > Phone): use Joe from your phone on your home Wi-Fi. See the run and stop it,
   ask Joe or plan work (RUN IT on the phone), lists, reminders and everything he made. Pair once with a
   QR code; home network only, and it can't change settings or open files outside Joe's Output folder.

@@ -172,6 +172,19 @@ From the phone Joe can't change settings, install anything or open files outside
 Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on
 public Wi-Fi.
 
+### Add-ons from other people (Setup > Add-ons)
+
+Add-ons bring new tools, starter packs, picture workflows and themes that other people made.
+**ADD AN ADD-ON** takes the .zip; it stays off. **READ AND TURN ON** shows who made it and, for every
+tool, the exact program and command line it runs, before you say yes. Its tools then sit on the
+Tools tab (F3) like Joe's own, and plans can use them (`TYPE: x-<tool>`).
+
+Tools run on copies of your files, without a command shell, with a time limit, and only what they
+write into the task's folder is kept. If anything in an add-on changes after you turned it on, Joe
+turns it off until you look again. A tool's program can still do anything a program can: only turn
+on tools from people you trust. TURN OFF or REMOVE any time. To make one, see
+[ADDONS.md](ADDONS.md); there's a full example in `examples/addons/simple-extras`.
+
 ### Night shift (Setup > General)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >

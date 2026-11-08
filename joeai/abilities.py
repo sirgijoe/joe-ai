@@ -103,6 +103,14 @@ OTHER: tuple[Ability, ...] = (
             "Options: the port (8770) in Setup > Phone; REMOVE a phone there any time.\n"
             "Limits: works only while this PC is on and Joe's window is open, and only at home (reminders still reach your phone with the PC off through phone pings). From the phone Joe can't change settings, install anything or open files outside his Output folder. Home Wi-Fi traffic isn't encrypted, so don't use it on public Wi-Fi.",
             ("phone", "joe phone", "my phone", "from my phone", "phone app", "mobile", "pair a phone")),
+    Ability("addons", "Working for you", "Add-ons from other people",
+            "New tools, starter packs, picture workflows and themes other people made, added in Setup > Add-ons.",
+            "What it does: an add-on plugs new things into Joe without changing his code: tools on the Tools tab, starter packs, picture workflows and themes.\n"
+            "How Joe does it: ADD AN ADD-ON (a .zip) puts it in the Add-ons folder, switched off. READ AND TURN ON shows who made it and, for each tool, the exact program and command it runs; nothing happens until you say yes. Tools run on copies of your files with a time limit, and only what they write into the task's folder is kept. If an add-on's files change later, Joe turns it off until you look again.\n"
+            "What to give it: an add-on .zip from someone you trust. Its tools then work like Joe's own (the planner can use them too).\n"
+            "Options: TURN OFF or REMOVE any time. Making one: docs/ADDONS.md.\n"
+            "Limits: a tool's program can do anything a program can, so only turn on tools from people you trust. Packs, workflows and themes are data and are checked like Joe's own.",
+            ("add-on", "addon", "add-ons", "addons", "plugin", "plugins", "extension", "community tools")),
     Ability("directions", "Working for you", "Directions and shopping",
             "\"Directions to the feed store\" or \"where can I buy an air fryer?\" opens your map or shopping site.",
             "What it does: opens directions or a shopping search in your browser, by voice or in the box.\n"

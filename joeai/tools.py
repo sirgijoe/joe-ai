@@ -1081,6 +1081,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     from . import picturetools
     if job.type in picturetools.COMFY_TOOLS:
         fn = picturetools.run
+    from . import community
+    if community.is_addon_tool(job.type):
+        fn = community.run
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")

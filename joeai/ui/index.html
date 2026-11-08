@@ -288,6 +288,7 @@ FORMAT: ...
           <button type="button" data-page="voice" title="Joe's voice, listening, chats, online lookups.">Voice &amp; Talk</button>
           <button type="button" data-page="display" title="Theme, text size, intro, sounds, screen saver.">Display &amp; sound</button>
           <button type="button" data-page="phone" title="Joe Phone: use Joe from your phone on your home Wi-Fi.">Phone</button>
+          <button type="button" data-page="addons" title="Tools, packs, workflows and themes made by other people.">Add-ons</button>
           <button type="button" data-page="privacy" title="Microphone and what Joe sends anywhere.">Privacy</button>
           <button type="button" data-page="stats" title="Prices used for the savings numbers on F9.">Stats &amp; costs</button>
         </nav>
@@ -649,6 +650,29 @@ FORMAT: ...
                   Each phone is paired once with a code that works for 10 minutes; REMOVE ends a phone's access right away.
                   From the phone Joe can't change settings, install anything or open files outside his Output folder.
                   Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on public Wi-Fi.</div>
+              </fieldset>
+            </div>
+
+            <!-- ADD-ONS -->
+            <div class="setpage" data-page="addons" data-title="Add-ons">
+              <h3 class="settitle">Add-ons from other people</h3>
+              <fieldset><legend>ADD AN ADD-ON</legend>
+                <div class="dim small">Add-ons bring new tools, starter packs, picture workflows and themes that other people made.
+                  Each one stays <b>off</b> until you read what it does and turn it on.</div>
+                <div class="row"><input type="file" id="addon-file" accept=".zip" hidden>
+                  <button type="button" data-act="addon-add" title="Pick an add-on .zip you downloaded.">[ ADD AN ADD-ON (.zip) ]</button>
+                  <button type="button" data-act="addon-reload" title="Look in the Add-ons folder again (for add-ons you copied in by hand).">[ LOOK AGAIN ]</button></div>
+                <div id="addon-msg" class="small"></div>
+                <div class="dim small" id="addon-folder"></div>
+              </fieldset>
+              <fieldset><legend>YOUR ADD-ONS</legend>
+                <div id="addon-list" class="small dim">None yet.</div>
+              </fieldset>
+              <fieldset><legend>SAFETY</legend>
+                <div class="dim small">Packs, workflows and themes are data, checked like Joe's own. A <b>tool</b> runs a program on your
+                  files: Joe shows the exact program and command first, runs it on copies of your files with a time limit, and keeps
+                  only what it writes into the task's folder. That program can still do anything a program can, so only turn on tools
+                  from people you trust. If an add-on's files change later, Joe turns it off until you look again.</div>
               </fieldset>
             </div>
 

@@ -1,0 +1,35 @@
+{
+  "id": "simple-extras",
+  "name": "Simple extras",
+  "version": "1.0",
+  "author": "Joe-ai example",
+  "license": "GPL-3.0-or-later",
+  "about": "An example add-on: a black-and-white copy of pictures and videos (with the FFmpeg Joe already uses), and a word count for text files (a small Python script inside the add-on).",
+  "tools": [
+    {
+      "id": "black-white",
+      "name": "Black-and-white copy",
+      "group": "Pictures",
+      "blurb": "A black-and-white copy of a picture or video.",
+      "accepts": [".jpg", ".jpeg", ".png", ".webp", ".mp4", ".mov"],
+      "program": "joe:ffmpeg",
+      "args": ["-y", "-v", "error", "-i", "{input}", "-vf", "hue=s=0", "{output}"],
+      "output": "{stem}-bw.{ext}",
+      "examples": ["Make my photo black and white"],
+      "timeout": 900
+    },
+    {
+      "id": "word-count",
+      "name": "Count the words",
+      "group": "Writing",
+      "blurb": "How many words, sentences and paragraphs a text file has.",
+      "accepts": [".txt", ".md"],
+      "program": "joe:python",
+      "args": ["{addon}/wordcount.py", "{input}", "{output}", "{flag:longest:--longest}"],
+      "output": "{stem}-count.md",
+      "options": [{"key": "longest", "label": "Also list the 5 longest sentences", "default": false}],
+      "examples": ["Count the words in my essay"]
+    }
+  ],
+  "packs": ["packs/yard-sale.txt"]
+}
