@@ -206,6 +206,8 @@ class FakeOllama:
             if sysmsg.startswith("You translate video subtitles"):
                 nums = re.findall(r"^(\d+)\| (.+)$", user, re.M)
                 return 200, self._reply("\n".join(f"{n}| [ES] {t}" for n, t in nums if n != "2"))
+            if sysmsg.startswith("You are a video editor adding B-roll"):
+                return 200, self._reply('[{"line": 3, "clip": "mugs-on-shelf"}, {"line": 2, "clip": "nope"}, {"line": 1, "clip": "kiln"}]')
             if sysmsg.startswith("You brainstorm"):
                 return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
             if sysmsg.startswith("You are a patient tutor"):

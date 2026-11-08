@@ -408,6 +408,20 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "the file(s), OPTIONS: to <language>, voice (unless they only want subtitles), voice-of man|woman, "
                    "original low|half|off. No CHUNKS.",
          examples=("Dub my video into Spanish", "Spanish subtitles for this video")),
+    Tool("b-roll", "Add B-roll to a talking video", "Video",
+         "Cut to your own clips and photos where they match what's being said.",
+         accepts=VIDEO_IN_EXT + PHOTO_EXT,
+         options=(Option("amount", "How much", choices=(("few", "A few cutaways"), ("some", "Some (about a third)"),
+                                                        ("lots", "Lots (about half)")), value="some"),
+                  Option("language", "Spoken in", choices=HEAR_LANGUAGES[:1] + HEAR_LANGUAGES[2:], value="english")),
+         needs=("voice", "ffmpeg", "ollama"), ready=True,
+         help="Add the talking video plus the clips and photos you want to cut to (a folder works). Joe listens, the "
+              "writing model matches clips to what's said, and FFmpeg lays each one over the speaker for a few "
+              "seconds while the sound stays theirs. Name clips for what they show ('kiln-firing.mp4'): that's how "
+              "Joe matches them. Never two cutaways in a row, never the first 2 seconds. A list of every cutaway is saved.",
+         plan_hint="Add B-roll / cutaways to a talking video from their own clips: TYPE: b-roll, INPUT: the talking "
+                   "video and the clips/photos (or a folder), OPTIONS: amount few|some|lots. No CHUNKS.",
+         examples=("Add my B-roll clips to this video", "Cut to my product photos when I talk about them")),
     Tool("privacy-blur", "Privacy blur", "Pictures",
          "Blur faces, license plates, house numbers and screens before you post a photo.",
          accepts=PHOTO_EXT,
@@ -1115,7 +1129,7 @@ def hearing_model(stt_model: str, language: str) -> str:
     return name
 
 
-HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "dub-video")
+HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "dub-video", "b-roll")
 
 
 def hearing_backend(settings) -> str:

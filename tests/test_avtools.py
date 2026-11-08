@@ -185,3 +185,35 @@ def test_memory_voice_sample_and_reading(ffapp, monkeypatch):
     assert st.status == "failed" and "made so far: Grandpa" in st.note
     addons.delete_memory_voice("grandpa")
     assert addons.memory_voices() == []
+
+
+def test_broll_spans_rules():
+    segs = [{"s": 0, "e": 3, "t": "a"}, {"s": 3, "e": 9, "t": "b"}, {"s": 9, "e": 12, "t": "c"}, {"s": 12, "e": 20, "t": "d"}]
+    sp = avtools.broll_spans([{"line": 1, "clip": "x"}, {"line": 2, "clip": "x"}, {"line": 4, "clip": "pic"},
+                              {"line": 3, "clip": "missing"}], segs, {"x": 4.0, "pic": 0.0}, 20.0, 0.5)
+    assert sp == [(2.0, 5.0, "x"), (12.0, 18.0, "pic")]           # not before 2 s; line 2 is next to line 1: skipped
+    assert avtools.broll_spans([{"line": 2, "clip": "x"}], segs, {"x": 4.0}, 20.0, 0.1) == []   # over the share
+
+
+@need_ff
+def test_broll_end_to_end(ffapp, monkeypatch):
+    d = ffapp.sb.inbox / "vid"
+    d.mkdir()
+    subprocess.run([FF, "-v", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x240:d=12", "-f", "lavfi", "-i",
+                    "sine=f=300:d=12", "-shortest", "-c:v", "libx264", "-preset", "ultrafast", "-c:a", "aac",
+                    str(d / "talk.mp4")], check=True)
+    subprocess.run([FF, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=red:s=640x360:d=4", "-c:v", "libx264",
+                    "-preset", "ultrafast", str(d / "mugs-on-shelf.mp4")], check=True)
+    subprocess.run([FF, "-v", "error", "-y", "-f", "lavfi", "-i", "color=c=blue:s=400x400", "-frames:v", "1",
+                    str(d / "kiln.jpg")], check=True)
+    monkeypatch.setattr(tools, "hearing_ready", lambda settings, voice_ok=None: True)
+    monkeypatch.setattr(tools, "hear", lambda engine, wav, model, lang, words=False, timeout=0: {"ok": True, "segments": [
+        {"s": 0.0, "e": 3.0, "t": "Hi, welcome to the studio."}, {"s": 3.5, "e": 7.0, "t": "These mugs are new."},
+        {"s": 7.5, "e": 10.0, "t": "The kiln is hot."}]})
+    st = _run(ffapp, "TASK: Broll  TYPE: b-roll\nINPUT: vid\nOPTIONS: amount lots")
+    assert st.status == "done", st.note
+    out = ffapp.sb.output / st.output
+    assert (out / "talk-broll.mp4").exists()
+    assert abs(avtools.media_seconds(FF, out / "talk-broll.mp4") - 12) < 0.6
+    lst = (out / "talk-broll.md").read_text(encoding="utf-8")
+    assert "mugs-on-shelf" in lst and "nope" not in lst

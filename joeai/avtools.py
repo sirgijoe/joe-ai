@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .engine import Engine, JobState
     from .mission import Job, Mission
 
-AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video", "memory-voice")
+AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video", "memory-voice", "b-roll")
 
 # --------------------------------------------------------------------------- clean a recording
 STRENGTH = {"light": -18, "normal": -25, "strong": -35}       # afftdn noise floor (dB)
@@ -489,6 +489,121 @@ def _memory(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list
     return made + ["About this recording.txt"]
 
 
+# --------------------------------------------------------------------------- auto B-roll
+BROLL_SYSTEM = ("You are a video editor adding B-roll (cutaway clips) over a talking video. Pick a clip only where "
+                "it clearly matches what's being said. Leave most lines on the speaker. Reply with ONLY JSON.")
+BROLL_ASK = ('The speaker\'s lines (number, time, words):\n{lines}\n\nClips you can use:\n{clips}\n\nPick at most '
+             '{most} lines to cover with a matching clip; never two lines in a row. Reply with ONLY JSON: '
+             '[{{"line": 3, "clip": "exact clip name"}}]. No good match: [].')
+
+
+def broll_spans(picks: list[dict], segs: list[dict], clips: dict[str, float], length: float,
+                most_share: float = 0.35) -> list[tuple[float, float, str]]:
+    """Picks -> (start, end, clip) spans: 2-6 s each, inside the video, never overlapping, never on the
+    first 2 seconds, and at most `most_share` of the video covered."""
+    out: list[tuple[float, float, str]] = []
+    covered, last_end, last_line = 0.0, 2.0, -9
+    for p in sorted(picks, key=lambda x: int(x.get("line", 0)) if str(x.get("line", "")).isdigit() else 0):
+        try:
+            i = int(p.get("line")) - 1
+        except (TypeError, ValueError):
+            continue
+        name = str(p.get("clip", ""))
+        if not (0 <= i < len(segs)) or name not in clips or i - last_line < 2:    # never two lines in a row
+            continue
+        a = max(segs[i]["s"], last_end)
+        dur = min(6.0, max(2.0, segs[i]["e"] - segs[i]["s"]))
+        if clips[name] > 0:
+            dur = min(dur, clips[name])
+        b = min(a + dur, length - 0.5)
+        if b - a < 1.5 or covered + (b - a) > length * most_share:
+            continue
+        out.append((round(a, 2), round(b, 2), name))
+        covered += b - a
+        last_end, last_line = b + 0.5, i
+    return out
+
+
+def broll_command(ffmpeg: str, main: Path, spans: list[tuple[float, float, str]], files: dict[str, Path],
+                  size: tuple[int, int], out: Path, photo_ext: tuple[str, ...]) -> list[str]:
+    W, H = size
+    cmd = [ffmpeg, "-y", "-v", "error", "-i", str(main)]
+    graph, last = [], "0:v"
+    for k, (a, b, name) in enumerate(spans, 1):
+        f = files[name]
+        dur = b - a
+        if f.suffix.lower() in photo_ext:
+            cmd += ["-loop", "1", "-t", f"{dur:.2f}", "-i", str(f)]
+        else:
+            cmd += ["-i", str(f)]
+        graph.append(f"[{k}:v]trim=0:{dur:.2f},setpts=PTS-STARTPTS+{a:.2f}/TB,scale={W}:{H}:force_original_aspect_ratio=increase,"
+                     f"crop={W}:{H},setsar=1,format=yuv420p[c{k}]")
+        graph.append(f"[{last}][c{k}]overlay=0:0:eof_action=pass:enable='between(t,{a:.2f},{b:.2f})'[m{k}]")
+        last = f"m{k}"
+    graph.append(f"[{last}]format=yuv420p[vout]")
+    return cmd + ["-filter_complex", ";".join(graph), "-map", "[vout]", "-map", "0:a?", "-c:v", "libx264",
+                  "-preset", "veryfast", "-crf", "20", "-c:a", "copy", str(out)]
+
+
+def _broll(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+    import tempfile
+    from .engine import PartFailed
+    from .tools import PHOTO_EXT, _to_wav, hear, hearing_model, option_value, resolve_inputs, whisper_language
+    files, _ = resolve_inputs(engine, job)
+    clips_f = [f for f in files if f != src]
+    if not clips_f:
+        raise RuntimeError("add the clips or photos to use as B-roll, together with the talking video")
+    size = picture_size(ffmpeg, src)
+    length = media_seconds(ffmpeg, src)
+    if not size or not length:
+        raise RuntimeError("couldn't read the video")
+    names = {f.stem: f for f in clips_f}
+    clip_len = {n: (0.0 if f.suffix.lower() in PHOTO_EXT else media_seconds(ffmpeg, f)) for n, f in names.items()}
+    heard = option_value(job, "language") or "english"
+    with tempfile.TemporaryDirectory() as tmp:
+        wav = _to_wav(ffmpeg, src, Path(tmp) / "a.wav", engine.log)
+        if not wav:
+            raise RuntimeError("couldn't read the sound")
+        try:
+            got = hear(engine, wav, hearing_model(engine.s.voice.stt_model, heard), whisper_language(heard),
+                       timeout=max(900.0, length * 4 + 600))
+        except Exception as e:                                   # noqa: BLE001
+            raise RuntimeError(f"couldn't hear it: {e}") from e
+    segs = [{"s": float(x.get("s", 0)), "e": float(x.get("e", 0)), "t": str(x.get("t", "")).strip()}
+            for x in (got.get("segments") or []) if str(x.get("t", "")).strip()]
+    if not segs:
+        raise RuntimeError("no speech heard in it")
+    desc = "\n".join(f"- {n} ({'photo' if clip_len[n] == 0 else f'{clip_len[n]:.0f} s clip'}; name words: "
+                     f"{re.sub(r'[_-]+', ' ', n)})" for n in names)
+    picks: list[dict] = []
+    for a in range(0, len(segs), 60):
+        lines = "\n".join(f"{a + i + 1}. [{sg['s']:.0f}s] {sg['t']}" for i, sg in enumerate(segs[a:a + 60]))
+        try:
+            r = engine._chat(job, a // 60, "b-roll", BROLL_SYSTEM,
+                             BROLL_ASK.format(lines=lines, clips=desc, most=max(1, len(segs[a:a + 60]) // 3)), st)
+        except PartFailed as e:
+            raise RuntimeError(str(e)) from e
+        from .tools import parse_json_list
+        picks += parse_json_list(r.text) or []
+    share = {"few": 0.2, "some": 0.35, "lots": 0.5}.get(option_value(job, "amount") or "some", 0.35)
+    spans = broll_spans(picks, segs, clip_len, length, share)
+    L = [f"# B-roll: {src.name}", ""]
+    if not spans:
+        L += ["Joe didn't find a clip that clearly matches anything said, so the video wasn't changed. Clip and "
+              "photo names help Joe match them: name them for what they show (like 'kiln-firing.mp4')."]
+        atomic_write_text(folder / f"{stem}-broll.md", "\n".join(L) + "\n")
+        return [f"{stem}-broll.md"]
+    out = folder / f"{stem}-broll.mp4"
+    err = _ff(broll_command(ffmpeg, src, spans, names, size, out, PHOTO_EXT))
+    if err:
+        raise RuntimeError(err)
+    L += [f"{len(spans)} cutaway(s), {sum(b - a for a, b, _ in spans):.0f} s of {length:.0f} s. The sound stays the "
+          "speaker's. Your original wasn't changed.", ""]
+    L += [f"- {a:6.1f}-{b:6.1f} s: {n}" for a, b, n in spans]
+    atomic_write_text(folder / f"{stem}-broll.md", "\n".join(L) + "\n")
+    return [out.name, f"{stem}-broll.md"]
+
+
 # --------------------------------------------------------------------------- run
 def _ff(cmd: list[str], timeout: float = 3600) -> str:
     """Run FFmpeg; '' = fine, else its error in a line."""
@@ -571,7 +686,16 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     if tid == "dub-video" and not engine._text_ready(st):
         engine._save_state(job, st)
         return st
-    if tid in ("tidy-speech", "dub-video"):
+    if tid == "b-roll":
+        from .tools import VIDEO_IN_EXT
+        if not any(f.suffix.lower() in VIDEO_IN_EXT for f in files):
+            st.status, st.note = "failed", "add the talking video (and the clips or photos to cut to)"
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        if not engine._text_ready(st):
+            engine._save_state(job, st)
+            return st
+    if tid in ("tidy-speech", "dub-video", "b-roll"):
         from .tools import hearing_ready
         if not hearing_ready(engine.s) and engine.voice is None:
             st.status, st.note = "failed", "this needs Joe's hearing (Setup > System check > voice add-on)"
@@ -584,8 +708,11 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}' ({TOOLS[tid].name}) -> {st.output}")
     failed: list[str] = []
     fn = {"clean-audio": _clean, "social-graphic": _graphic, "privacy-blur": _blur, "tidy-speech": _tidy,
-          "dub-video": _dub, "memory-voice": _memory}[tid]
+          "dub-video": _dub, "memory-voice": _memory, "b-roll": _broll}[tid]
     work = files if (files or tid != "social-graphic") else [None]
+    if tid == "b-roll":                                  # one result: the talking video (the longest one)
+        from .tools import VIDEO_IN_EXT
+        work = [max((f for f in files if f.suffix.lower() in VIDEO_IN_EXT), key=lambda f: media_seconds(ffmpeg, f))]
     try:
         for i, src in enumerate(work):
             if engine.stop.is_set():
@@ -593,7 +720,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             key = _key(engine, src) if src else "graphic"
             if key in st.titles:
                 continue
-            stem = unique_stem(files, i) if src else "graphic"
+            stem = unique_stem(files, files.index(src)) if src else "graphic"
             engine._progress(f"{job.name}: {src.name if src else 'graphic'}")
             try:
                 made = fn(engine, job, st, ffmpeg, src, stem, folder)
