@@ -402,6 +402,10 @@ FORMAT: ...
                 <label title="Optional, 24-hour clock, e.g. 07:00. At this time Joe finishes the mission he's on and leaves the rest for the next night. Earlier than the start time = the next morning. Blank = run until everything is done.">Stop by <input data-path="schedule.stop" placeholder="blank = until done" size="12"></label>
                 <div class="dim small">Stop by (optional): at that time Joe finishes the mission he's working on, puts the plans he hasn't started back in Missions\Tonight for the next night and says so in the morning report ("3 missions left for tomorrow night"). A stop time earlier than the start means the next morning (start 23:00, stop 06:00). Blank = he runs until everything is done.</div>
               </fieldset>
+              <fieldset><legend>WATCH FOLDERS</legend>
+                <div class="dim small">Drop a file into Inbox\Watch\&lt;tool&gt; (for example Inbox\Watch\clean-audio) and Joe runs that tool on it by himself while he's open, with the tool's usual options. Results go to Output\watch-&lt;tool&gt;. Turning this on makes the folders, with a READ ME listing them.</div>
+                <label title="Joe looks in Inbox\Watch every few seconds while he's open.">Watch folders on <input type="checkbox" data-path="schedule.watch"></label>
+              </fieldset>
               <fieldset><legend>USE JOE FROM ANOTHER AI APP</legend>
                 <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, make pictures, run Joe's tools on files in his Inbox, look at what he made, and stop a run. They can't install anything, change settings, or touch anything outside Joe's folder. CONNECT puts Joe into that app's settings for you (a copy of its old settings is kept); for other apps, paste the lines into their connector settings. Restart the app afterwards.</div>
                 <div id="mcp-apps" class="mcpapps"></div>

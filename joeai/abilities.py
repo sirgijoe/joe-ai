@@ -95,6 +95,13 @@ OTHER: tuple[Ability, ...] = (
             "Options: phone pings are set up in Setup > Display & sound (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
             "Limits: ntfy is an online service (only the reminder text goes there). Lists stay on this PC in the Lists folder.",
             ("remind", "reminder", "reminders", "list", "lists", "shopping list", "to-do list", "todo list")),
+    Ability("watch-folders", "Working for you", "Watch folders",
+            "Drop a file into a tool's folder and Joe does it by himself.",
+            "What it does: with watch folders on, Inbox\\Watch has a folder per tool (clean-audio, summarize, privacy-blur...). Anything you drop in is done with that tool's usual options, no plan or button needed.\n"
+            "How Joe does it: while he's open he looks in those folders every few seconds; once a file has finished copying he queues one task per tool for the new files. Each file is done once.\n"
+            "Options: Setup > General > Watch folders on. The READ ME in Inbox\\Watch lists the folders.\n"
+            "Limits: only while Joe is open. Tools that need a choice first (like which language to translate into) don't get a folder.",
+            ("watch folder", "watch folders", "hot folder", "drop folder", "automatic", "automatically")),
     Ability("night-shift", "Working for you", "Night shift",
             "Save plans for tonight and Joe starts them at a set time, even with his window closed.",
             "What it does: SAVE FOR TONIGHT keeps a plan for later; at the time you pick, Joe starts by himself and runs them.\n"

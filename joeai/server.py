@@ -494,6 +494,85 @@ class App:
             text, self.pending_ping = self.pending_ping, ""
             self.send_ping(text)
 
+    # -- watch folders: drop a file in Inbox/Watch/<tool> and Joe does it ------------------
+    def watch_tools(self) -> list[str]:
+        """Tools a watch folder can run: ready, reading files, no must-pick option."""
+        from . import tools as tools_mod
+        return [t.id for t in tools_mod.TOOLS.values() if t.ready and t.accepts
+                and not any(o.required for o in t.options) and t.id not in tools_mod.NO_INPUT_OK
+                and t.id not in ("ask-files", "ask-sheet")]
+
+    def watch_setup(self) -> None:
+        """Make Inbox/Watch/<tool> folders (with a note) when watch folders are on."""
+        from . import tools as tools_mod
+        root = self.sb.inbox / "Watch"
+        try:
+            root.mkdir(parents=True, exist_ok=True)
+            for tid in self.watch_tools():
+                (root / tid).mkdir(exist_ok=True)
+            note = root / "READ ME.txt"
+            if not note.exists():
+                note.write_text("Watch folders: drop a file into one of these folders and Joe runs that tool on it by "
+                                "himself (while Joe is open), with the tool's usual options. Results go to "
+                                "Output/watch-<tool>. Each folder is named after its tool:\n\n"
+                                + "\n".join(f"  {tid:16} {tools_mod.TOOLS[tid].name}" for tid in self.watch_tools())
+                                + "\n\nTurn this off in Setup > General > Watch folders.\n", encoding="utf-8")
+        except OSError as e:
+            self.log(f"Watch folders: {e}")
+
+    def watch_tick(self, now: float | None = None) -> list[str]:
+        """New files in Inbox/Watch/<tool> -> one task per tool, queued. Returns the tools queued."""
+        if not self.settings.schedule.watch:
+            return []
+        from . import tools as tools_mod
+        now = now or time.time()
+        root = self.sb.inbox / "Watch"
+        seen_p = self.sb.meta / "watch_seen.json"
+        try:
+            seen = set(json.loads(seen_p.read_text(encoding="utf-8")))
+        except (OSError, ValueError):
+            seen = set()
+        queued, changed = [], False
+        for tid in self.watch_tools():
+            folder = root / tid
+            if not folder.is_dir():
+                continue
+            new = []
+            try:
+                for p in sorted(folder.iterdir()):
+                    if not p.is_file() or p.name.startswith(".") or p.suffix.lower() not in tools_mod.TOOLS[tid].accepts:
+                        continue
+                    stt = p.stat()
+                    if now - stt.st_mtime < 5:                   # still being copied in
+                        continue
+                    key = f"{tid}/{p.name}|{stt.st_size}|{int(stt.st_mtime)}"
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    changed = True
+                    if "," in p.name:
+                        self.log(f"Watch folder: {p.name} has a comma in its name; rename it to use it.")
+                        continue
+                    new.append(p.name)
+            except OSError:
+                continue
+            if not new:
+                continue
+            name = tools_mod.TOOLS[tid].name
+            text = (f"TASK: {name} (watch folder)  TYPE: {tid}\nSAVE: watch-{tid}\n"
+                    f"INPUT: {', '.join(f'Watch/{tid}/{n}' for n in new)}")
+            r = self.enqueue(text)
+            self.log(f"Watch folder {tid}: {len(new)} new file(s) " + ("queued." if r.get("ok") else f"not queued: {r.get('error')}"))
+            if r.get("ok"):
+                queued.append(tid)
+        if changed:
+            try:
+                self.sb.meta.mkdir(parents=True, exist_ok=True)
+                atomic_write_text(seen_p, json.dumps(sorted(seen)[-5000:]))
+            except OSError:
+                pass
+        return queued
+
     def reminder_tick(self) -> None:
         """Reminders more than 3 days out go to ntfy once they're within its 3 days."""
         if not (self.settings.comfort.ntfy_topic or "").strip():
@@ -1346,6 +1425,8 @@ class App:
         self.settings.save()
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()
+        if self.settings.schedule.watch:
+            self.watch_setup()
         self.services = ServiceManager(self.settings, log=self.log)
         if (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop) != old_sched:
             from . import schedule
@@ -2312,6 +2393,10 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
                 app.tool_voice.idle_check()
             app.ping_tick()
             app.reminder_tick()
+            try:
+                app.watch_tick()                       # files dropped in Inbox/Watch/<tool>
+            except Exception as e:                     # noqa: BLE001 (never stop the loop)
+                app.log(f"Watch folders: {e}")
             app.clone.idle_check()
             app.watch_queue_folder()                   # mission files dropped in Missions/Queue
             for _ in range(10):

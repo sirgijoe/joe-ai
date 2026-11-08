@@ -70,6 +70,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Night shift** (Setup > General): SAVE FOR TONIGHT and Joe starts those plans at the time you
   set, even with his window closed (Windows can wake the PC for it). Uses your computer's own
   scheduler, and turning it off removes the entry again.
+- **Watch folders** (Setup > General): drop a file into `Inbox\Watch\<tool>` (like `clean-audio` or
+  `summarize`) and Joe does it by himself while he's open, with that tool's usual options.
 - **Starter packs**: one question ("what's your shop called?") and Joe plans a whole bundle: a shop
   starter, a month of social posts, a blog starter, a party kit or a coloring book. Make your own
   in `Missions\Packs`. Parts your PC can't do are left out.

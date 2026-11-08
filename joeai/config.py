@@ -134,6 +134,7 @@ class ScheduleSettings:
     enabled: bool = False
     time: str = "23:00"              # 24-hour clock, the PC's own time zone
     stop: str = ""                   # optional "stop by" time (24-hour); blank = run until done
+    watch: bool = False              # watch folders: files dropped in Inbox/Watch/<tool> are done by themselves
 
 
 @dataclass
