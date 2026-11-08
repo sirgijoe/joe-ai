@@ -225,3 +225,41 @@ def test_social_graphic_keeps_lines_from_the_tools_form():
     fmt = parse(text).jobs[0].format
     head, rest, big, small = avtools.layout(fmt, 1080, 1080)
     assert " ".join(head) == "Grand opening Saturday!" and rest == ["10% off everything"]
+
+
+def test_edit_words_helpers():
+    words = [{"t": "Hi", "s": 0.0, "e": 0.4}, {"t": "everyone,", "s": 0.5, "e": 1.0}, {"t": "this", "s": 1.1, "e": 1.3},
+             {"t": "part", "s": 1.4, "e": 1.7}, {"t": "is", "s": 1.8, "e": 1.9}, {"t": "boring.", "s": 2.0, "e": 2.5},
+             {"t": "Welcome", "s": 2.8, "e": 3.2}, {"t": "back", "s": 3.3, "e": 3.6}]
+    txt = avtools.words_text(words, "v.mp4")
+    assert txt.startswith("# What was said in v.mp4") and "Hi everyone, this part is boring. Welcome back" in txt
+    edited = txt.replace("this part is boring. ", "")
+    cuts, notes = avtools.word_cuts(words, edited, 4.0)
+    assert len(cuts) == 1 and cuts[0][0] == pytest.approx(1.06) and cuts[0][1] == pytest.approx(2.72)
+    assert "this part is boring." in cuts[0][2] and not notes
+    cuts, notes = avtools.word_cuts(words, txt.replace("Welcome", "Hello"), 4.0)
+    assert cuts == [] and "kept as spoken" in notes[0]
+    cuts, _ = avtools.word_cuts(words, txt.replace(" Welcome back", ""), 4.0)
+    assert cuts[0][1] == 4.0                                   # deleting the ending cuts to the end
+    assert avtools.edited_tokens("# note\n\n") == []
+
+
+@need_ff
+def test_edit_words_two_steps(ffapp, monkeypatch):
+    _tone(ffapp.sb.inbox / "talk.mp3", 6)
+    words = [{"t": "Hello", "s": 0.0, "e": 0.5}, {"t": "cut", "s": 1.0, "e": 1.5}, {"t": "this", "s": 1.6, "e": 2.0},
+             {"t": "bit", "s": 2.1, "e": 3.4}, {"t": "goodbye", "s": 3.5, "e": 4.0}]
+    monkeypatch.setattr(tools, "hear", lambda engine, wav, model, lang, words=False, timeout=0: {"ok": True, "words": words_})
+    words_ = words
+    monkeypatch.setattr(tools, "hearing_ready", lambda settings, voice_ok=None: True)
+    st = _run(ffapp, "TASK: Words  TYPE: edit-words\nINPUT: talk.mp3")
+    assert st.status == "done", st.note
+    made = ffapp.sb.output / st.output / "talk-words.txt"
+    text = made.read_text(encoding="utf-8")
+    assert "Hello cut this bit goodbye" in text
+    (ffapp.sb.inbox / "talk-words.txt").write_text(text.replace("cut this bit ", ""), encoding="utf-8")
+    st = _run(ffapp, "TASK: Words 2  TYPE: edit-words\nINPUT: talk.mp3, talk-words.txt")
+    assert st.status == "done", st.note
+    out = ffapp.sb.output / st.output
+    assert '"cut this bit"' in (out / "talk-cuts.md").read_text(encoding="utf-8")
+    assert avtools.media_seconds(FF, out / "talk-edited.mp3") < 6 - 2

@@ -149,6 +149,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   recording or a video's sound (FFmpeg, no AI, seconds).
 - **Cut out ums and long pauses**: Joe listens word by word, cuts the "um", "uh" and long silences,
   and lists every cut.
+- **Edit a video by its words**: Joe writes down what was said; delete the words you don't want, give
+  the file back and he cuts them out of the video or recording (like Descript, on your own PC).
 - **Dub or voice-over a video**: Joe listens, translates each line and makes subtitles in the new
   language; for English, Spanish, French, Italian, Portuguese and Hindi his voice also says each line at
   its time over the original sound turned down. A machine translation: have it checked before publishing.

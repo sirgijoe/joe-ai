@@ -388,6 +388,23 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          plan_hint="Remove ums / filler words / long pauses from a recording or talking video: TYPE: tidy-speech, "
                    "INPUT: the file(s), OPTIONS: fillers, pauses, pause 0.7|1.0|1.5|2.5. No CHUNKS.",
          examples=("Cut the ums out of my podcast", "Remove the long pauses from this video")),
+    Tool("edit-words", "Edit a video by its words", "Video",
+         "Delete words from what was said and Joe cuts them out of the video or recording (like Descript).",
+         accepts=VIDEO_IN_EXT + AUDIO_EXT + (".txt", ".md"),
+         options=(Option("fillers", "Also cut um, uh, er", False),
+                  Option("pauses", "Also shorten long pauses", False),
+                  Option("pause", "A pause is longer than", choices=(("0.7", "0.7 s"), ("1.0", "1 s"), ("1.5", "1.5 s"),
+                                                                     ("2.5", "2.5 s")), value="1.0"),
+                  Option("language", "Spoken in", choices=HEAR_LANGUAGES[:1] + HEAR_LANGUAGES[2:], value="english")),
+         needs=("voice", "ffmpeg"), ready=True,
+         help="Two steps. 1) Add the video (or recording) and run it: Joe writes what was said as a words file in "
+              "Output. 2) Open that file, delete the words you don't want (don't retype or add words: Joe can only "
+              "cut), save it, put it in the Inbox next to the video and run it again: Joe cuts those words out and "
+              "lists every cut. Your original is never changed. Watch it through once before you post it.",
+         plan_hint="Edit a video or recording by its transcript / cut out words or sentences they deleted: TYPE: "
+                   "edit-words, INPUT: the video or recording, plus their edited words .txt file if they have one "
+                   "(without it, Joe writes the words file first), OPTIONS: fillers, pauses (only if asked). No CHUNKS.",
+         examples=("Let me edit my video by deleting words", "Cut the sentences I deleted out of my video")),
     Tool("dub-video", "Dub or voice-over a video", "Video",
          "Your video in another language: translated subtitles, and a voice-over for many languages.",
          accepts=VIDEO_IN_EXT + AUDIO_EXT,
@@ -1130,7 +1147,7 @@ def hearing_model(stt_model: str, language: str) -> str:
     return name
 
 
-HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "dub-video", "b-roll")
+HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "edit-words", "dub-video", "b-roll")
 
 
 def hearing_backend(settings) -> str:

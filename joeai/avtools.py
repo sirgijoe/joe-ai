@@ -7,6 +7,9 @@
   model finds them; FFmpeg blurs them. The person checks the result: nothing found is never "safe".
 - tidy-speech: "um", "uh" and long pauses cut out of a recording or talking video, from a word-by-word
   transcript. A list of every cut is saved.
+- edit-words: edit a recording or talking video by its words (like Descript). First run: Joe writes what
+  was said as plain text. Delete the words you don't want, put the edited text back in the Inbox with the
+  video, run it again: the deleted words are cut out of the video.
 - dub-video: a video (or recording) heard, translated line by line, saved as subtitles in the new
   language and, for languages Joe's voice speaks, a voice-over placed at each line's time over the
   original sound turned down.
@@ -28,7 +31,8 @@ if TYPE_CHECKING:
     from .engine import Engine, JobState
     from .mission import Job, Mission
 
-AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video", "memory-voice", "b-roll")
+AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "edit-words", "dub-video", "memory-voice",
+            "b-roll")
 
 # --------------------------------------------------------------------------- clean a recording
 STRENGTH = {"light": -18, "normal": -25, "strong": -35}       # afftdn noise floor (dB)
@@ -221,7 +225,12 @@ def cut_plan(words: list[dict], fillers: bool = True, pause: float = 1.0, keep: 
         if fillers and text in FILLERS:
             cuts.append((s, e, f'"{text}"'))
         prev_end = e
-    cuts.sort()
+    return merge_cuts(cuts)
+
+
+def merge_cuts(cuts: list[tuple[float, float, str]]) -> list[tuple[float, float, str]]:
+    """Sorted, with overlapping or touching cuts joined (their reasons kept)."""
+    cuts = sorted(cuts)
     merged: list[list] = []
     for a, b, why in cuts:
         if b - a < 0.05:
@@ -256,6 +265,77 @@ def tidy_command(ffmpeg: str, src: Path, out: Path, keep: list[tuple[float, floa
     else:
         cmd += ["-af", af, "-vn"] + (["-c:a", "libmp3lame", "-q:a", "2"] if out.suffix.lower() == ".mp3" else [])
     return cmd + [str(out)]
+
+
+# --------------------------------------------------------------------------- edit by the words
+WORDS_HEAD = ("# What was said in {name}",
+              "# Delete any words you want cut out of the video, then save this file. Don't retype or add words:",
+              "# Joe can only cut, not say new things. Lines starting with # are ignored.",
+              "# Then put this file in Joe's Inbox together with {name} and run 'Edit by the words' again.")
+
+
+def _token(t: str) -> str:
+    return re.sub(r"[^\w']", "", str(t)).lower()
+
+
+def words_text(words: list[dict], name: str, per_line: int = 14) -> str:
+    """What was said, a short line at a time (easy to delete from), with a new paragraph at long pauses."""
+    out = [h.format(name=name) for h in WORDS_HEAD] + [""]
+    line: list[str] = []
+    prev = None
+    for wd in words:
+        t = str(wd.get("t", wd.get("word", ""))).strip()
+        if not t:
+            continue
+        s = float(wd.get("s", wd.get("start", 0)) or 0)
+        if line and (len(line) >= per_line or (prev is not None and s - prev > 1.5)):
+            out.append(" ".join(line))
+            if prev is not None and s - prev > 1.5:
+                out.append("")
+            line = []
+        line.append(t)
+        prev = float(wd.get("e", wd.get("end", s)) or s)
+    if line:
+        out.append(" ".join(line))
+    return "\n".join(out) + "\n"
+
+
+def edited_tokens(text: str) -> list[str]:
+    body = "\n".join(x for x in (text or "").splitlines() if not x.lstrip().startswith("#"))
+    return [t for t in (_token(x) for x in body.split()) if t]
+
+
+def word_cuts(words: list[dict], edited: str, length: float) -> tuple[list[tuple[float, float, str]], list[str]]:
+    """(cuts, notes): the words deleted from the edited text become cuts, with the gap after them, so the
+    next word follows naturally. Changed or added words can't be said by Joe: they're kept as spoken and noted."""
+    import difflib
+    timed = []
+    for wd in words:
+        try:
+            timed.append((_token(wd.get("t", wd.get("word", ""))), float(wd.get("s", wd.get("start"))),
+                          float(wd.get("e", wd.get("end"))), str(wd.get("t", wd.get("word", ""))).strip()))
+        except (TypeError, ValueError):
+            continue
+    timed = [w for w in timed if w[0]]
+    orig = [w[0] for w in timed]
+    new = edited_tokens(edited)
+    cuts: list[tuple[float, float, str]] = []
+    notes: list[str] = []
+    sm = difflib.SequenceMatcher(a=orig, b=new, autojunk=False)
+    for op, i1, i2, j1, j2 in sm.get_opcodes():
+        if op == "delete":
+            a = timed[i1][1]
+            b = timed[i2][1] - 0.08 if i2 < len(timed) else length
+            if i1 > 0:
+                a = max(a - 0.04, timed[i1 - 1][2] + 0.04)
+            gone = " ".join(w[3] for w in timed[i1:i2])
+            cuts.append((round(a, 3), round(max(b, timed[i2 - 1][2]), 3), f'"{gone[:60]}"'))
+        elif op == "replace":
+            notes.append(f"Changed words kept as spoken (Joe can only cut): "
+                         f"'{' '.join(w[3] for w in timed[i1:i2])[:60]}' -> '{' '.join(new[j1:j2])[:60]}'")
+        elif op == "insert":
+            notes.append(f"Added words ignored (Joe can only cut): '{' '.join(new[j1:j2])[:60]}'")
+    return merge_cuts(cuts), notes
 
 
 # --------------------------------------------------------------------------- dub a video
@@ -695,7 +775,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         if not engine._text_ready(st):
             engine._save_state(job, st)
             return st
-    if tid in ("tidy-speech", "dub-video", "b-roll"):
+    if tid in ("tidy-speech", "edit-words", "dub-video", "b-roll"):
         from .tools import hearing_ready
         if not hearing_ready(engine.s) and engine.voice is None:
             st.status, st.note = "failed", "this needs Joe's hearing (Setup > System check > voice add-on)"
@@ -708,8 +788,17 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}' ({TOOLS[tid].name}) -> {st.output}")
     failed: list[str] = []
     fn = {"clean-audio": _clean, "social-graphic": _graphic, "privacy-blur": _blur, "tidy-speech": _tidy,
-          "dub-video": _dub, "memory-voice": _memory, "b-roll": _broll}[tid]
+          "edit-words": _edit_words, "dub-video": _dub, "memory-voice": _memory, "b-roll": _broll}[tid]
     work = files if (files or tid != "social-graphic") else [None]
+    if tid == "edit-words":                              # the recordings; the edited text files go with them
+        from .tools import AUDIO_EXT, VIDEO_IN_EXT
+        work = [f for f in files if f.suffix.lower() in VIDEO_IN_EXT + AUDIO_EXT]
+        if not work:
+            st.status, st.note = "failed", "add the recording or video (and your edited words file, if you have one)"
+            engine.log(f"'{job.name}' failed: {st.note}")
+            engine._save_state(job, st)
+            return st
+        engine._edit_texts = [f for f in files if f.suffix.lower() in (".txt", ".md")]
     if tid == "b-roll":                                  # one result: the talking video (the longest one)
         from .tools import VIDEO_IN_EXT
         work = [max((f for f in files if f.suffix.lower() in VIDEO_IN_EXT), key=lambda f: media_seconds(ffmpeg, f))]
@@ -819,12 +908,10 @@ def _blur(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[s
     return [out.name]
 
 
-def _tidy(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+def _hear_words(engine, job, ffmpeg, src: Path) -> list[dict]:
+    """Every word with its start and end time (Joe's hearing, word by word)."""
     import tempfile
-    from .tools import VIDEO_IN_EXT, _to_wav, chosen_options, hear, hearing_model, option_value, whisper_language
-    opts = chosen_options(job)
-    video = src.suffix.lower() in VIDEO_IN_EXT
-    pause = float(option_value(job, "pause") or 1.0)
+    from .tools import _to_wav, hear, hearing_model, option_value, whisper_language
     with tempfile.TemporaryDirectory() as tmp:
         wav = _to_wav(ffmpeg, src, Path(tmp) / "a.wav", engine.log)
         if not wav:
@@ -839,6 +926,54 @@ def _tidy(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[s
     words = got.get("words") or []
     if not words:
         raise RuntimeError("no words heard in it")
+    return words
+
+
+def _edit_words(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+    """No edited text yet: write what was said. With one: cut the deleted words out."""
+    from .tools import VIDEO_IN_EXT, chosen_options, option_value
+    texts = getattr(engine, "_edit_texts", []) or []
+    mine = [t for t in texts if t.stem.lower().startswith(src.stem.lower())]
+    text = mine[0] if mine else (texts[0] if len(texts) == 1 else None)
+    words = _hear_words(engine, job, ffmpeg, src)
+    if text is None:
+        name = f"{stem}-words.txt"
+        atomic_write_text(folder / name, words_text(words, src.name))
+        return [name]
+    edited = text.read_text(encoding="utf-8", errors="replace")
+    if not edited_tokens(edited):
+        raise RuntimeError(f"{text.name} has no words left in it (to cut everything, just don't use the video)")
+    video = src.suffix.lower() in VIDEO_IN_EXT
+    length = media_seconds(ffmpeg, src) or float(words[-1].get("e", 0)) + 1
+    cuts, notes = word_cuts(words, edited, length)
+    opts = chosen_options(job)
+    if "fillers" in opts or "pauses" in opts:
+        cuts = merge_cuts(cuts + cut_plan(words, "fillers" in opts,
+                                          float(option_value(job, "pause") or 1.0) if "pauses" in opts else 0))
+    keep = keep_spans(cuts, length)
+    ext = ".mp4" if video else (".mp3" if src.suffix.lower() == ".mp3" else ".wav")
+    out = folder / f"{stem}-edited{ext}"
+    if cuts:
+        err = _ff(tidy_command(ffmpeg, src, out, keep, video))
+        if err:
+            raise RuntimeError(err)
+    saved = sum(b - a for a, b, _ in cuts)
+    L = [f"# Edited by the words: {src.name}", "", f"Using {text.name}: {len(cuts)} cut(s), {saved:.1f} seconds shorter "
+         f"({length:.0f} s -> {length - saved:.0f} s). Your original wasn't changed.", ""]
+    L += [f"- {a:8.2f}-{b:8.2f} s: {why}" for a, b, why in cuts] or ["No words were deleted, so nothing was cut."]
+    if notes:
+        L += ["", "## Not done"] + [f"- {n}" for n in notes]
+    L += ["", "Watch it through once: a cut can land a little early or late when words run together."]
+    atomic_write_text(folder / f"{stem}-cuts.md", "\n".join(L) + "\n")
+    return ([out.name] if cuts else []) + [f"{stem}-cuts.md"]
+
+
+def _tidy(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+    from .tools import VIDEO_IN_EXT, chosen_options, option_value
+    opts = chosen_options(job)
+    video = src.suffix.lower() in VIDEO_IN_EXT
+    pause = float(option_value(job, "pause") or 1.0)
+    words = _hear_words(engine, job, ffmpeg, src)
     length = media_seconds(ffmpeg, src) or float(words[-1].get("e", 0)) + 1
     cuts = cut_plan(words, "fillers" in opts, pause if "pauses" in opts else 0)
     keep = keep_spans(cuts, length)
