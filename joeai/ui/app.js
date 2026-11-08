@@ -299,10 +299,15 @@ function showPlan(r) {
 async function mcpShow() {
   const r = await api("/api/mcp-config", {});
   $("#mcp-lines").textContent = r.text || ""; $("#mcp-lines").hidden = false; $("#mcp-copy").hidden = false;
+  const d = (a) => `data-app="${esc(a.id)}" data-name="${esc(a.name)}" data-link="${a.link ? 1 : ""}"`;
   $("#mcp-apps").innerHTML = (r.apps || []).map((a) => `<div class="issue"><span class="t">${esc(a.name)}: ${
-    a.connected ? "connected" : a.installed ? "not connected" : "not found on this PC"}</span>${
-    a.connected ? `<button type="button" data-act="mcp-disconnect" data-app="${esc(a.id)}" data-name="${esc(a.name)}">[ DISCONNECT ]</button>`
-      : a.installed ? `<button type="button" data-act="mcp-connect" data-app="${esc(a.id)}" data-name="${esc(a.name)}">[ CONNECT ]</button>` : ""}</div>`).join("");
+    a.connected ? (a.current === false ? "connected, but to an old copy of Joe" : "connected") : a.installed ? "not connected" : "not found on this PC"}${
+    a.connected && a.points_to ? `<br><span class="dim small">starts: ${esc(a.points_to)}</span>` : ""}</span>${
+    a.connected ? (a.current === false ? `<button type="button" data-act="mcp-connect" ${d(a)}>[ RECONNECT ]</button>` : "")
+      + `<button type="button" data-act="mcp-disconnect" ${d(a)}>[ DISCONNECT ]</button>`
+      : a.installed ? `<button type="button" data-act="mcp-connect" ${d(a)}>[ ${a.link ? "ADD TO " + esc(a.name).toUpperCase() : "CONNECT"} ]</button>`
+        + (a.id === "claude" ? ` <button type="button" data-act="mcp-connect" data-how="extension" ${d(a)} title="Claude Desktop installs Joe as an extension itself (no settings files). Needs a recent Claude Desktop.">[ OR AS AN EXTENSION ]</button>` : "") : ""}</div>`).join("")
+    + '<div class="dim small">ChatGPT on the web can\'t reach programs on your PC, so it can\'t use Joe; the ChatGPT desktop app reads the same settings as Codex.</div>';
   $("#mcp-http").hidden = false;
   $("#mcp-http").innerHTML = `Apps that connect by address (on this PC only, while Joe's window is open): <b>${esc(r.url)}</b> with the header <b>Authorization: Bearer ${esc(r.key)}</b>. Keep the key private.`;
 }
@@ -925,7 +930,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
   const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
   const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
   const needMods = mods.filter(([it]) => !it.optional).length;
@@ -963,6 +968,7 @@ function askFix(it) {
     "install-pandoc": viaPkg,
     "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. Then press GET IT again: Joe moves it into ComfyUI."
       : "Move it into ComfyUI's models folder now?",
+    "mcp-fix": "Reconnect Joe? Close that AI app completely first (Joe checks).",
     "get-engine": "Open its download page in your browser? It's a free program made by other people; Joe doesn't install it for you.",
     "use-ollama": "Write with Ollama again? Joe installs, starts and fills it for you.",
     "install-whispercpp": "Install it now? Joe downloads the small whisper.cpp program (MIT license) and the hearing model it uses. Only the program and the model, never your recordings.",
@@ -1447,15 +1453,21 @@ document.addEventListener("click", async (ev) => {
     if (act === "pt-make") { await ptMake(); return; }
     if (act === "pt-stop") { await api("/api/portable", { action: "stop" }); return; }
     if (act === "mcp-connect" || act === "mcp-disconnect") {
-      const on = act === "mcp-connect", name = b.dataset.name;
+      const on = act === "mcp-connect", name = b.dataset.name, how = b.dataset.how || "";
       const go = async () => {
-        const r = await api("/api/connect", { app: b.dataset.app, on });
+        const r = await api("/api/connect", { app: b.dataset.app, on, how });
         if (!r.ok && r.running) {                      // still open: it would write over Joe's change
           confirmBox(r.error + "\n\nClosed it? Press YES to try again.", go);
           return;
         }
         toast(r.ok ? r.say : r.error, 9000); mcpShow();
       };
+      if (on && (b.dataset.link || how === "extension" || b.dataset.app === "gemini")) {   // the app asks the person itself
+        confirmBox(how === "extension" ? `Add Joe to Claude Desktop as an extension?\n\nJoe makes a small extension file for this PC and opens it; Claude Desktop shows its own Install box. No settings files are touched.`
+          : b.dataset.app === "gemini" ? `Add Joe to Gemini CLI?\n\nJoe runs Gemini's own command (gemini mcp add) for you.`
+          : `Add Joe to ${name}?\n\nJoe opens ${name}'s own install link; ${name} shows its own box asking you to add Joe. No files are touched by Joe.`, go);
+        return;
+      }
       confirmBox(on ? `Connect Joe to ${name}?\n\nFirst CLOSE ${name} completely (on Windows it can keep running in the tray: end it in Task Manager). Joe checks it's closed, then adds his own entry to its settings file (a copy of the old file is kept). ${name} can then see Joe's status, queue plans, make pictures, run tools on Inbox files and read results.`
                     : `Disconnect Joe from ${name}?\n\nClose ${name} completely first. Joe removes only his own entry from its settings file.`,
         go);

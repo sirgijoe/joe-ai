@@ -573,6 +573,45 @@ class App:
                 pass
         return queued
 
+    def connect_app(self, app_id: str, on: bool, how: str = "") -> dict:
+        """CONNECT / DISCONNECT Joe in an AI app. Apps with their own install link (Cursor, LM Studio,
+        VS Code) or command (Gemini CLI) add Joe themselves and ask the person; Claude Desktop can take
+        an extension file (how="extension"); otherwise Joe writes his entry (with the app closed)."""
+        from . import connect as connect_mod
+        from .mcp import client_config
+        entry = client_config()["mcpServers"]["joe"]
+        apps = connect_mod.app_paths()
+        if app_id not in apps:
+            return {"ok": False, "error": "Joe doesn't know that app."}
+        name = apps[app_id][0]
+        if not on:
+            r = connect_mod.disconnect(app_id)
+            if r.get("ok") and app_id in self.settings.mcp_apps:
+                self.settings.mcp_apps = [a for a in self.settings.mcp_apps if a != app_id]
+                self.settings.save()
+            return r
+        link = connect_mod.deeplink(app_id, entry)
+        if app_id == "claude" and how == "extension":
+            from . import __version__
+            f = connect_mod.mcpb_bundle(entry, self.sb.meta / "connector" / "Joe.mcpb", __version__)
+            if not connect_mod.open_link(str(f)):
+                return {"ok": False, "error": f"Couldn't open {f}. Double-click it, or drag it onto Claude Desktop."}
+            r = {"ok": True, "say": "Claude Desktop is opening Joe's extension: press Install there. (If Joe was "
+                                    "also connected the other way, press DISCONNECT afterwards so he's not there twice.)"}
+        elif link:
+            if not connect_mod.open_link(link):
+                return {"ok": False, "error": f"Couldn't open {name}. Is it installed? You can paste the lines instead."}
+            r = {"ok": True, "say": f"{name} is asking you to add Joe: press Install (or Add) there. Nothing in its "
+                                    "files was touched by Joe."}
+        elif app_id == "gemini" and not connect_mod.gemini_add(entry):
+            r = {"ok": True, "say": "Added with Gemini CLI's own command (gemini mcp add). Start a new Gemini session to use Joe."}
+        else:
+            r = connect_mod.connect(app_id, entry)
+        if r.get("ok") and app_id not in self.settings.mcp_apps:
+            self.settings.mcp_apps = list(self.settings.mcp_apps) + [app_id]
+            self.settings.save()
+        return r
+
     def reminder_tick(self) -> None:
         """Reminders more than 3 days out go to ntfy once they're within its 3 days."""
         if not (self.settings.comfort.ntfy_topic or "").strip():
@@ -892,6 +931,8 @@ class App:
         if self.busy:
             return {"ok": False, "error": f"Busy: {self.busy}"}
         action, tool, model = b.get("action"), b.get("tool", ""), b.get("model", "")
+        if action == "mcp-fix":                    # RECONNECT an AI app that lost Joe or starts an old copy
+            return self.connect_app(str(tool), True)
         if action == "get-engine":                 # another writing program: its own download page
             from . import textengines
             page = textengines.PAGES.get(textengines.engine_id(self.settings.ollama), "")
@@ -2144,15 +2185,17 @@ def make_handler(app: App):
                         app.settings.mcp_key = _sec.token_urlsafe(24)
                         app.settings.save()
                     from . import connect as connect_mod
+                    entry = client_config()["mcpServers"]["joe"]
+                    apps = connect_mod.status()
+                    for a in apps:
+                        if a["connected"] and a["id"] != "chatgpt":
+                            a["current"] = connect_mod.entry_matches(a["points_to"], entry)
                     return self._json({"ok": True, "text": json.dumps(client_config(), indent=2),
                                        "url": f"http://127.0.0.1:{self.server.server_address[1]}/mcp",
-                                       "key": app.settings.mcp_key, "apps": connect_mod.status()})
+                                       "key": app.settings.mcp_key, "apps": apps})
                 if u.path == "/api/connect":           # CONNECT / DISCONNECT an AI app (asked first in the window)
-                    from . import connect as connect_mod
-                    from .mcp import client_config
-                    if b.get("on"):
-                        return self._json(connect_mod.connect(str(b.get("app", "")), client_config()["mcpServers"]["joe"]))
-                    return self._json(connect_mod.disconnect(str(b.get("app", ""))))
+                    return self._json(app.connect_app(str(b.get("app", "")), bool(b.get("on")),
+                                                      str(b.get("how", ""))))
                 if u.path == "/api/bigger":            # ASK A BIGGER AI: the paste-ready message
                     from . import bigger
                     return self._json({"ok": True, "text": bigger.message(

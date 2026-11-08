@@ -50,6 +50,7 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("mcp", help="talk MCP on stdin/stdout (for Claude Desktop and other AI apps)")
     sub.add_parser("tonight", help="start the plans saved for tonight (run by the night shift)")
     sub.add_parser("restart", help="start Joe's window after the old Joe has closed (RESTART JOE)")
+    sub.add_parser("disconnect-all", help="remove Joe from every AI app's settings (run when uninstalling)")
     a = ap.parse_args(argv)
     for stream in (sys.stdout, sys.stderr):        # Windows consoles: an emoji in a title mustn't crash
         try:
@@ -61,6 +62,11 @@ def main(argv: list[str] | None = None) -> int:
     if a.cmd == "mcp":
         from .mcp import serve
         return serve()
+    if a.cmd == "disconnect-all":
+        from .connect import disconnect_all
+        n = disconnect_all()
+        print(f"Removed Joe from {n} app(s).")
+        return 0
     if a.cmd == "restart":
         from .app import main as app_main, wait_for_old
         wait_for_old()

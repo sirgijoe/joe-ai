@@ -335,3 +335,68 @@ def test_connect_waits_until_the_app_is_closed(tmp_path, monkeypatch):
     assert connect.disconnect("claude")["running"]
     monkeypatch.setattr(connect, "app_running", lambda app_id, run=None: False)
     assert connect.connect("claude", {"command": "python", "args": ["Joe.pyw", "mcp"]})["ok"]
+
+
+def test_one_click_links_extension_and_checks(tmp_path, monkeypatch):
+    import base64
+    import json
+    import zipfile
+    from urllib.parse import unquote
+    from joeai import connect
+    e = {"command": "C:/Py/python.exe", "args": ["C:/joe/Joe.pyw", "mcp"], "env": {"PYTHONIOENCODING": "utf-8"}}
+    c = connect.deeplink("cursor", e)
+    assert c.startswith("cursor://anysphere.cursor-deeplink/mcp/install?name=joe&config=")
+    assert json.loads(base64.b64decode(unquote(c.split("config=")[1]))) == e
+    assert connect.deeplink("lmstudio", e).startswith("lmstudio://add_mcp?name=joe&config=")
+    v = json.loads(unquote(connect.deeplink("vscode", e).split("?", 1)[1]))
+    assert v["name"] == "joe" and v["type"] == "stdio" and v["args"] == e["args"]
+    assert connect.deeplink("claude", e) == ""
+    f = connect.mcpb_bundle(e, tmp_path / "Joe.mcpb", "2.1.0.dev24")
+    with zipfile.ZipFile(f) as z:
+        m = json.loads(z.read("manifest.json"))
+        starter = z.read("server/joe_connector.py").decode()
+    assert m["manifest_version"] == "0.3" and m["version"] == "2.1.0" and m["server"]["type"] == "python"
+    assert m["server"]["mcp_config"]["command"] == "C:/Py/python.exe" and "C:/joe/Joe.pyw" in starter
+    assert connect.entry_matches("c:\\py\\python.exe C:\\joe\\Joe.pyw mcp", e)
+    assert not connect.entry_matches("C:/old/python.exe C:/joe/Joe.pyw mcp", e)
+    calls = []
+
+    class R:
+        returncode, stdout, stderr = 0, "", ""
+    monkeypatch.setattr(connect.shutil, "which", lambda n: "/bin/gemini" if n == "gemini" else None)
+    assert connect.gemini_add(e, run=lambda cmd, **k: calls.append(cmd) or R()) == ""
+    assert calls[-1] == ["/bin/gemini", "mcp", "add", "-s", "user", "joe", "C:/Py/python.exe", "C:/joe/Joe.pyw", "mcp"]
+
+
+def test_system_check_watches_connected_apps(tmp_path, monkeypatch):
+    import json
+    from joeai import connect
+    monkeypatch.setattr(connect, "WINDOWS", False)
+    monkeypatch.setattr(connect, "MAC", False)
+    monkeypatch.setenv("JOE_HOME_OVERRIDE", str(tmp_path))
+    monkeypatch.setattr(connect, "app_running", lambda app_id, run=None: False)
+    cfg = tmp_path / ".config" / "Claude" / "claude_desktop_config.json"
+    cfg.parent.mkdir(parents=True)
+    cfg.write_text("{}", encoding="utf-8")
+    e = {"command": "/usr/bin/python3", "args": ["/home/me/joe/Joe.pyw", "mcp"]}
+    assert connect.check(e, ["claude"]) == [{"app": "claude", "name": "Claude Desktop", "why": "missing"}]
+    connect.connect("claude", {"command": "/usr/bin/python3", "args": ["/old/Joe.pyw", "mcp"]})
+    got = connect.check(e, ["claude"])
+    assert got[0]["why"] == "old" and "/old/Joe.pyw" in got[0]["points_to"]
+    connect.connect("claude", e)
+    assert connect.check(e, ["claude"]) == [] and connect.check(e, []) == []
+    assert connect.disconnect_all() == 1 and "joe" not in json.loads(cfg.read_text())["mcpServers"]
+
+
+from test_tools import app  # noqa: E402,F401
+
+
+def test_app_connect_uses_the_apps_own_way(app, monkeypatch):  # noqa: F811
+    from joeai import connect
+    opened = []
+    monkeypatch.setattr(connect, "open_link", lambda url: opened.append(url) or True)
+    r = app.connect_app("cursor", True)
+    assert r["ok"] and "asking you to add Joe" in r["say"] and opened[-1].startswith("cursor://")
+    assert "cursor" in app.settings.mcp_apps
+    r = app.connect_app("claude", True, "extension")
+    assert r["ok"] and opened[-1].endswith("Joe.mcpb")

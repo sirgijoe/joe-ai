@@ -243,19 +243,36 @@ make, writes and queues the plan, makes pictures, runs Joe's tools on files in h
 the report, reads the results and looks at the pictures, then polishes them for you. It can't
 install anything, change settings, or reach outside Joe's folder.
 
-Claude Desktop on Windows (from claude.ai, the Store or WinGet) is installed as an MSIX package, so
-Windows keeps its settings file in `%LOCALAPPDATA%\Packages\Claude_<id>\LocalCache\Roaming\Claude`
-instead of `%APPDATA%\Claude`. Joe looks there first and writes his entry to both when both exist.
+Setup > General > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC. Wherever an app has
+its own way to add a connector, Joe uses it, so the app itself asks you and nobody has to open a
+settings file:
 
-Setup > General > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC with a
-**CONNECT** button each: Claude Desktop, ChatGPT desktop (shares its connector list with Codex),
-Gemini CLI, Cursor and LM Studio. CONNECT adds only Joe's own entry to that app's settings file
-(a copy of the old file is kept next to it as `.before-joe`); DISCONNECT takes it out. Restart the
-app afterwards. For other apps, copy the lines shown there. Apps that connect by address can use
-`http://127.0.0.1:<port>/mcp` with the key shown there, while Joe's window is open. Not every chat
-app can do this: chats in a web browser (ChatGPT or Gemini on the web, Grok) and the Gemini and
-consumer Copilot desktop apps can't reach programs on your PC; for those, use ASK A BIGGER AI.
-Queued plans run when Joe's window is open, or at the night-shift time.
+- **Cursor, LM Studio, VS Code (Copilot)**: ADD TO ... opens the app's own install link; the app
+  shows its own box asking you to add Joe.
+- **Gemini CLI**: Joe runs Gemini's own command (`gemini mcp add -s user joe ...`).
+- **Claude Desktop**: OR AS AN EXTENSION makes a small extension file for this PC (`Joe.mcpb`) and
+  opens it; Claude Desktop shows its own Install box. CONNECT writes Joe's entry into Claude's
+  settings file instead: Joe finds it wherever this Claude Desktop keeps it (`Claude-Data`, the MSIX
+  package folder or `%APPDATA%\Claude`).
+- **ChatGPT desktop**: reads the same connector list as Codex (`~/.codex/config.toml`). ChatGPT on the
+  web can't reach programs on your PC at all.
+
+Whenever Joe has to write an app's settings file, **close that app completely first**: while it's
+open it keeps its own copy of its settings and writes it back later, wiping out Joe's entry. Joe
+checks and won't continue while it's running (Claude Desktop keeps running in the tray: end it in
+Task Manager). Joe only ever touches his own entry, keeps a copy of the file as it was before he
+first touched it (`.before-joe`), and leaves a file he can't read alone.
+
+System check keeps an eye on the apps you connected: if one lost Joe (it moved or reset its
+settings), or starts Joe from an old place (Joe's folder moved, Python was updated, or it points at
+another copy of Joe), it says so with a RECONNECT button. Uninstalling Joe takes him out of every
+app's settings, so none keeps trying to start a Joe that's gone. For other apps, copy the lines
+shown there. Apps that connect by address can use `http://127.0.0.1:<port>/mcp` with the key shown
+there, while Joe's window is open. Chats in a web browser (ChatGPT or Gemini on the web, Grok) and
+the Gemini and consumer Copilot desktop apps can't reach programs on your PC; for those, use ASK A
+BIGGER AI. When an app asks Joe for something while his window is closed, queued plans wait and
+run when Joe's window opens (or at the night-shift time); his status says whether the window is open.
+
 
 ## Building it step by step (F6)
 

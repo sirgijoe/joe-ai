@@ -77,7 +77,95 @@ def app_paths() -> dict[str, tuple[str, Path]]:
         "lmstudio": ("LM Studio", h / ".lmstudio" / "mcp.json"),
         # ChatGPT's desktop app shares its MCP servers with Codex (~/.codex/config.toml, TOML)
         "chatgpt": ("ChatGPT desktop (and Codex)", h / ".codex" / "config.toml"),
+        "vscode": ("VS Code (Copilot)", _vscode_file(h)),
     }
+
+
+def _vscode_file(h: Path) -> Path:
+    if WINDOWS:
+        return Path(os.environ.get("APPDATA") or h / "AppData" / "Roaming") / "Code" / "User" / "mcp.json"
+    if MAC:
+        return h / "Library" / "Application Support" / "Code" / "User" / "mcp.json"
+    return h / ".config" / "Code" / "User" / "mcp.json"
+
+
+def _servers_key(app_id: str) -> str:
+    return "servers" if app_id == "vscode" else "mcpServers"
+
+
+# --------------------------------------------------------------------------- one-click: the app adds Joe itself
+def deeplink(app_id: str, entry: dict) -> str:
+    """The app's own install link (it shows its own "add Joe?" box), or '' when it has none."""
+    import base64
+    from urllib.parse import quote
+    if app_id == "cursor":
+        cfg = base64.b64encode(json.dumps(entry, separators=(",", ":")).encode()).decode()
+        return f"cursor://anysphere.cursor-deeplink/mcp/install?name={ENTRY}&config={quote(cfg)}"
+    if app_id == "lmstudio":
+        cfg = base64.b64encode(json.dumps(entry, separators=(",", ":")).encode()).decode()
+        return f"lmstudio://add_mcp?name={ENTRY}&config={quote(cfg)}"
+    if app_id == "vscode":
+        return "vscode:mcp/install?" + quote(json.dumps({"name": ENTRY, "type": "stdio", **entry}, separators=(",", ":")))
+    return ""
+
+
+def open_link(url: str) -> bool:
+    import subprocess
+    try:
+        if WINDOWS:
+            os.startfile(url)                            # noqa: S606 (the app's own registered link)
+        elif MAC:
+            subprocess.Popen(["open", url])
+        else:
+            subprocess.Popen(["xdg-open", url])
+        return True
+    except (OSError, AttributeError):
+        return False
+
+
+def gemini_add(entry: dict, run=None) -> str:
+    """Gemini CLI's own command: gemini mcp add -s user joe <command> <args...>. '' = done."""
+    import subprocess
+    exe = shutil.which("gemini")
+    if not exe:
+        return "no gemini command"
+    run = run or subprocess.run
+    try:
+        run([exe, "mcp", "remove", "-s", "user", ENTRY], capture_output=True, text=True, timeout=60)
+        r = run([exe, "mcp", "add", "-s", "user", ENTRY, entry["command"], *entry.get("args", [])],
+                capture_output=True, text=True, timeout=60)
+    except (OSError, subprocess.SubprocessError) as e:
+        return str(e)
+    return "" if r.returncode == 0 else ((r.stderr or r.stdout or "").strip()[:200] or "gemini mcp add failed")
+
+
+def mcpb_bundle(entry: dict, dest: Path, version: str) -> Path:
+    """A Claude Desktop extension (.mcpb) for this PC's Joe: double-click it and Claude Desktop shows
+    its own Install box, no settings files involved. It holds only a manifest and a 3-line starter
+    that runs this PC's Joe in connector mode (so it's made fresh on each PC, never shared)."""
+    import zipfile
+    v = re.match(r"\d+\.\d+\.\d+", version)
+    starter = ("# Starts this PC's Joe as a connector for Claude Desktop (made by Joe's CONNECT).\n"
+               "import os, runpy, sys\n"
+               f"sys.argv = [{json.dumps(entry['args'][0] if entry.get('args') else '')}] + {json.dumps(entry.get('args', [])[1:])}\n"
+               f"os.environ.update({json.dumps(entry.get('env', {}))})\n"
+               "runpy.run_path(sys.argv[0], run_name='__main__')\n")
+    manifest = {
+        "manifest_version": "0.3", "name": "joe-ai", "display_name": "Joe (your local AI helper)",
+        "version": v.group(0) if v else "1.0.0",
+        "description": "Joe works on this PC with local AI: queue his work, make pictures, run his tools on "
+                       "files in his Inbox, see his status and results. Free and open source (GPL-3.0).",
+        "author": {"name": "Joe (joe-ai)", "url": "https://github.com/sirgijoe/joe-ai"},
+        "homepage": "https://github.com/sirgijoe/joe-ai", "license": "GPL-3.0-or-later",
+        "server": {"type": "python", "entry_point": "server/joe_connector.py",
+                   "mcp_config": {"command": entry["command"], "args": ["${__dirname}/server/joe_connector.py"],
+                                  "env": entry.get("env", {})}},
+    }
+    dest.parent.mkdir(parents=True, exist_ok=True)
+    with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
+        z.writestr("manifest.json", json.dumps(manifest, indent=2))
+        z.writestr("server/joe_connector.py", starter)
+    return dest
 
 
 # ---- TOML (ChatGPT desktop / Codex): only Joe's own [mcp_servers.joe] tables are touched.
@@ -148,9 +236,34 @@ def status() -> list[dict]:
             continue
         d = _read(p)
         installed = _installed(app_id, p)
+        key = _servers_key(app_id)
+        got = (d or {}).get(key) if isinstance((d or {}).get(key), dict) else {}
+        mine = got.get(ENTRY) if isinstance(got.get(ENTRY), dict) else None
         out.append({"id": app_id, "name": name, "installed": installed, "file": str(p),
-                    "connected": bool(d and isinstance(d.get("mcpServers"), dict) and ENTRY in d["mcpServers"]),
-                    "readable": d is not None})
+                    "connected": mine is not None, "readable": d is not None,
+                    "points_to": " ".join([str(mine.get("command", ""))] + [str(x) for x in mine.get("args", [])])
+                    if mine else "", "link": bool(deeplink(app_id, {"command": "x"}))})
+    return out
+
+
+def entry_matches(have: str, entry: dict) -> bool:
+    """Does the app start THIS Joe (same Python and same Joe.pyw)?"""
+    want = " ".join([str(entry.get("command", ""))] + [str(x) for x in entry.get("args", [])])
+    norm = lambda t: t.replace("\\", "/").lower().strip()      # noqa: E731
+    return norm(have) == norm(want)
+
+
+def check(entry: dict, connected_before: list[str]) -> list[dict]:
+    """Problems for System check: an app Joe was connected to that lost his entry (it moved or reset
+    its settings), or one that starts Joe from an old place (folder moved, Python updated, other copy)."""
+    out = []
+    for st in status():
+        if st["id"] not in connected_before or not st["installed"]:
+            continue
+        if not st["connected"]:
+            out.append({"app": st["id"], "name": st["name"], "why": "missing"})
+        elif st["id"] != "chatgpt" and not entry_matches(st["points_to"], entry):
+            out.append({"app": st["id"], "name": st["name"], "why": "old", "points_to": st["points_to"]})
     return out
 
 
@@ -226,9 +339,10 @@ def connect(app_id: str, entry: dict) -> dict:
                                       f"alone. Use SHOW THE CONNECTOR LINES and paste them in by hand."}
     if p.exists():
         _backup(p)
-    servers = d.get("mcpServers") if isinstance(d.get("mcpServers"), dict) else {}
-    servers[ENTRY] = entry
-    d["mcpServers"] = servers
+    key = _servers_key(app_id)
+    servers = d.get(key) if isinstance(d.get(key), dict) else {}
+    servers[ENTRY] = {"type": "stdio", **entry} if app_id == "vscode" else entry
+    d[key] = servers
     _write(p, json.dumps(d, indent=2))
     if app_id == "claude" and WINDOWS:                # MSIX + old-style copies: keep both in step
         for other in claude_windows_files():
@@ -244,12 +358,12 @@ def connect(app_id: str, entry: dict) -> dict:
     return {"ok": True, "say": f"Joe is connected to {name}. Open {name} now and start a new chat to use him."}
 
 
-def disconnect(app_id: str) -> dict:
+def disconnect(app_id: str, force: bool = False) -> dict:
     apps = app_paths()
     if app_id not in apps:
         return {"ok": False, "error": "Joe doesn't know that app."}
     name, p = apps[app_id]
-    if (busy := closed_first(app_id, name)) is not None:
+    if not force and (busy := closed_first(app_id, name)) is not None:
         return busy
     if p.suffix == ".toml":
         text = p.read_text(encoding="utf-8") if p.exists() else ""
@@ -259,10 +373,11 @@ def disconnect(app_id: str) -> dict:
         _write(p, _toml_strip_joe(text))
         return {"ok": True, "say": f"Joe is disconnected from {name}. Restart it."}
     d = _read(p)
-    if not d or not isinstance(d.get("mcpServers"), dict) or ENTRY not in d["mcpServers"]:
+    key = _servers_key(app_id)
+    if not d or not isinstance(d.get(key), dict) or ENTRY not in d[key]:
         return {"ok": True, "say": f"Joe wasn't connected to {name}."}
     _backup(p)
-    del d["mcpServers"][ENTRY]
+    del d[key][ENTRY]
     _write(p, json.dumps(d, indent=2))
     if app_id == "claude" and WINDOWS:
         for other in claude_windows_files():
@@ -278,3 +393,17 @@ def _write(p: Path, text: str) -> None:
     tmp = p.with_name(p.name + ".joe-tmp")
     tmp.write_text(text, encoding="utf-8")
     tmp.replace(p)
+
+
+def disconnect_all() -> int:
+    """Uninstalling Joe: take his entry out of every app, so none keeps trying to start a Joe
+    that's gone. Returns how many were removed."""
+    n = 0
+    for st in status():
+        if st["connected"]:
+            try:
+                if disconnect(st["id"], force=True).get("ok"):
+                    n += 1
+            except OSError:
+                continue
+    return n

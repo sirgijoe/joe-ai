@@ -164,6 +164,7 @@ class Settings:
     templates: dict = field(default_factory=dict)   # Setup > Writing > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)
+    mcp_apps: list = field(default_factory=list)   # AI apps the person connected Joe to (System check watches them)
     pandoc: str = ""                 # blank = auto-detect
 
     @property

@@ -423,6 +423,21 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         if it.get("action") == "pull" and it.get("model") not in installed:
             continue                       # that model was removed since the check
         issues.append(dict(it))
+    try:                                    # AI apps Joe was connected to: still there, still this Joe?
+        from . import connect as connect_mod
+        from .mcp import client_config
+        for c in connect_mod.check(client_config()["mcpServers"]["joe"], list(settings.mcp_apps or [])):
+            if c["why"] == "missing":
+                text = (f"{c['name']} no longer has Joe in its settings (the app may have moved or reset them). "
+                        f"Close {c['name']} completely, then press RECONNECT.")
+            else:
+                text = (f"{c['name']} starts Joe from an old place ({c['points_to'][:120]}), so it may not find him "
+                        f"(Joe's folder moved, Python was updated, or it's another copy of Joe). Close {c['name']} "
+                        "completely, then press RECONNECT.")
+            issues.append({"id": f"mcp-{c['app']}", "text": text, "action": "mcp-fix", "tool": c["app"],
+                           "optional": True})
+    except Exception:                       # noqa: BLE001 (never break System check over this)
+        pass
     for it in issues:
         it["kind"] = model_kind(it.get("id", ""))
     for it in issues:

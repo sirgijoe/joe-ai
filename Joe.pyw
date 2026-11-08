@@ -18,7 +18,7 @@ if sys.version_info < (3, 11, 4):                # older Pythons unpack download
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-if sys.argv[1:2] in (["mcp"], ["tonight"]):     # connector for AI apps / the night shift
+if sys.argv[1:2] in (["mcp"], ["tonight"], ["disconnect-all"]):   # connector / night shift / uninstall
     from joeai.cli import main  # noqa: E402
     sys.exit(main(sys.argv[1:]))
 
