@@ -2233,7 +2233,7 @@ async function talkSend(textArg) {
   if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
-  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|remind us|set a reminder|set me a reminder|make a reminder|add a reminder|create a reminder|don'?t let me forget|do not let me forget|reminder:|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send |directions|give me directions|get directions|how do i get|how can i get|navigate|take me to|where can i|where do i|where should i|shop for|find me|find the price|look up the price|compare prices)/i.test(text);
+  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|remind us|ping me|ping my phone|text me|message me|notify me|alert me|buzz me|send me a|send a ping|set a reminder|set me a reminder|make a reminder|add a reminder|create a reminder|don'?t let me forget|do not let me forget|reminder:|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send |directions|give me directions|get directions|how do i get|how can i get|navigate|take me to|where can i|where do i|where should i|shop for|find me|find the price|look up the price|compare prices)/i.test(text);
   if (text && !sent.length && (text.length <= 40 || assist)) {        // "go", "stop", reminders, lists: do it, no AI
     const rt = await routeText(text);
     if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {

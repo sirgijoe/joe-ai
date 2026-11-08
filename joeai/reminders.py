@@ -95,7 +95,7 @@ def parse_when(text: str, now: datetime | None = None) -> tuple[datetime | None,
             if when <= now:
                 when = None
     what = re.sub(r"\s+", " ", t).strip(" ,.")
-    what = re.sub(r"^(?:to|that|about)\s+", "", what, flags=re.I).strip()
+    what = re.sub(r"^(?:to|that|about|for|saying|with)\s+", "", what, flags=re.I).strip()
     what = re.sub(r"\s+(?:to|that)$", "", what, flags=re.I).strip()
     return when, what
 

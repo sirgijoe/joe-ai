@@ -104,3 +104,11 @@ def test_other_ways_to_ask_for_a_reminder():
         r = route.classify(t)
         assert r["cmd"] == "remind", t
         assert reminders.parse_when(r["text"], NOW) == (datetime(2026, 11, 8, 15, 0), "call the vet"), t
+
+
+def test_ping_my_phone_is_a_reminder():
+    r = route.classify("ping my phone in one minute for a test")
+    assert r["cmd"] == "remind" and reminders.parse_when(r["text"], NOW) == (datetime(2026, 11, 8, 13, 1), "a test")
+    assert route.classify("text me at 5pm to start dinner")["cmd"] == "remind"
+    assert route.classify("send me a notification tomorrow at 8 to feed the horses")["cmd"] == "remind"
+    assert route.classify("ping me when the run is done").get("cmd") != "remind"        # no time: not a reminder
