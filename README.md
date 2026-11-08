@@ -102,10 +102,14 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   or just say "read it".
 - **Make Joe sound like you** (optional, NVIDIA card): read a short passage once and Joe talks
   in your voice. The recording stays on your PC; it's never shared or packaged with Joe.
+- **A voice to remember** (optional, NVIDIA card): from a family recording of someone you miss (a phone
+  video or voicemail), hear a letter or a story in their voice with the tool "Hear it in a loved one's
+  voice". You tick three promises first (family's OK, family listening only, never to fool anyone); it
+  stays on this PC, every recording says it was made by AI, and the voice program watermarks it.
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**44 ready-made tools** (Tools tab, **F3**)
+**45 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the

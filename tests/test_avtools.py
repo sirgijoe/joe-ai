@@ -145,3 +145,43 @@ def test_dub_video_subtitles_and_voice(ffapp, monkeypatch):
     st = Engine(ffapp.settings, ffapp.sb, log=lambda x: None, voice=ffapp.voice).run_mission(
         parse("TASK: Dub2  TYPE: dub-video\nINPUT: talk.mp4\nOPTIONS: to german, voice"))[0]
     assert st.status == "done" and sorted(p.name for p in (ffapp.sb.output / st.output).iterdir()) == ["talk-german.srt"]
+
+
+@need_ff
+def test_memory_voice_sample_and_reading(ffapp, monkeypatch):
+    import wave
+    from joeai import addons
+    _tone(ffapp.sb.inbox / "voicemail.mp3", 12)
+    out = ffapp.sb.inbox / "sample.wav"
+    assert avtools.prepare_voice_sample(FF, ffapp.sb.inbox / "voicemail.mp3", out) == ""
+    with wave.open(str(out)) as w:
+        assert (w.getframerate(), w.getnchannels(), w.getsampwidth()) == (24000, 1, 2)
+    data = out.read_bytes()
+    assert "promises" in addons.save_memory_voice("Grandpa", data, {"family", "private"})
+    assert addons.save_memory_voice("Grandpa", data, {"family", "private", "honest"}) == ""
+    assert [v["name"] for v in addons.memory_voices()] == ["Grandpa"] and addons.memory_ref("grandpa")
+
+    class FakeClone:
+        def __init__(self, *a, **k):
+            pass
+
+        def call(self, req, timeout=0):
+            assert req["ref"].endswith("reference.wav")
+            with wave.open(req["out"], "wb") as w:
+                w.setnchannels(1)
+                w.setsampwidth(2)
+                w.setframerate(24000)
+                w.writeframes(b"\x00\x00" * 24000)
+            return {"ok": True}
+    monkeypatch.setattr(addons, "VoiceWorker", FakeClone)
+    monkeypatch.setattr(addons, "clone_ready", lambda: True)
+    (ffapp.sb.inbox / "letter.md").write_text("Dear kids, I'm proud of you.", encoding="utf-8")
+    st = _run(ffapp, "TASK: Letter  TYPE: memory-voice\nINPUT: letter.md\nFORMAT: Grandpa")
+    assert st.status == "done", st.note
+    got = sorted(p.name for p in (ffapp.sb.output / st.output).iterdir())
+    assert got == ["About this recording.txt", "letter-grandpa-voice.mp3"]
+    assert "made by AI" in (ffapp.sb.output / st.output / "About this recording.txt").read_text(encoding="utf-8")
+    st = _run(ffapp, "TASK: L2  TYPE: memory-voice\nINPUT: letter.md\nFORMAT: Nobody")
+    assert st.status == "failed" and "made so far: Grandpa" in st.note
+    addons.delete_memory_voice("grandpa")
+    assert addons.memory_voices() == []

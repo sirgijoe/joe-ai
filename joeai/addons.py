@@ -221,6 +221,74 @@ def delete_my_voice() -> None:
             pass
 
 
+# --------------------------------------------------------------------------- a voice to remember
+# A loved one's voice made from family recordings, for the family's own use. Kept only on this PC
+# (never in Joe's folder, backups or help files), each with the three promises the person ticked.
+MEMORY_PROMISES = {
+    "family": "I'm family (or I have the family's OK) to use this person's voice.",
+    "private": "It's only for our family's own listening: never sold, posted or shared as if it were real.",
+    "honest": "It will never be used to fool, trick or pretend to be them to anyone.",
+}
+
+
+def memory_dir() -> Path:
+    return voice_dir() / "memory"
+
+
+def memory_slug(name: str) -> str:
+    import re as _re
+    return _re.sub(r"[^a-z0-9]+", "-", (name or "").lower()).strip("-")[:40]
+
+
+def memory_voices() -> list[dict]:
+    out = []
+    try:
+        for d in sorted(memory_dir().iterdir()):
+            ref, info = d / "reference.wav", d / "consent.json"
+            if ref.exists() and info.exists():
+                try:
+                    meta = json.loads(info.read_text(encoding="utf-8"))
+                except ValueError:
+                    continue
+                out.append({"id": d.name, "name": meta.get("name", d.name), "made": meta.get("made", "")})
+    except OSError:
+        pass
+    return out
+
+
+def memory_ref(vid: str) -> Path | None:
+    d = memory_dir() / memory_slug(vid)
+    return d / "reference.wav" if (d / "reference.wav").exists() and (d / "consent.json").exists() else None
+
+
+def save_memory_voice(name: str, wav: bytes, promises: set[str]) -> str:
+    """Store a prepared 24 kHz WAV sample. Returns '' or a problem in plain words."""
+    missing = [k for k in MEMORY_PROMISES if k not in promises]
+    if missing:
+        return "Please tick all three promises first."
+    vid = memory_slug(name)
+    if not vid:
+        return "Type the person's name (or what you call them)."
+    if not (wav[:4] == b"RIFF" and wav[8:12] == b"WAVE"):
+        return "That recording couldn't be read."
+    if len(wav) < 24000 * 2 * 6:
+        return "There's too little clear speech in that recording (Joe needs at least 6 seconds of their voice talking)."
+    d = memory_dir() / vid
+    d.mkdir(parents=True, exist_ok=True)
+    (d / "reference.wav").write_bytes(wav)
+    (d / "consent.json").write_text(json.dumps({"name": name.strip()[:60], "made": time.strftime("%Y-%m-%d %H:%M"),
+                                                "promised": [MEMORY_PROMISES[k] for k in MEMORY_PROMISES]}, indent=1),
+                                    encoding="utf-8")
+    return ""
+
+
+def delete_memory_voice(vid: str) -> None:
+    import shutil as _sh
+    d = memory_dir() / memory_slug(vid)
+    if d.is_dir() and d.parent == memory_dir():
+        _sh.rmtree(d, ignore_errors=True)
+
+
 def install_clone(log: Log, approved: bool = False) -> bool:
     if not approved:
         raise PermissionError("needs the user's approval")

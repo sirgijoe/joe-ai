@@ -180,6 +180,20 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Read me Pride and Prejudice", "Find the book with ISBN 978-0-14-143951-8"),
          extra_hint="e.g. Pride and Prejudice, Jane Austen  or  978-0-14-143951-8",
          extra_label="ISBN or title"),
+    Tool("memory-voice", "Hear it in a loved one's voice", "Audio",
+         "A letter, story or note read in the voice of someone you miss, made from family recordings.",
+         accepts=DOC_EXT,
+         needs=("ffmpeg",), ready=True,
+         help="First make the voice in Setup > Voice & Talk > A voice to remember: add a family recording of them "
+              "talking (a few clear seconds are enough) and tick the three promises. Then type their name in the box "
+              "here. Everything stays on this PC. Each recording comes with a note saying it was made by AI, and the "
+              "voice program hides an inaudible watermark that marks it as AI-made. Needs the voice-copy add-on "
+              "(NVIDIA card).",
+         plan_hint="Read a document in a loved one's (copied) voice: TYPE: memory-voice, INPUT: the document, FORMAT: "
+                   "whose voice, word for word (the name they gave it). No CHUNKS.",
+         examples=("Read my letter in Grandpa's voice",),
+         extra_hint="the name you gave the voice, e.g. Grandpa",
+         extra_label="Whose voice"),
     Tool("proofread", "Proofread my writing", "Writing",
          "Fix spelling and grammar, with a list of every change.",
          accepts=DOC_EXT,

@@ -541,6 +541,14 @@ FORMAT: ...
                 <pre id="mv-script" class="out mvscript" hidden></pre>
                 <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
               </fieldset>
+              <fieldset class="memvoice"><legend>A VOICE TO REMEMBER</legend>
+                <div class="dim small">Hear a letter, a story or a note in the voice of someone you miss, made from a family recording of them talking (a phone video or voicemail is fine: a few clear seconds are enough). Then use the tool "Hear it in a loved one's voice". It stays on this PC, every recording it makes says it was made by AI, and the voice program hides an inaudible watermark marking it as AI. Needs the voice-copy add-on above (NVIDIA card).</div>
+                <label>Their name (or what you call them) <input id="mem-name" placeholder="e.g. Grandpa" maxlength="60"></label>
+                <label>Family recording <input type="file" id="mem-file" accept="audio/*,video/*"></label>
+                <div id="mem-promises" class="small"></div>
+                <div class="row"><button type="button" data-act="mem-make">[ MAKE THE VOICE ]</button> <span id="mem-msg" class="small" aria-live="polite"></span></div>
+                <div id="mem-list" class="small"></div>
+              </fieldset>
             </div>
 
             <!-- DISPLAY & SOUND -->

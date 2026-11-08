@@ -2608,6 +2608,41 @@ document.addEventListener("click", async (ev) => {
   });
 });
 
+/* ---------------- A VOICE TO REMEMBER (Setup > Voice & Talk) ---------------- */
+async function loadMemoryVoices() {
+  let r; try { r = await api("/api/voice/memory/list", {}); } catch (e) { return; }
+  const box = $("#mem-promises"); if (!box) return;
+  if (!box.dataset.done) {
+    box.innerHTML = Object.entries(r.promises).map(([k, t]) =>
+      `<label class="inline"><input type="checkbox" class="mem-promise" value="${k}"> ${esc(t)}</label>`).join("<br>");
+    box.dataset.done = "1";
+  }
+  $("#mem-list").innerHTML = r.voices.length ? "Voices made: " + r.voices.map((v) =>
+    `<span class="chip">${esc(v.name)} <button type="button" data-mem-del="${esc(v.id)}" title="Delete this voice">[ DELETE ]</button></span>`).join(" ")
+    : '<span class="dim">No voices made yet.</span>';
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.act === "mem-make") {
+    const name = $("#mem-name").value.trim(), f = $("#mem-file").files[0];
+    const promises = [...document.querySelectorAll(".mem-promise:checked")].map((x) => x.value);
+    if (!name) { $("#mem-msg").textContent = "Type their name first."; return; }
+    if (!f) { $("#mem-msg").textContent = "Pick a recording of them talking."; return; }
+    if (promises.length < 3) { $("#mem-msg").textContent = "Please tick all three promises first."; return; }
+    $("#mem-msg").textContent = "Making the voice sample…";
+    try {
+      const r = await fetch("/api/voice/memory", { method: "POST", body: f, headers: { "X-NR-Token": TOKEN,
+        "X-Name": encodeURIComponent(name), "X-Promises": promises.join(","), "X-Ext": encodeURIComponent((f.name.match(/\.[^.]+$/) || [".wav"])[0]) } }).then((x) => x.json());
+      $("#mem-msg").textContent = r.ok ? `Done. Use the tool "Hear it in a loved one's voice" and type ${name}.` : r.error;
+    } catch (e) { $("#mem-msg").textContent = "Couldn't send it: " + e.message; }
+    loadMemoryVoices();
+  }
+  if (b.dataset.memDel) confirmBox("Delete this voice? Recordings already made stay where they are.", async () => {
+    await api("/api/voice/memory/delete", { id: b.dataset.memDel }); loadMemoryVoices();
+  });
+});
+setTimeout(() => loadMemoryVoices().catch(() => {}), 3000);
+
 /* ---------------- drop files into Talk ---------------- */
 let talkFiles = [];
 function renderFiles() {

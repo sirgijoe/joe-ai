@@ -1692,6 +1692,46 @@ def make_handler(app: App):
                     app.settings.save()
                     app.log("Saved your voice sample (stays on this PC). Joe will use it when he talks.")
                 return self._json({"ok": not err, "error": err})
+            if u.path == "/api/voice/memory":           # A VOICE TO REMEMBER: a family recording is the body
+                from urllib.parse import unquote
+                from . import avtools
+                from .doctor import ffmpeg_exe
+                n = int(self.headers.get("Content-Length") or 0)
+                if not 0 < n <= 500_000_000:
+                    return self._json({"ok": False, "error": "That file is empty or too big (500 MB at most)."})
+                promises = {x.strip() for x in (self.headers.get("X-Promises") or "").split(",")}
+                name = unquote(self.headers.get("X-Name") or "").strip()
+                if set(addons_mod.MEMORY_PROMISES) - promises:
+                    return self._json({"ok": False, "error": "Please tick all three promises first."})
+                ff = ffmpeg_exe(app.settings.comfy.ffmpeg)
+                if not ff:
+                    return self._json({"ok": False, "error": "This needs FFmpeg (Setup > System check installs it)."})
+                ext = re.sub(r"[^a-z0-9.]", "", unquote(self.headers.get("X-Ext") or ".wav").lower())[:6] or ".wav"
+                tmpd = app.sb.meta / "tmp"
+                tmpd.mkdir(parents=True, exist_ok=True)
+                raw, wav = tmpd / f"memory-in{ext}", tmpd / "memory-sample.wav"
+                try:
+                    with open(raw, "wb") as fh:
+                        left = n
+                        while left > 0:
+                            chunk = self.rfile.read(min(1 << 20, left))
+                            if not chunk:
+                                break
+                            fh.write(chunk)
+                            left -= len(chunk)
+                    err = avtools.prepare_voice_sample(ff, raw, wav)
+                    if err:
+                        return self._json({"ok": False, "error": f"Joe couldn't read that recording: {err}"})
+                    err = addons_mod.save_memory_voice(name, wav.read_bytes(), promises)
+                finally:
+                    for f in (raw, wav):
+                        try:
+                            f.unlink()
+                        except OSError:
+                            pass
+                if not err:
+                    app.log(f"Saved a voice to remember: {name} (stays on this PC).")
+                return self._json({"ok": not err, "error": err, "voices": addons_mod.memory_voices()})
             if u.path == "/api/restore":                # RESTORE FROM A BACKUP: the zip itself is the body
                 from . import backup
                 n = int(self.headers.get("Content-Length") or 0)
@@ -1811,6 +1851,12 @@ def make_handler(app: App):
                 if u.path == "/api/talk/warm":
                     app.warm_talk()
                     return self._json({"ok": True})
+                if u.path == "/api/voice/memory/list":
+                    return self._json({"ok": True, "voices": addons_mod.memory_voices(),
+                                       "promises": addons_mod.MEMORY_PROMISES, "ready": addons_mod.clone_ready()})
+                if u.path == "/api/voice/memory/delete":
+                    addons_mod.delete_memory_voice(str(b.get("id", "")))
+                    return self._json({"ok": True, "voices": addons_mod.memory_voices()})
                 if u.path == "/api/voice/myvoice/delete":
                     addons_mod.delete_my_voice()
                     if app.settings.voice.voice == "mine":

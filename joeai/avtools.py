@@ -28,7 +28,7 @@ if TYPE_CHECKING:
     from .engine import Engine, JobState
     from .mission import Job, Mission
 
-AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video")
+AV_TOOLS = ("clean-audio", "social-graphic", "privacy-blur", "tidy-speech", "dub-video", "memory-voice")
 
 # --------------------------------------------------------------------------- clean a recording
 STRENGTH = {"light": -18, "normal": -25, "strong": -35}       # afftdn noise floor (dB)
@@ -423,6 +423,72 @@ def _dub(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[st
     return made
 
 
+# --------------------------------------------------------------------------- a voice to remember
+def voice_sample_command(ffmpeg: str, src: Path, out: Path, seconds: int = 25) -> list[str]:
+    """A family recording (audio or video) -> a clean voice sample for copying a voice: sound only,
+    light noise cleanup, silences dropped, up to `seconds` long, 24 kHz mono 16-bit."""
+    af = ("highpass=f=70,afftdn=nf=-20:tn=1,silenceremove=start_periods=1:start_threshold=-45dB:"
+          "stop_periods=-1:stop_duration=0.5:stop_threshold=-45dB,loudnorm=I=-18:TP=-2")
+    return [ffmpeg, "-y", "-v", "error", "-i", str(src), "-vn", "-af", af, "-t", str(seconds), "-ar", "24000",
+            "-ac", "1", "-c:a", "pcm_s16le", str(out)]
+
+
+def prepare_voice_sample(ffmpeg: str, src: Path, out: Path) -> str:
+    return _ff(voice_sample_command(ffmpeg, src, out), 600)
+
+
+MEMORY_NOTE = ("This recording was made by AI from a recording of {name}, for the family's own listening. It is not "
+               "a real recording of them. The voice program (Chatterbox) also hides an inaudible watermark in it "
+               "that marks it as AI-made. Please don't share it as if it were real.\n")
+
+
+def _memory(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[str]:
+    import tempfile
+    from . import addons
+    from .tools import document_text, merge_wavs, speech_pieces, to_mp3
+    who = job.format.strip()
+    ref = addons.memory_ref(who)
+    if not ref:
+        have = ", ".join(v["name"] for v in addons.memory_voices()) or "none yet"
+        raise RuntimeError(f"no voice called '{who}' (made so far: {have}). Make one in Setup > Voice & Talk > "
+                           "A voice to remember")
+    name = next((v["name"] for v in addons.memory_voices() if v["id"] == addons.memory_slug(who)), who)
+    try:
+        text = document_text(src, engine.log)
+    except (ValueError, OSError) as e:
+        raise RuntimeError(str(e)) from e
+    if not text.strip():
+        raise RuntimeError("no words in it")
+    worker = getattr(engine, "clone", None) or addons.VoiceWorker(
+        engine.log, python=str(addons.clone_python()), script=Path(addons.__file__).with_name("clone_worker.py"))
+    wavs = []
+    with tempfile.TemporaryDirectory() as tmp:
+        pieces = speech_pieces(text, 3500)
+        for i, piece in enumerate(pieces):
+            if engine.stop.is_set():
+                from .engine import Stopped
+                raise Stopped()
+            engine._progress(f"{job.name}: {src.name}, part {i + 1}/{len(pieces)} in {name}'s voice")
+            w = Path(tmp) / f"p{i:04d}.wav"
+            r = worker.call({"cmd": "tts", "text": piece, "out": str(w), "ref": str(ref)},
+                            timeout=max(900.0, len(piece) * 1.5))
+            if not r.get("ok") or not w.exists():
+                raise RuntimeError(r.get("error") or "the voice didn't make any sound")
+            wavs.append(w)
+        merged = Path(tmp) / "all.wav"
+        merge_wavs(wavs, merged)
+        label = f"{src.stem} ({name}'s voice, AI)"
+        base = f"{stem}-{addons.memory_slug(name)}-voice"
+        if to_mp3(ffmpeg, merged, folder / f"{base}.mp3", label, engine.log):
+            made = [f"{base}.mp3"]
+        else:
+            import shutil as _sh
+            _sh.copy(merged, folder / f"{base}.wav")
+            made = [f"{base}.wav"]
+    atomic_write_text(folder / "About this recording.txt", MEMORY_NOTE.format(name=name))
+    return made + ["About this recording.txt"]
+
+
 # --------------------------------------------------------------------------- run
 def _ff(cmd: list[str], timeout: float = 3600) -> str:
     """Run FFmpeg; '' = fine, else its error in a line."""
@@ -491,6 +557,17 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                                             "Setup (F10) > System check offers a free one")
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
+    if tid == "memory-voice":
+        from . import addons
+        if not addons.clone_ready() and getattr(engine, "clone", None) is None:
+            st.status, st.note = "failed", ("this needs the voice-copy add-on (Setup > System check > \"sound like me\" > "
+                                            "SET UP; NVIDIA card)")
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        if not job.format.strip():
+            st.status, st.note = "failed", "type whose voice to use in the box (the name you gave it in Setup)"
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
     if tid == "dub-video" and not engine._text_ready(st):
         engine._save_state(job, st)
         return st
@@ -507,7 +584,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}' ({TOOLS[tid].name}) -> {st.output}")
     failed: list[str] = []
     fn = {"clean-audio": _clean, "social-graphic": _graphic, "privacy-blur": _blur, "tidy-speech": _tidy,
-          "dub-video": _dub}[tid]
+          "dub-video": _dub, "memory-voice": _memory}[tid]
     work = files if (files or tid != "social-graphic") else [None]
     try:
         for i, src in enumerate(work):

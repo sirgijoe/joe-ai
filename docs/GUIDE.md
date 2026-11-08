@@ -762,6 +762,20 @@ MAKE JOE SOUND LIKE ME: tick "this is my own voice", press RECORD and read the p
 DELETE MY VOICE removes it. While a run is using the graphics card, Joe speaks with the
 built-in voice instead. Chatterbox marks its audio with an inaudible watermark.
 
+### A voice to remember (optional)
+
+With voice copy installed (above), Setup > Voice & Talk > **A VOICE TO REMEMBER** makes a voice from
+a family recording of someone you miss: a phone video, a voicemail, an old home movie. Type their
+name, pick the recording, and tick the three promises: you're family (or have the family's OK), it's
+only for your family's own listening (never sold, posted or shared as if real), and it will never be
+used to fool or pretend to be them to anyone. Joe takes the sound only, cleans it lightly, drops the
+silences and keeps up to 25 seconds; a few clear seconds of them talking are enough.
+
+Then use the tool **Hear it in a loved one's voice**: add a letter, a story or a note and type their
+name. You get an MP3 plus "About this recording.txt" saying it was made by AI; Chatterbox also hides
+an inaudible watermark in it. The voices live only in `%LOCALAPPDATA%\joe-ai\addons\voice\memory`
+(on the drive for Portable Joe), never in backups or help files. DELETE removes one.
+
 ### Dropping files into Talk
 
 Drag files onto Joe's window (or press ATTACH). They're copied to `Inbox\dropped\` and go with
