@@ -79,5 +79,15 @@ TXT
 mkdir -p dist
 out="dist/Joe-${version}-macos-${arch}.dmg"
 rm -f "$out"
-hdiutil create -volname "Joe ${version}" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$out"
+# GitHub's Intel Mac runners sometimes say "hdiutil: create failed - Resource busy" (a disk-image
+# helper still holding on): wait and try again instead of failing the whole release (v2.0.0 lost
+# its Intel .dmg this way).
+for try in 1 2 3 4 5; do
+  if hdiutil create -volname "Joe ${version}" -srcfolder "$stage" -fs HFS+ -format UDZO -ov "$out"; then
+    break
+  fi
+  if [ "$try" = 5 ]; then echo "hdiutil failed 5 times" >&2; exit 1; fi
+  echo "hdiutil busy, trying again in $((try * 10)) s ($try of 5)"
+  sync; sleep $((try * 10))
+done
 echo "Built $out"
