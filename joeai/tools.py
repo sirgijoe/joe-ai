@@ -397,6 +397,43 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Make an Instagram post that says Grand Opening Saturday", "A flyer for our yard sale"),
          extra_hint="e.g. Grand opening Saturday!\n10% off everything, 9am-3pm, 12 Main St",
          extra_label="The words (first line = headline)"),
+    Tool("ask-sheet", "Ask my spreadsheet", "Files",
+         "Totals, averages, counts and charts from a spreadsheet, worked out by Joe's own math.",
+         accepts=SHEET_EXT,
+         needs=("ollama",), ready=True,
+         help="Type your question(s) in the box (one per line), like 'which month sold the most?' or 'total "
+              "spent on supplies in 2026'. The writing model only turns each question into a plan; Joe's own code "
+              "does the math, so the numbers are always right, and each answer says how it was worked out. "
+              "Answers with several rows come with a bar chart. Your spreadsheet is never changed.",
+         plan_hint="Questions about a spreadsheet (totals, averages, counts, which is biggest, per month): TYPE: "
+                   "ask-sheet, INPUT: the CSV or Excel file, FORMAT: their question(s), one per line, word for word. No CHUNKS.",
+         examples=("Which product sold the most?", "Total spent per month in my expenses sheet"),
+         extra_hint="e.g. Total sales per month?\nWhich item sold the most?",
+         extra_label="Your question(s)"),
+    Tool("sort-files", "Sort and rename my files", "Files",
+         "Documents sorted into folders with clear names like '2026-03-02 Electric bill.pdf'.",
+         accepts=DOC_EXT + (".csv",),
+         options=(Option("folders", "Sort into folders", True),
+                  Option("rename", "Give clear names (with the document's date)", True)),
+         needs=("ollama",), ready=True,
+         help="Joe reads the start of each document and picks a folder and a clear name. He makes sorted COPIES: "
+              "your originals stay exactly where they were. Want your own folders? Type them in the box "
+              "(Bills, Taxes, School...). A list of what went where is saved too.",
+         plan_hint="Sort / organize / rename documents: TYPE: sort-files, INPUT: the files or folder, OPTIONS: folders, "
+                   "rename, FORMAT: their own category names if they gave any. No CHUNKS.",
+         examples=("Sort my scanned bills into folders", "Give my downloads clear names"),
+         extra_hint="optional, e.g. Bills, Taxes, Medical, School, Car",
+         extra_label="Your folders (optional)"),
+    Tool("calendar-file", "Dates and to-dos to my calendar", "Files",
+         "A calendar file (.ics) with the dates and to-dos from notes, emails or a transcript.",
+         accepts=DOC_EXT,
+         needs=("ollama",), ready=True,
+         help="Joe finds the dates, times and to-dos in your documents ('dentist Tuesday 3pm', 'send the forms by "
+              "the 20th') and makes calendar.ics: double-click it or import it into Google Calendar, Outlook or "
+              "Apple Calendar. Joe never touches your calendar account. Guessed dates are marked [CHECK].",
+         plan_hint="Put dates / appointments / to-dos from notes or emails into a calendar: TYPE: calendar-file, "
+                   "INPUT: the document(s). No CHUNKS.",
+         examples=("Put the dates from my meeting notes in my calendar", "Make a calendar file from this school letter")),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
          "Fix duplicates, spelling and categories in a CSV.",
          accepts=SHEET_EXT,
@@ -949,6 +986,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         fn = writetools.run
     if job.type in avtools.AV_TOOLS:
         fn = avtools.run
+    from . import filetools
+    if job.type in filetools.FILE_TOOLS:
+        fn = filetools.run
     if job.type == "make-shorts":
         from . import shorts
         fn = shorts.run

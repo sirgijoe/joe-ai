@@ -182,6 +182,27 @@ class FakeOllama:
                                  {"item": "Beans", "amount": "4 lb", "price": "$6.25", "from_list": False},
                                  {"item": "Eggs", "amount": "5 dozen", "price": 80, "from_list": False}],
                     "tips": ["Cook beans from dry"]}))
+            if sysmsg.startswith("You pull dates out of the person's notes"):
+                return 200, self._reply(json.dumps({"events": [
+                    {"title": "Dentist, Sam", "date": "2026-12-01", "start": "15:00", "end": "", "place": "Main St; Suite 2", "sure": True},
+                    {"title": "Dentist, Sam", "date": "2026-12-01", "start": "15:00"},
+                    {"title": "Party", "date": "2026-12-05", "start": "", "sure": False},
+                    {"title": "Someday", "date": "soon"}],
+                    "todos": [{"task": "Send the forms", "due": "2026-11-20", "who": "Ann"}, {"task": ""}]}))
+            if sysmsg.startswith("You sort the person's documents"):
+                name = re.search(r"Document file name: (.+)", user).group(1)
+                if "bill" in name:
+                    return 200, self._reply('{"category": "Bills", "title": "Electric bill: March", "date": "2026-03-02"}')
+                return 200, self._reply('{"category": "Letters", "title": "School letter", "date": ""}')
+            if sysmsg.startswith("You turn a question about a spreadsheet"):
+                q = user.split("Question:", 1)[1].lower()
+                if "per month" in q:
+                    return 200, self._reply('{"op": "sum", "column": "Price", "group_by": "Month", "filters": [], "sort": "desc"}')
+                if "mugs" in q:
+                    return 200, self._reply('{"op": "sum", "column": "Price", "filters": [{"column": "Product", "is": "contains", "value": "mug"}]}')
+                if "weather" in q:
+                    return 200, self._reply('{"op": "none", "why": "the sheet has no weather"}')
+                return 200, self._reply('{"op": "average", "column": "Nope"}')
             if sysmsg.startswith("You brainstorm"):
                 return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
             if sysmsg.startswith("You are a patient tutor"):

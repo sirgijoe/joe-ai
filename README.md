@@ -103,7 +103,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**39 ready-made tools** (Tools tab, **F3**)
+**42 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -148,6 +148,14 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   Formatting, names, prices and links stay as they are; anything Joe isn't sure about is
   marked [CHECK], and each copy says plainly it's a machine translation to be checked by
   someone who speaks the language.
+- **Ask my spreadsheet**: "which month sold the most?", "total spent on supplies in 2026". The
+  writing model only turns the question into a plan; Joe's own code does the math (so the numbers are
+  right) and shows how, with a bar chart when there are several rows.
+- **Sort and rename my files**: documents copied into folders (yours or Joe's) with clear names like
+  "2026-03-02 Electric bill.pdf". The originals stay where they were.
+- **Dates and to-dos to my calendar**: the dates, times and to-dos from notes, emails or a transcript
+  as a calendar file (.ics) for Google Calendar, Outlook or Apple Calendar. Joe never touches your
+  calendar account; guessed dates are marked [CHECK].
 - **Tidy a spreadsheet**: CSV or Excel in, a tidy CSV out: extra spaces and duplicate rows
   removed, and if you like, spelling fixed, a Category column added, or a column split (like
   Name into First and Last). Every change is listed; your original isn't touched.
