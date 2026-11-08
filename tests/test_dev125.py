@@ -288,3 +288,25 @@ def test_restart_bar_really_hides():
     from pathlib import Path
     css = (Path(__file__).parents[1] / "joeai" / "ui" / "app.css").read_text(encoding="utf-8")
     assert ".readybar[hidden] { display: none; }" in css
+
+
+def test_claude_desktop_data_outside_package(tmp_path, monkeypatch):
+    """Claude Desktop that keeps its data outside the package reads Local/Claude-Data/claude_<id>/."""
+    import json
+    from joeai import connect
+    monkeypatch.setattr(connect, "WINDOWS", True)
+    monkeypatch.setattr(connect, "MAC", False)
+    monkeypatch.setenv("JOE_HOME_OVERRIDE", str(tmp_path))
+    monkeypatch.setenv("LOCALAPPDATA", str(tmp_path / "Local"))
+    monkeypatch.setenv("APPDATA", str(tmp_path / "Roaming"))
+    pkg = tmp_path / "Local" / "Packages" / "Claude_pzs8sxrjxfjjc" / "LocalCache" / "Roaming" / "Claude"
+    pkg.mkdir(parents=True)
+    real = tmp_path / "Local" / "Claude-Data" / "claude_pzs8sxrjxfjjc" / "claude_desktop_config.json"
+    real.parent.mkdir(parents=True)
+    real.write_text(json.dumps({"preferences": {"sidebarMode": "chat"}}), encoding="utf-8")
+    st = {a["id"]: a for a in connect.status()}
+    assert "Claude-Data" in st["claude"]["file"] and not st["claude"]["connected"]
+    assert connect.connect("claude", {"command": "python", "args": ["Joe.pyw", "mcp"]})["ok"]
+    d = json.loads(real.read_text(encoding="utf-8"))
+    assert "joe" in d["mcpServers"] and d["preferences"]["sidebarMode"] == "chat"      # their settings kept
+    assert connect.status()[0]["connected"]

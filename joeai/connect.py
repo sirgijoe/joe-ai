@@ -47,8 +47,18 @@ def claude_windows_files() -> list[Path]:
     except OSError:
         msix = []
     classic = appdata / "Claude" / "claude_desktop_config.json"
+    # Newer Claude Desktop installs can keep their data outside the package (it asks once):
+    # %LOCALAPPDATA%\Claude-Data\claude_<id>\claude_desktop_config.json. When that exists, it's the
+    # one the app reads, so it comes first.
+    outside = []
+    try:
+        outside = sorted((d / "claude_desktop_config.json" for d in (local / "Claude-Data").glob("[Cc]laude_*")
+                          if d.is_dir()), key=lambda f: -(f.stat().st_mtime if f.exists() else 0))
+    except OSError:
+        outside = []
+    outside = [f for f in outside if f.exists()]
     have = [f for f in msix if f.parent.exists()] or msix
-    return have + [classic]
+    return outside + have + [classic]
 
 
 def app_paths() -> dict[str, tuple[str, Path]]:
