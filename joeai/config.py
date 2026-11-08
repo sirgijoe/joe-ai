@@ -39,7 +39,7 @@ class OllamaSettings:
     think: bool = False
     temperature: float = 0.7
     request_timeout_s: int = 600
-    engine: str = "ollama"       # ollama | lmstudio | llamacpp | localai (textengines.ENGINES)
+    engine: str = "ollama"       # ollama | lmstudio | llamacpp | localai | openai (textengines.ENGINES)
     engine_url: str = ""         # blank = that engine's usual address
     engine_start: str = ""       # blank = auto (LM Studio: lms server start); llama.cpp/LocalAI: your start line
 

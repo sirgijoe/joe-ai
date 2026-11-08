@@ -362,6 +362,22 @@ def _plain_summary(chk: dict) -> list[str]:
                 tail += ", with wording suggestions" if "clarity" in opts else ""
                 out.append(f"Proofread {_n(n, 'document', 'documents')} with a list of every change"
                            f"{tail}: {name}")
+            elif t in ("summarize", "rewrite", "brainstorm", "study", "code-review"):
+                o = j.get("options") or []
+                pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731
+                if t == "summarize":
+                    how = {"short": "short summary", "points": "key points",
+                           "chapters": "chapter-by-chapter summary"}.get(pick("length", "points"), "summary")
+                    out.append(f"Summarize {_n(n, 'document', 'documents')} ({how}): {name}")
+                elif t == "rewrite":
+                    how = dict(TOOLS[t].options[0].choices).get(pick("style", "friendly"), "rewritten").lower()
+                    out.append(f"Rewrite {_n(n, 'document', 'documents')} ({how}) with a list of what changed: {name}")
+                elif t == "brainstorm":
+                    out.append(f"Brainstorm {pick('count', '25')} {pick('kind', 'ideas')}: {name}")
+                elif t == "study":
+                    out.append(f"Study guide from {_n(n, 'document', 'documents')}: {name}")
+                else:
+                    out.append(f"Review {_n(n, 'code file', 'code files')} (never run): {name}")
             else:
                 out.append(f"{TOOLS[t].name}: {_n(n, 'file', 'files')} ({name})")
         elif t in ("image", "video"):

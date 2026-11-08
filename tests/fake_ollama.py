@@ -155,6 +155,28 @@ class FakeOllama:
                     if hit:
                         return 200, self._reply(f"The documents say: {hit.group(1)} [{n}]")
                 return 200, self._reply("The documents don't seem to say.")
+            if sysmsg.startswith("You summarize the person's document"):
+                if "Notes for part" in user:
+                    return 200, self._reply("- part note")
+                return 200, self._reply("## Summary\nThe lease runs a year. Rent is $900 [CHECK].\n## Key points\n- Pets allowed")
+            if sysmsg.startswith("You rewrite the person's text"):
+                if "Compare the ORIGINAL" in user:
+                    return 200, self._reply("- Friendlier tone\n- Same facts")
+                body = re.search(r"<<<\n(.*)\n>>>", user, re.S).group(1)
+                if "TOOSHORT" in body and "ONLY what was asked" not in user:
+                    return 200, self._reply("Hi")
+                return 200, self._reply("Sure, here it is:\n" + "\n".join("[RW] " + ln if ln.strip() else ln
+                                                                          for ln in body.split("\n")))
+            if sysmsg.startswith("You brainstorm"):
+                return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
+            if sysmsg.startswith("You are a patient tutor"):
+                if "flashcards" in user:
+                    return 200, self._reply('[{"front": "What is a cell?", "back": "The basic unit of life"}, {"front": "x", "back": ""}]')
+                if "practice quiz" in user:
+                    return 200, self._reply("1. What is a cell?\nA) a b c d\n## Answers\n1. A")
+                return 200, self._reply("## Cells\nCells are tiny building blocks." + (" TEACHMODE" if "Teach-me" in user else ""))
+            if sysmsg.startswith("You review code"):
+                return 200, self._reply("## What it does\nAdds two numbers (line 1).\n## Likely bugs and risks\n- None found")
             if sysmsg.startswith("You summarize one of the person's documents"):
                 return 200, self._reply("- A short summary.\n\nWorth knowing: nothing urgent.")
             if sysmsg.startswith("You fix spelling mistakes in spreadsheet cells"):

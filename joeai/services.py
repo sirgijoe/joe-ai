@@ -227,7 +227,7 @@ class ServiceManager:
                 names = self.ollama.unload_all()
                 if names:
                     self.log(f"Unloaded {', '.join(names)} for {job_type} job.")
-                elif self.engine in ("llamacpp", "localai") and not self._kept_note:
+                elif self.engine in ("llamacpp", "localai", "openai") and not self._kept_note:
                     self._kept_note = True
                     self.log(f"Note: {engine_label(self.s.ollama)} keeps its writing model in the graphics "
                              "card, so pictures and video get less room. Close it during picture work "

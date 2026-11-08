@@ -92,6 +92,7 @@ class Tool:
 
 
 from .makers import LOOKS, NO_INPUT_OK, PATTERNS as ILLUSION_PATTERNS  # noqa: E402  (batch 3 tools' choices)
+from .writetools import CODE_EXT  # noqa: E402
 
 # light name -> (label, words for the editor)
 RELIGHTS = {
@@ -212,6 +213,92 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("What do my contracts say about cancelling?", "Summarize every document in this folder"),
          extra_hint="e.g. What do these say about refunds? When is each one due?",
          extra_label="Your question(s)"),
+    Tool("summarize", "Summarize", "Writing",
+         "The key points of an article, PDF, book or web page.",
+         accepts=DOC_EXT,
+         options=(Option("length", "How", choices=(("short", "Short: one paragraph"),
+                                                   ("points", "Key points, names, numbers and to-dos"),
+                                                   ("chapters", "Chapter by chapter")), value="points"),),
+         needs=("ollama",), ready=True,
+         help="Long documents are read in parts and the notes joined into one summary, so even a whole "
+              "book works (it just takes longer). Names, numbers and dates are copied as written; "
+              "anything unclear is marked [CHECK]. Your file is never changed.",
+         plan_hint="Summarize documents: TYPE: summarize, INPUT: the document file(s) from the list below, "
+                   "OPTIONS: length short|points|chapters (points if they don't say). No CHUNKS.",
+         examples=("Summarize this article", "Give me the key points of my lease", "Summarize this book chapter by chapter"),
+         extra_hint="optional, e.g. focus on money and dates"),
+    Tool("rewrite", "Rewrite or change the tone", "Writing",
+         "Friendlier, more formal, shorter, simpler, an email, or a resume for a job.",
+         accepts=DOC_EXT,
+         options=(Option("style", "Make it", choices=(("friendly", "Friendlier"), ("formal", "More formal"),
+                                                      ("shorter", "Shorter"), ("simpler", "Simpler to read"),
+                                                      ("email", "Into an email"),
+                                                      ("resume", "A resume tailored to a job post"),
+                                                      ("custom", "My own way (say how below)")),
+                         value="friendly"),),
+         needs=("ollama",), ready=True,
+         help="Makes a new copy plus a short 'what changed' list; your original is never touched. Joe "
+              "keeps every fact and never adds new ones: for a resume he never invents jobs, skills or "
+              "results (missing things are marked [CHECK]). For a resume, paste the job post in the box.",
+         plan_hint="Rewrite / change tone / notes into an email / tailor a resume: TYPE: rewrite, INPUT: the "
+                   "document file(s), OPTIONS: style friendly|formal|shorter|simpler|email|resume|custom, "
+                   "FORMAT: anything they asked for (for a resume: the job post, word for word). No CHUNKS.",
+         examples=("Make my email sound friendlier", "Turn my notes into an email", "Tailor my resume to this job post"),
+         extra_hint="optional, e.g. paste the job post here, or: sound confident but not pushy",
+         extra_label="Anything else? (or the job post)"),
+    Tool("brainstorm", "Brainstorm", "Writing",
+         "Ideas, names, gift ideas, marketing angles, outlines or ways to solve a problem.",
+         accepts=DOC_EXT,
+         options=(Option("kind", "What kind", choices=tuple((k, k.capitalize() if k != "gifts" else "Gift ideas")
+                                                          for k in ("ideas", "names", "gifts", "angles",
+                                                                    "outline", "solutions")), value="ideas"),
+                  Option("count", "How many", choices=(("10", "10"), ("25", "25"), ("50", "50")), value="25"),
+                  Option("park", "Note it in Ideas.md", False, "Adds one line to Ideas.md pointing at the list.")),
+         needs=("ollama",), ready=True,
+         help="Say what you need ideas for in the box. A file is optional: add notes or a draft and the "
+              "ideas build on it. Like one? Type \"park this: ...\" in Joe's box to keep it.",
+         plan_hint="Brainstorm ideas / names / gift ideas / angles / an outline: TYPE: brainstorm, FORMAT: what "
+                   "they need ideas for, word for word, OPTIONS: kind ideas|names|gifts|angles|outline|solutions, "
+                   "count 10|25|50. INPUT only if they point at a file. No CHUNKS.",
+         examples=("Give me 25 names for my bakery", "Gift ideas for my dad who loves fishing",
+                   "Outline a blog post about raised garden beds"),
+         extra_hint="e.g. names for a pottery shop that sounds warm and handmade",
+         extra_label="What do you need ideas for?"),
+    Tool("study", "Study helper", "Writing",
+         "Explains your material at your level, with flashcards and a practice quiz.",
+         accepts=DOC_EXT,
+         options=(Option("level", "Explain for", choices=(("kid", "A kid"), ("teen", "A teen"),
+                                                          ("adult", "A grown-up, new to it"),
+                                                          ("expert", "Someone who knows the basics")),
+                         value="adult"),
+                  Option("explain", "Explanation", True),
+                  Option("cards", "Flashcards (.csv for Anki or Quizlet)", True),
+                  Option("quiz", "Practice quiz with answers", True),
+                  Option("teach", "Teach me (questions first, try-it tasks)", False,
+                         "Makes you think before you read, so you learn it instead of just getting answers.")),
+         needs=("ollama",), ready=True,
+         help="Uses only your material (class notes, a chapter, a manual), so nothing is made up from "
+              "elsewhere; unclear bits are marked [CHECK]. Flashcards come as a Front,Back spreadsheet that "
+              "Anki, Quizlet and Excel open.",
+         plan_hint="Study help (explain / flashcards / quiz) from the person's material: TYPE: study, INPUT: the "
+                   "document file(s), OPTIONS: level kid|teen|adult|expert plus explain, cards, quiz, teach "
+                   "(what they asked for). No CHUNKS.",
+         examples=("Make flashcards from my biology notes", "Explain this chapter like I'm 10",
+                   "Quiz me on this manual")),
+    Tool("code-review", "Explain or review my code", "Writing",
+         "What your code does, likely bugs with fixes, and tests to add. Joe never runs it.",
+         accepts=CODE_EXT,
+         options=(Option("explain", "Explain what it does", True),
+                  Option("bugs", "Likely bugs and risks, with fixes", True),
+                  Option("tests", "Tests to add", False),
+                  Option("tidy", "Easy improvements", False)),
+         needs=("ollama",), ready=True,
+         help="Joe reads the code and writes a review; he never runs it, and your files are never changed. "
+              "Line numbers are real, so you can find each spot. Test every suggested fix yourself.",
+         plan_hint="Explain or review code: TYPE: code-review, INPUT: the code file(s) or folder, OPTIONS: "
+                   "explain, bugs, tests, tidy (what they asked for). No CHUNKS.",
+         examples=("Explain what this script does", "Find bugs in my Python file"),
+         extra_hint="optional, e.g. it crashes when the list is empty"),
     Tool("tidy-sheet", "Tidy a spreadsheet", "Files",
          "Fix duplicates, spelling and categories in a CSV.",
          accepts=SHEET_EXT,
@@ -759,6 +846,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
           "translate": run_translate, "tidy-sheet": run_tidy_sheet,
           "photo-listing": run_photo_listing, "read-scans": run_read_scans,
           "sort-photos": run_sort_photos, "ask-files": run_ask_files}.get(job.type)
+    from . import writetools
+    if job.type in writetools.WRITE_TOOLS:
+        fn = writetools.run
     if job.type == "make-shorts":
         from . import shorts
         fn = shorts.run

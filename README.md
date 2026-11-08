@@ -103,7 +103,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**28 ready-made tools** (Tools tab, **F3**)
+**33 ready-made tools** (Tools tab, **F3**)
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -118,6 +118,18 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   WebP or PNG, rename them in order, and (only if you ask) add a faint watermark with your
   text or logo. Phone photos come out the right way up; hidden details like GPS location are
   left out of the copies. Uses FFmpeg.
+- **Summarize**: an article, PDF, book or web page as a short summary, key points (with names,
+  numbers, dates and to-dos copied as written) or chapter by chapter. Long books are read in parts.
+- **Rewrite or change the tone**: friendlier, more formal, shorter, simpler, notes into an email, or a
+  resume tailored to a job post. A new copy plus a "what changed" list; Joe never adds facts (no
+  invented jobs or skills on a resume).
+- **Brainstorm**: ideas, names, gift ideas, marketing angles, an outline or ways to solve a problem;
+  no file needed, just say what you need ideas for.
+- **Study helper**: your class notes or a chapter explained at your level (kid to expert), flashcards
+  as a CSV for Anki or Quizlet, a practice quiz with answers, and a "teach me" mode that asks you
+  questions first so you learn it instead of just getting answers.
+- **Explain or review my code**: what it does, likely bugs and risks with fixes, tests to add. Real
+  line numbers; Joe reads the code and never runs it.
 - **Translate**: finished writing into one or more of 24 languages, on your own computer.
   Formatting, names, prices and links stay as they are; anything Joe isn't sure about is
   marked [CHECK], and each copy says plainly it's a machine translation to be checked by
@@ -189,7 +201,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   Help (F1). He lists everything in plain words, and "how does restore photo work?" gets the long
   version: how he does it behind the scenes, what to give him, every option, time, needs and tips.
   Every tool card has a "learn more" link. It's all built from Joe's own code, so it stays true.
-- **Use what you already have**: write with **LM Studio, llama.cpp or LocalAI** instead of Ollama
+- **Use what you already have**: write with **LM Studio, llama.cpp, LocalAI or any other OpenAI-compatible program** (Jan, KoboldCpp, vLLM...) instead of Ollama
   (Setup > Writing > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
   folders without downloading them again (System check > SHARE THEM), and transcribe with
   **whisper.cpp** (faster on Macs; offered in System check).

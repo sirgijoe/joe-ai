@@ -426,14 +426,14 @@ FORMAT: ...
               </fieldset>
               <fieldset><legend>WRITING MODEL</legend>
                 <label title="The program that runs the writing models. Ollama is the easy choice: Joe installs, starts and fills it for you. Already use LM Studio, llama.cpp or LocalAI? Pick it and Joe writes with the models you have there (you add models in that program).">Writing program
-                  <select data-path="ollama.engine"><option value="ollama">Ollama (recommended: Joe sets it up)</option><option value="lmstudio">LM Studio</option><option value="llamacpp">llama.cpp (llama-server)</option><option value="localai">LocalAI</option></select></label>
+                  <select data-path="ollama.engine"><option value="ollama">Ollama (recommended: Joe sets it up)</option><option value="lmstudio">LM Studio</option><option value="llamacpp">llama.cpp (llama-server)</option><option value="localai">LocalAI</option><option value="openai">Other (OpenAI-compatible: Jan, KoboldCpp, vLLM...)</option></select></label>
                 <label title="The model that writes. Blank = Joe picks the best one for this PC.">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
                 <div class="row"><button type="button" data-act="start-ollama" title="Start the writing program.">[ START IT ]</button></div>
                 <details class="more"><summary>More options</summary>
                   <label title="How much text the model can keep in mind at once. 0 = Joe picks.">Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
                   <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
                   <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
-                  <label title="Only for LM Studio, llama.cpp or LocalAI. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
+                  <label title="Only for LM Studio, llama.cpp, LocalAI or Other. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080, Other 8000; Jan uses 1337, KoboldCpp 5001). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
                   <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" data-pick="file" data-pick-title="Choose the program that starts it (llama-server, local-ai)" placeholder="blank = start it yourself"></label>
                 </details>
               </fieldset>
