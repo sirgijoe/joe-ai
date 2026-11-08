@@ -257,6 +257,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
 - "Directions to the feed store", "where can I buy a cheap air fryer?": opens your map or shopping
   site (picked in Setup > General) in the browser. Joe doesn't pick stores or track you.
+- "What time is it?", "what's the date?", "what's 15% of 80?", "12 times 7": answered right away,
+  no AI and no internet. "Stop talking" cuts Joe's voice off; "say that again" repeats his last answer.
 
 **Finished documents**
 - Add Word, PDF or EPUB copies to any writing task, or press P on a file in F7. Uses

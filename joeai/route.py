@@ -33,6 +33,10 @@ COMMANDS: dict[str, tuple[str, ...]] = {
     "talk": ("talk", "chat", "let's talk", "f4"),
     "builder": ("builder", "build", "step by step", "f6"),
     "stats": ("stats", "statistics", "storage", "space", "how much space", "f9"),
+    "hush": ("stop talking", "be quiet", "quiet", "shh", "shhh", "shush", "hush", "stop reading", "shut up",
+             "that's enough talking", "quiet please", "mute", "stop speaking"),
+    "repeat": ("say that again", "repeat that", "repeat", "repeat it", "what did you say", "come again",
+               "pardon", "say again", "say it again", "one more time", "huh"),
 }
 _LOOKUP = {p: cid for cid, ps in COMMANDS.items() for p in ps}
 
@@ -102,11 +106,71 @@ def assistant(raw: str) -> dict | None:
     return None
 
 
+_ASKQ = r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:tell me\s+|do you know\s+)?"
+_TIME = re.compile(_ASKQ + r"(?:what(?:'s| is)?\s+the\s+time|what time is it|the time)(?:\s+(?:now|right now))?[?.!]*$", re.I)
+_DATE = re.compile(_ASKQ + r"(?:what(?:'s| is)?\s+(?:the\s+)?(?:date|day)(?:\s+(?:is it\s+)?today|\s+is it)?|"
+                   r"what day is it(?: today)?|today'?s date)[?.!]*$", re.I)
+_MATH = re.compile(_ASKQ + r"(?:what(?:'s| is)\s+|calculate\s+|how much is\s+)?([\d\s.,+\-*/x()%^]+|.*?\d.*?)[?=.!]*$", re.I)
+_MATH_WORDS = ((r"\bplus\b", "+"), (r"\bminus\b", "-"), (r"\b(?:times|multiplied by)\b", "*"),
+               (r"\bdivided by\b", "/"), (r"\bover\b", "/"), (r"(?<=\d)\s*x\s*(?=\d)", "*"), (r"\^", "**"))
+
+
+def _calc(expr: str) -> float | None:
+    """Plain arithmetic only ("12 times 7", "15% of 80", "(3+4)*2"); None for anything else."""
+    import ast
+    import operator as op
+    e = expr.lower().replace(",", "")
+    m = re.fullmatch(r"\s*([\d.]+)\s*%\s*of\s*([\d.]+)\s*", e) or re.fullmatch(r"\s*([\d.]+)\s*percent\s*of\s*([\d.]+)\s*", e)
+    if m:
+        return float(m.group(1)) * float(m.group(2)) / 100
+    for rx, sym in _MATH_WORDS:
+        e = re.sub(rx, sym, e)
+    if not re.fullmatch(r"[\d\s.+\-*/()]+", e) or not re.search(r"\d\s*(?:\*\*|[+\-*/])\s*[\d(]", e):
+        return None
+    ops = {ast.Add: op.add, ast.Sub: op.sub, ast.Mult: op.mul, ast.Div: op.truediv, ast.Pow: op.pow,
+           ast.USub: op.neg, ast.UAdd: op.pos}
+
+    def ev(n):
+        if isinstance(n, ast.Constant) and isinstance(n.value, (int, float)):
+            return n.value
+        if isinstance(n, ast.BinOp) and type(n.op) in ops:
+            if isinstance(n.op, ast.Pow) and abs(ev(n.right)) > 100:
+                raise ValueError("too big")
+            return ops[type(n.op)](ev(n.left), ev(n.right))
+        if isinstance(n, ast.UnaryOp) and type(n.op) in ops:
+            return ops[type(n.op)](ev(n.operand))
+        raise ValueError("not arithmetic")
+    try:
+        return float(ev(ast.parse(e.strip(), mode="eval").body))
+    except (ValueError, SyntaxError, ZeroDivisionError, OverflowError):
+        return None
+
+
+def _num(x: float) -> str:
+    return f"{x:,.0f}" if abs(x - round(x)) < 1e-9 and abs(x) < 1e15 else f"{x:,.4f}".rstrip("0").rstrip(".")
+
+
+def quick(raw: str, now=None) -> dict | None:
+    """Answers Joe knows without any AI or internet: the time, today's date, plain arithmetic."""
+    from datetime import datetime
+    now = now or datetime.now()
+    if _TIME.match(raw):
+        return {"kind": "command", "cmd": "quick", "say": "It's " + now.strftime("%I:%M %p").lstrip("0") + "."}
+    if _DATE.match(raw):
+        return {"kind": "command", "cmd": "quick", "say": "Today is " + now.strftime("%A, %B ") + str(now.day) + now.strftime(", %Y") + "."}
+    m = _MATH.match(raw)
+    if m:
+        v = _calc(m.group(1))
+        if v is not None:
+            return {"kind": "command", "cmd": "quick", "say": f"{m.group(1).strip()} = {_num(v)}"}
+    return None
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
-    hit = assistant(raw)
+    hit = assistant(raw) or quick(raw)
     if hit:
         return hit
     pm = _PARK.match(raw)

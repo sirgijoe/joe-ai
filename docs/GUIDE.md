@@ -146,6 +146,12 @@ is off by then. ntfy holds messages for up to 3 days: a reminder further out wai
 pings, reminders are still saved in `Reminders.md`. Lists are plain files in Joe's `Lists` folder
 (one per name: to-do, shopping, anything). No AI is used, so these are instant.
 
+Quick answers and voice controls are instant too (no AI, no internet): "what time is it?",
+"what's the date today?", plain arithmetic like "what's 15% of 80?" or "12 times 7", "stop talking"
+(cuts Joe's voice off) and "say that again" (repeats his last answer). Anything else that needs
+current facts (weather, opening hours) is answered in Talk when Setup > Voice & Talk > Let Joe look
+things up online is on, with the sources shown.
+
 ### Night shift (Setup > General)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >

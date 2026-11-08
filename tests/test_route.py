@@ -33,3 +33,23 @@ def test_plan(text):
 def test_unclear(text):
     r = classify(text)
     assert r["kind"] == "unclear" and "go, stop, help" in r["say"]
+
+
+@pytest.mark.parametrize("text,cmd", [
+    ("stop talking", "hush"), ("be quiet", "hush"), ("say that again", "repeat"), ("repeat that", "repeat"),
+])
+def test_voice_controls(text, cmd):
+    assert classify(text) == {"kind": "command", "cmd": cmd}
+
+
+def test_quick_answers():
+    from datetime import datetime
+    from joeai.route import quick
+    now = datetime(2026, 11, 8, 17, 5)
+    assert quick("what time is it?", now)["say"] == "It's 5:05 PM."
+    assert quick("Joe, what's the date today", now)["say"] == "Today is Sunday, November 8, 2026."
+    assert quick("what is 15% of 80")["say"].endswith("= 12")
+    assert quick("12 times 7")["say"].endswith("= 84")
+    assert quick("calculate 100 / 8")["say"].endswith("= 12.5")
+    assert quick("what is 2**999999") is None and quick("what is a vision model") is None
+    assert classify("make 8 pictures of mugs")["kind"] == "plan"

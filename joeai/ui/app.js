@@ -356,6 +356,12 @@ async function doCommand(cmd, rt) {
     const r = cmd === "explain" ? await api("/api/abilities", { id: rt.id }) : await api("/api/abilities", {});
     return cmd === "explain" ? `${r.title}\n\n${r.text}` : r.text;
   }
+  if (cmd === "quick") return rt.say;                    // the time, today's date, plain arithmetic (no AI)
+  if (cmd === "hush") { talkStop(); return "OK."; }
+  if (cmd === "repeat") {
+    const last = [...talkLog].reverse().find((m) => m.who === "joe" && m.text && m.text !== "…" && m.text !== "OK.");
+    return last ? last.text.replace(/\s*\(stopped\)$/, "") : "I haven't said anything yet.";
+  }
   if (cmd === "run") {
     if (state && state.running) return "Joe is already working. Say stop to stop.";
     if (!$("#mission").value.trim()) return "There's no plan yet. Tell Joe what to make first, then say go.";
@@ -2261,6 +2267,9 @@ async function talkSend(textArg) {
       const said = await doCommand(rt.cmd, rt);
       talkLog.push({ who: "you", text }, { who: "joe", text: said });
       if (current === "talk") renderTalk();
+      if (["quick", "repeat"].includes(rt.cmd) && voiceReady && speakReplies && said) {   // say the answer out loud too
+        speechStart(); speechQueue(cleanSpeech(said)); speechEnd();
+      }
       return;
     }
   }
