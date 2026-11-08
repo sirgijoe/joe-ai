@@ -152,6 +152,26 @@ Quick answers and voice controls are instant too (no AI, no internet): "what tim
 current facts (weather, opening hours) is answered in Talk when Setup > Voice & Talk > Let Joe look
 things up online is on, with the sources shown.
 
+### Joe Phone (Setup > Phone)
+
+Use Joe from your phone while you're home: see what he's doing (and STOP a run), ask him anything or
+tell him what to make (work comes back as a plan with RUN IT, the same as on the PC), check your lists
+and reminders, and look at the pictures, videos and files he made.
+
+1. Setup > Phone: tick **Joe Phone on** and press SAVE. Windows may ask once whether Joe may use your
+   network: pick **Private networks**.
+2. Press **PAIR A PHONE** and scan the QR code with your phone's camera (or type the address shown
+   into the phone's browser). The code works for 10 minutes, for one phone.
+3. Name the phone and tap PAIR. Then use the browser's menu > **Add to Home screen** so Joe opens like
+   an app. To speak instead of type, tap the microphone on your phone's keyboard.
+
+It works while this PC is on, Joe's window is open, and the phone is on the same Wi-Fi. Reminders
+still reach your phone with the PC off (phone pings). Only phones on your home network can reach it;
+Joe never opens your router to the internet. REMOVE (Setup > Phone) ends a phone's access right away.
+From the phone Joe can't change settings, install anything or open files outside his Output folder.
+Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on
+public Wi-Fi.
+
 ### Night shift (Setup > General)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >

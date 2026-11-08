@@ -140,6 +140,13 @@ class ScheduleSettings:
 
 
 @dataclass
+class PhoneSettings:
+    # Joe Phone (Setup > Phone): a small web app for phones on the home Wi-Fi. Off until turned on.
+    enabled: bool = False
+    port: int = 8770
+
+
+@dataclass
 class QualitySettings:
     # Setup > Writing / Images & video: low = fastest, rougher | medium = balanced | high = best, slowest
     # High by default: Joe mostly works overnight, so best results beat speed (change it in Setup).
@@ -161,6 +168,7 @@ class Settings:
     quality: QualitySettings = field(default_factory=QualitySettings)
     web: WebSettings = field(default_factory=WebSettings)
     schedule: ScheduleSettings = field(default_factory=ScheduleSettings)
+    phone: PhoneSettings = field(default_factory=PhoneSettings)
     templates: dict = field(default_factory=dict)   # Setup > Writing > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)

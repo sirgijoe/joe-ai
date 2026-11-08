@@ -111,6 +111,8 @@ class App:
         self.queue_finished = None
         self.pending_ping = ""               # phone ping held back by quiet hours
         self.finished = {"n": 0, "ok": True, "text": ""}   # last finished queue run (UI chime)
+        from .phone import Phone
+        self.phone = Phone(self)             # Joe Phone (Setup > Phone): started by serve() when it's on
         # The mission box always opens empty ("What can I help you with?"). Past missions
         # stay in Missions/ (F7, L loads one); _last_mission.txt is kept only as a backup.
 
@@ -1469,6 +1471,7 @@ class App:
         if self.settings.schedule.watch:
             self.watch_setup()
         self.services = ServiceManager(self.settings, log=self.log)
+        self.phone.apply()                   # Setup > Phone turned on/off or a new port
         if (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop) != old_sched:
             from . import schedule
             r = schedule.apply(self.settings, self.log)
@@ -1613,6 +1616,8 @@ def make_handler(app: App):
                         pk = None
                     return self._json(stylemodels.inventory(comfy_models_dir(app.settings),
                                                             ollama_models(app.services), pk))
+                if u.path == "/api/phone":                 # Setup > Phone: on?, address, paired phones
+                    return self._json(app.phone.info())
                 if u.path == "/api/lists":
                     return self._json(app.lists())
                 if u.path == "/api/resume":
@@ -1969,6 +1974,11 @@ def make_handler(app: App):
                     app.last_seen = 0.0                    # idle check exits within ~1 s
                     app.quit_now = True
                     return self._json({"ok": True})
+                if u.path == "/api/phone/pair":            # a one-time QR code for a new phone
+                    return self._json(app.phone.new_pairing())
+                if u.path == "/api/phone/remove":
+                    from .phone import remove_device
+                    return self._json({"ok": remove_device(str(b.get("id", "")))})
                 if u.path == "/api/stop":
                     app.stop.set()
                     app.log("Stop requested: finishing the current step...")
@@ -2477,6 +2487,10 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
     else:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
     httpd.daemon_threads = True
+    try:
+        app.phone.apply()                              # Joe Phone, when it's turned on
+    except Exception as e:                             # noqa: BLE001 (never stop Joe starting for it)
+        app.log(f"Joe Phone: {e}")
 
     def background():
         while True:

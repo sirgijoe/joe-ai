@@ -95,6 +95,14 @@ OTHER: tuple[Ability, ...] = (
             "Options: phone pings are set up in Setup > Display & sound (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
             "Limits: ntfy is an online service (only the reminder text goes there). Lists stay on this PC in the Lists folder.",
             ("remind", "reminder", "reminders", "list", "lists", "shopping list", "to-do list", "todo list")),
+    Ability("phone", "Working for you", "Joe Phone",
+            "Use Joe from your phone on your home Wi-Fi: see the run, stop it, ask, plan, lists, reminders, results.",
+            "What it does: a small page Joe serves to your phone. Home shows what Joe is doing (with a STOP button) and a box to ask Joe or tell him what to make; work comes back as a plan with RUN IT, like on the PC. Lists, Reminders and Results (the pictures, videos and files he made) have their own tabs.\n"
+            "How Joe does it: Setup > Phone turns it on. PAIR A PHONE shows a QR code; scan it with the phone's camera and the phone gets its own key (Joe keeps only a fingerprint of it). Only phones on your home network can reach it.\n"
+            "What to give it: your phone on the same Wi-Fi as this PC, with Joe's window open. Add the page to your home screen so it opens like an app. Speak with the keyboard's microphone button.\n"
+            "Options: the port (8770) in Setup > Phone; REMOVE a phone there any time.\n"
+            "Limits: works only while this PC is on and Joe's window is open, and only at home (reminders still reach your phone with the PC off through phone pings). From the phone Joe can't change settings, install anything or open files outside his Output folder. Home Wi-Fi traffic isn't encrypted, so don't use it on public Wi-Fi.",
+            ("phone", "joe phone", "my phone", "from my phone", "phone app", "mobile", "pair a phone")),
     Ability("directions", "Working for you", "Directions and shopping",
             "\"Directions to the feed store\" or \"where can I buy an air fryer?\" opens your map or shopping site.",
             "What it does: opens directions or a shopping search in your browser, by voice or in the box.\n"

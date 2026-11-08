@@ -1097,7 +1097,7 @@ async function saveSetup(ev) {
     return;
   }
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
-  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; }
+  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500); }
 }
 $("#setup").addEventListener("submit", saveSetup);
 
@@ -1363,7 +1363,32 @@ function setupPage(name) {
   $(".setpages").scrollTop = 0;
   if (name === "workflows" && typeof loadWorkflows === "function") loadWorkflows();
   if (name === "writing" && typeof loadTemplates === "function") loadTemplates();
+  if (name === "phone") loadPhone();
 }
+// --- Setup > Phone: on/off, pairing QR code, paired phones -------------------------------------
+async function loadPhone() {
+  let r;
+  try { r = await api("/api/phone"); } catch (e) { return; }
+  $("#phone-state").textContent = r.on ? `ON at ${r.address}` : (r.enabled ? (r.error || "starting…") : "OFF");
+  $("#phone-devices").innerHTML = (r.devices || []).map((d) =>
+    `<div class="row"><span><b>${esc(d.name)}</b> <span class="dim">paired ${esc(d.added.replace("T", " "))}${d.last ? " · last used " + esc(d.last.replace("T", " ")) : ""}</span></span>` +
+    `<button type="button" data-act="phone-remove" data-id="${esc(d.id)}">[ REMOVE ]</button></div>`).join("") || "None yet.";
+}
+async function phonePair() {
+  const r = await api("/api/phone/pair", {});
+  if (!r.ok) { $("#phone-qr").innerHTML = `<span class="bad">${esc(r.error)}</span>`; return; }
+  $("#phone-qr").innerHTML = `<div style="background:#fff;display:inline-block;padding:6px;margin:8px 0">${r.qr}</div>` +
+    `<div>Scan this with your phone's camera (works for ${r.minutes} minutes, one phone).<br>No camera app that reads codes? ` +
+    `Open <b>${esc(r.url)}</b> in the phone's browser.</div>`;
+  const until = Date.now() + r.minutes * 60000;
+  const poll = setInterval(async () => {
+    if (Date.now() > until) { clearInterval(poll); $("#phone-qr").textContent = "That code ran out. Press PAIR A PHONE for a new one."; return; }
+    const before = $("#phone-devices").textContent;
+    await loadPhone();
+    if ($("#phone-devices").textContent !== before) { clearInterval(poll); $("#phone-qr").textContent = "Paired!"; toast("Phone paired"); }
+  }, 3000);
+}
+
 // Shows every section, hiding settings whose name and hint don't match. Opens "More options"
 // when a match is inside it. Empty box = back to the section you were on.
 function setupFind() {
@@ -1646,6 +1671,8 @@ document.addEventListener("click", async (ev) => {
     }
     if (act === "doctor") { $("#doctor").textContent = "Checking…"; await loadDoctor(); }
     if (act === "perm-mic") { await allowMic(); return; }
+    if (act === "phone-pair") { await phonePair(); return; }
+    if (act === "phone-remove") { confirmBox("Remove this phone? It stops working with Joe right away (pair it again any time).", async () => { await api("/api/phone/remove", { id: b.dataset.id }); loadPhone(); }); return; }
     if (act === "web-test") {
       await saveSetup(); $("#web-msg").textContent = "Searching…";
       const r = await api("/api/web/test", {}).catch((e) => ({ ok: false, error: e.message }));

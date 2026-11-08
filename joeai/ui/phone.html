@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0b0f0b">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Joe">
+<link rel="manifest" href="/manifest.json">
+<link rel="icon" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<title>Joe</title>
+<style>
+  :root { --bg: #0b0f0b; --fg: #41ff6a; --dim: #1f7a34; --mid: #2fbf52; --panel: #101810; --bad: #ff6a5a; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg); font: 17px/1.45 ui-monospace, "Cascadia Mono", Menlo, Consolas, monospace; }
+  body { padding: env(safe-area-inset-top) 0 calc(64px + env(safe-area-inset-bottom)); min-height: 100vh; }
+  header { padding: 12px 16px 6px; display: flex; justify-content: space-between; align-items: baseline; }
+  header b { font-size: 22px; letter-spacing: 2px; }
+  header small { color: var(--mid); }
+  main { padding: 6px 14px 20px; }
+  section[hidden] { display: none; }
+  .card { background: var(--panel); border: 1px solid var(--dim); border-radius: 10px; padding: 12px; margin: 10px 0; }
+  .bar { height: 12px; border: 1px solid var(--dim); border-radius: 6px; overflow: hidden; margin: 8px 0; }
+  .bar i { display: block; height: 100%; background: var(--fg); width: 0; }
+  textarea, input { width: 100%; background: #050805; color: var(--fg); border: 1px solid var(--dim); border-radius: 8px;
+    padding: 10px; font: inherit; }
+  textarea { min-height: 72px; resize: vertical; }
+  button { background: var(--fg); color: #000; border: 0; border-radius: 8px; padding: 11px 14px; font: inherit; font-weight: bold;
+    margin: 8px 6px 0 0; min-height: 44px; }
+  button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--fg); }
+  button.bad { background: var(--bad); }
+  .msg { white-space: pre-wrap; }
+  .err { color: var(--bad); }
+  .muted { color: var(--mid); font-size: 14px; }
+  nav { position: fixed; left: 0; right: 0; bottom: 0; display: flex; background: #070a07; border-top: 1px solid var(--dim);
+    padding-bottom: env(safe-area-inset-bottom); }
+  nav button { flex: 1; margin: 0; border-radius: 0; background: transparent; color: var(--mid); font-size: 14px; padding: 12px 2px; }
+  nav button.on { color: var(--fg); border-top: 2px solid var(--fg); }
+  ul.items { list-style: none; padding: 0; margin: 6px 0; }
+  ul.items li { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px dashed var(--dim); }
+  ul.items li button { margin: 0; min-height: 36px; padding: 6px 10px; }
+  .row { display: flex; gap: 8px; } .row input { flex: 1; } .row button { margin: 0; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 8px; }
+  .grid a { display: block; border: 1px solid var(--dim); border-radius: 8px; overflow: hidden; color: var(--fg); text-decoration: none;
+    font-size: 13px; background: var(--panel); }
+  .grid img { width: 100%; aspect-ratio: 1; object-fit: cover; display: block; background: #000; }
+  .grid span { display: block; padding: 4px 6px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  #viewer { position: fixed; inset: 0; background: rgba(0,0,0,.94); display: flex; flex-direction: column; z-index: 9; padding: env(safe-area-inset-top) 10px 10px; }
+  #viewer[hidden] { display: none; }
+  #viewer .body { flex: 1; overflow: auto; display: flex; align-items: center; justify-content: center; }
+  #viewer img, #viewer video { max-width: 100%; max-height: 80vh; }
+  #viewer pre { white-space: pre-wrap; align-self: flex-start; width: 100%; }
+  pre.plan { white-space: pre-wrap; font-size: 14px; color: var(--mid); max-height: 40vh; overflow: auto; }
+</style>
+</head>
+<body>
+<header><b>JOE</b><small id="who"></small></header>
+<main>
+  <section id="s-pair" hidden>
+    <div class="card">
+      <p><b>Pair this phone with Joe</b></p>
+      <p class="muted">On the PC: Setup &gt; Phone &gt; PAIR A PHONE, then scan the code with this phone's camera.</p>
+      <p class="muted">Already scanned? Name this phone and tap PAIR.</p>
+      <input id="pair-name" placeholder="This phone's name (e.g. Joe's phone)" maxlength="40">
+      <button data-act="pair">PAIR</button>
+      <p id="pair-msg" class="msg"></p>
+    </div>
+  </section>
+
+  <section id="s-home" hidden>
+    <div class="card" id="status"><span class="muted">Checking on Joe…</span></div>
+    <div class="card">
+      <textarea id="ask" placeholder="Ask Joe anything, or tell him what to make. Tap the keyboard's microphone to speak."></textarea>
+      <button data-act="ask">SEND</button>
+      <div id="answer" class="msg"></div>
+    </div>
+  </section>
+
+  <section id="s-lists" hidden><div id="lists"></div></section>
+
+  <section id="s-rem" hidden>
+    <div class="card">
+      <div class="row"><input id="rem-in" placeholder="at 3pm call the vet / in 20 minutes take the bread out"><button data-act="remind">ADD</button></div>
+      <p id="rem-msg" class="msg muted"></p>
+    </div>
+    <div class="card"><ul class="items" id="rem-list"></ul></div>
+  </section>
+
+  <section id="s-results" hidden>
+    <div class="card"><button class="ghost" data-act="report">MORNING REPORT</button></div>
+    <div class="grid" id="files"></div>
+  </section>
+</main>
+
+<nav id="nav" hidden>
+  <button data-tab="home" class="on">HOME</button><button data-tab="lists">LISTS</button>
+  <button data-tab="rem">REMINDERS</button><button data-tab="results">RESULTS</button>
+</nav>
+
+<div id="viewer" hidden><div class="row"><button class="ghost" data-act="close">CLOSE</button></div><div class="body" id="view-body"></div></div>
+
+<script>
+"use strict";
+const $ = (s) => document.querySelector(s);
+const esc = (t) => String(t ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let KEY = "", tab = "home", timer = null, pairCode = "";
+try { KEY = localStorage.getItem("joeKey") || ""; } catch (e) { KEY = ""; }
+
+async function api(path, body) {
+  const opt = { headers: { "X-Joe-Phone": KEY } };
+  if (body !== undefined) { opt.method = "POST"; opt.headers["Content-Type"] = "application/json"; opt.body = JSON.stringify(body); }
+  let r;
+  try { r = await fetch(path, opt); } catch (e) { return { ok: false, error: "Can't reach Joe. Is the PC on, Joe's window open, and this phone on the home Wi-Fi?" }; }
+  const j = await r.json().catch(() => ({ ok: false, error: "Joe sent something odd back." }));
+  if (j.unpaired) { forget(); }
+  return j;
+}
+function forget() { KEY = ""; try { localStorage.removeItem("joeKey"); } catch (e) {} showPair(); }
+const fileUrl = (p) => "/api/file?p=" + encodeURIComponent(p) + "&k=" + encodeURIComponent(KEY);
+
+function showPair() {
+  for (const s of document.querySelectorAll("main section")) s.hidden = s.id !== "s-pair";
+  $("#nav").hidden = true; clearInterval(timer);
+}
+function show(t) {
+  tab = t;
+  for (const s of document.querySelectorAll("main section")) s.hidden = s.id !== "s-" + t;
+  for (const b of document.querySelectorAll("nav button")) b.classList.toggle("on", b.dataset.tab === t);
+  $("#nav").hidden = false;
+  ({ home: loadStatus, lists: loadLists, rem: loadRem, results: loadResults })[t]();
+}
+
+function fmtEta(s) { if (s == null) return ""; const m = Math.round(s / 60); return m < 60 ? `${m} min` : `${Math.floor(m / 60)} h ${m % 60} min`; }
+async function loadStatus() {
+  const r = await api("/api/status");
+  if (!r.ok) { $("#status").innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
+  $("#who").textContent = "v" + (r.version || "");
+  let h;
+  if (r.running) {
+    const pct = r.total ? Math.round(100 * r.done / r.total) : 0;
+    h = `<b>${r.stopping ? "STOPPING…" : "WORKING"}</b> ${esc(r.doing)}<div class="bar"><i style="width:${pct}%"></i></div>` +
+        `<span class="muted">${r.done}/${r.total} parts${r.eta_s != null ? " · about " + esc(fmtEta(r.eta_s)) + " left" : ""}</span>` +
+        (r.stopping ? "" : `<br><button class="bad" data-act="stop">STOP</button>`);
+  } else h = `<b>IDLE</b> <span class="muted">Joe is ready.</span>`;
+  if (r.queued && r.queued.length) h += `<p class="muted">Waiting: ${r.queued.map(esc).join(", ")}</p>`;
+  if (r.media && r.media.length) h += `<div class="grid" style="margin-top:8px">${r.media.slice(0, 4).map((m) => /\.(png|jpe?g|webp|gif)$/i.test(m) ?
+      `<a href="#" data-view="${esc(m)}" data-kind="picture"><img loading="lazy" src="${fileUrl(m)}" alt=""></a>` : "").join("")}</div>`;
+  if (r.log && r.log.length) h += `<pre class="plan">${esc(r.log.join("\n"))}</pre>`;
+  $("#status").innerHTML = h;
+}
+
+async function ask() {
+  const text = $("#ask").value.trim();
+  if (!text) return;
+  $("#answer").innerHTML = `<span class="muted">Joe is thinking…</span>`;
+  const r = await api("/api/ask", { text });
+  if (!r.ok) { $("#answer").innerHTML = `<span class="err">${esc(r.error || "That didn't work.")}</span>`; return; }
+  $("#ask").value = "";
+  let h = esc(r.say || "");
+  if (r.open) { window.open(r.open, "_blank", "noopener"); }
+  if (r.mission) {
+    h += `<p>${esc(r.summary || "")}</p><pre class="plan">${esc(r.mission)}</pre><button data-act="run">RUN IT</button><button class="ghost" data-act="drop">NOT NOW</button>`;
+    $("#answer").dataset.mission = r.mission;
+  }
+  $("#answer").innerHTML = h;
+  if (r.tab) show(r.tab);
+}
+
+async function loadLists() {
+  const r = await api("/api/lists");
+  if (!r.ok) { $("#lists").innerHTML = `<div class="card err">${esc(r.error)}</div>`; return; }
+  $("#lists").innerHTML = r.lists.map((l) => `<div class="card"><b>${esc(l.name.toUpperCase())}</b>
+    <ul class="items">${l.items.map((i) => `<li><button class="ghost" data-act="done" data-list="${esc(l.name)}" data-item="${esc(i)}">✓</button>${esc(i)}</li>`).join("") || '<li class="muted">Empty</li>'}</ul>
+    <div class="row"><input data-addto="${esc(l.name)}" placeholder="Add to ${esc(l.name)}"><button data-act="add" data-list="${esc(l.name)}">ADD</button></div></div>`).join("") +
+    `<div class="card"><div class="row"><input id="new-list" placeholder="A new list's name"><button data-act="newlist">NEW LIST</button></div></div>`;
+}
+
+async function loadRem() {
+  const r = await api("/api/reminders");
+  $("#rem-list").innerHTML = !r.ok ? `<li class="err">${esc(r.error)}</li>` :
+    (r.reminders.map((x) => `<li><span class="muted">${esc(x.when)}</span> ${esc(x.what)}</li>`).join("") || '<li class="muted">No reminders waiting.</li>');
+}
+
+async function loadResults() {
+  const r = await api("/api/results");
+  if (!r.ok) { $("#files").innerHTML = `<p class="err">${esc(r.error)}</p>`; return; }
+  $("#files").innerHTML = r.files.map((f) => `<a href="#" data-view="${esc(f.path)}" data-kind="${f.kind}">` +
+    (f.kind === "picture" ? `<img loading="lazy" src="${fileUrl(f.path)}" alt="">` : `<span style="padding:18px 6px;font-size:22px">${{ text: "📄", video: "🎬", sound: "🔊" }[f.kind] || "•"}</span>`) +
+    `<span>${esc(f.path.split("/").pop())}</span><span class="muted">${esc(f.when)}</span></a>`).join("") || '<p class="muted">Nothing made yet.</p>';
+}
+
+async function view(path, kind) {
+  const b = $("#view-body");
+  if (kind === "picture") b.innerHTML = `<img src="${fileUrl(path)}" alt="">`;
+  else if (kind === "video") b.innerHTML = `<video src="${fileUrl(path)}" controls playsinline></video>`;
+  else if (kind === "sound") b.innerHTML = `<audio src="${fileUrl(path)}" controls></audio>`;
+  else {
+    const r = await fetch(fileUrl(path)); const t = await r.text();
+    b.innerHTML = `<pre>${esc(t.slice(0, 100000))}</pre>`;
+  }
+  $("#viewer").hidden = false;
+}
+
+document.addEventListener("click", async (ev) => {
+  const v = ev.target.closest("[data-view]");
+  if (v) { ev.preventDefault(); return view(v.dataset.view, v.dataset.kind); }
+  const t = ev.target.closest("[data-tab]");
+  if (t) return show(t.dataset.tab);
+  const a = ev.target.closest("[data-act]");
+  if (!a) return;
+  const act = a.dataset.act;
+  if (act === "pair") {
+    const r = await api("/api/pair", { code: pairCode, name: $("#pair-name").value });
+    if (!r.ok) { $("#pair-msg").innerHTML = `<span class="err">${esc(r.error)}</span>`; return; }
+    KEY = r.token; try { localStorage.setItem("joeKey", KEY); } catch (e) {}
+    history.replaceState(null, "", "/");
+    $("#pair-msg").textContent = "Paired! Tip: use your browser's menu > Add to Home screen.";
+    setTimeout(start, 800);
+  }
+  if (act === "ask") return ask();
+  if (act === "stop") { await api("/api/stop", {}); return loadStatus(); }
+  if (act === "run") {
+    const r = await api("/api/run", { mission: $("#answer").dataset.mission || "" });
+    $("#answer").innerHTML = r.ok ? esc(r.say) : `<span class="err">${esc(r.error)}</span>`;
+    return loadStatus();
+  }
+  if (act === "drop") { $("#answer").innerHTML = ""; return; }
+  if (act === "done") { await api("/api/list", { name: a.dataset.list, done: a.dataset.item }); return loadLists(); }
+  if (act === "add") {
+    const inp = document.querySelector(`input[data-addto="${CSS.escape(a.dataset.list)}"]`);
+    if (inp && inp.value.trim()) { await api("/api/list", { name: a.dataset.list, add: inp.value.trim() }); }
+    return loadLists();
+  }
+  if (act === "newlist") {
+    const n = $("#new-list").value.trim(); if (!n) return;
+    const item = prompt(`First thing on your ${n} list?`); if (!item) return;
+    await api("/api/list", { name: n, add: item }); return loadLists();
+  }
+  if (act === "remind") {
+    const text = $("#rem-in").value.trim(); if (!text) return;
+    const r = await api("/api/remind", { text });
+    $("#rem-msg").innerHTML = r.ok ? esc(r.say || "Done.") : `<span class="err">${esc(r.error)}</span>`;
+    if (r.ok) $("#rem-in").value = "";
+    return loadRem();
+  }
+  if (act === "report") {
+    const r = await api("/api/report");
+    $("#view-body").innerHTML = `<pre>${esc(r.ok ? r.text : r.error)}</pre>`; $("#viewer").hidden = false; return;
+  }
+  if (act === "close") { $("#viewer").hidden = true; $("#view-body").innerHTML = ""; }
+});
+$("#ask").addEventListener("keydown", (e) => { if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); ask(); } });
+
+function start() {
+  if (!KEY) return showPair();
+  show("home");
+  clearInterval(timer);
+  timer = setInterval(() => { if (tab === "home" && !document.hidden) loadStatus(); }, 5000);
+}
+const m = /pair=([\w-]+)/.exec(location.hash || "");
+if (m) { pairCode = m[1]; showPair(); $("#pair-name").focus(); } else start();
+</script>
+</body>
+</html>

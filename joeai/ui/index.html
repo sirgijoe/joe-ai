@@ -287,6 +287,7 @@ FORMAT: ...
           <button type="button" data-page="images" title="Picture and video quality, and ComfyUI.">Images &amp; video</button>
           <button type="button" data-page="voice" title="Joe's voice, listening, chats, online lookups.">Voice &amp; Talk</button>
           <button type="button" data-page="display" title="Theme, text size, intro, sounds, screen saver.">Display &amp; sound</button>
+          <button type="button" data-page="phone" title="Joe Phone: use Joe from your phone on your home Wi-Fi.">Phone</button>
           <button type="button" data-page="privacy" title="Microphone and what Joe sends anywhere.">Privacy</button>
           <button type="button" data-page="stats" title="Prices used for the savings numbers on F9.">Stats &amp; costs</button>
         </nav>
@@ -622,6 +623,32 @@ FORMAT: ...
                   <li><b>Model pages</b>: GET IT on a recommended picture model opens its page (Hugging Face or Civitai) in your browser, and on Hugging Face starts the download there. You read its terms; the download is yours.</li>
                 </ul>
                 <div class="dim small">Ollama and ComfyUI have their own update checks and settings. Once everything is installed, overnight runs work without internet.</div>
+              </fieldset>
+            </div>
+
+            <!-- PHONE -->
+            <div class="setpage" data-page="phone" data-title="Phone">
+              <h3 class="settitle">Joe Phone</h3>
+              <fieldset><legend>USE JOE FROM YOUR PHONE</legend>
+                <div class="dim small">A small page Joe serves to your phone on your home Wi-Fi: see what Joe is doing, stop a run,
+                  ask Joe or plan work (RUN IT on the phone, like here), lists, reminders, and the pictures and files he made.
+                  It works while Joe's window is open on this PC and your phone is on the same Wi-Fi. Reminders still reach
+                  your phone with the PC off (phone ping, General).</div>
+                <label title="Off until you turn it on. Windows may ask once whether Joe may use your network: pick Private networks.">Joe Phone on <input type="checkbox" data-path="phone.enabled"></label>
+                <label title="The door number phones use. Change it only if another program already uses 8770.">Port <input type="number" min="1024" max="65535" data-path="phone.port"></label>
+                <div class="dim small">Turn it on, press SAVE, then pair your phone.</div>
+                <div class="row"><span>Status: <b id="phone-state">checking…</b></span>
+                  <button type="button" data-act="phone-pair" title="Shows a QR code. Scan it with your phone's camera.">[ PAIR A PHONE ]</button></div>
+                <div id="phone-qr" class="small"></div>
+              </fieldset>
+              <fieldset><legend>PAIRED PHONES</legend>
+                <div id="phone-devices" class="small dim">None yet.</div>
+              </fieldset>
+              <fieldset><legend>SAFETY</legend>
+                <div class="dim small">Only phones on your home network can reach it; Joe never opens your router to the internet.
+                  Each phone is paired once with a code that works for 10 minutes; REMOVE ends a phone's access right away.
+                  From the phone Joe can't change settings, install anything or open files outside his Output folder.
+                  Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on public Wi-Fi.</div>
               </fieldset>
             </div>
 
