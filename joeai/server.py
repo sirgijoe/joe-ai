@@ -1297,6 +1297,11 @@ class App:
         return r
 
     def _settings_changed(self, old_ws, old_sched) -> dict:
+        from . import schedule
+        sc = self.settings.schedule
+        if (sc.stop or "").strip() and not schedule.parse_time(sc.stop):    # checked even with the night shift off
+            sc.stop = old_sched[2] if len(old_sched) > 2 else ""
+            return {"ok": False, "error": "Stop by should look like 07:00 (24-hour clock), or leave it blank."}
         self.settings.save()
         if self.settings.workspace_path != old_ws:
             self.sb = Sandbox(self.settings.workspace_path).ensure()

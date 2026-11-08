@@ -149,3 +149,10 @@ def test_test_connection_clear_errors():
 def test_engine_key_is_hidden_in_help_files():
     from joeai import support
     assert support.SECRET.search("engine_key")
+
+
+def test_bad_stop_time_refused_even_with_night_shift_off(app):  # noqa: F811
+    assert not app.settings.schedule.enabled
+    r = app.save_settings({"schedule": {"stop": "7am"}})
+    assert not r["ok"] and "07:00" in r["error"] and app.settings.schedule.stop == ""
+    assert app.save_settings({"schedule": {"stop": "07:00"}})["ok"] and app.settings.schedule.stop == "07:00"
