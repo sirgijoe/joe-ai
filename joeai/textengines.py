@@ -39,9 +39,9 @@ ENGINES: dict[str, dict] = {
                        "Put the start line in Setup > Writing > Start command if you want Joe to start it."},
     "openai": {"label": "Other (OpenAI-compatible)", "url": "http://127.0.0.1:8000",
                "how": "Any program on this PC or your home network that speaks the OpenAI-style "
-                      "language (Jan, KoboldCpp, vLLM, Text Generation WebUI...). Put its address in "
+                      "language (Jan, KoboldCpp, vLLM, Apple MLX, Text Generation WebUI...). Put its address in "
                       "Setup > Writing > Address (for example http://127.0.0.1:1337 for Jan, :5001 for "
-                      "KoboldCpp, :8000 for vLLM) and its start line in Start command if you want Joe to start it."},
+                      "KoboldCpp, :8000 for vLLM, :8080 for Apple MLX's mlx_lm.server) and its start line in Start command if you want Joe to start it."},
 }
 NOT_WRITERS = re.compile(r"embed|nomic|bge|minilm|rerank|whisper|clip|vision-adapter|mmproj", re.I)
 

@@ -571,6 +571,9 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .mchoice { display: block; margin: 4px 0 4px 18px; }
 .mchoice .mc { display: block; margin: 3px 0; cursor: pointer; }
 .mchoice .mcnote { display: block; margin-left: 22px; }
+.mchoice .mcrole::before { content: "· "; }
+.enginehelp { margin: 2px 0 8px; max-width: 70ch; }
+.enginehelp .enginemac { display: block; margin-top: 3px; }
 
 .titlebar { flex-wrap: nowrap; white-space: nowrap; }
 @media (max-width: 1750px) { .titlebar .bin { display: none; } }

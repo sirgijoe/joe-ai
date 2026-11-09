@@ -922,7 +922,7 @@ function choicePicker(it, where) {
   return `<span class="mchoice">` + it.choices.map((c) =>
     `<label class="mc"><input type="radio" name="mc-${where}-${esc(it.id)}" data-mchoice="${esc(it.id)}" value="${esc(c.name)}"${c.name === it.model ? " checked" : ""}> ` +
     `<b>${esc(c.label)}</b>${c.maker ? ` <span class="dim">by ${esc(c.maker)}</span>` : ""} <span class="dim">(${c.size_gb} GB)</span>` +
-    ` <span class="bright">· ${MC_ROLE[c.role] || MC_ROLE.alternative}</span>${c.note ? `<span class="mcnote dim small">${esc(c.note)}</span>` : ""}</label>`).join("") +
+    ` <span class="bright mcrole">${MC_ROLE[c.role] || MC_ROLE.alternative}</span>${c.note ? `<span class="mcnote dim small">${esc(c.note)}</span>` : ""}</label>`).join("") +
     `<span class="mcnote dim small">Want a different one? Type any model's name in Setup (F10) &gt; Writing &gt; Model, or bring your own with LM Studio, llama.cpp or LocalAI.</span></span>`;
 }
 function applyChoice(d) {
@@ -1098,7 +1098,7 @@ async function loadSetup() {
       el.add(new Option(String(v), String(v)));          // a choice whose list isn't loaded yet (e.g. the language)
     if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
   });
-  qualityHelp();
+  qualityHelp(); engineHelp();
   $("#setup-msg").textContent = "";
   $("#set-dirty").hidden = true;
 }
@@ -1510,6 +1510,25 @@ $("#set-find").addEventListener("keydown", (ev) => {
 });
 $("#setup").addEventListener("input", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
 $("#setup").addEventListener("change", (ev) => { if (ev.target.dataset && ev.target.dataset.path) $("#set-dirty").hidden = false; });
+/* What each writing program is good for, and what it costs, right under the choice. */
+const ENGINE_NOTES = {
+  ollama: "Joe installs it, starts it, downloads models for you and frees the graphics card for pictures overnight. The easiest by far; a little slower than a hand-tuned llama.cpp.",
+  lmstudio: "A desktop app where you see and manage your models yourself. You install it and download models in it; Joe starts its server and frees the graphics card for pictures, like Ollama.",
+  llamacpp: "The fastest on most PCs once tuned (often 20% or more quicker than Ollama). Downside: you find the model files and settings yourself, and it keeps its model in the graphics card, so pictures and video get less room.",
+  localai: "A local stand-in for OpenAI's service, with pictures and speech in one program. Downside: more to set up, and usually slower than the others.",
+  openai: "Anything on this PC or your home network that speaks the OpenAI-style language: Jan, KoboldCpp, vLLM, Apple MLX (mlx_lm.server) and more. vLLM is built for many users at once and holds most of the graphics card, so it doesn't share well with pictures.",
+};
+const ENGINE_MAC = "On a Mac with an M chip: LM Studio with an MLX model (or Apple MLX under Other) usually writes about 20-30% faster than Ollama.";
+function engineHelp() {
+  const sel = document.querySelector('[data-path="ollama.engine"]'), el = $("#engine-help");
+  if (!sel || !el) return;
+  const mac = /Mac/.test(navigator.platform || navigator.userAgent || "");
+  el.textContent = ENGINE_NOTES[sel.value] || "";
+  if (mac && ["ollama", "lmstudio", "openai"].includes(sel.value)) {
+    const m = document.createElement("span"); m.className = "enginemac"; m.textContent = ENGINE_MAC; el.appendChild(m);
+  }
+}
+$("#setup").addEventListener("change", (ev) => { if (ev.target.dataset && ev.target.dataset.path === "ollama.engine") engineHelp(); });
 /* Writing program changed to one Joe can't find: say so right away, with the download page,
    a way back to Ollama, or keep it (they may install it later). Joe never installs these himself. */
 let ebPage = "";

@@ -434,8 +434,19 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
 
 ### Use the programs and models you already have
 
-- **Other writing programs**: Setup > Writing > Writing program picks Ollama (recommended: Joe
-  installs, starts and fills it), **LM Studio**, **llama.cpp** (llama-server) or **LocalAI**. With the
+- **Other writing programs**: Setup > Writing > Writing program picks the program, with a line
+  under it on what each is good for and what it costs:
+  - **Ollama** (recommended): Joe installs, starts and fills it, and frees the graphics card for
+    pictures. The easiest; a little slower than a hand-tuned llama.cpp.
+  - **LM Studio** (alternative recommended): a desktop app where you see and manage your models.
+    On a Mac with an M chip, its MLX models usually write about 20-30% faster than Ollama.
+  - **llama.cpp** (fastest, for advanced users who like to tinker): often 20% or more quicker once
+    tuned, but you find the model files and settings yourself.
+  - **LocalAI** and **Other** (bring your own): Jan, KoboldCpp, vLLM, Apple MLX and more. vLLM is
+    built for many users at once and holds most of the graphics card, so it doesn't share well
+    with pictures.
+
+  With the
   others, you add models in that program; Joe writes with whatever it has (the biggest one that fits
   your card, or the one in Setup > Writing > Model). LM Studio: Joe starts its server himself with
   its `lms` helper. llama.cpp and LocalAI: put the line that starts them in More options > Start
@@ -445,7 +456,7 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
   while they run (LM Studio's is unloaded for picture work, like Ollama's).
 - **Other (OpenAI-compatible)**: for Jan, KoboldCpp, vLLM, Text Generation WebUI and anything else
   that speaks the OpenAI-style language. Put its address in More options > Other program's address
-  (usual ports: Jan 1337, KoboldCpp 5001, vLLM 8000), the model name in Model (exactly as that
+  (usual ports: Jan 1337, KoboldCpp 5001, vLLM 8000, Apple MLX's `mlx_lm.server` 8080), the model name in Model (exactly as that
   program lists it; blank = the first one it has), and a Key only if the server asks for one (vLLM
   started with `--api-key`, a KoboldCpp password). **TEST CONNECTION** checks that it answers, lists
   its models and says plainly what's wrong if not (not running, wrong port, key needed, model not

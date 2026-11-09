@@ -429,5 +429,20 @@
  "STARTS WHEN NEEDED": "SE INICIA CUANDO HACE FALTA",
  "STOPPING…": "PARANDO…",
  "Ready": "Listo",
- "Needs": "Necesita"
-}
+ "Needs": "Necesita",
+ "LM Studio (alternative recommended: a visual app)": "LM Studio (alternativa recomendada: una app visual)",
+ "llama.cpp (fastest: for advanced users who like to tinker)": "llama.cpp (el más rápido: para usuarios avanzados a los que les gusta ajustar)",
+ "LocalAI (bring your own)": "LocalAI (trae el tuyo)",
+ "Other (bring your own: Jan, KoboldCpp, vLLM, Apple MLX...)": "Otro (trae el tuyo: Jan, KoboldCpp, vLLM, Apple MLX...)",
+ "The program that runs the writing models. The line under it says what each one is good for and what it costs. Ollama is the easy choice: Joe installs, starts and fills it for you. With the others you add models in that program.": "El programa que ejecuta los modelos de escritura. La línea de abajo dice para qué sirve cada uno y qué cuesta. Ollama es la opción fácil: Joe lo instala, lo inicia y lo llena por ti. Con los demás, tú agregas los modelos en ese programa.",
+ "Joe installs it, starts it, downloads models for you and frees the graphics card for pictures overnight. The easiest by far; a little slower than a hand-tuned llama.cpp.": "Joe lo instala, lo inicia, descarga los modelos por ti y libera la tarjeta gráfica para las imágenes por la noche. Por mucho el más fácil; un poco más lento que un llama.cpp ajustado a mano.",
+ "A desktop app where you see and manage your models yourself. You install it and download models in it; Joe starts its server and frees the graphics card for pictures, like Ollama.": "Una app de escritorio donde ves y manejas tus modelos tú mismo. Tú la instalas y descargas los modelos en ella; Joe inicia su servidor y libera la tarjeta gráfica para las imágenes, como con Ollama.",
+ "The fastest on most PCs once tuned (often 20% or more quicker than Ollama). Downside: you find the model files and settings yourself, and it keeps its model in the graphics card, so pictures and video get less room.": "El más rápido en la mayoría de las PC una vez ajustado (a menudo un 20% o más rápido que Ollama). Desventaja: tú buscas los archivos del modelo y los ajustes, y mantiene su modelo en la tarjeta gráfica, así que las imágenes y el video tienen menos espacio.",
+ "A local stand-in for OpenAI's service, with pictures and speech in one program. Downside: more to set up, and usually slower than the others.": "Un sustituto local del servicio de OpenAI, con imágenes y voz en un solo programa. Desventaja: más que configurar, y normalmente más lento que los demás.",
+ "Anything on this PC or your home network that speaks the OpenAI-style language: Jan, KoboldCpp, vLLM, Apple MLX (mlx_lm.server) and more. vLLM is built for many users at once and holds most of the graphics card, so it doesn't share well with pictures.": "Cualquier programa en esta PC o en tu red de casa que hable el lenguaje estilo OpenAI: Jan, KoboldCpp, vLLM, Apple MLX (mlx_lm.server) y más. vLLM está hecho para muchos usuarios a la vez y ocupa casi toda la tarjeta gráfica, así que no se lleva bien con las imágenes.",
+ "On a Mac with an M chip: LM Studio with an MLX model (or Apple MLX under Other) usually writes about 20-30% faster than Ollama.": "En una Mac con chip M: LM Studio con un modelo MLX (o Apple MLX en Otro) suele escribir un 20-30% más rápido que Ollama.",
+ "Recommended": "Recomendado",
+ "Alternative recommended": "Alternativa recomendada",
+ "Little to no filtering": "Poco o ningún filtro",
+ "Want a different one? Type any model's name in Setup (F10) > Writing > Model, or bring your own with LM Studio, llama.cpp or LocalAI.": "¿Quieres otro? Escribe el nombre de cualquier modelo en Configuración (F10) > Escritura > Modelo, o trae el tuyo con LM Studio, llama.cpp o LocalAI."
+}
