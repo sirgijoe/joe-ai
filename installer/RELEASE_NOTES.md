@@ -13,7 +13,8 @@ words, check his plan, press RUN IT, and in the morning the drafts are waiting w
 - **Works with bigger AIs:** ASK A BIGGER AI for any chatbot, or connect him to Claude Desktop,
   ChatGPT desktop and other apps as an MCP connector. No keys, no accounts.
 - **Looks after himself:** finds Ollama, ComfyUI and your models, asks before installing
-  anything, picks the best model for your graphics card, and picks up where he left off.
+  anything, offers three writing models that fit your graphics card (recommended, an
+  alternative, and one with little to no filtering), and picks up where he left off.
 
 **Joe is free, open source (GPL-3.0) and fully transparent, and will always remain that way.**
 No ads, no upgrades, no donations. Every line of code is in this repository: check it yourself,
