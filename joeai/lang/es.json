@@ -430,7 +430,7 @@
  "STOPPING…": "PARANDO…",
  "Ready": "Listo",
  "Needs": "Necesita",
- "LM Studio (alternative recommended: a visual app)": "LM Studio (alternativa recomendada: una app visual)",
+ "LM Studio (alternative: a visual app)": "LM Studio (alternativa: una app visual)",
  "llama.cpp (fastest: for advanced users who like to tinker)": "llama.cpp (el más rápido: para usuarios avanzados a los que les gusta ajustar)",
  "LocalAI (bring your own)": "LocalAI (trae el tuyo)",
  "Other (bring your own: Jan, KoboldCpp, vLLM, Apple MLX...)": "Otro (trae el tuyo: Jan, KoboldCpp, vLLM, Apple MLX...)",

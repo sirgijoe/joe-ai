@@ -454,6 +454,38 @@ def _words(text: str) -> set[str]:
     return {_stem(w) for w in re.findall(r"[a-z0-9]+", t) if len(w) > 1}
 
 
+_PLAIN = set("""a an the and or but of to in on at for with by from about into as is are be was were it its this that
+these those my me i we our you your he she they them his her their some any one two three few short long little big
+make made write wrote written give get want need please can could would will just very really also like new good
+nice something thing things joe for""".split())
+
+
+def keep_subject(request: str, mission_text: str) -> str:
+    """A plan that dropped what the request was about (a small model wrote 'TASK: Poem' and nothing
+    on the topic) gets the person's own words added as a RULES line to each writing task."""
+    want = {w for w in _words(request) if len(w) > 2 and not w.isdigit() and w not in _PLAIN}
+    if not want:
+        return mission_text
+    have = _words(mission_text)
+    if len(want & have) * 2 >= len(want):
+        return mission_text
+    from .mission import _safe
+    said = _safe(" ".join(request.split())[:500])
+    out, in_writing = [], False
+    lines = mission_text.splitlines()
+    for i, ln in enumerate(lines):
+        out.append(ln)
+        if re.match(r"\s*TASK\s*:", ln, re.I):
+            block = []
+            for nxt in lines[i + 1:]:
+                if re.match(r"\s*(TASK\s*:|===)", nxt, re.I):
+                    break
+                block.append(nxt)
+            if not any(re.match(r"\s*TYPE\s*:", b, re.I) for b in block):
+                out.append(f"RULES: Stay on what the person asked for, in their words: {said}")
+    return "\n".join(out)
+
+
 def split_tasks(mission: str) -> tuple[str, list[str]]:
     """Mission text -> (lines before the first TASK, [each TASK block])."""
     head, blocks = [], []
@@ -595,6 +627,7 @@ def draft(app, request: str) -> dict:
         except Exception as e:
             return {"ok": False, "error": f"Joe couldn't think: {e}"}
         block = want_social(request, want_gif(request, one_picture(request, extract_block(r.text))))
+        block = keep_subject(request, block) if block else block
         if not block:
             problem = "there was no mission block in your reply"
         else:

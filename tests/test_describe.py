@@ -138,3 +138,15 @@ def test_talk_knows_the_tools(app):
     from joeai import chat
     p = chat.prepare(app, [], "fix my old photo please")
     assert "restore-photo" in p["msgs"][0]["content"]
+
+
+def test_plan_that_drops_the_subject_gets_the_request():
+    req = "write me a short poem about a broken handmade tumbler made by Blooming Lotus Studio"
+    lost = "=== JOE MISSION ===\nRULES: None\nTASK: Poem\nCHUNKS: 1 x 1\nFORMAT: 4-line poem, rhyming\n=== END ==="
+    out = describe.keep_subject(req, lost)
+    assert "RULES: Stay on what the person asked for, in their words: " + req in out
+    describe.parse(out)
+    kept = "=== JOE MISSION ===\nTASK: Poem\nFORMAT: A short poem about a broken handmade tumbler made by Blooming Lotus Studio.\n=== END ==="
+    assert describe.keep_subject(req, kept) == kept
+    pics = "=== JOE MISSION ===\nTASK: Pics\nTYPE: image\nCHUNKS: 1 x 1\n=== END ==="
+    assert "Stay on" not in describe.keep_subject(req, pics)
