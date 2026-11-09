@@ -79,7 +79,23 @@ def online() -> bool:
 
 
 def picks(fetch=request_json, now: float | None = None, net: bool | None = None) -> dict:
-    """The model list: GitHub's copy (checked weekly, cached), else the one built into Joe."""
+    """The model list: GitHub's copy (checked weekly, cached), else the one built into Joe. When the
+    copy built into this Joe is newer ("updated" date) than GitHub's main-branch copy, this Joe's
+    wins: a new or test version shouldn't be held back by the list for the older release."""
+    remote = _remote_picks(fetch, now, net)
+    if remote is None:
+        return _builtin()
+    try:
+        mine = _builtin()
+        if str(mine.get("updated") or "") > str(remote.get("updated") or "9999"):
+            return mine
+    except (OSError, ValueError):
+        pass
+    return remote
+
+
+def _remote_picks(fetch=request_json, now: float | None = None, net: bool | None = None) -> dict | None:
+    """GitHub's copy (checked weekly, cached); None when there's none to be had."""
     now = time.time() if now is None else now
     net = online() if net is None else net
     cache = _cache_dir() / "model_picks.json"
@@ -100,7 +116,7 @@ def picks(fetch=request_json, now: float | None = None, net: bool | None = None)
         pass
     if c and valid_picks(c.get("picks")):          # stale but still better than nothing
         return c["picks"]
-    return _builtin()
+    return None
 
 
 def writing_picks(fetch=request_json) -> list[tuple[float, str, float]]:

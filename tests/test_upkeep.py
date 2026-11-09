@@ -45,6 +45,16 @@ def test_picks_from_github_then_cached():
     assert len(calls) == 1                         # second time came from the weekly cache
 
 
+def test_newer_builtin_picks_beat_an_older_github_copy():
+    """A test version's own list wins over main's older one (that kept offering Qwen first)."""
+    mine = upkeep._builtin()
+    old = {"version": 1, "updated": "2000-01-01", "writing": [{"min_vram": 0, "name": "old:1b", "size_gb": 1}]}
+    assert upkeep.picks(lambda *a, **k: old, net=True)["writing"][0]["name"] == mine["writing"][0]["name"]
+    newer = dict(old, updated="2999-01-01")
+    upkeep._cache_dir().joinpath("model_picks.json").unlink(missing_ok=True)
+    assert upkeep.picks(lambda *a, **k: newer, net=True)["writing"][0]["name"] == "old:1b"
+
+
 def test_bad_github_picks_fall_back():
     assert upkeep.picks(lambda *a, **k: {"writing": "junk"}, net=True) == upkeep._builtin()
 
