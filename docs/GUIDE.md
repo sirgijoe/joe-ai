@@ -215,6 +215,13 @@ was asleep or off and the scheduler only starts Joe after the stop time, he leav
 the next night instead of running into your day. A mission that's already running is never cut
 off half-way.
 
+### Watch folders (Setup > General)
+
+Turn on **Watch folders** and Joe makes a folder per tool in `Inbox\Watch` (`clean-audio`,
+`summarize`, `privacy-blur`...), with a READ ME listing them. Drop a file into one while Joe is open
+and he runs that tool on it by himself, with the tool's usual options: no plan, no button. Only
+tools that read files and need no choice from you get a folder. Results land in `Output` as usual.
+
 ### Check my model files (Setup > Models)
 
 **CHECK MY MODEL FILES** makes sure every picture, video and sound model (`.safetensors`, in ComfyUI's
@@ -390,7 +397,7 @@ and its Turbo add-on. Every download asks first.
 with who made it and one or two plain sentences on why it's there and what it costs:
 
 - **Recommended**: Joe's pick, the best all-round writer for your card (Gemma 4 or Llama on most PCs).
-- **Alternative recommended**: another strong choice (Qwen 3: better at code and other languages, but
+- **Alternative**: another strong choice (Qwen 3: better at code and other languages, but
   made in China, so it often dodges or refuses questions about Chinese politics and history).
 - **Little to no filtering**: follows your instructions with very few refusals (Mistral, Dolphin or
   Hermes, depending on the card). Usually a little less accurate than Joe's pick; the note says so.
@@ -493,6 +500,12 @@ When a level works best with a model you don't have yet, Joe says so right under
 for example "Based on your Low setting, I'd recommend llama3.1:8b (4.9 GB) for this. Should we install
 it?", with a **YES, INSTALL IT** button. The plan for a video task mentions the Turbo add-on the
 same way. Nothing downloads without your yes.
+
+**When thinking runs out of room.** On High, some models (Gemma among them) can think so long about
+a short job, like a list of jokes, that they run out of room and write nothing. Joe spots the empty
+answer, says so in the log, and writes the rest of that task without thinking first, so the list
+still finishes quickly. And if a list comes up a few items short (repeats dropped, a part that ran
+out of tries), Joe writes the missing items at the end, so 100 asked means 100 written.
 
 A task's own SIZE or MODEL always wins over these choices. Time estimates learn from your runs,
 so after changing a level the first estimate may be off.
@@ -675,6 +688,65 @@ Markdown, names, numbers, prices and links; anything it can't translate well is 
 starts with a line saying it's a machine translation made on this computer, to be checked by
 someone who speaks the language before publishing. FORMAT passes on wishes like "formal" or
 "Latin American Spanish". Quality depends on the model; big languages work best.
+
+### More writing, file and sound tools (new in 2.1)
+
+These work like the ones above: a card on the Tools tab, or just ask on Home. None of them changes
+your original files.
+
+- **Summarize** (`TYPE: summarize`, `OPTIONS: length short|points|chapters`): an article, PDF, book
+  or web page as a short summary, key points (the default) or chapter by chapter. Long documents
+  are read in parts and joined; names, numbers and dates are copied as written.
+- **Rewrite or change the tone** (`TYPE: rewrite`, `OPTIONS: style friendly|formal|shorter|simpler|email|resume|custom`):
+  a new copy plus a "what changed" list. For a resume, paste the job post in the box; Joe never
+  invents jobs, skills or results (missing things are marked [CHECK]).
+- **Brainstorm** (`TYPE: brainstorm`, `OPTIONS: kind ideas|names|gifts|angles|outline|solutions, count 10|25|50`):
+  say what you need ideas for; a file is optional. Keep a favorite with "park this: ...".
+- **Study helper** (`TYPE: study`, `OPTIONS: level kid|teen|adult|expert` plus `explain`, `cards`,
+  `quiz`, `teach`): uses only your material. Flashcards come as a Front,Back CSV for Anki or
+  Quizlet; "teach" asks you questions first so you learn it.
+- **Explain or review my code** (`TYPE: code-review`, `OPTIONS: explain, bugs, tests, tidy`): real
+  line numbers; Joe reads the code and never runs it.
+- **Get found by AI search** (`TYPE: ai-search`): from the business facts you give (or your About
+  page), a FAQ, a short description, schema code and an llms.txt file, with a README saying where
+  each goes. Missing facts are listed, never guessed.
+- **Budget meal planner** (`TYPE: meal-plan`, `OPTIONS: days 3|5|7`): your budget, how many people
+  and what to avoid. Joe adds up the list himself and says plainly if it goes over. Add a receipts
+  spreadsheet for real prices; otherwise prices are estimates marked [CHECK].
+- **Ask my spreadsheet** (`TYPE: ask-sheet`, questions one per line in FORMAT): the writing model
+  only turns each question into a plan; Joe's own code does the math and shows how, with a bar
+  chart when there are several rows.
+- **Sort and rename my files** (`TYPE: sort-files`, `OPTIONS: folders, rename`): sorted COPIES with
+  clear names ("2026-03-02 Electric bill.pdf"), in your own folders if you type them, plus a list of
+  what went where.
+- **Dates and to-dos to my calendar** (`TYPE: calendar-file`): `calendar.ics` from notes, emails or
+  a transcript, for Google Calendar, Outlook or Apple Calendar. Joe never touches your calendar
+  account; guessed dates are marked [CHECK].
+- **Find a book to read aloud** (`TYPE: find-book`, `OPTIONS: aloud yes|no`): an ISBN, a title or a
+  photo of the cover or barcode. Public-domain books come from Project Gutenberg and are queued
+  for Read aloud; for books under copyright, scan your own pages. Needs online lookups on; only the
+  ISBN or title is sent.
+- **Clean up a recording** (`TYPE: clean-audio`, `OPTIONS: strength light|normal|strong, hum, level`):
+  less noise and hum and an even volume, with FFmpeg in seconds, no AI. A video keeps its picture.
+- **Cut out ums and long pauses** (`TYPE: tidy-speech`, `OPTIONS: fillers, pauses, pause 0.7|1.0|1.5|2.5`):
+  Joe listens word by word and cuts the fillers and long silences, with a list of every cut.
+- **Edit a video by its words** (`TYPE: edit-words`): two steps. Run it once and Joe writes what was
+  said as a words file in Output. Delete the words you don't want (only delete, never retype), put
+  the file in the Inbox next to the video and run it again: Joe cuts those words out.
+- **Dub or voice-over a video** (`TYPE: dub-video`, `OPTIONS: to <language>, voice, voice-of man|woman, original low|half|off`):
+  subtitles in the new language, and with `voice` Joe's voice says each line at its time over the
+  original sound turned down. A machine translation: have it checked before publishing.
+- **Add B-roll to a talking video** (`TYPE: b-roll`, `OPTIONS: amount few|some|lots`): the talking
+  video plus your own clips and photos (name them for what they show, like `kiln-firing.mp4`). Joe
+  cuts to them where they match what's said, keeping the speaker's sound, and lists every cutaway.
+- **Privacy blur** (`TYPE: privacy-blur`, `OPTIONS: blur faces|plates|addresses|screens|kids`):
+  the vision model finds them and FFmpeg blurs them hard; GPS details are left out of the copy.
+  Nothing picked means faces, plates, addresses and screens. Always look before posting.
+- **Social graphics and flyers** (`TYPE: social-graphic`, `OPTIONS: size ig-post|ig-portrait|story|fb-post|fb-cover|x-post|yt-thumb|pinterest|flyer|flyer-a4, place bottom|middle|top`):
+  your exact words (first line = headline) on your photo or a plain color, with a real font, so
+  no AI spelling mistakes.
+- **Joe's screens in another language** (`TYPE: joe-language`, `OPTIONS: to <language>`): see
+  "Joe's screens in other languages" above.
 
 ### Picture and sound tools
 
@@ -1042,7 +1114,10 @@ Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 
 ## Running it
 
-Needs Python 3.11.4+ (python.org) and Ollama with a model pulled (System check offers one that fits your PC).
+The installers bring everything Joe needs to start. Running from the source code instead needs
+Python 3.11.4+ (python.org). For writing, Joe needs Ollama with a model (System check offers to
+install both) or another writing program you already use (see "Use the programs and models you
+already have").
 
 **Double-click `Joe.pyw`.** A window opens (Microsoft Edge in app mode, no
 tabs). Paste a mission, press **F5**. You can close the window; the run keeps going.

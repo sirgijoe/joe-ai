@@ -69,7 +69,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Queue** as much as you like: plans run one after another, with one combined morning report.
 - **Night shift** (Setup > General): SAVE FOR TONIGHT and Joe starts those plans at the time you
   set, even with his window closed (Windows can wake the PC for it). Uses your computer's own
-  scheduler, and turning it off removes the entry again.
+  scheduler, and turning it off removes the entry again. Give it a **Stop by** time too and he
+  finishes the job he's on, saves the rest for the next night and says so in the morning report.
 - **Watch folders** (Setup > General): drop a file into `Inbox\Watch\<tool>` (like `clean-audio` or
   `summarize`) and Joe does it by himself while he's open, with that tool's usual options.
 - **Starter packs**: one question ("what's your shop called?") and Joe plans a whole bundle: a shop
@@ -274,11 +275,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 
 **Looks after himself**
 - On first start he checks your PC: graphics card, memory, and the free programs he works
-  with (Ollama for writing, ComfyUI for pictures, FFmpeg for video).
+  with (Ollama for writing, or LM Studio, llama.cpp, LocalAI or another OpenAI-compatible program
+  if you'd rather; ComfyUI for pictures; FFmpeg for video).
 - If one is missing or not running, he tells you and **asks before installing or starting
   anything**. Installs use Windows' own installer (winget) and the official packages.
-- Picks the best AI model your graphics card can handle, and suggests a download that fits
-  if you don't have one.
+- Offers three writing models that fit your graphics card: Joe's pick (Gemma or Llama), an
+  alternative (Qwen) and one with little to no filtering (Mistral, Dolphin or Hermes), each with a
+  plain line on what it's good at and its downside. Or type any model's name in Setup > Writing.
+- When a model thinks so long it runs out of room, Joe writes the rest of the task without
+  thinking first, and a list that comes up short gets its missing items written at the end.
 - Shows your graphics card's temperature, load and memory live at the bottom of the window,
   and pauses to cool down if it runs hot.
 - Keeps the PC awake while working; can sleep or shut it down when he's done.
@@ -350,7 +355,7 @@ overnight work still runs.
 | Graphics card | NVIDIA with 6 GB memory | NVIDIA with 12 GB or more |
 | Memory (RAM) | 16 GB | 32 GB |
 | Free disk space | 15 GB | 50 GB+ if you want pictures and video |
-| Python | 3.11.4 or newer (python.org) — until the one-click installer is ready | |
+| Python | Only to run Joe from the source code: 3.11.4 or newer (python.org). The installers bring their own. | |
 
 Joe will offer to install Ollama, ComfyUI and FFmpeg for you. They're free programs made by
 other people, each under their own license. AI models are big downloads (2–20 GB each).
@@ -455,5 +460,6 @@ Joe is free, and he stays free. No ads, no upgrades, no donations. He's here to 
 
 ---
 
-**Ready?** Install Python 3.11.4+ from python.org, download Joe, and double-click `Joe.pyw`.
+**Ready?** Download the installer for your computer from the [latest release](https://github.com/sirgijoe/joe-ai/releases/latest)
+and open it. (Running from the source code instead? Install Python 3.11.4+ and double-click `Joe.pyw`.)
 The details are in the [full guide](docs/GUIDE.md).
