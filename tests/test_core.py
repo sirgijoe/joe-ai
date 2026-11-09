@@ -318,3 +318,23 @@ def test_slow_comfyui_gets_a_plain_hint(env, monkeypatch):
                                                                     sleep=lambda x: None))
     ok = sm._wait(lambda: False, 120, "ComfyUI to open", hint_after=45, hint="look at its window")
     assert not ok and sm.attention == "look at its window"
+
+
+def test_part_retried_without_thinking_when_thinking_fills_the_room(env):
+    from joeai.ollama import ChatResult
+    s, sb, fake = env
+    s.quality.writing = "high"
+    eng = Engine(s, sb, log=lambda m: None)
+    calls = []
+    real = eng.client.chat
+
+    def chat(msgs, model=None, think=None, **kw):
+        calls.append(think)
+        if think is not False and "Write exactly" in msgs[-1]["content"]:
+            return ChatResult("", 100, 5600, 45.0)          # all thinking, no answer
+        return real(msgs, model=model, think=think, **kw)
+    eng.client.chat = chat
+    st = eng.run_mission(parse("=== JOE MISSION ===\nTASK: Jokes\nCHUNKS: 1 x 3\n"
+                               "FORMAT: One line.\n=== END ==="))[0]
+    assert st.status == "done", st.note
+    assert calls.count(False) >= 1 and len([c for c in calls if c is not False]) == 1

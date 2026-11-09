@@ -687,6 +687,8 @@ class Engine:
             or self.s.ollama.text_model
         think = None if images else ((quality_mod.writing(self.s).think or None)
                                      if kind in self.THINK_KINDS else False)
+        if job.job_id in getattr(self, "_no_think", set()):
+            think = False                        # thinking used up the room last time (see _run_part)
         cap = len(user) // 2 + 2048 if kind in self.CAPPED_KINDS else None
         last_err = None
         for attempt in range(1, self.s.engine.max_retries + 1):
@@ -732,7 +734,14 @@ class Engine:
             r = self._chat(job, part, kind, system, prompt, st)
             new = split_items(r.text) or loose_items(_clean_reply(r.text))
             if not new:
-                self.log(f"  part {part + 1}: reply had no '## title' items, retrying")
+                key = job.job_id
+                if not r.text.strip() and r.output_tokens > 500 and \
+                        key not in getattr(self, "_no_think", set()):
+                    self._no_think = getattr(self, "_no_think", set()) | {key}
+                    self.log(f"  part {part + 1}: the model spent all its room thinking and wrote "
+                             "nothing; writing the rest of this task without thinking first")
+                else:
+                    self.log(f"  part {part + 1}: reply had no '## title' items, retrying")
                 continue
             for it in new:
                 if len(got) >= need:
