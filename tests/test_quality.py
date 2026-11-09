@@ -112,12 +112,25 @@ def test_doctor_offers_the_best_models(tmp_path, monkeypatch):
         models = [{"name": "qwen3:4b", "writer": True, "params": "4.0B", "size_gb": 2.6, "family": "qwen3"}]
         monkeypatch.setattr(doctor, "ollama_models", lambda sm: models)
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
-        assert ids["upgrade-model"]["model"] == "gemma4:12b"         # 12 GB card: Joe's pick for it
-        assert [c["role"] for c in ids["upgrade-model"]["choices"]] == ["recommended", "alternative", "free"]
+        assert ids["joes-pick"]["model"] == "gemma4:12b"             # 12 GB card, model left to Joe
+        assert [c["role"] for c in ids["joes-pick"]["choices"]] == ["recommended", "alternative", "free"]
+        assert "RECOMMENDED" in ids["joes-pick"]["text"] and "12 GB" in ids["joes-pick"]["text"]
         assert "pull-talk-model" not in ids                           # a 4B model is already quick
-        models[:] = [{"name": "qwen3:14b", "writer": True, "params": "14.8B", "size_gb": 9.3, "family": "qwen3"}]
+        s.ollama.text_model = "qwen3:4b"                              # the person picked a model themselves
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
-        assert "upgrade-model" not in ids                             # an offered choice is already in
+        assert ids["upgrade-model"]["model"] == "gemma4:12b" and "joes-pick" not in ids
+        models[:] = [{"name": "qwen3:14b", "writer": True, "params": "14.8B", "size_gb": 9.3, "family": "qwen3"}]
+        s.ollama.text_model = "qwen3:14b"
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert "upgrade-model" not in ids and "joes-pick" not in ids  # their own choice, already in
+        s.ollama.text_model = ""
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        assert ids["joes-pick"]["model"] == "gemma4:12b"              # left to Joe: his pick is still offered
+        monkeypatch.setattr(hardware, "vram_total_gb", lambda: 3.0)  # a small card gets its own three
+        ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
+        small = ids["joes-pick"]["choices"]
+        assert small[0]["recommended"] and all(c["size_gb"] < 4 for c in small) and "3 GB" in ids["joes-pick"]["text"]
+        monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
         assert ids["pull-talk-model"]["set"] == "talk"
         s.quality.writing = "low"
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}

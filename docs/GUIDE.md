@@ -73,6 +73,13 @@ In Step by step (F6) it's **Use the names from**.
 
 ### Setup: Models, Workflows and resets
 
+- **Better-model tips**: when a model you don't have would do a job better (FLUX.2 klein for words in a
+  picture, groups of people or two animals; a style's own picture model; the video Turbo add-on) and it
+  suits your graphics card's memory, the run log says so once, with the reason. System check then
+  lists that offer first, marked **RECOMMENDED** with the reason. Offers too big for your card say so.
+  Nothing downloads until you press its button. With the writing model left blank (Joe picks), Joe's
+  pick for your card's memory is offered there whenever it's missing (RECOMMENDED), with the alternative
+  and the little-to-no-filtering choice beside it: pick whichever you want.
 - **Models** (Setup > Models): every model download Joe offers, sorted by what it's for (writing,
   pictures and styles, video, picture tools, music and sound, helpers, newer copies), plus
   SHOW MY MODELS. System check keeps the programs (Ollama, ComfyUI, FFmpeg...). **DOWNLOAD ALL**

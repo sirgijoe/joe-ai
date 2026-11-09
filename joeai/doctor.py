@@ -251,10 +251,14 @@ def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
     if want and (want in names or f"{want}:latest" in names):
         return want
     vram = hardware.vram_total_gb()
-    pick = best_ollama_model(models, vram, joes_pick(vram))
+    jp = joes_pick(vram)
+    pick = best_ollama_model(models, vram, jp)
     if pick:
         log(f"Using {pick}, the best installed model for this PC." if not want else
             f"Model '{want}' isn't installed; using best fit '{pick}' instead.")
+        if not want and jp and pick not in (jp, f"{jp}:latest"):
+            log(f"Tip: Joe's pick for writing on this PC is {jp}; Setup > System check offers it (and the "
+                "other choices for this graphics card).")
         return pick
     if hasattr(sm.ollama, "model_rows"):     # other engines: blank = whatever model it has loaded
         return want
@@ -280,6 +284,16 @@ def addons_mod_voice_ready() -> bool:
 
 
 # --------------------------------------------------------------------------- report
+def _recommend(settings: Settings, issues: list[dict], vram: float) -> list[dict]:
+    """Offers Joe has seen a reason for (suggest.py) first, marked RECOMMENDED; too-big ones say so."""
+    try:
+        from . import suggest
+        from .sandbox import Sandbox
+        return suggest.mark(issues, Sandbox(settings.workspace_path), vram)
+    except Exception:                       # noqa: BLE001  (never break System check)
+        return issues
+
+
 def check(settings: Settings, sm: ServiceManager) -> dict:
     g = hardware.gpu()
     vram = hardware.vram_total_gb()
@@ -320,7 +334,16 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         have = lambda n: n in names or f"{n}:latest" in names                  # noqa: E731
         best_b = max((_params_b(m["params"]) for m in writers), default=0)
         rec_b = _params_b(rec["name"].split(":")[-1].upper())
-        if writers and not any(have(c["name"]) for c in ch) and best_b and rec_b > best_b * 1.2:
+        if writers and not (settings.ollama.text_model or "").strip() and not have(rec["name"]):
+            # Model left blank = Joe picks: his pick for this card is offered whenever it's missing,
+            # with the alternative and the little-to-no-filtering choice next to it.
+            card = f"{vram:g} GB graphics card" if vram else "this PC (no graphics card found)"
+            issues.append({"id": "joes-pick", "recommended": True, "text": f"RECOMMENDED: Joe's pick for writing on "
+                           f"{card}: {_pick_label(rec)} ({rec['size_gb']} GB download). Your writing model is "
+                           f"left to Joe, so he uses it as soon as it's here (until then: {best_text})."
+                           f"{choices_text(ch)}", "action": "pull", "model": rec["name"], "choices": ch,
+                           "optional": True, "what": f"{rec['name']} ({rec['size_gb']} GB)"})
+        elif writers and not any(have(c["name"]) for c in ch) and best_b and rec_b > best_b * 1.2:
             issues.append({"id": "upgrade-model", "text": f"A better writing model fits this PC: {_pick_label(rec)} "
                            f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
                            f"better drafts.{choices_text(ch)}", "action": "pull", "model": rec["name"],
@@ -509,7 +532,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                     "best_video": best_vid.name if best_vid else None},
         "ffmpeg": ffmpeg_exe(settings.comfy.ffmpeg) or "",
         "voice": addons_mod.voice_ready(), "pandoc": addons_mod.pandoc_exe(settings.pandoc) or "",
-        "issues": issues,
+        "issues": _recommend(settings, issues, vram),
     }
 
 

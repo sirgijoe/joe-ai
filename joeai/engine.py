@@ -1267,7 +1267,12 @@ class Engine:
                     f"{comfy_mod.WAN_VIDEO['label']} (about {comfy_mod.WAN_VIDEO['size_gb']:.0f} GB), "
                     "or give the task a WORKFLOW.")
             fps = job.fps if job.fps != 16 else 0          # 16 is the mission default: use Wan's 24
-            vp = quality_mod.video(self.s, comfy_mod.wan_turbo_installed(comfy_models_dir(self.s)))
+            turbo_in = comfy_mod.wan_turbo_installed(comfy_models_dir(self.s))
+            vp = quality_mod.video(self.s, turbo_in)
+            if not turbo_in and quality_mod.level(self.s, "video") != "high":
+                from . import suggest
+                suggest.note(self, "video-turbo", comfy_mod.WAN_TURBO["label"],
+                             "video clips several times faster at Low and Medium quality")
             self._video_plan = vp
             self.log(f"  Video quality: {quality_mod.NAMES[quality_mod.level(self.s, 'video')]} ({vp.describe()})")
             return (comfy_mod.wan_video_graph(frames=vp.frames, fps=fps, steps=vp.steps, cfg=vp.cfg, turbo=vp.turbo),
@@ -1299,6 +1304,13 @@ class Engine:
             m = comfy_mod.best_image_model(suited, vram, "image") if suited else None
             self.log(f"  Style: {style.label}" + (f" -> {m.name}" if m else " (no matching model installed; "
                                                    "using the usual pick)"))
+            if not m:
+                from . import stylemodels, suggest
+                rec = next((r for r in stylemodels.recommendations(pk) if r["style"] == style.id
+                            and r.get("kind") != "lora"), None)
+                if rec:
+                    suggest.note(self, f"style:{style.id}", rec["name"], f"{style.label} pictures",
+                                 base=rec.get("base", "sdxl"))
         m = m or comfy_mod.best_image_model(basic, vram, "image", want=job.model)
         if not m and job.model:
             raise comfy_mod.WorkflowError(f"no SD1.5/SDXL checkpoint matches MODEL: {job.model} "
@@ -1373,6 +1385,10 @@ class Engine:
         except Exception:                       # noqa: BLE001  (finder trouble = not installed)
             ready = False
         if not ready:
+            try:
+                Engine._suggest_flux2(self, job)
+            except Exception:                   # noqa: BLE001  (a tip must never stop a picture)
+                pass
             return False, ""
         if job.model:
             return bool(comfy_mod.FLUX2_WANT.search(job.model)), "the task asks for it"
@@ -1389,6 +1405,22 @@ class Engine:
             # SDXL photo models cloned faces, merged bodies and lost a rider's legs (QC 2026-11-09)
             return True, "several people (or a rider) in one picture: it gets bodies and faces right far more often"
         return False, ""
+
+    def _suggest_flux2(self, job: Job) -> None:
+        """FLUX.2 klein isn't installed but would draw this better: say so (when it suits the card)."""
+        from . import suggest
+        text = f"{job.name}\n{job.format}"
+        why = ""
+        if comfy_mod.FLUX2_WANT.search(job.model or ""):
+            why = "the task asks for it"
+        elif comfy_mod.WORDS_IN_PICTURE.search(text):
+            why = "words in the picture: it spells them right"
+        elif styles_mod.pick(job).id in ("photo", "general", "bw") and styles_mod.crowded(text):
+            why = "several people or a rider in one picture: better bodies and faces"
+        elif styles_mod.pick(job).id in ("photo", "general") and len(styles_mod.animals_in(text)) >= 2:
+            why = "two different animals in one picture: it keeps them apart"
+        if why:
+            suggest.note(self, "pack:flux2", comfy_mod.FLUX2["label"], why)
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
         """Phase 2: ComfyUI renders every prompt (VARIANTS images each)."""

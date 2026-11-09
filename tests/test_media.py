@@ -399,3 +399,30 @@ def test_video_fine_tuning(env, tmp_path):
     assert st.status == "done", st.note
     g = fc.graphs[-1]
     assert g["3"]["inputs"]["cfg"] == 7 and "dynamic camera motion" in g["6"]["inputs"]["text"]
+
+
+def test_joe_recommends_a_better_model_that_fits(env, monkeypatch):
+    """FLUX.2 klein isn't installed, a picture has words in it: a tip in the log (only when the
+    card is big enough), remembered so System check puts the offer first."""
+    from joeai import hardware, suggest
+    s, sb, fo, fc = env
+    monkeypatch.setattr(hardware, "vram_total_gb", lambda: 4.0)
+    logs = []
+    Engine(s, sb, log=logs.append).run_mission(parse("TASK: Sign  SAVE: art/sign  TYPE: image  CHUNKS: 1 x 1\n"
+                                                     "FORMAT: a bakery sign that says OPEN"))
+    assert not any("Tip:" in x and "FLUX" in x for x in logs) and not suggest.pending(sb)   # 4 GB: too small
+    monkeypatch.setattr(hardware, "vram_total_gb", lambda: 12.0)
+    logs = []
+    Engine(s, sb, log=logs.append).run_mission(parse("TASK: Sign2  SAVE: art/sign2  TYPE: image  CHUNKS: 1 x 2\n"
+                                                     "FORMAT: a bakery sign that says OPEN"))
+    tips = [x for x in logs if "Tip:" in x and "FLUX" in x]
+    assert len(tips) == 1 and "FLUX.2" in tips[0] and "12 GB" in tips[0]
+    assert "pack:flux2" in suggest.pending(sb)
+    issues = [{"id": "x", "text": "a problem"},
+              {"id": "pack-bg", "pack": "bg", "optional": True, "text": "For Remove background: ..."},
+              {"id": "pack-flux2", "pack": "flux2", "optional": True, "text": "For better hands: ..."},
+              {"id": "pack-edit", "pack": "edit", "optional": True, "text": "For Edit a picture: ..."}]
+    out = suggest.mark(issues, sb, 8.0)
+    assert [i["id"] for i in out] == ["x", "pack-flux2", "pack-bg", "pack-edit"]
+    assert out[1]["text"].startswith("RECOMMENDED for what you make (words in the picture")
+    assert "this PC has 8 GB" in out[3]["text"]                                 # the editor wants 12 GB

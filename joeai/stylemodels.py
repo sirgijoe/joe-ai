@@ -79,7 +79,7 @@ def offers(models: list, picks: dict | None = None, loras: list[str] | None = No
         except (TypeError, ValueError):
             gb = 1.0
         out.append({"id": f"style-{s}", "group": "styles", "optional": True, "action": "import-models",
-                    "page": r["page"], "style": s, "file": str(r.get("file") or ""),
+                    "page": r["page"], "style": s, "file": str(r.get("file") or ""), "base": r.get("base", "sdxl"),
                     "text": f"For {label} pictures: {r['name']} ("
                             + (f"about {gb:g} GB" if gb >= 1 else "a small style add-on")
                             + f", {r.get('note') or 'free community model'}) "
