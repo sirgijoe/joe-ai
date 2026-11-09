@@ -30,7 +30,7 @@ from .config import Settings
 from .fsutil import atomic_append_text, atomic_write_text
 from .http import HttpError
 from .items import Item, count_words, find_flags, is_duplicate, norm_title, split_items, loose_items, split_title_line
-from .mission import Job, Mission, slug
+from .mission import IMAGE_EXT, Job, Mission, slug
 from .ollama import ChatResult, OllamaClient
 from .power import keep_awake, when_finished
 from .sandbox import Sandbox, SandboxError
@@ -305,6 +305,14 @@ class Engine:
                     continue
                 self.current = job.job_id
                 self._guard(job, st, self.render, mission, job, st)
+        for job, st in media_jobs:                       # picture book: pictures FROM the story
+            if job.type == "image" and job.source and st.status == "done" and not self.stop.is_set():
+                src = next((j for j in mission.jobs if j.name == job.source), None)
+                if src is not None and src.guided and [x for x in src.export if x != "social"]:
+                    try:
+                        self._illustrate(src, done.get(src.job_id) or self._load_state(mission, src), job, st)
+                    except Exception as e:                # noqa: BLE001 (the book itself is already saved)
+                        self.log(f"  Couldn't put the pictures into '{src.name}': {e}")
         states = [done.get(j.job_id, st) for j, st in jobs]
         self.current = ""
         report = write_report(self.sb, mission, states, earlier)
@@ -450,6 +458,28 @@ class Engine:
         if missing:
             st.note = (st.note + "; " if st.note else "") + "couldn't make " + ", ".join(sorted(missing))
             self._save_state(job, st)
+
+    def _illustrate(self, book: Job, bst: JobState, pics: Job, pst: JobState) -> None:
+        """Make the book's finished copies again with one picture per page (first version of each)."""
+        from .addons import export_document, pandoc_exe
+        if not bst.output or bst.status not in ("done", "partial"):
+            return
+        md = self.sb.output / bst.output
+        firsts: dict[str, Path] = {}
+        for rel in pst.media_files:
+            f = self.sb.output / rel
+            if f.suffix.lower() in IMAGE_EXT and f.exists() and f.name[:3].isdigit():
+                firsts.setdefault(f.name[:3], f)
+        pictures = [firsts[k] for k in sorted(firsts)]
+        pandoc = pandoc_exe(self.s.pandoc)
+        if not pictures or not md.is_file() or not pandoc:
+            return
+        docs = [x for x in book.export if x != "social"]
+        made = export_document(md, docs, pandoc, self.log, settings=self.s, template=book.template,
+                               heading=book.name, cache=self.meta / "templates", pictures=pictures)
+        if made:
+            self.log(f"  '{book.name}': {len(pictures)} picture(s) put on its pages -> "
+                     + ", ".join(p.name for p in made))
 
     def _text_ready(self, st: JobState) -> bool:
         if not self.services.handoff("text"):
@@ -1355,6 +1385,9 @@ class Engine:
         if styles_mod.pick(job).id in ("photo", "general") and \
                 len(styles_mod.animals_in(f"{job.name}\n{job.format}")) >= 2:
             return True, "two different animals in one picture: it keeps them apart far better"
+        if styles_mod.pick(job).id in ("photo", "general", "bw") and styles_mod.crowded(f"{job.name}\n{job.format}"):
+            # SDXL photo models cloned faces, merged bodies and lost a rider's legs (QC 2026-11-09)
+            return True, "several people (or a rider) in one picture: it gets bodies and faces right far more often"
         return False, ""
 
     def render(self, mission: Mission, job: Job, st: JobState) -> JobState:
@@ -1417,6 +1450,18 @@ class Engine:
                             f"always leave out '{wpref['avoid']}'" if wpref.get("avoid") else "") if x))
         if rec.look and builtin and job.type == "image":
             self.log(f"  Look: {style.label} > {rec.look.get('label', '')}")
+        if family == "wan" and builtin:
+            vt = []
+            if wpref.get("cfg"):
+                if graph["3"]["inputs"]["cfg"] == 1.0:
+                    vt.append("prompt strength skipped (the Turbo add-on needs 1)")
+                else:
+                    graph["3"]["inputs"]["cfg"] = wpref["cfg"]
+                    vt.append(f"prompt strength {wpref['cfg']:g}")
+            if wpref.get("motion"):
+                vt.append(f"motion {wpref['motion']}")
+            if vt:
+                self.log("  Your fine-tuning: " + ", ".join(vt))
         if job.type == "image" and job.variants == 1 and wpref.get("versions", 1) > 1:
             job = dc_replace(job, variants=int(wpref["versions"]))
             self.log(f"  Your fine-tuning: {job.variants} versions of each picture to pick from")
@@ -1438,6 +1483,8 @@ class Engine:
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
                 pos = self._styled(p["prompt"], rec) if builtin else p["prompt"]
+                if job.type == "video" and wpref.get("motion") in wfp.MOTION_WORDS:
+                    pos = f"{pos.rstrip(' .,')}, {wfp.MOTION_WORDS[wpref['motion']]}"
                 if builtin and job.type == "image" and style.id in PEOPLE_STYLES and styles_mod.crowded(p["prompt"]):
                     pos = f"{pos}, {styles_mod.GROUP_WORDS}"
                     if not getattr(self, "_group_said", False):

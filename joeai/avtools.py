@@ -98,18 +98,24 @@ def wrap(text: str, width_chars: int) -> list[str]:
     return out
 
 
-def layout(text: str, w: int, h: int) -> tuple[list[str], list[str], int, int]:
+def layout(text: str, w: int, h: int, photo: bool = True) -> tuple[list[str], list[str], int, int]:
     """(headline lines, other lines, headline font size, small font size) for a w x h picture.
-    First line of the person's words = the headline; the rest is smaller."""
+    First line of the person's words = the headline; the rest is smaller. Without a photo the
+    words ARE the picture, so the headline is much bigger (a plain card with small words looked
+    empty: QC 2026-11-09)."""
     lines = [ln.strip() for ln in re.split(r"\n|\s+\|\s+", (text or "").strip())]
     head, rest = (lines[0] if lines else ""), "\n".join(ln for ln in lines[1:] if ln)
     short = min(w, h)
-    big = max(28, int(short * (0.10 if len(head) < 25 else 0.075)))
-    small = max(18, int(big * 0.45))
+    if photo:
+        big = max(28, int(short * (0.10 if len(head) < 25 else 0.075)))
+    else:
+        big = max(32, int(short * (0.16 if len(head) < 18 else 0.13 if len(head) < 30 else 0.10)))
+    small = max(18, int(big * (0.45 if photo else 0.38)))
     usable = w * 0.86
+    room = 0.6 if photo else 0.8
     head_lines = wrap(head, max(8, int(usable / (big * 0.55))))
     rest_lines = wrap(rest, max(12, int(usable / (small * 0.52)))) if rest else []
-    while (len(head_lines) * big * 1.2 + len(rest_lines) * small * 1.35) > h * 0.6 and big > 28:
+    while (len(head_lines) * big * 1.2 + len(rest_lines) * small * 1.35) > h * room and big > 28:
         big, small = int(big * 0.88), max(18, int(small * 0.9))
         head_lines = wrap(head, max(8, int(usable / (big * 0.55))))
         rest_lines = wrap(rest, max(12, int(usable / (small * 0.52)))) if rest else []
@@ -125,7 +131,15 @@ def graphic_command(ffmpeg: str, photo: Path | None, out: Path, w: int, h: int, 
         cmd = [ffmpeg, "-y", "-v", "error", "-i", str(photo)]
         chain = f"[0:v]scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},setsar=1"
     else:
-        cmd = [ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", f"color=c={COLORS.get(color, color)}:s={w}x{h}:d=1"]
+        c0 = COLORS.get(color, color)
+        if has_gradients(ffmpeg):              # a soft diagonal shade of the color, not a flat card
+            c1 = shade(c0, 1.35 if color == "white" else 0.55)
+            src = (f"gradients=s={w}x{h}:c0={c0}:c1={c1}:x0=0:y0=0:x1={w}:y1={h}:nb_colors=2:d=1:r=1"
+                   if color != "white" else
+                   f"gradients=s={w}x{h}:c0=0xffffff:c1=0xe6ebf0:x0=0:y0=0:x1={w}:y1={h}:nb_colors=2:d=1:r=1")
+        else:
+            src = f"color=c={c0}:s={w}x{h}:d=1"
+        cmd = [ffmpeg, "-y", "-v", "error", "-f", "lavfi", "-i", src]
         chain = "[0:v]setsar=1"
     total = sum(int(sz * (1.25 if big else 1.35)) for _, sz, big in text_files)
     pad = int(min(w, h) * 0.06)
@@ -140,6 +154,28 @@ def graphic_command(ffmpeg: str, photo: Path | None, out: Path, w: int, h: int, 
                   f":x=(w-text_w)/2:y={y}" + (":shadowcolor=black@0.6:shadowx=2:shadowy=2" if photo else ""))
         y += int(size * (1.25 if big else 1.35))
     return cmd + ["-filter_complex", chain, "-frames:v", "1", "-q:v", "2", str(out)]
+
+
+def shade(hex_color: str, k: float) -> str:
+    """0xRRGGBB made darker (k < 1) or lighter (k > 1)."""
+    v = int(hex_color.replace("0x", "").replace("#", ""), 16)
+    rgb = [(v >> 16) & 255, (v >> 8) & 255, v & 255]
+    return "0x" + "".join(f"{max(0, min(255, int(c * k))):02x}" for c in rgb)
+
+
+_GRAD: dict = {}
+
+
+def has_gradients(ffmpeg: str) -> bool:
+    if ffmpeg not in _GRAD:
+        from .system import no_window_flags
+        try:
+            r = subprocess.run([ffmpeg, "-hide_banner", "-filters"], capture_output=True, text=True,
+                               encoding="utf-8", errors="replace", timeout=30, creationflags=no_window_flags())
+            _GRAD[ffmpeg] = bool(re.search(r"\sgradients\s", r.stdout or ""))
+        except (OSError, subprocess.SubprocessError):
+            _GRAD[ffmpeg] = False
+    return _GRAD[ffmpeg]
 
 
 def bundled_font(bold: bool = True) -> Path | None:
@@ -859,7 +895,7 @@ def _graphic(engine, job, st, ffmpeg, src: Path | None, stem: str, folder: Path)
             if size not in SIZES:
                 continue
             _, w, h = SIZES[size]
-            head, rest, big, small = layout(job.format, w, h)
+            head, rest, big, small = layout(job.format, w, h, photo=bool(src))
             files = []
             for n, (line, sz, isbig) in enumerate([(ln, big, True) for ln in head] + [(ln, small, False) for ln in rest]):
                 f = Path(tmp) / f"l{size}{n}.txt"

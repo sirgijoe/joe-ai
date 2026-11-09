@@ -676,7 +676,9 @@ function previewSel() {
         (ai ? `<div><span class="aitag inv">AI-GENERATED</span> <span class="dim small">not a photo of a real product</span></div>` : "") +
         `<div class="meta-panel"><div class="dim">${esc(r.name)} · ${r.size.toLocaleString()} bytes</div>` +
         rows.map(([k, v]) => `<div><b>${k}</b> ${esc(v)}</div>`).join("") +
-        `<div class="dim small">K keep · X reject · S star · M make MP4</div></div>`;
+        `<div class="dim small">K keep · X reject · S star · M make MP4</div></div>` +
+        (r.kind === "image" && m.prompt ? `<div class="gbtns"><button type="button" data-like="${esc(p)}" title="The same picture recipe with its seed locked: change a few words, run it, and the layout stays.">[ MORE LIKE THIS ]</button>` +
+          `<button type="button" data-why="1" title="Pick what went wrong; Joe says which setting to change.">[ WHY DOES THIS LOOK WRONG? ]</button></div><div id="why-box"></div>` : "");
       watchVideoErrors(pv);
     }
     else if (r.kind === "text") pv.innerHTML = `<pre>${esc(r.text)}${r.truncated ? "\n\n…(preview cut off — press E to open the whole file)" : ""}</pre>`;
@@ -688,12 +690,53 @@ async function openSel(how) {
   const r = await api("/api/open", { path: p, how });
   if (!r.ok) toast(r.error || "Could not open");
 }
+// "Why did this look wrong?": what usually causes each problem and which knob fixes it
+// (Setup > Workflows > FINE-TUNING). Showcase QC 2026-11-09.
+const WHY = {
+  "Fake writing or letters": "Picture models can't spell. Lower Prompt strength (CFG) to 4-5 in Setup > Workflows > FINE-TUNING for that style, and don't ask for signs or labels. For real words, use Social graphics (exact text), or install FLUX.2 klein (Setup > Models): Joe uses it for pictures with words.",
+  "Bad hands, extra or missing limbs": "Use 'Versions per prompt' 3 (FINE-TUNING) and pick the best, or turn the Detail pass strength down to 0.25 so it doesn't repaint hands. With FLUX.2 klein installed, Joe uses it for groups and riders.",
+  "Cloned faces or the wrong number of people": "Keep it to 1-3 people in a medium shot; give each person something different (age, hair, clothes). FLUX.2 klein handles groups far better. Versions per prompt 3 helps.",
+  "Looks plastic, waxy or overcooked": "Lower Prompt strength (CFG) by 1-2, and add 'natural skin texture' under Also add. The Photo style already leaves out plastic skin.",
+  "Blurry, muddy or smeared": "Turn the Detail pass off (FINE-TUNING) for that style, or raise Steps. Pixel art and flat styles look best with no detail pass.",
+  "It ignored my words": "Raise Prompt strength (CFG) by 1-2, put the most important thing first, and remove anything the style's own words fight (see Words Joe adds to every prompt).",
+  "Wrong look or style": "Pick the style in your plan (STYLE: watercolor, anime...) or set a Model for that style in Setup > Workflows. A style add-on (LoRA) that's too strong: lower Style add-on strength.",
+  "Good, but I want small changes": "MORE LIKE THIS keeps the seed (the layout) so you can change a few words and run it again.",
+};
+function whyBox() {
+  const box = $("#why-box"); if (!box) return;
+  box.innerHTML = `<div class="meta-panel"><div class="dim">What looks wrong?</div>` + Object.keys(WHY).map((k, i) =>
+    `<div><button type="button" data-whyk="${i}">[ ${esc(k)} ]</button></div>`).join("") + `<div id="why-say"></div></div>`;
+}
+async function moreLikeThis(p) {
+  let r;
+  try { r = await api("/api/preview?path=" + encodeURIComponent(p)); } catch (e) { toast(e.message); return; }
+  const m = (r && r.meta) || {};
+  if (!m.prompt) { toast("Joe doesn't have this picture's recipe."); return; }
+  const folder = p.split("/").slice(0, -1).join("/").replace(/^Output\//, "");
+  const lines = ["=== JOE MISSION ===", `TASK: More like ${p.split("/").pop().replace(/\.[^.]+$/, "")}  SAVE: ${folder || "more"}/more-like-this  TYPE: image`,
+    `PART: ${m.prompt.replace(/\s+/g, " ")}`, "PROMPTS: as written"];
+  if (m.seed !== undefined && m.seed !== "") lines.push(`SEED: ${m.seed}`);
+  if (m.size && /^\d+x\d+$/.test(m.size)) lines.push(`SIZE: ${m.size.replace("x", " x ")}`);
+  lines.push("=== END ===");
+  $("#mission").value = lines.join("\n");
+  show("queue");
+  checkMission();
+  toast("Same seed, same words: change a few words in the PART line, then RUN IT");
+}
+document.addEventListener("click", (ev) => {
+  const like = ev.target.closest("[data-like]");
+  if (like) { moreLikeThis(like.dataset.like); return; }
+  if (ev.target.closest("[data-why]")) { whyBox(); return; }
+  const k = ev.target.closest("[data-whyk]");
+  if (k) { const key = Object.keys(WHY)[+k.dataset.whyk]; $("#why-say").textContent = WHY[key]; }
+});
 async function reviewSel(mark) {
   const e = entries[sel]; if (!e || e.dir) return;
   const r = await api("/api/review", { path: selPath(), mark });
   if (!r.ok) { toast(r.error); return; }
   e.review = r.mark; renderDir(); previewSel();
-  toast(r.mark ? `Marked ${r.mark}` : "Mark cleared");
+  toast(r.mark === "reject" ? "Marked reject. In its preview, WHY DOES THIS LOOK WRONG? says what to change"
+    : r.mark ? `Marked ${r.mark}` : "Mark cleared");
   if (r.mark && sel < entries.length - 1) { sel++; renderDir(); previewSel(); }
 }
 async function mp4Sel() {
@@ -1326,6 +1369,14 @@ function wfTune(r) {
   const t = r.tune || {};
   if (!Object.keys(t).length) return "";
   const h = (wfData.tune_help || {}), p = r.prefs, val = (k) => (p[k] !== undefined ? p[k] : t[k]);
+  if (r.id === "video") {
+    const mo = val("motion");
+    return `<fieldset class="wftune"><legend>FINE-TUNING</legend>
+    <label title="${esc(h.vcfg || "")}">Prompt strength (CFG) <input type="number" min="1" max="20" step="0.5" data-wff="cfg" value="${val("cfg")}"> <span class="dim small">Joe's: ${t.cfg}</span></label>
+    <label title="${esc(h.motion || "")}">Motion <select data-wff="motion">${["low", "normal", "high"].map((o) =>
+      `<option${o === mo ? " selected" : ""}>${o}</option>`).join("")}</select> <span class="dim small">Joe's: ${t.motion}</span></label>
+  </fieldset>`;
+  }
   const num = (k, label, min, max, step) => t[k] === undefined ? "" :
     `<label title="${esc(h[k] || "")}">${label} <input type="number" min="${min}" max="${max}" step="${step}" data-wff="${k}" value="${val(k)}"> <span class="dim small">Joe's: ${t[k]}</span></label>`;
   const hires = val("hires");

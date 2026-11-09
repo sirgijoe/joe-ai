@@ -129,12 +129,14 @@ SPIN_VIEWS = (("front", "front view, facing the viewer"),
               ("back", "back view, facing away from the viewer"),
               ("right", "right side profile view"),
               ("three-quarter-right", "three-quarter view, turned to the right"))
+QUICK_VIEWS = ("front", "left", "back")
 SAME_CHARACTER = ("the exact same character or object as in the picture, unchanged: for a person or creature the "
                   "same face, hair, body shape, outfit, colors and art style; for a thing (a mug, a toy, a car) the "
                   "same shape, size, colors and details, still an ordinary object with no face, arms or legs added")
 OPTIONAL_PACKS = {"remove-bg": ("upscale",), "restore-photo": ("upscale",), "make-3d": ("bg",)}
 COMFY_TOOLS = tuple(TOOL_PACKS)
 
+AI_RESTORE_DENOISE = 0.75        # how much of the photo the AI repair may redraw (1.0 = all of it)
 RESTORE_PROMPT = ("Restore this old photograph: remove scratches, dust, tears, stains and creases, "
                   "and fix faded and uneven areas. Keep every person's face, expression, hair, pose "
                   "and clothing, and the whole scene, exactly as they are in the photo. Do not redraw "
@@ -639,6 +641,26 @@ def white_fix(ffmpeg: str, img: Path) -> str:
     return f"colorbalance=rh={rh:.3f}:gh={gh:.3f}:bh={bh:.3f}"
 
 
+def ai_restore_finish(engine, ff: str, out: Path) -> None:
+    """After the AI repair: the true method's contrast step, a gentle shadow finish and a little
+    crispness back (the AI result came out flat and soft). Measured on the result itself, so a
+    repair that already has deep blacks gets only the light step."""
+    import subprocess
+    from .system import no_window_flags
+    level = auto_level(measure(ff, out))
+    chain = ",".join([TRUE_LEVELS[level].replace(":saturation=1.15", ":saturation=1.05"), SHADOWS, "cas=0.35",
+                      "format=rgb24"])
+    tmp = out.with_suffix(".fin.png")
+    try:
+        subprocess.run([ff, "-y", "-v", "error", "-i", str(out), "-vf", chain, "-frames:v", "1", str(tmp)],
+                       capture_output=True, timeout=600, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return
+    if tmp.exists():
+        tmp.replace(out)
+        engine.log(f"  Finished like a darkroom print: contrast ({level}) and crispness put back.")
+
+
 def restore_is_true(job) -> bool:
     from .tools import chosen_options, option_value
     return (option_value(job, "method") or "true") != "ai" and "colorize" not in chosen_options(job)
@@ -820,6 +842,11 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                        "sits nearly idle for the first few minutes.")
         else:
             engine.log(f"  Graphics card: {gb:g} GB." if gb else "  Graphics card size unknown.")
+        todo = sum(1 for k in keys if k not in st.titles)
+        if todo > 1:
+            each = 4.6 if cpu_enc else 2.0
+            engine.log(f"  {todo} pictures to make: about {round(todo * each)} minutes in all "
+                       f"(about {each:g} min each on this graphics card).")
     try:
         for i, (item, key) in enumerate(zip(items, keys)):
             if key in st.titles:
@@ -860,6 +887,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     name = f"{stem}{'' if n == 0 else f'-{n + 1}'}{suffix}"
                     (folder / name).write_bytes(data)
                     made.append(name)
+                if tid == "remove-bg" and option_value(job, "keep") == "main":
+                    made = [_main_subject(engine, folder, m) for m in made]
                 if tid == "remove-bg" and option_value(job, "background") == "white":
                     made = [_on_white(engine, folder, m) for m in made]
                 made = (makers.after(engine, job, tid, item, folder, made) if tid in makers.TOOLS
@@ -908,6 +937,69 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         engine.log(f"'{job.name}' {st.note}")
         return st
     return _finish(engine, job, st, len(items), failed)
+
+
+def largest_blob(mask: bytes, w: int, h: int, level: int = 64) -> bytes:
+    """A gray mask (one byte a pixel) -> the same size with only its biggest connected shape kept
+    (255), everything else 0. Stdlib only; used on a small copy (about 512 px)."""
+    seen = bytearray(w * h)
+    best: list[int] = []
+    for start in range(w * h):
+        if seen[start] or mask[start] < level:
+            continue
+        seen[start] = 1
+        stack, blob = [start], []
+        while stack:
+            i = stack.pop()
+            blob.append(i)
+            x, y = i % w, i // w
+            for j in ((i - 1) if x else -1, (i + 1) if x < w - 1 else -1, (i - w) if y else -1,
+                      (i + w) if y < h - 1 else -1):
+                if j >= 0 and not seen[j] and mask[j] >= level:
+                    seen[j] = 1
+                    stack.append(j)
+        if len(blob) > len(best):
+            best = blob
+    out = bytearray(w * h)
+    for i in best:
+        out[i] = 255
+    return bytes(out)
+
+
+def _main_subject(engine, folder: Path, name: str) -> str:
+    """Keep only the biggest cut-out shape (the product, not the brush lying next to it)."""
+    import subprocess
+    from . import media
+    from .doctor import ffmpeg_exe
+    from .system import no_window_flags
+    ff = ffmpeg_exe(engine.s.comfy.ffmpeg)
+    src = folder / name
+    size = media.size_of(ff, src) if ff and src.suffix.lower() == ".png" else None
+    if not size:
+        return name
+    W, H = size
+    k = 512 / max(W, H)
+    w, h = max(8, int(W * k)), max(8, int(H * k))
+    try:
+        r = subprocess.run([ff, "-v", "error", "-i", str(src), "-vf", f"alphaextract,scale={w}:{h}:flags=area,format=gray",
+                            "-frames:v", "1", "-f", "rawvideo", "-"], capture_output=True, timeout=120,
+                           creationflags=no_window_flags())
+        if len(r.stdout) < w * h:
+            return name
+        keep = largest_blob(r.stdout[:w * h], w, h)
+        pgm = _work_dir(engine) / f"{src.stem}-main.pgm"
+        pgm.write_bytes(f"P5\n{w} {h}\n255\n".encode() + keep)
+        tmp = src.with_suffix(".main.png")
+        fc = (f"[0]split[c][s];[s]alphaextract[a];[1]scale={W}:{H}:flags=bilinear,format=gray,gblur=sigma=1.5[m];"
+              "[a][m]blend=all_mode=darken[na];[c][na]alphamerge,format=rgba")
+        subprocess.run([ff, "-y", "-v", "error", "-i", str(src), "-i", str(pgm), "-filter_complex", fc,
+                        "-frames:v", "1", str(tmp)], capture_output=True, timeout=300, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return name
+    if tmp.exists():
+        tmp.replace(src)
+        engine.log(f"  {name}: kept the main subject only.")
+    return name
 
 
 def _on_white(engine, folder: Path, name: str) -> str:
@@ -972,7 +1064,10 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         if extra:
             prompt += " " + extra
         prompt = wfp.with_add(prompt, epref)
-        return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu),
+        # A full-strength AI repair washed a stained print out to grey-on-grey, softened it and
+        # redrew a pattern (showcase QC 2026-11-09): it starts from the photo instead, so the
+        # repair stays close to it, and after_edit() puts the contrast and crispness back.
+        return (edit_graph(name, prompt, seed, fast, upscale, prefix, megapixels, cpu, denoise=AI_RESTORE_DENOISE),
                 stem + "-restored", ".png")
     if tid == "animate-photo":
         pw, ph = picture_size(src)
@@ -1161,7 +1256,10 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                           "prompt": f"Show {SAME_CHARACTER}, {scene}. A complete, well-composed picture."})
     elif tid == "character-spin":
         src = files[0]
+        quick = option_value(job, "views") == "quick"
         for n, (vid, view) in enumerate(SPIN_VIEWS, 1):
+            if quick and vid not in QUICK_VIEWS:
+                continue
             items.append({"src": src, "stem": f"{n}-{vid}", "label": vid.replace("-", " "),
                           "key": f"spin {src.name} {vid}",
                           "prompt": f"Show {SAME_CHARACTER}, full body, {view}, standing in a relaxed neutral "
@@ -1289,7 +1387,9 @@ def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces
                                      "painted. Try again, or describe what's around it in the box")
                 if not item.get("then"):
                     engine.log("  Your picture is untouched in the middle; the AI filled in around it.")
-        elif tid == "restore-photo" and isinstance(item, Path) and faces.get(item):
+        if tid == "restore-photo" and isinstance(item, Path):
+            ai_restore_finish(engine, ff, out)
+        if tid == "restore-photo" and isinstance(item, Path) and faces.get(item):
             truer = _work_dir(engine) / f"{out.stem}-true.png"
             import subprocess
             from .system import no_window_flags

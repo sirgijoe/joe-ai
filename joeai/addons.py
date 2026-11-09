@@ -539,8 +539,27 @@ class VoiceWorker:
 
 
 # --------------------------------------------------------------------------- documents
+GENERIC_TITLE = re.compile(r"^\s*(?:(?:a|my|the)\s+)?(?:kids'?|children'?s?|childrens|picture|bedtime|short|"
+                           r"illustrated|story|book|ebook|e-book|novel|draft|manuscript|\s)+\s*$", re.I)
+
+
+def add_pictures(text: str, pictures: list[str]) -> str:
+    """One picture under each '## ' heading, in order (a picture book: picture, then the words).
+    Headings without a picture (more pages than pictures) are left as they are."""
+    if not pictures:
+        return text
+    out, n = [], 0
+    for line in text.split("\n"):
+        out.append(line)
+        if line.startswith("## ") and n < len(pictures):
+            out += ["", f"![]({pictures[n]})", ""]
+            n += 1
+    return "\n".join(out)
+
+
 def export_document(md: Path, formats: list[str], pandoc: str, log: Log, settings=None,
-                    template: str = "", cache: Path | None = None, heading: str = "") -> list[Path]:
+                    template: str = "", cache: Path | None = None, heading: str = "",
+                    pictures: list[Path] | None = None) -> list[Path]:
     """Markdown -> .docx / .epub / .odt / .html with Pandoc; .pdf by printing Pandoc's HTML with
     Edge or Chrome, so no LaTeX is needed. Each copy follows a writing template (doctemplates.py):
     `template` (a task's TEMPLATE:) or Setup's default for that kind of file."""
@@ -564,6 +583,16 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
         if (heading and top == heading.strip()) or not _re.search(r"(?m)^#\s+\S", rest):
             title = top or title
             body = rest + "\n"
+    # A task named like "Kids picture book" isn't the book's title: the first page heading is
+    # (QC 2026-11-09: the PDF's title was the task name).
+    if GENERIC_TITLE.match(title or ""):
+        first_h2 = next((ln[3:].strip() for ln in lines if ln.startswith("## ") and ln[3:].strip()), "")
+        if first_h2 and not _re.match(r"(?i)(?:chapter|part|page|section)\b", first_h2):
+            title = first_h2
+    if pictures:
+        import os
+        rel = [os.path.relpath(p, md.parent).replace("\\", "/") for p in pictures]
+        body = add_pictures(body if body is not None else "\n".join(lines) + "\n", rel)
 
     def tpl(fmt: str) -> dict:
         template_ = dt.resolve(settings, template) if template else ""

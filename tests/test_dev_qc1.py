@@ -177,3 +177,73 @@ def test_edits_come_back_at_the_photos_own_size(tmp_path):
     subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "testsrc2=s=680x384", "-frames:v", "1", str(out)], check=True)
     picturetools._keep_size(SimpleNamespace(log=lambda *a: None), ff, src, out)
     assert media.size_of(ff, out) == (1008, 576)
+
+
+def test_picture_book_pages_get_their_pictures_and_a_real_title(tmp_path):
+    from joeai.addons import GENERIC_TITLE, add_pictures
+    from joeai.mission import parse
+    assert GENERIC_TITLE.match("Kids picture book") and not GENERIC_TITLE.match("The Little Robot Who Helped")
+    text = "## The Robot Wakes\n\nBeep.\n\n## The Robot Helps\n\nBoop.\n"
+    out = add_pictures(text, ["pics/001_a.png", "pics/002_b.png"])
+    assert out.index("## The Robot Wakes") < out.index("![](pics/001_a.png)") < out.index("Beep.")
+    assert out.index("## The Robot Helps") < out.index("![](pics/002_b.png)")
+    m = parse("TASK: The Little Robot  SAVE: robot.md  EXPORT: pdf  TEMPLATE: kids\n"
+              "PART: ## Wakes. The robot wakes, about 50 words.\nPART: ## Helps. It helps, about 50 words.\n"
+              "TASK: Robot pictures  SAVE: robot-pictures  TYPE: image  FROM: The Little Robot  CHUNKS: 1 x 2")
+    assert m.jobs[1].source == "The Little Robot"                          # pictures FROM a document: allowed
+
+
+def test_kids_template_leaves_room_for_words():
+    from joeai import doctemplates as dt
+    t = dt.get(None, "kids")
+    assert t["picture_share"] == 0.55 and t["size"] == 20
+    css = dt.css(t)
+    assert "max-height: 4.0in" in css                                   # 8.5 in page, 0.6 margins: 55%
+
+
+def test_main_subject_only_drops_the_brush(tmp_path):
+    import subprocess
+    import pytest
+    from types import SimpleNamespace
+    from joeai import picturetools
+    ff = _ff()
+    if not ff:
+        pytest.skip("no ffmpeg")
+    m = bytes([255 if (2 <= x <= 5 and 2 <= y <= 5) or (x == 8 and y == 8) else 0 for y in range(10) for x in range(10)])
+    keep = picturetools.largest_blob(m, 10, 10)
+    assert keep[3 * 10 + 3] == 255 and keep[8 * 10 + 8] == 0
+    # a cut-out with a big vase and a small brush: the brush becomes see-through
+    cut = tmp_path / "vase-cutout.png"
+    subprocess.run([ff, "-y", "-v", "error", "-f", "lavfi", "-i", "color=blue:s=200x100", "-f", "lavfi", "-i",
+                    "color=black:s=200x100", "-filter_complex",
+                    "[1]drawbox=x=20:y=10:w=80:h=80:color=white:t=fill,drawbox=x=150:y=40:w=20:h=10:color=white:t=fill,"
+                    "format=gray[m];[0][m]alphamerge", "-frames:v", "1", str(cut)], check=True)
+    eng = SimpleNamespace(s=SimpleNamespace(comfy=SimpleNamespace(ffmpeg=ff)), log=lambda *a: None)
+    keep_wd = picturetools._work_dir
+    picturetools._work_dir = lambda e: tmp_path
+    try:
+        picturetools._main_subject(eng, tmp_path, cut.name)
+    finally:
+        picturetools._work_dir = keep_wd
+    def alpha(x, y):
+        r = subprocess.run([ff, "-v", "error", "-i", str(cut), "-vf", f"crop=1:1:{x}:{y},alphaextract,format=gray",
+                            "-f", "rawvideo", "-"], capture_output=True)
+        return r.stdout[0]
+    assert alpha(60, 50) > 200 and alpha(160, 45) < 30
+
+
+def test_quick_turnaround_makes_three_views(tmp_path):
+    from types import SimpleNamespace
+    from joeai import picturetools
+    import joeai.tools as tools_mod
+    src = tmp_path / "robot.png"
+    src.write_bytes(b"x")
+    eng = SimpleNamespace(log=lambda *a: None)
+    orig = tools_mod.option_value
+    tools_mod.option_value = lambda j, k: j.options.get(k, "")
+    try:
+        quick = picturetools.plan_items(eng, SimpleNamespace(format="", options={"views": "quick"}), "character-spin", [src])[0]
+        full = picturetools.plan_items(eng, SimpleNamespace(format="", options={}), "character-spin", [src])[0]
+    finally:
+        tools_mod.option_value = orig
+    assert [i["stem"] for i in quick] == ["1-front", "3-left", "4-back"] and len(full) == 6

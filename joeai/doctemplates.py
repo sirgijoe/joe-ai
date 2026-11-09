@@ -66,6 +66,8 @@ DOC_FIELDS = {          # field -> (label, kind, help[, choices])
     "screenplay": ("Screenplay layout", "bool", "Scene headings (INT./EXT.), character names, dialogue, "
                    "parentheticals and transitions placed where scripts put them."),
     "big_pictures": ("Pictures fill the page", "bool", "Coloring and picture books: each picture as big as fits."),
+    "picture_share": ("How much of the page a picture may take", "number", "1 = the whole page (coloring "
+                      "books); about 0.55 leaves room for a picture book's words on the same page."),
 }
 SHEET_FIELDS = {
     "font": ("Font", "text", ""),
@@ -84,7 +86,7 @@ SHEET_FIELDS = {
 
 _DOC_DEFAULTS = {"gutter": 0, "mirror": False, "heading_rule": False, "break_level": "1", "show_title": True,
                  "page_numbers": "none", "header": "", "drop_cap": False, "line_breaks": False,
-                 "screenplay": False, "big_pictures": False}
+                 "screenplay": False, "big_pictures": False, "picture_share": 1}
 _SHEET_DEFAULTS = {"money": "", "currency": "$", "totals": False}
 
 
@@ -117,9 +119,9 @@ TEMPLATES: dict[str, dict] = {
     "kids": _doc(label="Children's picture book", about="Big, friendly, easy-to-read letters, centered, a new "
                  "page for each part of the story, pictures as big as fit.", page="8.5x8.5", margins="0.6",
                  font="Andika, Atkinson Hyperlegible, Comic Neue, Verdana, sans-serif",
-                 heading_font="Andika, Atkinson Hyperlegible, Verdana, sans-serif", size=22, line=1.5, indent=0,
-                 para_after=14, align="center", heading_center=True, chapter_break=True, break_level="2",
-                 title_page=True, big_pictures=True),
+                 heading_font="Andika, Atkinson Hyperlegible, Verdana, sans-serif", size=20, line=1.4, indent=0,
+                 para_after=10, align="center", heading_center=True, chapter_break=True, break_level="2",
+                 title_page=True, big_pictures=True, picture_share=0.55),
     "ebook": _doc(label="E-book (EPUB)", about="For e-readers: the reader's own settings win, so this stays light: "
                   "serif text, indents, chapters on new pages.", page="letter", margins="0.5", font="Georgia, serif",
                   heading_font="Georgia, serif", size=12, line=1.4, indent=0.25, para_after=0, align="left",
@@ -515,7 +517,9 @@ def css(t: dict, epub: bool = False, title: str = "") -> str:
         rules.append(f"h1 + p::first-letter, #title-block-header + p::first-letter {{ float: left; font-size: 3.4em; "
                      f"line-height: 0.85; padding: 0.06em 0.08em 0 0; font-family: {_font_list(t['heading_font'])}; }}")
     if t.get("big_pictures"):
-        rules.append(f"img {{ display: block; margin: 0 auto 6pt; max-width: 100%; max-height: {max(1.0, h - top - bottom - 1.2):.1f}in; "
+        share = min(1.0, max(0.2, float(t.get("picture_share") or 1)))
+        room = (h - top - bottom - 1.2) if share >= 1 else (h - top - bottom) * share
+        rules.append(f"img {{ display: block; margin: 0 auto 6pt; max-width: 100%; max-height: {max(1.0, room):.1f}in; "
                      "width: auto; object-fit: contain; } figure { margin: 0; text-align: center; } "
                      "figcaption { font-size: 0.9em; }")
     if t.get("screenplay"):

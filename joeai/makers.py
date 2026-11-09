@@ -434,7 +434,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
             if not pat:
                 return [], [], "couldn't draw the hidden pattern with FFmpeg" + (f" ({why[0]})" if why else "")
             sources = [(pat, word or hidden)]
-        count = int(option_value(job, "versions") or 2)
+        count = int(option_value(job, "versions") or 4)
         for src, name in sources:
             for v in range(1, count + 1):
                 items.append({"maker": True, "src": src, "ckpt": ckpt, "label": f"{name} {v}",

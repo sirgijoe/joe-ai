@@ -636,11 +636,15 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                          value="transparent"),
                   Option("upscale", "Make it bigger and sharper", hint="Real-ESRGAN: 2x is usually "
                          "plenty; 4x makes big files.", choices=(("none", "No"), ("2x", "2x"),
-                                                                  ("4x", "4x")), value="none")),
+                                                                  ("4x", "4x")), value="none"),
+                  Option("keep", "Keep", hint="Main subject only drops smaller things the cut-out kept "
+                         "(a brush or tool lying next to the product).", choices=(
+                             ("all", "Everything it finds"), ("main", "Main subject only")), value="all")),
          help="Cuts the subject out with BiRefNet (MIT license, under 1 GB, offered once). Runs in "
               "ComfyUI on the graphics card, a few seconds a photo. Your originals are never changed.",
          plan_hint="Remove backgrounds: TYPE: remove-bg, INPUT: the photo file(s)/folder from the list "
-                   "below, OPTIONS: background transparent|white, upscale none|2x|4x. No CHUNKS.",
+                   "below, OPTIONS: background transparent|white, upscale none|2x|4x, keep all|main (main = "
+                   "only the biggest object, when they want just the product). No CHUNKS.",
          examples=("Remove the background from my product photos", "White background for my shop pictures")),
     Tool("edit-picture", "Edit a picture by asking", "Pictures",
          "\"Swap the background\", \"remove the cup\".", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
@@ -764,10 +768,15 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          extra_hint="e.g. waving at the beach; reading a book; riding a bike"),
     Tool("character-spin", "Character turnaround", "Pictures",
          "Front, side and back views, plus a sheet.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
-         help="Add one picture of a character; Joe makes six views (front, three-quarter, sides, back) "
-              "and puts them side by side on one sheet. Handy for drawing, 3D and games. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
+         options=(Option("views", "Views", hint="Quick is about half the time.", choices=(
+             ("full", "All six (front, three-quarters, sides, back)"), ("quick", "Quick: front, side and back")),
+             value="full"),),
+         help="Add one picture of a character; Joe makes six views (front, three-quarter, sides, back), or "
+              "three with Quick, and puts them side by side on one sheet. Handy for drawing, 3D and games. "
+              "The plan shows how long it will take before anything starts. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Character turnaround (front/side/back views): TYPE: character-spin, INPUT: one "
-                   "picture of the character. No CHUNKS, no OPTIONS.",
+                   "picture of the character, OPTIONS: views full|quick (quick = front, side, back only, "
+                   "when they want it fast). No CHUNKS.",
          examples=("Make a turnaround sheet of my mascot", "Show my character from every side")),
     Tool("sketch-to-picture", "Sketch to picture", "Pictures",
          "Your drawing, finished by the AI.", accepts=COMFY_PHOTO_EXT, needs=("comfy", "sdxl"), ready=True,
@@ -794,12 +803,15 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                   Option("show", "How easy to see", choices=(
                       ("hidden", "Hidden (squint to see it)"), ("clear", "Clear"), ("bold", "Bold")), value="clear"),
                   Option("look", "Look", choices=tuple((k, v[0]) for k, v in LOOKS.items()), value="auto"),
-                  Option("versions", "Versions", choices=(("1", "1"), ("2", "2"), ("4", "4")), value="2")),
+                  Option("versions", "Versions", hint="Hidden words miss more often than shapes: 4 gives "
+                         "you a good pick.", choices=(("1", "1"), ("2", "2"), ("4", "4")), value="4")),
          help="Write the scene (a village, a forest, clouds). Joe hides a spiral, circles, a word or "
               "your own black-and-white shape or logo in it, so it pops out when you squint or step "
               "back. For a word, add a line like  word: JOE  (14 letters at most). Uses QR Code Monster "
               "SDXL (OpenRAIL++, about 5 GB, offered once) with the SDXL picture models Joe already "
-              "uses; about 30 seconds a picture. Every version looks different: pick the best one.",
+              "uses; about 30 seconds a picture. Every version looks different: pick the best one, and "
+              "check it small or squinting (that's how people see these): the AI sometimes draws a "
+              "letter backwards or loose. Short words in capitals (3-6 letters) work best.",
          plan_hint="Hidden-picture illusion art: TYPE: illusion-art, INPUT: a black-and-white shape/logo "
                    "picture (only for hidden picture), OPTIONS: hidden " + "|".join(ILLUSION_PATTERNS)
                    + ", show hidden|clear|bold, versions 1|2|4, FORMAT: the scene, plus a line 'word: TEXT' "
@@ -3674,17 +3686,21 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
         from .picturetools import pieces_from
         n = len(pieces_from(job.format)) if job.type == "music" else len(files)
         if job.type == "illusion-art":
-            n = max(1, n) * int(option_value(job, "versions") or 2)
+            n = max(1, n) * int(option_value(job, "versions") or 4)
         elif job.type == "restyle-video":
             n = max(1, n) * max(1, int(option_value(job, "length") or 5) // 5)
+        elif job.type == "character-spin":
+            n = 3 if option_value(job, "views") == "quick" else 6
         secs += n * speeds.get(job.type, COMFY_GUESS_S[job.type])
     return {"files": len(files), "seconds": secs, "problems": problems}
 
 
-COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 120.0, "restore-photo": 150.0,
-                 "animate-photo": 240.0, "music": 60.0, "fix-spot": 120.0, "merge-pictures": 150.0,
-                 "relight": 120.0, "restyle": 120.0, "redraw": 120.0, "make-bigger": 150.0,
-                 "character-scenes": 120.0, "character-spin": 720.0, "sketch-to-picture": 40.0,
+# Picture editor: about 4.5 min a picture on a 12 GB card (its request is read on the processor),
+# measured in the showcase test 2026-11-09; a turnaround is per view. Learned speeds replace these.
+COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 270.0, "restore-photo": 150.0,
+                 "animate-photo": 240.0, "music": 60.0, "fix-spot": 270.0, "merge-pictures": 270.0,
+                 "relight": 270.0, "restyle": 270.0, "redraw": 270.0, "make-bigger": 270.0,
+                 "character-scenes": 270.0, "character-spin": 280.0, "sketch-to-picture": 40.0,
                  "illusion-art": 40.0, "make-3d": 120.0, "restyle-video": 600.0}
 
 

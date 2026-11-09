@@ -91,7 +91,12 @@ In Step by step (F6) it's **Use the names from**.
   each for what it does): **prompt strength (CFG)** (lower it to 4-5 when pictures get fake writing
   or look overcooked), **style add-on strength** (LoRA), the **detail pass** (auto / on / off) and
   how much it may repaint, the **sampler**, and **versions per prompt** (make 3 and pick the best:
-  handy for people and animals). Only the values you change are kept.
+  handy for people and animals). Only the values you change are kept. **Video clips** have
+  prompt strength and **motion** (low / normal / high).
+- **MORE LIKE THIS** and **WHY DOES THIS LOOK WRONG?** (Files, F7, under a picture Joe made): the
+  first puts that picture's recipe in the plan box with its seed locked, so changing a few words keeps
+  the layout; the second asks what's wrong (fake writing, bad hands, cloned faces, plastic look,
+  blur, ignored words...) and says which setting to change.
 - **Folder and file boxes** (Joe's folder, ComfyUI's models/output folders, start commands, FFmpeg):
   the [ + ] button next to each opens this computer's own chooser and fills the box. Press SAVE.
 - **Restart Joe**: a bar with RESTART JOE shows up when a restart helps: newer Joe files were copied
@@ -776,7 +781,8 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
 
 - **Remove background** (BiRefNet, MIT, under 1 GB): `background transparent` (PNG) or `white`
   (JPG, needs FFmpeg), `upscale none|2x|4x` (Real-ESRGAN x4, BSD-3, 70 MB; 2x is scaled down from
-  4x for cleaner, smaller files). A few seconds a photo.
+  4x for cleaner, smaller files), `keep all|main` (main subject only: drops smaller things the cut-out
+  kept, like a brush lying next to a vase). A few seconds a photo.
 - **Edit a picture by asking** (Qwen-Image-Edit 2511, Apache-2.0, about 31 GB with the 4-step
   Lightning add-on): FORMAT is the change, made to every picture. Medium/Low picture quality = 4
   steps (about 1-3 minutes on a 12 GB card, the rest of the model waits in normal memory); High =
@@ -811,7 +817,8 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
 - **Same character, new scenes**: one picture of a character plus one scene per line (or separated
   by ;). Same face, outfit and colors in every picture.
 - **Character turnaround**: six views (front, three-quarter, sides, back) and a
-  `character-sheet.png` with all of them side by side.
+  `character-sheet.png` with all of them side by side. `views quick` makes only front, side and back
+  (about half the time); the plan shows how long it will take before it starts.
 
 All of these use the Qwen picture editor that Edit a picture uses (offered once, about 31 GB).
 On High quality, Joe's own pictures also get a second, 1.5x bigger detail pass.
@@ -983,7 +990,7 @@ centered headings, each chapter on a new page, and a title page. Joe's built-in 
 | `standard` | everyday documents (Word, PDF, web page by default) | Letter, 1 in, Georgia 12, 1.4 lines |
 | `book` | a printed novel | 6 x 9 in, Garamond 11.5, justified, indents, chapters on new pages, title page |
 | `manuscript` | sending to an editor or agent | Letter, 1 in, Times New Roman 12, double spaced, 0.5 in indents |
-| `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (22 pt), centered, a new page per part |
+| `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (20 pt), centered, a new page per part, a picture on each page (up to 55% of it) |
 | `ebook` | EPUB (the default for .epub) | light styling, since e-readers use their own settings |
 | `report` | business reports | Calibri 11, block paragraphs |
 | `largeprint` | older readers, low vision | Atkinson Hyperlegible 18, 1.5 lines, page numbers |
@@ -1014,6 +1021,12 @@ Joe sets each part where scripts put it, in Word too (styles Scene Heading, Char
 Each is shown filled in; EDIT unlocks it and RESET THIS TEMPLATE brings Joe's back. Pick which one
 each kind of file uses by default at the top, or put `TEMPLATE: book` (or kids, manuscript, ebook,
 report) on a task.
+
+**Picture books with pictures**: add a pictures task right after the story with
+`FROM: <the story task's name>` (one picture per page, made from that page's words). When the
+pictures are done, Joe makes the book's copies again with each picture on its page. Name the story
+task with the book's own title (a name like "Kids picture book" gets the first page's title instead).
+Asking for "a picture book about..." in plain words plans both tasks for you.
 
 **Your own templates**: missing one (a church bulletin, a newsletter, your company's report style)?
 At the bottom of the list, **ADD YOUR OWN TEMPLATE**: give it a name, pick the closest of Joe's to

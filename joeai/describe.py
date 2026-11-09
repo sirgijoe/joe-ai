@@ -53,6 +53,10 @@ Kinds of task:
 - Tasks can't see each other. When a spreadsheet or pictures must use the names from a list
   task above (a price list for the products just described), add FROM: <that task's name>
   and the same number of items.
+- A children's picture book: name the TASK with the book's own title, one PART per page
+  (PART: ## Page title. What happens, about 40-70 words), EXPORT: pdf, TEMPLATE: kids. Then a
+  pictures task right after it: TYPE: image, FROM: <the book task's name>, CHUNKS: 1 x <pages>,
+  STYLE: illustration (or watercolor/cartoon if they named one). Joe puts one picture on each page.
 {tools}
 
 Rules:

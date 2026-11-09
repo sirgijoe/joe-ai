@@ -365,3 +365,37 @@ def test_fine_tuning_reaches_the_picture_graph(env):
     Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Neon2  SAVE: art/neon2  TYPE: image  CHUNKS: 1 x 1"))
     g = fc.graphs[-1]
     assert g["12"]["inputs"]["denoise"] == 0.25                   # detail pass forced on, gentler
+
+
+def test_picture_book_gets_one_picture_per_page(env):
+    import shutil
+    s, sb, fo, fc = env
+    if not shutil.which("pandoc"):
+        pytest.skip("no pandoc")
+    s.pandoc = shutil.which("pandoc")
+    m = parse("TASK: Kids picture book  SAVE: robot.md  EXPORT: html  TEMPLATE: kids\n"
+              "PART: ## The Robot Wakes. The robot wakes up, about 50 words.\n"
+              "PART: ## The Robot Helps. It helps a friend, about 50 words.\n"
+              "TASK: Robot pictures  SAVE: robot-pictures  TYPE: image  FROM: Kids picture book  CHUNKS: 1 x 2")
+    logs = []
+    book, pics = Engine(s, sb, log=logs.append).run_mission(m)
+    assert pics.status == "done", pics.note
+    html = (sb.output / "robot.html").read_text(encoding="utf-8")
+    assert html.count("<img") == 2 and any("picture(s) put on its pages" in x for x in logs)
+
+
+def test_video_fine_tuning(env, tmp_path):
+    from joeai import workflowprefs as wfp
+    s, sb, fo, fc = env
+    mdir = tmp_path / "models"
+    s.comfy.models_dir = str(mdir)
+    for folder, name, _ in comfy.WAN_VIDEO["files"]:
+        (mdir / folder).mkdir(parents=True, exist_ok=True)
+        (mdir / folder / name).write_bytes(b"x")
+    fc.video = True
+    s.quality.video = "high"                                     # never Turbo: CFG is used
+    assert wfp.save(s, "video", {"cfg": 7, "motion": "high"})["ok"]
+    st = Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Waves  SAVE: clips/w.mp4  CHUNKS: 1 x 1"))[0]
+    assert st.status == "done", st.note
+    g = fc.graphs[-1]
+    assert g["3"]["inputs"]["cfg"] == 7 and "dynamic camera motion" in g["6"]["inputs"]["text"]

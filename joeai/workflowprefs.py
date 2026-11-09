@@ -21,7 +21,9 @@ FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave",
 # with Joe's own value; only a value that differs from Joe's is stored. Showcase QC 2026-11-09:
 # several bad pictures were one fixed setting overpowering the words (neon signs: prompt
 # strength; pixel art: the detail pass; people: the detail pass repainting faces).
-TUNE = ("cfg", "lora", "hires", "denoise", "sampler", "versions")
+TUNE = ("cfg", "lora", "hires", "denoise", "sampler", "versions", "motion")
+MOTION_WORDS = {"low": "slow, subtle, gentle movement, mostly still camera",
+                "high": "lively, energetic movement, dynamic camera motion"}
 SAMPLERS = ("euler", "euler_ancestral", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sde", "dpmpp_sde", "uni_pc", "ddim")
 TUNE_HELP = {
     "cfg": "Prompt strength (CFG): how hard the picture follows your words. Lower = more natural, "
@@ -36,11 +38,17 @@ TUNE_HELP = {
     "sampler": "Sampler: the method that draws the picture. Joe's pick suits most pictures.",
     "versions": "Versions per prompt: make several and pick the best (people and animals go wrong "
                 "more often). A task's own VARIANTS wins.",
+    "motion": "Motion: how much moves in each clip. Low for calm scenes (and fewer melting details), "
+              "high when a clip barely moved.",
+    "vcfg": "Prompt strength (CFG) for video: higher follows your words more literally (a lighthouse stays "
+            "a lighthouse); too high looks oversaturated. Not used with the Turbo add-on (it needs 1).",
 }
 
 
 def tune_defaults(wid: str) -> dict:
-    """Joe's own fine-tuning values for a picture workflow (SDXL numbers), or {}."""
+    """Joe's own fine-tuning values for a picture workflow (SDXL numbers) or Video clips, or {}."""
+    if wid == "video":
+        return {"cfg": 5.0, "motion": "normal"}
     if wid != "pictures" and not wid.startswith("style:"):
         return {}
     from . import styles
@@ -143,6 +151,9 @@ def _clean(p: dict | None, wid: str = "") -> dict:
     h = str(p.get("hires") or "").lower()
     if h in ("on", "off", "auto") and h != joe.get("hires", "auto"):
         out["hires"] = h
+    mo = str(p.get("motion") or "").lower()
+    if mo in ("low", "normal", "high") and mo != joe.get("motion", "normal"):
+        out["motion"] = mo
     sm = str(p.get("sampler") or "")
     if sm in SAMPLERS and sm != joe.get("sampler", ""):
         out["sampler"] = sm

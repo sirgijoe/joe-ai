@@ -206,9 +206,10 @@ def parse(text: str) -> Mission:
             raise MissionError(f"Task '{j.name}': FROM: must name a task above it (got '{j.source}'"
                                + (f"; tasks above: {', '.join(x.name for x in jobs[:i])}" if i else "") + ").")
         src = next(x for x in jobs[:i] if x.name.lower() == want)
-        if src.media or src.guided:
+        if src.media or (src.guided and not j.media):
             raise MissionError(f"Task '{j.name}': FROM: works with a list or spreadsheet task, not "
-                               f"{'pictures/video' if src.media else 'a document'} ('{src.name}').")
+                               f"{'pictures/video' if src.media else 'a document'} ('{src.name}'). "
+                               "(Pictures may come FROM a document: one picture per page or section.)")
         if j.tool:
             raise MissionError(f"Task '{j.name}': tools use INPUT, not FROM.")
         j.source = earlier[want]

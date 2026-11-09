@@ -192,7 +192,7 @@ def test_plan_sketch_and_illusion(tmp_path, monkeypatch):
     assert not why and len(items) == 4 and items[0]["src"].exists() and len(set(keys)) == 4
     items, keys, why = makers.plan_items(eng, _job("TYPE: illusion-art\nFORMAT: clouds\nword: JOE"),
                                          "illusion-art", [])
-    assert not why and len(items) == 2 and "JOE" in items[0]["label"]
+    assert not why and len(items) == 4 and "JOE" in items[0]["label"]      # default 4 versions (QC 2026-11-09)
     assert makers.mean_gray(FF, items[0]["src"]) > 2                    # the word was drawn
     _, _, why = makers.plan_items(eng, _job("TYPE: illusion-art\nOPTIONS: hidden word\nFORMAT: clouds"),
                                   "illusion-art", [])
