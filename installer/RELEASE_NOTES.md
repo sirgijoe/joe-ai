@@ -1,3 +1,12 @@
+## What's new in 2.1.1
+
+- **Faster, complete lists on High quality:** when the model spends all its room thinking and
+  writes nothing, Joe writes the rest of that task without thinking first (100 dad jokes: 19
+  minutes and 70 jokes before, under 2 minutes and all 100 now).
+- **Lists come out the full size you asked for:** if repeats were dropped or a part ran out of
+  tries, Joe writes the missing items at the end.
+- **The bottom bar shows the right model** after a run, instead of the one the last run used.
+
 ## What's new in 2.1
 
 - **20 new tools (48 in all):** Summarize, Rewrite or change the tone, Brainstorm, Study helper,
