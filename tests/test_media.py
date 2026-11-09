@@ -343,3 +343,25 @@ def test_check_video_needs_model_not_workflow(env, tmp_path):
         (tmp_path / "models" / folder).mkdir(exist_ok=True)
         (tmp_path / "models" / folder / name).write_bytes(b"x")
     assert app.check("TASK: Clip  SAVE: clips/a.mp4")["ok"]
+
+
+def test_fine_tuning_reaches_the_picture_graph(env):
+    """Setup > Workflows fine-tuning (showcase QC 2026-11-09): prompt strength, sampler, detail
+    pass off/strength and versions per prompt."""
+    from joeai import workflowprefs as wfp
+    s, sb, fo, fc = env
+    s.quality.pictures = "high"
+    assert wfp.save(s, "pictures", {"cfg": 4.5, "sampler": "euler", "hires": "off", "versions": 3})["ok"]
+    m = parse("TASK: Neon  SAVE: art/neon  TYPE: image  CHUNKS: 1 x 1")
+    logs = []
+    st = Engine(s, sb, log=logs.append).run_mission(m)[0]
+    assert st.status == "done", st.note
+    g = fc.graphs[-1]
+    assert g["3"]["inputs"]["cfg"] == 4.5 and g["3"]["inputs"]["sampler_name"] == "euler"
+    assert "12" not in g                                          # detail pass turned off on High
+    assert st.items == 3 and any("prompt strength 4.5" in x for x in logs)
+    assert wfp.save(s, "pictures", {"hires": "on", "denoise": 0.25})["ok"]
+    s.quality.pictures = "medium"
+    Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Neon2  SAVE: art/neon2  TYPE: image  CHUNKS: 1 x 1"))
+    g = fc.graphs[-1]
+    assert g["12"]["inputs"]["denoise"] == 0.25                   # detail pass forced on, gentler

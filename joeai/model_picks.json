@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-08",
+  "updated": "2026-11-09",
   "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"writing\": \"role\" recommended (Joe's pick), alternative (the other good choice) or free (little to no filtering); Joe's pick for each card size (name) plus \"others\": two more choices the person can pick instead, each with who made it and a plain note. At least one choice per size is lightly filtered or unfiltered (\"role\": \"free\"), so people can pick freedom over a company's filters. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
   "writing": [
     {
@@ -435,7 +435,7 @@
           "id": "general",
           "label": "Everyday",
           "words": "50mm, f/4, natural light, realistic detail, true-to-life colors",
-          "negative": "oversaturated, plastic look, painting, drawing"
+          "negative": "oversaturated, plastic look, waxy skin, brand logo, painting, drawing"
         }
       ]
     },
@@ -696,17 +696,17 @@
           "id": "street",
           "label": "Character / street",
           "match": "",
-          "words": "rainy alley, neon sign reflections on wet asphalt, cyan and magenta light, volumetric fog, rim lighting, 85mm, f/1.4",
-          "example": "Raw photo of a cyberpunk woman with glowing neural implants in a rainy alleyway, neon sign reflections on wet asphalt, cyan and magenta lighting, volumetric fog, rim lighting, 85mm lens, f/1.4.",
-          "negative": "cartoon, anime, painting, illustration, washed out colors, flat lighting, daylight, rustic, pastoral"
+          "words": "rainy alley, neon light reflections on wet asphalt, cyan and magenta light, volumetric fog, rim lighting, 85mm, f/1.4",
+          "example": "Raw photo of a cyberpunk woman with glowing neural implants in a rainy alleyway, neon light reflections on wet asphalt, cyan and magenta lighting, volumetric fog, rim lighting, 85mm lens, f/1.4.",
+          "negative": "text, letters, words, readable signs, signage, typography, cartoon, anime, painting, illustration, washed out colors, flat lighting, daylight, rustic, pastoral"
         },
         {
           "id": "city",
           "label": "Megacity",
           "match": "city|skyline|skyscraper|street view|aerial",
-          "words": "cyberpunk mega-city at midnight, giant holographic advertisements, flying vehicles, smog and rain, wide-angle, cinematic",
-          "example": "Massive cyberpunk mega-city at midnight, towering skyscrapers with giant holographic advertisements, flying vehicles through smog and rain, wide-angle cinematic composition.",
-          "negative": "daylight, rustic, pastoral, washed out colors, flat lighting"
+          "words": "cyberpunk mega-city at midnight, glowing holograms and abstract neon light strips, flying vehicles, smog and rain, wide-angle, cinematic",
+          "example": "Massive cyberpunk mega-city at midnight, towering skyscrapers with glowing holograms and abstract neon light strips, flying vehicles through smog and rain, wide-angle cinematic composition.",
+          "negative": "text, letters, words, readable signs, signage, typography, daylight, rustic, pastoral, washed out colors, flat lighting"
         }
       ]
     },
@@ -747,9 +747,6 @@
         }
       ],
       "lora_settings": {
-        "cfg": 1.5,
-        "steps": 8,
-        "sampler": "euler_ancestral",
         "strength": 1.0
       }
     },

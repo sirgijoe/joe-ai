@@ -150,7 +150,7 @@ def _lines(p: Path) -> int:
 
 
 # --------------------------------------------------------------------------- learned speeds
-DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 240.0,
+DEFAULT_SPEEDS = {"part": 25.0, "image": 30.0, "video": 600.0,   # video: 9-11 min per 5 s clip measured on a 12 GB card
                   "transcribe": 0.8,      # transcribe: seconds of work per second of sound
                   "read-aloud": 0.5,      # read aloud: seconds of work per second of speech
                   "vision": 20.0}         # one look at a picture

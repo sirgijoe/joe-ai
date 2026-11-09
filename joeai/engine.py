@@ -173,11 +173,42 @@ class JobState:
     prompt_parts: int = 0             # prompt parts finished or skipped (resume point; 0 = older state)
 
 
-def thin_reply_words(words_so_far: int, parts_done: int) -> int:
+def asked_words(text: str) -> int:
+    """The length a part asks for in its own words ("about 60 words", "150-200 words"), or 0."""
+    m = re.search(r"(\d{2,5})\s*(?:-|to|–)\s*(\d{2,5})\s*words", text or "", re.I)
+    if m:
+        return int(m.group(1))
+    m = re.search(r"(\d{2,5})\s*words", text or "", re.I)
+    return int(m.group(1)) if m else 0
+
+
+PEOPLE_STYLES = frozenset({"photo", "bw", "general", "painting", "concept", "illustration"})
+
+
+def thin_reply_words(words_so_far: int, parts_done: int, asked: int = 0) -> int:
     """A guided part with fewer words than this gets retried: 80 words, or a third of
-    what earlier parts averaged (FAQ part 2 came back with 21 words, a pack part with 0 items)."""
+    what earlier parts averaged (FAQ part 2 came back with 21 words, a pack part with 0 items).
+    A part that asks for its own length ("about 60 words") is held to half of that instead:
+    a 65-word page asked to be ~60 was retried for being shorter than earlier parts."""
+    if asked:
+        return max(10, asked // 2)
     avg = words_so_far / parts_done if parts_done else 0
     return int(max(80, min(avg / 3, 400)))
+
+
+def split_part(text: str) -> tuple[str, str]:
+    """PART: '## Title. What to write' -> ('Title', 'What to write'). A PART without a '##' title
+    comes back as ('', text). The title is cut at the first '. ' (or line break), so the
+    instructions never end up as the page's heading."""
+    t = (text or "").strip()
+    m = re.match(r"#{1,3}\s*(.+)", t, re.S)
+    if not m:
+        return "", t
+    body = m.group(1).strip()
+    cut = re.search(r"(?<!\bDr)(?<!\bMr)(?<!\bMrs)(?<!\bMs)(?<!\bSt)(?<!\bvs)(?<!\bNo)\.\s|\n", body)
+    if not cut:
+        return body.rstrip("."), ""
+    return body[:cut.start()].strip(), body[cut.end():].strip()
 
 
 class Engine:
@@ -812,10 +843,16 @@ class Engine:
 
     # -- guided mode (PART lines): keep the model's text as written -----------------
     def _guided_prompt(self, job: Job, part: int, extra: str, st: JobState) -> str:
+        title, what = split_part(job.part_prompts[part])
         lines = [f"TASK: {job.name}", "", "FORMAT AND BRIEF (applies to every part):",
                  job.format or "(none given)", "",
-                 f"This is part {part + 1} of {job.parts}. Write ONLY this part:",
-                 job.part_prompts[part]]
+                 f"This is part {part + 1} of {job.parts}. Write ONLY this part:"]
+        if title:
+            lines += [f"Start it with this heading line, exactly: ## {title}",
+                      "Then write: " + (what or "this part") + "",
+                      "(Those instructions are for you: don't copy them into the heading or the text.)"]
+        else:
+            lines.append(job.part_prompts[part])
         if job.min_words:
             lines += ["", f"LENGTH: every item under a heading needs at least {job.min_words} words."]
         recent = st.titles[-TITLE_MEMORY:]
@@ -844,19 +881,24 @@ class Engine:
         best: tuple | None = None
         extra = ""
         tries = 1 + self.s.engine.short_item_retries
-        thin = thin_reply_words(st.words, st.parts_done)
+        asked = asked_words(job.part_prompts[part])
+        thin = thin_reply_words(st.words, st.parts_done, asked)
         empty = 0
         attempt = 0
         while attempt < tries:
             r = self._chat(job, part, "write", system, self._guided_prompt(job, part, extra, st), st)
             text = _clean_reply(r.text)
             if not text:
+                if best is not None:               # a retry came back empty: keep the first draft
+                    self.log(f"  part {part + 1}: the retry came back empty; keeping the first draft")
+                    break
                 empty += 1
                 st.retries += 1
                 if empty > self.s.engine.max_retries:
                     raise PartFailed("model returned nothing")
                 continue
             attempt += 1
+            text = _fix_part_heading(text, job.part_prompts[part])
             items = [i for i in split_items(text) if i.body]
             short = [i for i in items if job.min_words and i.words < job.min_words]
             score = (len(short), -count_words(text))
@@ -882,9 +924,11 @@ class Engine:
                 break
             if attempt < tries and too_thin:
                 st.retries += 1
-                self.log(f"  part {part + 1}: only {words} words (earlier parts were longer), retrying")
+                why = f"asked for about {asked}" if asked else "earlier parts were longer"
+                self.log(f"  part {part + 1}: only {words} words ({why}), retrying")
                 extra = (f"Your last attempt was far too short ({words} words). Write this part "
-                         "fully, as long and detailed as the earlier parts.")
+                         + (f"fully: about {asked} words." if asked else
+                            "fully, as long and detailed as the earlier parts."))
                 continue
             if not short:
                 break
@@ -1244,10 +1288,13 @@ class Engine:
             lora = styles_mod.pick_lora(style, comfy_mod.list_loras(comfy_models_dir(self.s)))
             if lora:
                 ls = styles_mod.recipe(job, self._picks()).lora_settings
-                g = comfy_mod.with_lora(g, lora, float(ls.get("strength", style.lora_strength)))
+                g = comfy_mod.with_lora(g, lora, float(wpref.get("lora", ls.get("strength", style.lora_strength))))
                 ks = g["3"]["inputs"]
+                # Few-step settings (8 steps, cfg 1.5) only suit speed add-ons (LCM, Lightning,
+                # Turbo, Hyper); on a plain style add-on they gave a dark, muddy smear (Pixel, 2026-11-09).
+                fast_lora = re.search(r"lcm|lightning|turbo|hyper", lora, re.I)
                 for k, key in (("steps", "steps"), ("cfg", "cfg"), ("sampler", "sampler_name")):
-                    if k in ls:
+                    if k in ls and (fast_lora or k == "sampler"):
                         ks[key] = ls[k]
                 self._lora_used = True
                 label += f" + {lora}"
@@ -1256,12 +1303,31 @@ class Engine:
         if wpref.get("steps"):
             g["3"]["inputs"]["steps"] = wpref["steps"]
             self.log(f"  Your workflow setting: {wpref['steps']} steps")
-        if lv == "high" and job.type == "image":
-            g = comfy_mod.with_hires(g)
+        tuned = []
+        if wpref.get("cfg"):
+            g["3"]["inputs"]["cfg"] = wpref["cfg"]
+            tuned.append(f"prompt strength {wpref['cfg']:g}")
+        if wpref.get("sampler"):
+            g["3"]["inputs"]["sampler_name"] = wpref["sampler"]
+            tuned.append(f"sampler {wpref['sampler']}")
+        if "lora" in wpref and self._lora_used:
+            tuned.append(f"style add-on {wpref['lora']:g}")
+        hires = {"on": True, "off": False}.get(wpref.get("hires", ""), lv == "high" and style.hires)
+        if wpref.get("hires") in ("on", "off"):
+            tuned.append(f"detail pass {wpref['hires']}")
+        if wpref.get("denoise") and hires:
+            tuned.append(f"detail pass strength {wpref['denoise']:g}")
+        if tuned:
+            self.log("  Your fine-tuning: " + ", ".join(tuned))
+        if hires and job.type == "image":
+            g = comfy_mod.with_hires(g, denoise=float(wpref.get("denoise") or 0.4))
             label += " + hi-res second pass"
             if not getattr(self, "_hires_said", False):
                 self.log("  High quality: each picture gets a second, 1.5x bigger detail pass.")
                 self._hires_said = True
+        if style.pixelate > 1 and job.type == "image":
+            g = comfy_mod.with_pixelate(g, style.pixelate)
+            label += " + crisp pixels"
         return g, api_name(m), m.family, label
 
     def _use_flux2(self, job: Job, basic: list, wpref: dict) -> tuple[bool, str]:
@@ -1351,6 +1417,9 @@ class Engine:
                             f"always leave out '{wpref['avoid']}'" if wpref.get("avoid") else "") if x))
         if rec.look and builtin and job.type == "image":
             self.log(f"  Look: {style.label} > {rec.look.get('label', '')}")
+        if job.type == "image" and job.variants == 1 and wpref.get("versions", 1) > 1:
+            job = dc_replace(job, variants=int(wpref["versions"]))
+            self.log(f"  Your fine-tuning: {job.variants} versions of each picture to pick from")
         total = len(st.prompts) * job.variants
         self.log(f"Rendering '{job.name}': {total} {job.type}(s) with {wf_label}"
                  + (f", model {ckpt}" if ckpt else "") + f" -> {st.output}/")
@@ -1368,7 +1437,15 @@ class Engine:
                 p = st.prompts[pi]
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
-                g = comfy_mod.fill(graph, wfp.with_add(self._styled(p["prompt"], rec) if builtin else p["prompt"], wpref),
+                pos = self._styled(p["prompt"], rec) if builtin else p["prompt"]
+                if builtin and job.type == "image" and style.id in PEOPLE_STYLES and styles_mod.crowded(p["prompt"]):
+                    pos = f"{pos}, {styles_mod.GROUP_WORDS}"
+                    if not getattr(self, "_group_said", False):
+                        self.log("  Several people (or a rider) in one picture: framing it as a medium shot "
+                                 "with every face different. Picture models still get groups wrong "
+                                 "sometimes: VARIANTS: 3 gives you a few to pick from.")
+                        self._group_said = True
+                g = comfy_mod.fill(graph, wfp.with_add(pos, wpref),
                                    negative, seed, w, h, ckpt,
                                    prefix=f"Joe/{slug(job.name)}")
                 stem = f"{pi + 1:03d}_{slug(p['title'])[:40]}" + (f"_{v + 1}" if job.variants > 1 else "")
@@ -1653,6 +1730,24 @@ def _clean_title(title: str) -> str:
     t = _TITLE_LEAK.sub(" ", title or "")
     t = re.sub(r"\s*[-–—:|]\s*$", "", " ".join(t.split())).strip(" -–—:|")
     return t or (title or "image").strip()
+
+
+def _fix_part_heading(text: str, part_prompt: str) -> str:
+    """The model copied a whole PART line ('## Title. A gentle page, about 60 words: ...') as its
+    heading: cut the heading back to the title."""
+    title, what = split_part(part_prompt)
+    if not title or not what:
+        return text
+    lines = text.split("\n")
+    for n, line in enumerate(lines[:5]):
+        m = re.match(r"(#{1,3})\s*(.+)", line.strip())
+        if not m:
+            continue
+        head = m.group(2).strip()
+        if head.lower().startswith(title.lower()) and len(head) > len(title) + 3:
+            lines[n] = f"{m.group(1)} {title}"
+        break
+    return "\n".join(lines)
 
 
 def _short_title(text: str) -> str:

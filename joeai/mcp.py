@@ -180,7 +180,7 @@ class Joe:
             sp = stats_mod.speeds(self.sb)
             lines.append(f"Typical time on this PC: about {round(sp.get('part', 25))} s per part of a list "
                          f"(4-10 items), {round(sp.get('image', 30))} s per picture, "
-                         f"{round(sp.get('video', 240) / 60)} min per video clip.")
+                         f"{round(sp.get('video', 600) / 60)} min per video clip.")
         except Exception:                                   # noqa: BLE001
             pass
         q = self.s.quality
@@ -340,7 +340,8 @@ class Joe:
             req = urllib.request.Request(f"http://127.0.0.1:{info['port']}/api/stop", data=b"{}", method="POST",
                                          headers={"X-NR-Token": info["token"], "Content-Type": "application/json"})
             urllib.request.urlopen(req, timeout=5).close()
-            return "Joe will stop after the step he's on."
+            return ("Joe will stop after the step he's on. Missions still waiting in line are kept on hold "
+                    "(Missions/Queue/on hold) until RUN THEM or CLEAR in Joe's window.")
         except (OSError, KeyError, ValueError):
             return "Joe's window isn't open, so nothing is running."
 

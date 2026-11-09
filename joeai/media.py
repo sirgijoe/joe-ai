@@ -288,6 +288,44 @@ def pad_for_outpaint(ffmpeg: str, src: Path, dest: Path, shape: str) -> tuple[Pa
     return (dest, (x, y, w, h)) if _run(cmd) and dest.exists() else None
 
 
+def border_is_flat(ffmpeg: str, img: Path, inner: tuple[int, int, int, int], size: tuple[int, int]) -> bool:
+    """True when the new space around the kept picture is one flat colour (the editor left it
+    blank, e.g. a white frame), so Joe reports a failure instead of 'done'."""
+    W, H = size
+    x, y, w, h = inner
+    gw, gh = 64, 64
+    try:
+        r = subprocess.run([ffmpeg, "-v", "error", "-noautorotate", "-i", str(img), "-vf",
+                            f"scale={gw}:{gh}:flags=area,format=gray", "-frames:v", "1", "-f", "rawvideo", "-"],
+                           capture_output=True, timeout=120, creationflags=_flags())
+    except (OSError, subprocess.SubprocessError):
+        return False
+    px = r.stdout
+    if len(px) < gw * gh:
+        return False
+    x0, x1 = x * gw / W, (x + w) * gw / W
+    y0, y1 = y * gh / H, (y + h) * gh / H
+    def stats(vals):
+        mean = sum(vals) / len(vals)
+        return mean, (sum((v - mean) ** 2 for v in vals) / len(vals)) ** 0.5
+    new = [px[j * gw + i] for j in range(gh) for i in range(gw)
+           if not (x0 - 1 <= i <= x1 and y0 - 1 <= j <= y1)]           # only the new space
+    if len(new) < 20:
+        return False
+    mean, sd = stats(new)
+    if sd >= 4.0:
+        return False
+    # A plain backdrop that really continues (a product on white) is flat too: that's fine.
+    band = [px[j * gw + i] for j in range(gh) for i in range(gw)
+            if x0 + 1 <= i <= x1 - 2 and y0 + 1 <= j <= y1 - 2
+            and min(i - x0, x1 - i, j - y0, y1 - j) < 4]
+    if band:
+        bmean, bsd = stats(band)
+        if bsd < 8.0 and abs(bmean - mean) < 12:
+            return False
+    return True
+
+
 def outline_spot(ffmpeg: str, src: Path, mask: Path, dest: Path) -> Path | None:
     """The picture with the marked spot tinted red, so the editor can see where to work."""
     size = size_of(ffmpeg, src)

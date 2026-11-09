@@ -121,9 +121,10 @@ def test_meal_plan_adds_up_and_flags_budget(app):  # noqa: F811
     assert st.status == "done", st.note
     out = app.sb.output / st.output
     plan = (out / "meal-plan.md").read_text(encoding="utf-8")
-    assert "Shopping total: $95.75" in plan and "$15.75 over budget" in plan and "211" in plan
+    # over the $80 cap at first ($95.75): asked once more, the cheaper list ($75.75) is kept
+    assert "Shopping total: $75.75" in plan and "$4.25 under budget" in plan and "211" not in plan
     assert "[CHECK]" in plan and "3 of 3 prices are Joe's estimates" in plan
-    assert "Total,,95.75" in (out / "shopping-list.csv").read_text(encoding="utf-8-sig")
+    assert "Total,,75.75" in (out / "shopping-list.csv").read_text(encoding="utf-8-sig")
     (app.sb.inbox / "prices.csv").write_text("Item,Price\nRice 10 lb,9.50\n", encoding="utf-8")
     st = _run(app, "TASK: Food2  TYPE: meal-plan\nINPUT: prices.csv\nFORMAT: $200 for 4 people")
     plan = (app.sb.output / st.output / "meal-plan.md").read_text(encoding="utf-8")

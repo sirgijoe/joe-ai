@@ -526,23 +526,43 @@ def _meal_plan(engine, job, files, ask, save, model) -> None:
     budget = budget_from(wish)
     people = people_from(wish) or 4
     prices = _context(engine, files, 6000)
-    raw = ask("meal-plan", MEAL_SYSTEM, MEAL_ASK.format(
-        days=days, people=people, budget=f" on ${budget:.2f}" if budget else "", wish=f"They said: {wish}. " if wish else "",
-        prices=("\n\nTHE PERSON'S PRICE LIST (receipts or their own list):" + prices) if prices else ""), 20)
-    m = re.search(r"\{.*\}", raw or "", re.S)
-    try:
-        plan = json.loads(m.group(0)) if m else {}
-    except json.JSONDecodeError:
-        plan = {}
-    meals = [x for x in (plan.get("meals") or []) if isinstance(x, dict)]
-    shop = [x for x in (plan.get("shopping") or []) if isinstance(x, dict) and str(x.get("item", "")).strip()]
+    first = MEAL_ASK.format(
+        days=days, people=people,
+        budget=(f" on ${budget:.2f}. The budget is a hard limit: the shopping total must be at or under "
+                f"${budget:.2f}") if budget else "",
+        wish=f"They said: {wish}. " if wish else "",
+        prices=("\n\nTHE PERSON'S PRICE LIST (receipts or their own list):" + prices) if prices else "")
+    raw = ask("meal-plan", MEAL_SYSTEM, first, 20)
 
     def num(v) -> float:
         try:
             return round(float(str(v).replace("$", "").replace(",", "")), 2)
         except ValueError:
             return 0.0
-    total = round(sum(num(x.get("price")) for x in shop), 2)        # Joe adds it up, not the model
+
+    def read(raw):
+        m = re.search(r"\{.*\}", raw or "", re.S)
+        try:
+            plan = json.loads(m.group(0)) if m else {}
+        except json.JSONDecodeError:
+            plan = {}
+        plan = plan if isinstance(plan, dict) else {}
+        shop = [x for x in (plan.get("shopping") or []) if isinstance(x, dict) and str(x.get("item", "")).strip()]
+        return plan, shop, round(sum(num(x.get("price")) for x in shop), 2)   # Joe adds it up, not the model
+    plan, shop, total = read(raw)
+    # The budget is a hard cap: a plan that comes in over it gets one more go, told by how much
+    # ($83 on an $80 budget in the showcase test; told "hard limit" it came in at $80.00).
+    if budget is not None and shop and total > budget:
+        engine.log(f"  The list came to ${total:.2f}, over the ${budget:.2f} budget: asking for a cheaper one.")
+        again = ask("meal-plan", MEAL_SYSTEM, first + (
+            f"\n\nYour last plan's shopping list added up to ${total:.2f}, which is ${total - budget:.2f} over "
+            f"the ${budget:.2f} budget. Swap pricey items for cheaper ones or cut amounts so the total is at "
+            f"or under ${budget:.2f}. Reply with the whole plan as JSON again.\n\nYOUR LAST PLAN:\n"
+            + json.dumps(plan)[:6000]), 20)
+        plan2, shop2, total2 = read(again)
+        if shop2 and total2 < total:
+            plan, shop, total = plan2, shop2, total2
+    meals = [x for x in (plan.get("meals") or []) if isinstance(x, dict)]
     est = [x for x in shop if not x.get("from_list")]
     L = [note("Planned", model).replace(" Your original wasn't changed.", ""),
          f"# Meal plan: {days} days, {people} people" + (f", ${budget:.2f} budget" if budget else ""), ""]

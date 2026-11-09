@@ -57,7 +57,7 @@ mimetypes.add_type("video/x-matroska", ".mkv")
 mimetypes.add_type("video/mp4", ".m4v")
 SECONDS_PER_PART = 25
 SECONDS_PER_IMAGE = 30
-SECONDS_PER_VIDEO = 240
+SECONDS_PER_VIDEO = 600                  # a 5 s Wan clip took 9-11 min on a 12 GB card (2026-11-09)
 IDLE_EXIT_S = 180
       # window gone (no polling) and no run -> quit
 
@@ -423,6 +423,85 @@ class App:
             self.log(f"Stop time reached: {len(names)} mission{'s' if len(names) != 1 else ''} saved in "
                      "Missions/Tonight for tomorrow night.")
 
+    HOLD = ("Queue", "on hold")
+
+    def hold_dir(self) -> Path:
+        return self.sb.missions.joinpath(*self.HOLD)
+
+    def _hold_queue(self) -> None:
+        """(under self.lock) Stop pressed: missions still waiting in line are kept, not thrown away.
+        Each one is saved in Missions/Queue/on hold (in line order) until RUN THEM or CLEAR."""
+        from .mission import slug
+        folder = self.hold_dir()
+        kept = 0
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            start = len(self.held_missions())
+            for i, (text, _, entry) in enumerate(self.queue, start + 1):
+                name = f"{i:02d}_{(slug(entry.get('label') or 'mission') or 'mission')[:40]}.txt"
+                atomic_write_text(folder / name, text.strip() + "\n")
+                if entry in self.run_log:              # not started: the resume offer mustn't run it twice
+                    self.run_log.remove(entry)
+                kept += 1
+        except OSError as e:
+            self.log(f"!! Couldn't keep the waiting missions: {e}")
+        self._write_last_run()
+        if kept:
+            self.log(f"Run stopped. {kept} mission{'s' if kept != 1 else ''} waiting in line "
+                     f"{'were' if kept != 1 else 'was'} kept ON HOLD: press RUN THEM to start "
+                     f"{'them' if kept != 1 else 'it'}, or CLEAR.")
+
+    def held_missions(self) -> list[dict]:
+        folder = self.hold_dir()
+        try:
+            files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in (".txt", ".md"))
+        except OSError:
+            return []
+        out = []
+        for p in files:
+            try:
+                label = self._label(parse(p.read_text(encoding="utf-8", errors="replace")))
+            except (MissionError, OSError, ValueError):
+                label = p.stem
+            out.append({"file": p.name, "label": label})
+        return out
+
+    def held_action(self, action: str) -> dict:
+        """RUN THEM: queue the held missions again, in their old order. CLEAR: put them away
+        (moved to Missions/Queue/done, never deleted)."""
+        folder = self.hold_dir()
+        files = [folder / h["file"] for h in self.held_missions()]
+        if not files:
+            return {"ok": False, "error": "Nothing is on hold."}
+        n = 0
+        if action == "run":
+            for p in files:
+                try:
+                    r = self.enqueue(p.read_text(encoding="utf-8", errors="replace"))
+                except Exception as e:                       # noqa: BLE001
+                    r = {"ok": False, "error": str(e)}
+                if not r.get("ok"):
+                    return {"ok": False, "error": f"{p.name}: {r.get('error')}", "started": n}
+                done = self.sb.missions / "Queue" / "done"
+                done.mkdir(parents=True, exist_ok=True)
+                try:
+                    p.replace(done / f"{p.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{p.suffix}")
+                except OSError:
+                    pass
+                n += 1
+            self.log(f"{n} mission{'s' if n != 1 else ''} taken off hold.")
+            return {"ok": True, "started": n}
+        done = self.sb.missions / "Queue" / "done"
+        done.mkdir(parents=True, exist_ok=True)
+        for p in files:
+            try:
+                p.replace(done / f"cleared_{p.stem}_{datetime.now().strftime('%Y%m%d_%H%M%S')}{p.suffix}")
+                n += 1
+            except OSError:
+                pass
+        self.log(f"Cleared {n} mission{'s' if n != 1 else ''} that were on hold (copies kept in Missions/Queue/done).")
+        return {"ok": True, "cleared": n}
+
     def _work(self) -> None:
         self.left_for_tomorrow = 0
         self.left_labels: list[str] = []
@@ -456,9 +535,10 @@ class App:
         self.queue_finished = datetime.now().isoformat(timespec="seconds")
         self._write_last_run()
         stopped = self.stop.is_set()
-        if self.queue and stopped:
-            self.log(f"Run stopped; {len(self.queue)} queued mission(s) were not started.")
-        self.queue = []
+        with self.lock:
+            if self.queue and stopped:
+                self._hold_queue()
+            self.queue = []
         from . import schedule
         schedule.clear_stop(self.sb)
         if self.left_labels:
@@ -871,6 +951,7 @@ class App:
                 "dl_all": {k: v for k, v in self.dl_all.items() if k != "stop"}, "restart_hint": self.restart_advice(),
                 "attention": self.services.attention, "portable": portable_mod.active(),
                 "queued": [e["label"] for _, _, e in self.queue],
+                "on_hold": [h["label"] for h in self.held_missions()],
                 "queued_eta_s": 60 * sum(int(e.get("eta_min") or 0) for _, _, e in self.queue),
                 "media": media[-12:][::-1],
                 "chain": len(self.chain),
@@ -2025,8 +2106,10 @@ def make_handler(app: App):
                     return self._json({"ok": remove_device(str(b.get("id", "")))})
                 if u.path == "/api/stop":
                     app.stop.set()
-                    app.log("Stop requested: finishing the current step...")
+                    app.log("Stop requested: finishing the current step... (missions waiting in line are kept on hold)")
                     return self._json({"ok": True})
+                if u.path == "/api/queue/held":                # RUN THEM / CLEAR the missions kept on hold
+                    return self._json(app.held_action("run" if b.get("action") == "run" else "clear"))
                 if u.path == "/api/models/download-all":
                     if b.get("stop"):
                         app.dl_all["stop"] = True

@@ -218,6 +218,11 @@ async function poll() {
   $("#queued").innerHTML = state.queued && state.queued.length
     ? `<h2 class="sub">NEXT UP</h2>` + state.queued.map((q, i) => `<div class="qrow"><span>${i + 1}.</span><span class="t">${esc(q)}</span><button data-unqueue="${i}">[ X ]</button></div>`).join("")
     : "";
+  // missions kept ON HOLD after Stop (never thrown away): run them or clear them
+  if (!state.running && state.on_hold && state.on_hold.length) {
+    $("#queued").innerHTML += `<h2 class="sub">ON HOLD (STOPPED)</h2>` + state.on_hold.map((q, i) => `<div class="qrow"><span>${i + 1}.</span><span class="t">${esc(q)}</span></div>`).join("")
+      + `<div class="qrow"><button data-held="run" title="Put these missions back in line, in the same order.">[ RUN THEM ]</button> <button data-held="clear" title="Put them away (a copy stays in Missions\\Queue\\done).">[ CLEAR ]</button></div>`;
+  }
   // newest pictures / videos, shown as soon as each one is made
   const mkey = (state.media || []).join("|");
   if (mkey !== lastMedia) {
@@ -557,7 +562,7 @@ function runButtons(busy) {
 async function runOrStop() {
   if (starting) { toast("Starting it…"); return; }   // a second click or F5 while it starts does nothing
   if (state && state.running) {
-    confirmBox("Stop the run after the current step? It can resume later.", async () => {
+    confirmBox("Stop the run after the current step? It can resume later, and missions waiting in line are kept on hold.", async () => {
       await api("/api/stop", {});
       toast("Stopping after current step");
     });
@@ -1310,9 +1315,32 @@ async function loadWorkflows() {
         <label title="Your own extra words, added after Joe's at the end of every prompt for this workflow.">Also add <input data-wff="add" maxlength="600" value="${esc(r.prefs.add || "")}" placeholder="e.g. soft morning light, shallow depth of field"></label>
         ${r.id === "editor" || r.id === "music" || r.id === "sfx" ? "" : `<label title="Your own extra leave-out words, added to the list above.">Also leave out <input data-wff="avoid" maxlength="600" value="${esc(r.prefs.avoid || "")}" placeholder="e.g. text, watermark, extra fingers"></label>`}
         ${r.steps_ok ? `<label title="0 = Joe decides from the Quality setting.">Steps (0 = Joe decides) <input type="number" min="0" max="150" data-wff="steps" value="${r.prefs.steps || 0}"></label>` : ""}
+        ${wfTune(r)}
         <div class="row"><button type="button" data-act="wf-save" class="primary">[ SAVE THIS WORKFLOW ]</button>
           <button type="button" data-act="wf-reset">[ RESET THIS WORKFLOW ]</button></div></details>`;
     }).join("") + "</fieldset>").join("");
+}
+// Fine-tuning (pictures and each picture style): filled in with Joe's own values; only a
+// changed value is kept. "Joe's" next to each shows what Joe uses when it's left alone.
+function wfTune(r) {
+  const t = r.tune || {};
+  if (!Object.keys(t).length) return "";
+  const h = (wfData.tune_help || {}), p = r.prefs, val = (k) => (p[k] !== undefined ? p[k] : t[k]);
+  const num = (k, label, min, max, step) => t[k] === undefined ? "" :
+    `<label title="${esc(h[k] || "")}">${label} <input type="number" min="${min}" max="${max}" step="${step}" data-wff="${k}" value="${val(k)}"> <span class="dim small">Joe's: ${t[k]}</span></label>`;
+  const hires = val("hires");
+  const samp = val("sampler") || "";
+  return `<fieldset class="wftune"><legend>FINE-TUNING</legend>
+    <div class="dim small">Hover each one for what it does. Left as they are, Joe's own values are used.</div>
+    ${num("cfg", "Prompt strength (CFG)", 1, 20, 0.5)}
+    ${num("lora", "Style add-on strength", 0, 1.5, 0.05)}
+    <label title="${esc(h.hires || "")}">Detail pass <select data-wff="hires">${["auto", "on", "off"].map((o) =>
+      `<option value="${o}"${o === hires ? " selected" : ""}>${o === "auto" ? "auto (High quality only)" : o}</option>`).join("")}</select> <span class="dim small">Joe's: ${t.hires}</span></label>
+    ${num("denoise", "Detail pass strength", 0.1, 0.8, 0.05)}
+    <label title="${esc(h.sampler || "")}">Sampler <select data-wff="sampler"><option value="">(Joe picks)</option>${(wfData.samplers || []).map((o) =>
+      `<option${o === samp ? " selected" : ""}>${esc(o)}</option>`).join("")}</select> <span class="dim small">Joe's: ${t.sampler || "from Quality"}</span></label>
+    ${num("versions", "Versions per prompt", 1, 6, 1)}
+  </fieldset>`;
 }
 function wfEdit(btn) {
   const ta = btn.closest(".wftext").querySelector("textarea");
@@ -1334,7 +1362,7 @@ async function wfSave(btn) {
 function wfReset(btn) {
   const box = btn.closest("[data-wf]");
   const name = box.querySelector("summary").textContent.replace("· changed", "").trim();
-  confirmBox(`Reset the "${name}" workflow?\n\nYour model choice, always-add and always-leave-out words and steps for it ` +
+  confirmBox(`Reset the "${name}" workflow?\n\nYour model choice, always-add and always-leave-out words, steps and fine-tuning for it ` +
     "(and any words you edited) are removed, and Joe goes back to his own. Nothing else changes.\n\nAre you sure?", async () => {
       const r = await api("/api/workflows/reset", { id: box.dataset.wf });
       if (!r.ok) { toast(r.error); return; }
@@ -1694,6 +1722,11 @@ document.addEventListener("click", async (ev) => {
     }
     if (act === "to-builder") { await importToBuilder($("#mission").value); show("builder"); }
     if (b.dataset.unqueue !== undefined) { await api("/api/queue/remove", { index: +b.dataset.unqueue }); return; }
+    if (b.dataset.held) {
+      const r = await api("/api/queue/held", { action: b.dataset.held });
+      toast(r.ok ? (b.dataset.held === "run" ? `Back in line: ${r.started}` : `Cleared ${r.cleared}`) : r.error);
+      return;
+    }
     if (b.dataset.b) { await builderAction(b.dataset.b); return; }
     if (b.dataset.hload) { const r = await api("/api/load_mission", { path: b.dataset.hload }); if (r.ok) { await importToBuilder(r.text); toast("Loaded into the builder"); } return; }
     if (b.dataset.hdel) {

@@ -115,6 +115,10 @@ def test_make_bigger_keeps_the_middle(tmp_path):
     folder = tmp_path / "out"
     folder.mkdir()
     _pic(folder / "p-wider.png", color="color=green:s=480x240")
+    import subprocess                       # the AI's fill has some detail (a flat one now counts as blank)
+    subprocess.run([FF, "-y", "-v", "error", "-i", str(folder / "p-wider.png"), "-vf", "noise=alls=30:allf=u",
+                    "-frames:v", "1", str(folder / "n.png")], check=True)
+    (folder / "n.png").replace(folder / "p-wider.png")
     pt.after_edit(eng, None, "make-bigger", {"padded": padded, "inner": inner}, folder, ["p-wider.png"], {})
     r, g, b = _avg(folder / "p-wider.png", "40:40:220:100")       # middle = the real picture
     assert r > 200 and g < 60

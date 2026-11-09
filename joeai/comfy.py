@@ -373,6 +373,20 @@ def with_hires(g: dict, scale: float = 1.5, denoise: float = 0.4, steps: int = 1
     return g
 
 
+def with_pixelate(g: dict, factor: int = 8) -> dict:
+    """Pixel art finish: shrink by `factor` (each block averaged to one colour), then enlarge
+    back with nearest-neighbour so every pixel is a crisp square. Done last, after any other pass
+    (a detail pass after it smeared the pixels into a dark blur: showcase test 2026-11-09)."""
+    g = copy.deepcopy(g)
+    src = g["9"]["inputs"]["images"]
+    g["20"] = {"class_type": "ImageScaleBy", "inputs": {"image": src, "upscale_method": "area",
+                                                        "scale_by": round(1.0 / max(2, factor), 4)}}
+    g["21"] = {"class_type": "ImageScaleBy", "inputs": {"image": ["20", 0], "upscale_method": "nearest-exact",
+                                                        "scale_by": float(max(2, factor))}}
+    g["9"]["inputs"]["images"] = ["21", 0]
+    return g
+
+
 def with_lora(g: dict, lora: str, strength: float = 0.8) -> dict:
     """The built-in picture graph with a LoRA (a small style add-on) between the checkpoint and
     everything that uses it."""

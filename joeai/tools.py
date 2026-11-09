@@ -647,7 +647,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          ready=True,
          help="Say what to change in plain words; the same change is made to every picture. Uses "
               "Qwen-Image-Edit 2511 (Apache-2.0, about 31 GB, offered once): best with a 12 GB+ "
-              "graphics card and 32 GB of memory, about 1-3 minutes a picture. Quality > High in "
+              "graphics card and 32 GB of memory, about 1-3 minutes a picture (about 4-5 on a 12 GB card). Quality > High in "
               "Setup is slower but finer. Your originals are never changed.",
          plan_hint="Edit pictures by instruction: TYPE: edit-picture, INPUT: the picture file(s) from "
                    "the list below, FORMAT: the change in their words (e.g. replace the background "
@@ -696,7 +696,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          help="Add the picture, press MARK THE SPOT and paint over what to fix (a date stamp, a "
               "scratch, a stranger, a cup). Only the painted part is redrawn; everything else stays "
               "exactly as it was. Leave the box below empty to remove what's there, or say what "
-              "should go there instead. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "should go there instead. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Fix one marked spot in a picture (needs a mask painted in the Tools tab): TYPE: "
                    "fix-spot, INPUT: the picture file(s), FORMAT: what goes there (empty = remove it). "
                    "No CHUNKS, no OPTIONS.",
@@ -706,7 +706,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "Two or three pictures into one.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          help="Add 2 or 3 pictures and say how to combine them, calling them picture 1, 2 and 3 in "
               "the order you added them (\"put the mug from picture 2 on the table in picture 1\"). "
-              "Makes one new picture. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "Makes one new picture. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Combine 2-3 pictures into one: TYPE: merge-pictures, INPUT: the picture files in "
                    "order, FORMAT: how to combine them, naming them picture 1, 2, 3. No CHUNKS, no OPTIONS.",
          examples=("Put my dog from this photo into the beach picture", "Place my mug on this kitchen counter"),
@@ -715,7 +715,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("relight", "Change the lighting", "Pictures",
          "Golden hour, studio light, night...", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          options=(Option("light", "Light", choices=tuple((k, v[0]) for k, v in RELIGHTS.items()), value="golden"),),
-         help="Changes only the light and shadows; people, things and the scene stay the same. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+         help="Changes only the light and shadows; people, things and the scene stay the same. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Change the lighting of pictures: TYPE: relight, INPUT: the picture file(s), "
                    "OPTIONS: light " + "|".join(RELIGHTS) + ", FORMAT: extra wishes (optional). No CHUNKS.",
          examples=("Make this photo look like golden hour", "Give my product photo studio lighting"),
@@ -724,7 +724,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "Your picture as watercolor, anime, a sketch...", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          options=(Option("style", "Style", choices=tuple((k, v[0]) for k, v in RESTYLES.items()), value="watercolor"),),
          help="Keeps what's in the picture and how it's laid out; changes how it's drawn. \"Like my "
-              "last picture\" copies the look of the LAST picture you add onto the others. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "last picture\" copies the look of the LAST picture you add onto the others. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Redraw pictures in another art style: TYPE: restyle, INPUT: the picture file(s) "
                    "(for 'picture', the last file is the style example), OPTIONS: style "
                    + "|".join(RESTYLES) + ". No CHUNKS.",
@@ -736,7 +736,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          options=(Option("change", "How much may change", choices=(
              ("little", "A little (stays close)"), ("some", "Some"), ("lots", "A lot (freer)")), value="some"),),
          help="Say what it should look like; a little keeps it close to your picture, a lot gives the "
-              "AI more freedom. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "AI more freedom. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Redraw pictures with a chosen amount of change: TYPE: redraw, INPUT: the picture "
                    "file(s), OPTIONS: change little|some|lots, FORMAT: what it should look like. No CHUNKS.",
          examples=("Make this sketch look finished", "Turn my rough drawing into a clean picture"),
@@ -747,7 +747,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
              ("wider", "Wider (for a banner or desktop)"), ("taller", "Taller (for a phone or story)"),
              ("square", "Square (for a post)"), ("around", "Bigger all around")), value="wider"),),
          help="Your picture stays untouched in the middle; the AI paints the new parts around it to "
-              "match. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "match. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Extend pictures (outpaint): TYPE: make-bigger, INPUT: the picture file(s), OPTIONS: "
                    "shape wider|taller|square|around. No CHUNKS.",
          examples=("Make this photo wide enough for a banner", "Make my picture tall for a phone wallpaper"),
@@ -756,7 +756,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "One character, many pictures that match.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          help="Add one picture of your character (a mascot, a drawing, a toy) and write one scene per "
               "line, or separate them with ;. Each scene gets its own picture with the same face, "
-              "outfit and colors. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "outfit and colors. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="The same character in new scenes: TYPE: character-scenes, INPUT: one picture of the "
                    "character, FORMAT: one scene per line. No CHUNKS, no OPTIONS.",
          examples=("Put my mascot in 5 different scenes", "Show my dragon drawing at the beach and in space"),
@@ -765,7 +765,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("character-spin", "Character turnaround", "Pictures",
          "Front, side and back views, plus a sheet.", accepts=COMFY_PHOTO_EXT, needs=("comfy",), ready=True,
          help="Add one picture of a character; Joe makes six views (front, three-quarter, sides, back) "
-              "and puts them side by side on one sheet. Handy for drawing, 3D and games. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture. Your originals are never changed.",
+              "and puts them side by side on one sheet. Handy for drawing, 3D and games. " + "Uses the Qwen-Image-Edit 2511 picture editor (Apache-2.0, about 31 GB, offered once; the same one Edit a picture uses), about 1-3 minutes a picture on a big graphics card (about 4-5 minutes on a 12 GB card, which reads your request on the processor). Your originals are never changed.",
          plan_hint="Character turnaround (front/side/back views): TYPE: character-spin, INPUT: one "
                    "picture of the character. No CHUNKS, no OPTIONS.",
          examples=("Make a turnaround sheet of my mascot", "Show my character from every side")),
@@ -1751,7 +1751,9 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
 PROOF_SYSTEM = """You are a careful proofreader. You fix real mistakes only: spelling, grammar,
 punctuation, wrong or missing words, repeated words.{clarity} You never rewrite the writing in
 your own style: keep the writer's voice, tone, word choices, spelling style and formatting.
-Never add facts. Reply with ONLY a JSON array, nothing before or after it."""
+Never add facts. Never change names, web addresses, email addresses or words spelled out the way
+they are spoken (like "dot com"): leave them exactly as written. Don't change a verb's tense
+unless it is clearly a mistake. Reply with ONLY a JSON array, nothing before or after it."""
 PROOF_CLARITY = (" You may also fix sentences that are confusing or awkward, changing as few "
                  "words as you can.")
 PROOF_ASK = """Proofread the text between <<< and >>>.
@@ -1884,6 +1886,36 @@ def _same_case(original: str, new: str) -> str:
     return new
 
 
+_WEBBY = re.compile(r"(?i)https?://|www\.|@|\b[\w-]+\.(?:com|org|net|edu|gov|io|ai|co|uk|us|info|app|dev)\b|"
+                    r"\bdot\s+(?:com|org|net|edu|gov|io|ai|co)\b")
+
+
+def touches_name(find: str, replace: str) -> bool:
+    """A fix that would change a web address, an email, a spoken-out address ('dot com') or a
+    name: proofreading turned 'Sunny Day Cafe dot com' into 'SunnyDayCafeO.com'. Those are left alone."""
+    if find == replace:
+        return False
+    if _WEBBY.search(find) and " ".join(_WEBBY.findall(find)).lower() != " ".join(_WEBBY.findall(replace)).lower():
+        return True
+    if _WEBBY.search(find) or _WEBBY.search(replace):
+        fw = re.findall(r"\S+", find)
+        def webby(ws):
+            return [w.rstrip(".,;:!?)\"'’”") for w in ws if _WEBBY.search(w)]
+        if webby(fw) != webby(re.findall(r"\S+", replace)):
+            return True
+    words = re.findall(r"[A-Za-z][\w'’-]*", find)
+    rwords = set(re.findall(r"[A-Za-z][\w'’-]*", replace))
+    for n, w in enumerate(words):
+        if n == 0 or w == "I" or not w[0].isupper():
+            continue                                     # first word: a sentence start, not a name
+        before = find[:find.find(w)].rstrip()
+        if before.endswith((".", "!", "?", ":", "\n")):
+            continue
+        if w not in rwords:
+            return True
+    return False
+
+
 def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[str, list, list, list]:
     """Apply exact-match fixes. Returns (text, applied, noted, missed); each change gets a
     paragraph number ("par"). Nothing is changed that isn't on the applied list."""
@@ -1906,6 +1938,10 @@ def apply_changes(text: str, changes: list[dict], first_par: int = 1) -> tuple[s
                 c = dict(c, replace=r)
         par = first_par + (len(re.findall(r"\n[ \t]*\n", text[:pos])) if pos >= 0 else 0)
         c = dict(c, par=par if pos >= 0 else 0)
+        if f != r and touches_name(f, r):
+            noted.append(dict(c, why=(c.get("why") or "suggested") + f" → {_q(r)}; not changed: names and "
+                                     "web addresses are left as written"))
+            continue
         if f == r:
             if is_doubt(c.get("why", "")):
                 noted.append(c)                   # a real question for the reader

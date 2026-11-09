@@ -90,7 +90,7 @@ def test_speeds_learn_from_runs_and_speed_test(app):
             f.write(json.dumps({"kind": "image", "ok": True, "seconds": s}) + "\n")
         f.write(json.dumps({"kind": "image", "ok": False, "seconds": 99}) + "\n")
     sp = stats.speeds(app.sb)
-    assert sp["part"] == round(12 * 1.15, 1) and sp["image"] == 5 and sp["video"] == 240
+    assert sp["part"] == round(12 * 1.15, 1) and sp["image"] == 5 and sp["video"] == 600
     chk = app.check("TASK: A  CHUNKS: 10 x 5\nTASK: P  TYPE: image  CHUNKS: 1 x 6")
     assert chk["eta_learned"] and chk["eta_min"] == round((10 * 13.8 + 6 * 5 + 6 * 6) / 60)
 

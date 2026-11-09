@@ -87,6 +87,11 @@ In Step by step (F6) it's **Use the names from**.
   by Animate a photo). EDIT unlocks a box; your copy replaces Joe's for that workflow, and JOE'S
   WORDS puts his back. Below them, **also add** / **also leave out** take your extra words, and (for
   pictures) the number of steps. RESET THIS WORKFLOW brings everything back to how Joe came.
+  Pictures and each picture style also have **FINE-TUNING**, filled in with Joe's own values (hover
+  each for what it does): **prompt strength (CFG)** (lower it to 4-5 when pictures get fake writing
+  or look overcooked), **style add-on strength** (LoRA), the **detail pass** (auto / on / off) and
+  how much it may repaint, the **sampler**, and **versions per prompt** (make 3 and pick the best:
+  handy for people and animals). Only the values you change are kept.
 - **Folder and file boxes** (Joe's folder, ComfyUI's models/output folders, start commands, FFmpeg):
   the [ + ] button next to each opens this computer's own chooser and fills the box. Press SAVE.
 - **Restart Joe**: a bar with RESTART JOE shows up when a restart helps: newer Joe files were copied
@@ -343,7 +348,10 @@ Step by step (the Builder) makes the mission for you with simple forms:
 - **MORE** (left) has the profile, IMPORT for a pasted mission, and START OVER.
 - **RUN IT** starts it. **ADD TO QUEUE** adds it after whatever Joe is doing. Queued missions
   run one after another until all are done, with one combined morning report. Sleep/shut down
-  happens only after the last one.
+  happens only after the last one. **STOP** (F5) finishes the step Joe is on; missions still
+  waiting in line are kept **ON HOLD** (shown under the queue, saved in `Missions\Queue\on hold\`),
+  never thrown away: **RUN THEM** puts them back in line in the same order, **CLEAR** puts them
+  away (a copy stays in `Queue\done\`).
 - **SAVE** keeps it in `Missions\` under a name. **PAST MISSIONS** lists every mission you've
   run, how many tasks finished, and LOAD / RUN buttons to revisit one. **DEL** removes one from
   the list and **CLEAN UP** clears them all (both ask first and use the Recycle Bin; only the saved

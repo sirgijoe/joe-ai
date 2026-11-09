@@ -534,6 +534,12 @@ TRUE_LEVELS = {   # contrast and color, applied ONCE (rounds repeat only blur + 
 }
 
 
+# A gentle finish after the white balance: the cast fix lifted a real print's darkest parts (from
+# 19 to a flat grey, showcase QC 2026-11-09). Only the deep shadows move; mid-tones and
+# highlights stay where they are, so nothing looks "processed".
+SHADOWS = "curves=master='0/0 0.06/0.035 0.2/0.18 0.5/0.5 1/1'"
+
+
 def measure(ffmpeg: str, src: Path) -> dict:
     """Brightness numbers of the photo (FFmpeg signalstats): YLOW = how dark its darkest tenth is
     (0-255; a faded print's blacks have turned grey, so it reads high). {} if unreadable."""
@@ -574,6 +580,8 @@ def true_restore_command(ffmpeg: str, src: Path, dest: Path, turn: int = 1, fact
     parts += [TRUE_LEVELS.get(level, TRUE_LEVELS["medium"]), _FIRST] + [_ROUND if cast else _ROUND_OLD] * ROUNDS
     if whites and not sepia:
         parts.append(whites)                       # the photo's own whites made white (white_fix)
+    if cast and not sepia:
+        parts.append(SHADOWS)                      # the white balance lifts the shadows a little
     if sepia:
         parts.append(SEPIA_TONE)
     if factor:
@@ -856,6 +864,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
                     made = [_on_white(engine, folder, m) for m in made]
                 made = (makers.after(engine, job, tid, item, folder, made) if tid in makers.TOOLS
                         else after_edit(engine, job, tid, item, folder, made, faces))
+                if tid == "make-bigger" and isinstance(item, dict) and item.get("then"):
+                    made = _bigger_second(engine, job, tid, item, folder, made, client, i, opts, kind,
+                                          prefix, cpu_enc, faces)
                 try:
                     from .storage import delete_comfy_copies
                     delete_comfy_copies(engine.s, outs)
@@ -880,7 +891,12 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             st.media_files.extend(made)
             st.items += 1
             engine._save_state(job, st)
-            engine.log(f"  {label} -> {', '.join(made)} ({took:.0f} s)")
+            if tid == "music":                    # "(11 s)" read like the track's length
+                from .tools import option_value as _ov
+                engine.log(f"  {label} -> {', '.join(made)} (a {float(_ov(job, 'length') or 30):g} s "
+                           f"{'sound' if kind == 'sfx' else 'track'}, made in {took:.0f} s)")
+            else:
+                engine.log(f"  {label} -> {', '.join(made)} (made in {took:.0f} s)")
         if tid == "character-spin":
             spin_sheet(engine, folder, st)
         if tid in makers.TOOLS:
@@ -1119,20 +1135,19 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
         if not ff:
             return [], [], "needs FFmpeg (Setup > System check installs it)"
         shape = option_value(job, "shape") or "wider"
+        # "Bigger all around" in one go came back with a plain white frame (the editor read the
+        # blurry surround as a mat around a print). It's done as wider, then taller, instead:
+        # both of those fill in properly.
+        first, then = ("wider", "taller") if shape == "around" else (shape, "")
         for f0 in files:
             f = _upright(engine, ff, f0)          # phone photos stored sideways: pad the upright view
-            pad = media.pad_for_outpaint(ff, f, _work_dir(engine) / f"{wkey(f0)}-padded.png", shape)
+            pad = media.pad_for_outpaint(ff, f, _work_dir(engine) / f"{wkey(f0)}-padded.png", first)
             if not pad:
                 engine.log(f"  Couldn't read {f.name}; skipped.")
                 continue
             items.append({"src": pad[0], "stem": slug(f0.stem) + f"-{shape}", "label": f0.name,
                           "key": f"bigger {f0.name} {shape}", "padded": pad[0], "inner": pad[1],
-                          "prompt": "The sharp middle of this picture is the real photo; the blurry parts around "
-                                    "it are empty space to fill. Replace every blurry part with sharp, detailed "
-                                    "scenery that continues the middle naturally, with the same light, style, "
-                                    "colors and perspective, and no visible seams or frames."
-                                    + (f" Around it: {extra}." if extra else "") +
-                                    " Keep the sharp middle exactly as it is."})
+                          "then": then, "prompt": bigger_prompt(extra)})
         if not items:
             return [], [], "couldn't read the pictures"
     elif tid == "character-scenes":
@@ -1154,6 +1169,71 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
     if tid not in TOOLS:
         return [], [], f"unknown tool {tid}"
     return items, [it["key"] for it in items], ""
+
+
+def bigger_prompt(extra: str = "") -> str:
+    return ("The sharp middle of this picture is the real photo; the blurry parts around it are empty space "
+            "to fill. Replace every blurry part with sharp, detailed scenery that continues the middle "
+            "naturally, with the same light, style, colors and perspective, all the way to the edges of the "
+            "picture: no borders, frames, white margins or seams."
+            + (f" Around it: {extra}." if extra else "") + " Keep the sharp middle exactly as it is.")
+
+
+def _bigger_second(engine, job, tid, item: dict, folder: Path, made: list[str], client, i, opts, kind,
+                   prefix, cpu, faces) -> list[str]:
+    """Bigger all around, step 2: the wider picture made taller the same way."""
+    from . import media
+    ff = _ffmpeg(engine)
+    if not ff or not made:
+        return made
+    out = folder / made[0]
+    pad = media.pad_for_outpaint(ff, out, _work_dir(engine) / f"{out.stem}-padded2.png", item["then"])
+    if not pad:
+        return made
+    engine.log("  Wider done; now adding space above and below.")
+    step = dict(item, src=pad[0], padded=pad[0], inner=pad[1], then="")
+    graph, _, _ = _graph_for(engine, job, tid, step, i, opts, kind, 0, prefix, client, cpu=cpu)
+    entry = client.wait(client.submit(graph), stop=engine.stop)
+    outs = outputs_of(entry)
+    if not outs:
+        raise comfy_mod.WorkflowError("ComfyUI finished but saved nothing")
+    out.write_bytes(client.download(outs[0]))
+    made = after_edit(engine, job, tid, step, folder, [made[0]], faces)
+    try:
+        from .storage import delete_comfy_copies
+        delete_comfy_copies(engine.s, outs)
+    except Exception:                       # noqa: BLE001 (tidying only)
+        pass
+    return made
+
+
+# The editor works at about 1 megapixel, so its result came back smaller than the photo
+# (2016x1152 in, 1360x768 out). These tools give it back at the photo's own size.
+SAME_SIZE = ("edit-picture", "relight", "restyle", "redraw")
+
+
+def _keep_size(engine, ff: str, src: Path | None, out: Path) -> None:
+    from . import media
+    if not src or not out.exists():
+        return
+    a, b = media.size_of(ff, src), media.size_of(ff, out)
+    if not a or not b or b[0] >= a[0] or b[1] >= a[1]:
+        return
+    if abs(a[0] / a[1] - b[0] / b[1]) > 0.04:
+        if abs(a[1] / a[0] - b[0] / b[1]) > 0.04:
+            return                                   # a different shape: leave it as the editor made it
+        a = (a[1], a[0])                             # a phone photo stored sideways
+    import subprocess
+    from .system import no_window_flags
+    tmp = out.with_suffix(".big.png")
+    try:
+        subprocess.run([ff, "-y", "-v", "error", "-i", str(out), "-vf", f"scale={a[0]}:{a[1]}:flags=lanczos",
+                        "-frames:v", "1", str(tmp)], capture_output=True, timeout=300, creationflags=no_window_flags())
+    except (OSError, subprocess.SubprocessError):
+        return
+    if tmp.exists():
+        tmp.replace(out)
+        engine.log(f"  Back to your picture's own size ({a[0]}x{a[1]}).")
 
 
 def _upright(engine, ff: str, f: Path) -> Path:
@@ -1183,6 +1263,8 @@ def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces
         return made
     out = folder / made[0]
     try:
+        if tid in SAME_SIZE:
+            _keep_size(engine, ff, item if isinstance(item, Path) else item.get("src") if isinstance(item, dict) else None, out)
         if tid == "fix-spot" and isinstance(item, dict):
             if media.blend(ff, item["src"], out, item["mask"], out.with_suffix(".tmp.png")):
                 out.with_suffix(".tmp.png").replace(out)
@@ -1191,11 +1273,22 @@ def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces
             size = media.size_of(ff, item["padded"])
             keep = _work_dir(engine) / f"{out.stem}-keep.png"
             x, y, w, h = item["inner"]
-            edge = max(4, min(w, h) // 40)                        # blend a little inside the edge
-            if size and media.rect_mask(ff, size, (x + edge, y + edge, w - 2 * edge, h - 2 * edge), keep) and \
+            # A wide soft blend just inside the edge (a narrow one left a faint seam in skies)
+            edge = max(6, min(w, h) // 20)
+            # inner keeps every side that didn't grow sharp; only grown sides get the soft blend
+            W, H = size or (0, 0)
+            l = edge if x > 0 else 0
+            t = edge if y > 0 else 0
+            r = edge if x + w < W else 0
+            b = edge if y + h < H else 0
+            if size and media.rect_mask(ff, size, (x + l, y + t, w - l - r, h - t - b), keep) and \
                     media.blend(ff, item["padded"], out, keep, out.with_suffix(".tmp.png"), feather=edge / 2):
                 out.with_suffix(".tmp.png").replace(out)
-                engine.log("  Your picture is untouched in the middle; the AI filled in around it.")
+                if media.border_is_flat(ff, out, (x, y, w, h), size):
+                    raise comfy_mod.WorkflowError("the AI left the new space blank (one flat colour), so nothing was "
+                                     "painted. Try again, or describe what's around it in the box")
+                if not item.get("then"):
+                    engine.log("  Your picture is untouched in the middle; the AI filled in around it.")
         elif tid == "restore-photo" and isinstance(item, Path) and faces.get(item):
             truer = _work_dir(engine) / f"{out.stem}-true.png"
             import subprocess
@@ -1211,6 +1304,8 @@ def after_edit(engine, job, tid: str, item, folder: Path, made: list[str], faces
                 out.with_suffix(".tmp.png").replace(out)
                 engine.log(f"  Kept the real face{'s' if len(faces[item]) > 1 else ''} "
                            f"({len(faces[item])}), restored true to the photo.")
+    except comfy_mod.WorkflowError:
+        raise                                         # a real failure (blank border): not "done"
     except (OSError, ValueError) as e:
         engine.log(f"  Couldn't finish {out.name}: {e}")
     return made

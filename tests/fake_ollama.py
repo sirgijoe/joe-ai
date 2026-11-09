@@ -180,7 +180,7 @@ class FakeOllama:
                 return 200, self._reply(json.dumps({"meals": [{"day": "Day 1", "breakfast": "Oats", "lunch": "Beans", "dinner": "Rice"}],
                     "shopping": [{"item": "Rice", "amount": "10 lb", "price": 9.5, "from_list": own},
                                  {"item": "Beans", "amount": "4 lb", "price": "$6.25", "from_list": False},
-                                 {"item": "Eggs", "amount": "5 dozen", "price": 80, "from_list": False}],
+                                 {"item": "Eggs", "amount": "5 dozen", "price": 60 if "hard limit" in user and "over the" in user and "$80.00" in user else 80, "from_list": False}],
                     "tips": ["Cook beans from dry"]}))
             if sysmsg.startswith("You pull dates out of the person's notes"):
                 return 200, self._reply(json.dumps({"events": [

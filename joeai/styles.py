@@ -40,8 +40,8 @@ PHOTO_NOTE = ("STYLE: real photograph. In every prompt name the lens (85mm portr
               "where the light comes from (soft window light, overcast daylight, golden hour from the left), "
               "depth of field, and natural texture (skin pores, fabric weave, worn surfaces). Avoid 'perfect', "
               "'flawless', 'well-lit'.")
-NEG_PHOTO = ("cartoon, illustration, painting, drawing, anime, 3d render, cgi, plastic skin, airbrushed, "
-             "overly smooth, oversaturated, doll")
+NEG_PHOTO = ("cartoon, illustration, painting, drawing, anime, 3d render, cgi, plastic skin, waxy skin, airbrushed, "
+             "overly smooth, oversaturated, doll, cloned faces, identical twins, merged bodies, brand logo")
 NEG_ART = "photo, photograph, photorealistic, realistic skin, 3d render, cgi, film grain, lens blur"
 
 
@@ -56,6 +56,8 @@ class Style:
     lora: tuple = ()        # words in a LoRA file name that give this look (used when one is installed)
     lora_strength: float = 0.8
     sampler: str = ""       # "" = Setup's sampler
+    hires: bool = True      # the High-quality 1.5x detail pass (it smears crisp pixel art)
+    pixelate: int = 0       # >1 = finish with real square pixels this many screen pixels wide
 
 
 STYLES = {
@@ -96,7 +98,8 @@ STYLES = {
                    "STYLE: retro pixel art like a 16-bit video game. Small limited palette, crisp square "
                    "pixels, simple readable shapes, no smooth gradients.",
                    "pixel art, 16-bit, limited palette, crisp pixels",
-                   NEG_ART + ", blurry, smooth gradients, soft shading, anti-aliasing, high detail", cfg=1.0, lora=("pixel",)),
+                   NEG_ART + ", blurry, smooth gradients, soft shading, anti-aliasing, high detail", cfg=1.0, lora=("pixel",),
+                   lora_strength=1.0, hires=False, pixelate=8),
     "surreal": Style("surreal", "Surreal / abstract",
                      "STYLE: surreal or abstract art. Dreamlike impossible scenes, unexpected scale and "
                      "combinations, or non-representational shapes and color fields; still a clear focal point.",
@@ -117,9 +120,12 @@ STYLES = {
                      "sweeping landscapes, painterly lighting, a clear hero subject.",
                      "fantasy art, epic, detailed", "photo, modern city, cars, phones, plain"),
     "cyberpunk": Style("cyberpunk", "Cyberpunk",
-                       "STYLE: cyberpunk. Rainy night streets, neon signs and holograms, cyan and magenta light, "
-                       "wet reflections, dense city, cybernetic details, haze.",
-                       "cyberpunk, neon lights, rainy night, cinematic", "daylight, rural, medieval, pastel"),
+                       "STYLE: cyberpunk. Rainy night streets, abstract neon light strips and shapes, holograms, "
+                       "cyan and magenta light, wet reflections, dense city, cybernetic details, haze. Never "
+                       "describe signs, billboards or anything with writing on it (picture models can't spell).",
+                       "cyberpunk, abstract neon light strips, no signage, rainy night, cinematic",
+                       "text, letters, words, readable signs, signage, billboard text, typography, logo, "
+                       "daylight, rural, medieval, pastel", cfg=-1.0),
     "comic": Style("comic", "Comic book",
                    "STYLE: American comic book art. Bold inked outlines, dramatic poses and angles, strong "
                    "shadows, flat bright colors with halftone dots. No camera or lens words.",
@@ -147,8 +153,8 @@ STYLES = {
     "product": Style("product", "Product shot",
                      "STYLE: studio product photo. The item alone, centered, on a clean seamless background, "
                      "softbox lighting with a gentle shadow, sharp focus, 70-100mm lens, true colors.",
-                     "studio product photo, seamless background",
-                     NEG_PHOTO + ", clutter, hands, people", cfg=-1.0),
+                     "studio product photo, seamless background, generic unbranded",
+                     NEG_PHOTO + ", clutter, hands, people, brand name, trademark", cfg=-1.0),
     "coloring": Style("coloring", "Coloring page",
                       "STYLE: coloring-book page. Black outlines on white only: thick clean lines, large "
                       "simple areas to color, no shading, no gray, no color, no texture.",
@@ -157,6 +163,23 @@ STYLES = {
                       "color, colored, shading, shadows, gray, grayscale, gradient, texture, photo, "
                       "realistic, filled areas", cfg=1.0, lora=("coloring", "coloringbook", "lineart", "line_art", "line-art"), lora_strength=0.9),
 }
+
+# Groups and riders: the picture models (SDXL photo models especially) clone faces, merge
+# bodies and lose limbs when they have to fit 3+ people or a person on an animal into one frame
+# (showcase QC 2026-11-09: family of five, campfire friends, father and daughter on a horse).
+_PEOPLE = r"(?:people|persons|adults|kids|children|friends|men|women|boys|girls|siblings|family|grandchildren)"
+_GROUP = re.compile(r"\b(?:(?:three|four|five|six|seven|eight|nine|ten|[3-9]|\d{2})\s+(?:\w+\s+)?" + _PEOPLE +
+                    r"|family of (?:three|four|five|six|seven|eight|[3-9])|group of|crowd|team of|"
+                    r"whole family|friends (?:around|at|on|by)|class photo|wedding party)\b", re.I)
+_RIDER = re.compile(r"\b(?:on|riding|rides|astride)\s+(?:a |an |the |his |her |their )?(?:\w+\s+)?"
+                    r"(?:horse|pony|donkey|camel|elephant|bike|bicycle|motorcycle)|horseback\b", re.I)
+GROUP_WORDS = "medium shot, every face different, natural poses, correct anatomy"
+
+
+def crowded(prompt: str) -> bool:
+    """A picture of 3+ people or someone riding: frame it wider and ask for different faces."""
+    return bool(_GROUP.search(prompt or "") or _RIDER.search(prompt or ""))
+
 
 # the style with the most matching words wins (ties: the earlier one here)
 _WORDS = [

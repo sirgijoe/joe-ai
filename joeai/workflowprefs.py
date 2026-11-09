@@ -15,7 +15,45 @@ from __future__ import annotations
 
 from pathlib import Path
 
-FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave")
+FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave",
+          "cfg", "lora", "hires", "denoise", "sampler", "versions")
+# Fine-tuning for the built-in picture graph (Pictures and each picture style). Shown filled in
+# with Joe's own value; only a value that differs from Joe's is stored. Showcase QC 2026-11-09:
+# several bad pictures were one fixed setting overpowering the words (neon signs: prompt
+# strength; pixel art: the detail pass; people: the detail pass repainting faces).
+TUNE = ("cfg", "lora", "hires", "denoise", "sampler", "versions")
+SAMPLERS = ("euler", "euler_ancestral", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sde", "dpmpp_sde", "uni_pc", "ddim")
+TUNE_HELP = {
+    "cfg": "Prompt strength (CFG): how hard the picture follows your words. Lower = more natural, "
+           "fewer made-up details (try 4-5 if pictures get fake writing or look overcooked); higher = "
+           "follows the words more literally.",
+    "lora": "Style add-on strength (LoRA): how much the style's add-on changes the look, 0 to 1.5. "
+            "Only used when the add-on is installed.",
+    "hires": "Detail pass: a second, 1.5x bigger pass that adds fine detail. Auto = only on High "
+             "quality. Turn it off for crisp pixel art or flat styles.",
+    "denoise": "Detail pass strength: how much the detail pass may repaint (0.2-0.6). Lower keeps "
+               "faces and hands as they were.",
+    "sampler": "Sampler: the method that draws the picture. Joe's pick suits most pictures.",
+    "versions": "Versions per prompt: make several and pick the best (people and animals go wrong "
+                "more often). A task's own VARIANTS wins.",
+}
+
+
+def tune_defaults(wid: str) -> dict:
+    """Joe's own fine-tuning values for a picture workflow (SDXL numbers), or {}."""
+    if wid != "pictures" and not wid.startswith("style:"):
+        return {}
+    from . import styles
+    st = _originals()["styles"].get(wid[6:]) if wid.startswith("style:") else None
+    if wid.startswith("style:") and st is None:
+        return {}
+    shift = st.cfg if st else 0.0
+    out = {"cfg": round(max(2.0, 6.0 + shift), 1), "hires": "auto" if (st is None or st.hires) else "off",
+           "denoise": 0.4, "sampler": (st.sampler if st and st.sampler else ""), "versions": 1}
+    if st is not None and st.lora:
+        out["lora"] = st.lora_strength
+    _ = styles
+    return out
 TEXT_FIELDS = ("note", "words", "leave")       # Joe's own words, shown and editable (replace his)
 TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe adds to every prompt",
                "leave": "Joe's leave-out list (negative prompt)"}
@@ -92,6 +130,28 @@ def _clean(p: dict | None, wid: str = "") -> dict:
         steps = 0
     if 1 <= steps <= 150:
         out["steps"] = steps
+    joe = tune_defaults(wid) if wid else {}
+    for k, lo, hi in (("cfg", 1.0, 20.0), ("lora", 0.0, 2.0), ("denoise", 0.1, 0.8)):
+        if p.get(k) in (None, ""):
+            continue
+        try:
+            v = round(float(p[k]), 2)
+        except (TypeError, ValueError):
+            continue
+        if lo <= v <= hi and (k not in joe or abs(v - float(joe[k])) > 1e-6):
+            out[k] = v
+    h = str(p.get("hires") or "").lower()
+    if h in ("on", "off", "auto") and h != joe.get("hires", "auto"):
+        out["hires"] = h
+    sm = str(p.get("sampler") or "")
+    if sm in SAMPLERS and sm != joe.get("sampler", ""):
+        out["sampler"] = sm
+    try:
+        n = int(p.get("versions") or 0)
+    except (TypeError, ValueError):
+        n = 0
+    if 2 <= n <= 6:
+        out["versions"] = n
     return out
 
 
@@ -133,7 +193,7 @@ def merged(settings, ids: list[str]) -> dict:
     adds, avoids = [], []
     for wid in ids:
         p = get(settings, wid)
-        for k in ("model", "steps"):
+        for k in ("model", "steps") + TUNE:
             if k in p and k not in out:
                 out[k] = p[k]
         if p.get("add"):
@@ -169,21 +229,23 @@ def entries(settings, sb, models_dir: Path | None) -> dict:
 
     for wid, (group, label, about, can_model, can_steps) in BUILTIN.items():
         rows.append({"id": wid, "group": group, "label": label, "about": about, "model_ok": can_model,
-                     "steps_ok": can_steps, "prefs": get(settings, wid), "texts": texts(wid)})
+                     "steps_ok": can_steps, "prefs": get(settings, wid), "texts": texts(wid),
+                     "tune": tune_defaults(wid)})
     for sid in styles.NAMES:
         if sid == "general":
             continue
         st = styles.STYLES[sid]
         rows.append({"id": f"style:{sid}", "group": "Picture styles", "label": st.label,
                      "about": f"Pictures with STYLE: {sid}.", "model_ok": True, "steps_ok": True,
-                     "prefs": get(settings, f"style:{sid}"), "texts": texts(f"style:{sid}")})
+                     "prefs": get(settings, f"style:{sid}"), "texts": texts(f"style:{sid}"),
+                     "tune": tune_defaults(f"style:{sid}")})
     folder = sb.workflows
     for f in sorted(folder.glob("*.json")) if folder.is_dir() else []:
         rows.append({"id": f"file:{f.name}", "group": "Your workflow files", "label": f.name,
                      "about": "A workflow you imported (Workflows folder). The model is used if the file has "
                               "a checkpoint loader.", "model_ok": True, "steps_ok": False,
                      "prefs": get(settings, f"file:{f.name}"), "texts": []})
-    return {"rows": rows, "models": pics}
+    return {"rows": rows, "models": pics, "samplers": list(SAMPLERS), "tune_help": TUNE_HELP}
 
 
 def save(settings, wid: str, prefs: dict | None) -> dict:
