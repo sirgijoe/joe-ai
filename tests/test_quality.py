@@ -112,15 +112,16 @@ def test_doctor_offers_the_best_models(tmp_path, monkeypatch):
         models = [{"name": "qwen3:4b", "writer": True, "params": "4.0B", "size_gb": 2.6, "family": "qwen3"}]
         monkeypatch.setattr(doctor, "ollama_models", lambda sm: models)
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
-        assert ids["upgrade-model"]["model"] == "qwen3:14b"          # 12 GB card: 14B fits
+        assert ids["upgrade-model"]["model"] == "gemma4:12b"         # 12 GB card: Joe's pick for it
+        assert [c["role"] for c in ids["upgrade-model"]["choices"]] == ["recommended", "alternative", "free"]
         assert "pull-talk-model" not in ids                           # a 4B model is already quick
         models[:] = [{"name": "qwen3:14b", "writer": True, "params": "14.8B", "size_gb": 9.3, "family": "qwen3"}]
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
-        assert "upgrade-model" not in ids
+        assert "upgrade-model" not in ids                             # an offered choice is already in
         assert ids["pull-talk-model"]["set"] == "talk"
         s.quality.writing = "low"
         ids = {i["id"]: i for i in doctor.check(s, ServiceManager(s))["issues"]}
-        assert ids["pull-small-model"]["model"] == "qwen3:8b"
+        assert ids["pull-small-model"]["model"] == "llama3.1:8b"
         # Turbo add-on is offered once the video model is there
         for folder, name, _ in comfy.WAN_VIDEO["files"]:
             (tmp_path / "models" / folder).mkdir(parents=True, exist_ok=True)

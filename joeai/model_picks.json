@@ -1,37 +1,147 @@
 {
   "version": 1,
-  "updated": "2026-11-04",
-  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
+  "updated": "2026-11-08",
+  "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"writing\": \"role\" recommended (Joe's pick), alternative (the other good choice) or free (little to no filtering); Joe's pick for each card size (name) plus \"others\": two more choices the person can pick instead, each with who made it and a plain note. At least one choice per size is lightly filtered or unfiltered (\"role\": \"free\"), so people can pick freedom over a company's filters. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
   "writing": [
     {
       "min_vram": 22,
-      "name": "qwen3:32b",
-      "size_gb": 20.0
+      "name": "gemma4:31b",
+      "size_gb": 20.0,
+      "label": "Gemma 4 31B",
+      "maker": "Google",
+      "note": "The best all-round writer that fits this card. Answers news and history questions plainly, with the usual company safety filters.",
+      "others": [
+        {
+          "name": "qwen3:32b",
+          "size_gb": 20.0,
+          "label": "Qwen 3 32B",
+          "maker": "Alibaba (China)",
+          "note": "About as good a writer as Joe's pick, and stronger at code, math and many languages. Downside: made in China, so it often dodges or refuses questions about Chinese politics and history.",
+          "role": "alternative"
+        },
+        {
+          "name": "mistral-small3.2:24b",
+          "size_gb": 15.0,
+          "label": "Mistral Small 3.2 24B",
+          "maker": "Mistral AI (France)",
+          "note": "Follows your instructions with very few refusals. Downside: a bit less accurate than Joe's pick on facts and reasoning.",
+          "role": "free"
+        }
+      ],
+      "role": "recommended"
     },
     {
       "min_vram": 10,
-      "name": "qwen3:14b",
-      "size_gb": 9.3
+      "name": "gemma4:12b",
+      "size_gb": 7.6,
+      "label": "Gemma 4 12B",
+      "maker": "Google",
+      "note": "The best balance of quality and speed for this card. Answers news and history questions plainly, with the usual company safety filters.",
+      "others": [
+        {
+          "name": "qwen3:14b",
+          "size_gb": 9.3,
+          "label": "Qwen 3 14B",
+          "maker": "Alibaba (China)",
+          "note": "About as good a writer as Joe's pick, and stronger at code, math and many languages. Downside: made in China, so it often dodges or refuses questions about Chinese politics and history.",
+          "role": "alternative"
+        },
+        {
+          "name": "mistral-nemo:12b",
+          "size_gb": 7.1,
+          "label": "Mistral Nemo 12B",
+          "maker": "Mistral AI (France)",
+          "note": "Follows your instructions with very few refusals. Downside: older (2024), so it's less accurate than Joe's pick on facts and reasoning.",
+          "role": "free"
+        }
+      ],
+      "role": "recommended"
     },
     {
       "min_vram": 6.5,
-      "name": "qwen3:8b",
-      "size_gb": 5.2
+      "name": "llama3.1:8b",
+      "size_gb": 4.9,
+      "label": "Llama 3.1 8B",
+      "maker": "Meta",
+      "note": "A steady, reliable writer that fits this card well. Answers news and history questions plainly, with the usual company safety filters.",
+      "others": [
+        {
+          "name": "qwen3:8b",
+          "size_gb": 5.2,
+          "label": "Qwen 3 8B",
+          "maker": "Alibaba (China)",
+          "note": "About as good a writer as Joe's pick, and stronger at code, math and many languages. Downside: made in China, so it often dodges or refuses questions about Chinese politics and history.",
+          "role": "alternative"
+        },
+        {
+          "name": "dolphin3:8b",
+          "size_gb": 4.9,
+          "label": "Dolphin 3 8B",
+          "maker": "Cognitive Computations (on Meta's Llama 3.1)",
+          "note": "No built-in refusals: it does what you ask, so you're responsible for what it writes. Downside: built on Meta's 2024 Llama, a little less accurate than Joe's pick.",
+          "role": "free"
+        }
+      ],
+      "role": "recommended"
     },
     {
       "min_vram": 3.5,
-      "name": "qwen3:4b",
-      "size_gb": 2.6
+      "name": "gemma3:4b",
+      "size_gb": 3.3,
+      "label": "Gemma 3 4B",
+      "maker": "Google",
+      "note": "Quick and good enough for everyday writing on this card. Simpler drafts than a bigger model, with the usual company safety filters.",
+      "others": [
+        {
+          "name": "qwen3:4b",
+          "size_gb": 2.6,
+          "label": "Qwen 3 4B",
+          "maker": "Alibaba (China)",
+          "note": "Strong for its size, especially at code and other languages. Downside: made in China, so it often dodges or refuses questions about Chinese politics and history.",
+          "role": "alternative"
+        },
+        {
+          "name": "hermes3:3b",
+          "size_gb": 2.0,
+          "label": "Hermes 3 3B",
+          "maker": "Nous Research (on Meta's Llama 3.2)",
+          "note": "Follows your rules, not a company's, with very few refusals. Downside: a small model, so it makes more mistakes and writes simpler drafts.",
+          "role": "free"
+        }
+      ],
+      "role": "recommended"
     },
     {
       "min_vram": 0,
-      "name": "qwen3:1.7b",
-      "size_gb": 1.4
+      "name": "llama3.2:1b",
+      "size_gb": 1.3,
+      "label": "Llama 3.2 1B",
+      "maker": "Meta",
+      "note": "The smallest model that still writes usefully, so it runs on almost any PC. Expect simple drafts and more mistakes than bigger models.",
+      "others": [
+        {
+          "name": "qwen3:1.7b",
+          "size_gb": 1.4,
+          "label": "Qwen 3 1.7B",
+          "maker": "Alibaba (China)",
+          "note": "A little bigger and smarter than Joe's pick. Downside: made in China, so it often dodges or refuses questions about Chinese politics and history.",
+          "role": "alternative"
+        },
+        {
+          "name": "hermes3:3b",
+          "size_gb": 2.0,
+          "label": "Hermes 3 3B",
+          "maker": "Nous Research (on Meta's Llama 3.2)",
+          "note": "Follows your rules, not a company's, with very few refusals. Downside: bigger than Joe's pick (2 GB), so it's slower on a weak PC.",
+          "role": "free"
+        }
+      ],
+      "role": "recommended"
     }
   ],
   "talk": {
-    "name": "qwen3:4b",
-    "size_gb": 2.6
+    "name": "gemma3:4b",
+    "size_gb": 3.3
   },
   "styles": {
     "photo": [

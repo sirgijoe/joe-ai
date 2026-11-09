@@ -386,6 +386,20 @@ to download it: a bigger writing model when your graphics card has room for one,
 model just for Talk, a smaller one when Writing quality is Low, a picture model, the video model
 and its Turbo add-on. Every download asks first.
 
+**Picking a writing model.** For writing, Joe offers three models that fit your graphics card, each
+with who made it and one or two plain sentences on why it's there and what it costs:
+
+- **Recommended**: Joe's pick, the best all-round writer for your card (Gemma 4 or Llama on most PCs).
+- **Alternative recommended**: another strong choice (Qwen 3: better at code and other languages, but
+  made in China, so it often dodges or refuses questions about Chinese politics and history).
+- **Little to no filtering**: follows your instructions with very few refusals (Mistral, Dolphin or
+  Hermes, depending on the card). Usually a little less accurate than Joe's pick; the note says so.
+
+Tick the one you want before pressing the download button. Prefer something else? Type any model's
+name in Setup > Writing > Model (Ollama downloads it the first time), or bring your own model with
+LM Studio, llama.cpp or LocalAI. The list lives in `joeai/model_picks.json` on GitHub, so it can
+change without a new version of Joe.
+
 Every screen has a tab along the top (the F-keys still work). Hover over any button and the
 bottom line says what it does.
 
@@ -465,7 +479,7 @@ several times faster, with a little less detail. Low and Medium use it; High nev
 Restart ComfyUI after downloading it.
 
 When a level works best with a model you don't have yet, Joe says so right under that choice,
-for example "Based on your Low setting, I'd recommend qwen3:8b (5.2 GB) for this. Should we install
+for example "Based on your Low setting, I'd recommend llama3.1:8b (4.9 GB) for this. Should we install
 it?", with a **YES, INSTALL IT** button. The plan for a video task mentions the Turbo add-on the
 same way. Nothing downloads without your yes.
 
@@ -1017,7 +1031,7 @@ Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 
 ## Running it
 
-Needs Python 3.11.4+ (python.org) and Ollama with a model pulled (default `qwen3:14b`).
+Needs Python 3.11.4+ (python.org) and Ollama with a model pulled (System check offers one that fits your PC).
 
 **Double-click `Joe.pyw`.** A window opens (Microsoft Edge in app mode, no
 tabs). Paste a mission, press **F5**. You can close the window; the run keeps going.

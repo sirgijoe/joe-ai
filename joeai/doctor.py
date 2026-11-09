@@ -38,13 +38,14 @@ TOOLS = {
                "label": "FFmpeg (turns frames into MP4 video)"},
 }
 
-# Ollama text models by VRAM (GB). Sizes are the default q4 downloads.
+# Ollama text models by VRAM (GB): Joe's pick for each size when model_picks.json can't be read.
+# Sizes are the default q4 downloads. (model_picks.json also lists two other choices per size.)
 OLLAMA_PICKS = [
-    (22, "qwen3:32b", 20.0),
-    (10, "qwen3:14b", 9.3),
-    (6.5, "qwen3:8b", 5.2),
-    (3.5, "qwen3:4b", 2.6),
-    (0, "qwen3:1.7b", 1.4),
+    (22, "gemma4:31b", 20.0),
+    (10, "gemma4:12b", 7.6),
+    (6.5, "llama3.1:8b", 4.9),
+    (3.5, "gemma3:4b", 3.3),
+    (0, "llama3.2:1b", 1.3),
 ]
 NOT_WRITERS = re.compile(r"embed|bge|minilm|nomic|rerank|whisper|llava|moondream|-vision|clip|vl:|-vl", re.I)
 
@@ -204,6 +205,31 @@ def recommended_download(vram_gb: float) -> dict:
     return {"name": rows[-1][1], "size_gb": rows[-1][2]}
 
 
+def download_choices(vram_gb: float) -> list[dict]:
+    """Writing models to offer for this card: Joe's pick first (recommended), then the others."""
+    from .upkeep import writing_choices
+    try:
+        return writing_choices(vram_gb)
+    except Exception:                       # noqa: BLE001
+        r = recommended_download(vram_gb)
+        return [{"name": r["name"], "size_gb": r["size_gb"], "label": r["name"], "maker": "",
+                 "note": "", "recommended": True}]
+
+
+def choices_text(choices: list[dict]) -> str:
+    """' Or pick: Qwen 3 14B (alternative) or Mistral Nemo 12B (little to no filtering). ...'"""
+    role = {"alternative": "alternative", "free": "little to no filtering"}
+    others = [c for c in choices if not c.get("recommended")]
+    if not others:
+        return ""
+    names = " or ".join(f"{c['label']} ({role.get(c.get('role'), 'alternative')})" for c in others)
+    return (f" Or pick {names}. Want a different one? Type any model's name in Setup > Writing > Model.")
+
+
+def _pick_label(c: dict) -> str:
+    return c["label"] + (f" by {c['maker']}" if c.get("maker") else "")
+
+
 def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
     """The configured model if installed; otherwise the best installed fit."""
     want = settings.ollama.text_model
@@ -263,25 +289,28 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         issues.append({"id": "start-ollama", "text": "Ollama is installed but not running.",
                        "action": "start", "tool": "ollama"})
     elif not [m for m in omodels if m["writer"]]:
-        rec = recommended_download(vram)
-        issues.append({"id": "pull-model", "text": f"No text model installed. Best fit for this PC: "
-                       f"{rec['name']} ({rec['size_gb']} GB download).",
-                       "action": "pull", "model": rec["name"], "what": f"{rec['name']} ({rec['size_gb']} GB)"})
+        ch = download_choices(vram)
+        rec = ch[0]
+        issues.append({"id": "pull-model", "text": f"No text model installed. Joe's pick for this PC: "
+                       f"{_pick_label(rec)} ({rec['size_gb']} GB download).{choices_text(ch)}",
+                       "action": "pull", "model": rec["name"], "choices": ch,
+                       "what": f"{rec['name']} ({rec['size_gb']} GB)"})
     elif not text_ok and best_text:
         issues.append({"id": "use-model", "text": f"Setup model '{settings.ollama.text_model}' isn't "
                        f"installed. Best installed fit: {best_text}.", "action": "use", "model": best_text})
     if oll_up and omodels:
         names = {m["name"] for m in omodels}
         writers = [m for m in omodels if m["writer"]]
-        rec = recommended_download(vram)
+        ch = download_choices(vram)
+        rec = ch[0]
         have = lambda n: n in names or f"{n}:latest" in names                  # noqa: E731
         best_b = max((_params_b(m["params"]) for m in writers), default=0)
         rec_b = _params_b(rec["name"].split(":")[-1].upper())
-        if writers and not have(rec["name"]) and best_b and rec_b > best_b * 1.2:
-            issues.append({"id": "upgrade-model", "text": f"A better writing model fits this PC: {rec['name']} "
+        if writers and not any(have(c["name"]) for c in ch) and best_b and rec_b > best_b * 1.2:
+            issues.append({"id": "upgrade-model", "text": f"A better writing model fits this PC: {_pick_label(rec)} "
                            f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
-                           "better drafts.", "action": "pull", "model": rec["name"], "optional": True,
-                           "what": f"{rec['name']} ({rec['size_gb']} GB)"})
+                           f"better drafts.{choices_text(ch)}", "action": "pull", "model": rec["name"],
+                           "choices": ch, "optional": True, "what": f"{rec['name']} ({rec['size_gb']} GB)"})
         if addons_mod_voice_ready() and not settings.voice.talk_model and \
                 not any(1 <= _params_b(m["params"]) <= 4.5 for m in writers):
             from .upkeep import talk_pick

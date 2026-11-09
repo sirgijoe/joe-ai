@@ -5,9 +5,10 @@ import re
 from dataclasses import dataclass
 
 from .config import OllamaSettings
-from .http import request_json
+from .http import HttpError, request_json
 
 _THINK = re.compile(r"<think>.*?</think>", re.S)
+_NO_THINK = re.compile(r"does not support think", re.I)   # Ollama, when asked to think with Llama, Gemma 3, Phi-4...
 
 
 @dataclass
@@ -63,8 +64,15 @@ class OllamaClient:
             payload["options"]["num_predict"] = max_tokens
         if keep_alive:
             payload["keep_alive"] = keep_alive
-        r = request_json("POST", f"{self.base}/api/chat", payload,
-                         timeout=self.cfg.request_timeout_s)
+        try:
+            r = request_json("POST", f"{self.base}/api/chat", payload,
+                             timeout=self.cfg.request_timeout_s)
+        except HttpError as e:
+            if not (payload["think"] and _NO_THINK.search(str(e))):
+                raise
+            payload["think"] = False                  # this model can't think first: just write
+            r = request_json("POST", f"{self.base}/api/chat", payload,
+                             timeout=self.cfg.request_timeout_s)
         text = _THINK.sub("", r.get("message", {}).get("content", "")).strip()
         return ChatResult(
             text=text,
@@ -78,6 +86,7 @@ class OllamaClient:
         """Yield the reply a few words at a time (for talking: Joe starts speaking sooner).
         With think=True, a thinking model keeps its reasoning in a separate field (never yielded)."""
         import json as _json
+        import urllib.error
         import urllib.request
         payload = {"model": model or self.cfg.text_model, "messages": messages, "stream": True,
                    "think": self.cfg.think if think is None else think,
@@ -86,10 +95,20 @@ class OllamaClient:
             payload["options"]["num_predict"] = max_tokens
         if keep_alive:
             payload["keep_alive"] = keep_alive
-        req = urllib.request.Request(f"{self.base}/api/chat", data=_json.dumps(payload).encode(),
-                                     method="POST", headers={"Content-Type": "application/json"})
+        def _open():
+            req = urllib.request.Request(f"{self.base}/api/chat", data=_json.dumps(payload).encode(),
+                                         method="POST", headers={"Content-Type": "application/json"})
+            return urllib.request.urlopen(req, timeout=self.cfg.request_timeout_s)
+        try:
+            resp = _open()
+        except urllib.error.HTTPError as e:
+            detail = e.read().decode("utf-8", "replace")[:300]
+            if not (payload["think"] and _NO_THINK.search(detail)):
+                raise
+            payload["think"] = False                  # this model can't think first: just write
+            resp = _open()
         in_think = False
-        with urllib.request.urlopen(req, timeout=self.cfg.request_timeout_s) as r:
+        with resp as r:
             for raw in r:
                 try:
                     ev = _json.loads(raw)

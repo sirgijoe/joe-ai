@@ -53,6 +53,9 @@ def valid_picks(d) -> bool:
             if not _NAME.match(str(r["name"])) or not 0 <= float(r["min_vram"]) <= 512 \
                     or not 0 < float(r["size_gb"]) <= 400:
                 return False
+            for o in r.get("others") or []:
+                if not _NAME.match(str(o["name"])) or not 0 < float(o["size_gb"]) <= 400:
+                    return False
         t = d.get("talk")
         return t is None or (bool(_NAME.match(str(t["name"]))) and 0 < float(t["size_gb"]) <= 400)
     except (KeyError, TypeError, ValueError):
@@ -103,6 +106,21 @@ def picks(fetch=request_json, now: float | None = None, net: bool | None = None)
 def writing_picks(fetch=request_json) -> list[tuple[float, str, float]]:
     rows = sorted(picks(fetch)["writing"], key=lambda r: -float(r["min_vram"]))
     return [(float(r["min_vram"]), str(r["name"]), float(r["size_gb"])) for r in rows]
+
+
+def _choice(r: dict, recommended: bool) -> dict:
+    return {"name": str(r["name"]), "size_gb": float(r["size_gb"]),
+            "label": str(r.get("label") or r["name"])[:40], "maker": str(r.get("maker") or "")[:40],
+            "note": str(r.get("note") or "")[:200], "recommended": recommended,
+            "role": "recommended" if recommended else str(r.get("role") or "alternative")}
+
+
+def writing_choices(vram_gb: float, fetch=request_json) -> list[dict]:
+    """Joe's pick for this card first, then the other choices that fit (an older picks file
+    without "others" gives just the one)."""
+    rows = sorted(picks(fetch)["writing"], key=lambda r: -float(r["min_vram"]))
+    row = next((r for r in rows if (vram_gb or 0) >= float(r["min_vram"])), rows[-1])
+    return [_choice(row, True)] + [_choice(o, False) for o in (row.get("others") or [])[:4]]
 
 
 def talk_pick(fetch=request_json) -> dict:

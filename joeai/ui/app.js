@@ -913,10 +913,37 @@ async function allowMic() {
   showPerms();
 }
 
+// Writing models: Joe's pick for this PC plus two others (who made each one, what it's like).
+// The person's choice is kept here so it survives each fresh System check.
+const MCHOSEN = {};
+const MC_ROLE = { recommended: "Recommended", alternative: "Alternative recommended", free: "Little to no filtering" };
+function choicePicker(it, where) {
+  if (!it.choices || it.choices.length < 2) return "";
+  return `<span class="mchoice">` + it.choices.map((c) =>
+    `<label class="mc"><input type="radio" name="mc-${where}-${esc(it.id)}" data-mchoice="${esc(it.id)}" value="${esc(c.name)}"${c.name === it.model ? " checked" : ""}> ` +
+    `<b>${esc(c.label)}</b>${c.maker ? ` <span class="dim">by ${esc(c.maker)}</span>` : ""} <span class="dim">(${c.size_gb} GB)</span>` +
+    ` <span class="bright">· ${MC_ROLE[c.role] || MC_ROLE.alternative}</span>${c.note ? `<span class="mcnote dim small">${esc(c.note)}</span>` : ""}</label>`).join("") +
+    `<span class="mcnote dim small">Want a different one? Type any model's name in Setup (F10) &gt; Writing &gt; Model, or bring your own with LM Studio, llama.cpp or LocalAI.</span></span>`;
+}
+function applyChoice(d) {
+  ((d && d.issues) || []).forEach((it) => {
+    const c = MCHOSEN[it.id] && it.choices && it.choices.find((x) => x.name === MCHOSEN[it.id]);
+    if (c) { it.model = c.name; it.what = `${c.name} (${c.size_gb} GB)`; }
+  });
+}
+document.addEventListener("change", (ev) => {
+  const id = ev.target.dataset && ev.target.dataset.mchoice; if (!id) return;
+  MCHOSEN[id] = ev.target.value;
+  applyChoice(doctorData); if (typeof W !== "undefined") applyChoice(W.d);
+  if (typeof qualityHelp === "function") qualityHelp();
+  if (typeof W !== "undefined" && W.open) wRender();
+});
+
 let doctorData = null;
 async function loadDoctor() {
   let d;
   try { d = await api("/api/doctor"); } catch (e) { $("#doctor").textContent = e.message; return null; }
+  applyChoice(d);
   doctorData = d;
   readyBanner(d);
   const g = d.gpu, o = d.ollama, c = d.comfyui;
@@ -936,7 +963,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}${choicePicker(it, "sc")}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
   const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
   const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
   const needMods = mods.filter(([it]) => !it.optional).length;
@@ -967,7 +994,7 @@ function askFix(it) {
   const pkg = (doctorData && doctorData.pkg) || "";
   const viaPkg = pkg ? `Install it now with ${pkg}? Your system may ask for permission.` : "Open the official download page?";
   const what = { install: it.how || viaPkg, update: "Update it now? Your files and models are kept.", start: "Start it now?",
-    use: "Switch to this model?", pull: "Download it now?", "download-image-model": "Download it now?",
+    use: "Switch to this model?", pull: it.choices ? `Download ${it.what || it.model} now?` : "Download it now?", "download-image-model": "Download it now?",
     "download-video-model": "Download it now? About 18 GB in 3 files; it can take an hour or more.",
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Your system may ask for permission.",
@@ -2916,7 +2943,7 @@ function wPickList() {
     if (!its.length) return;
     h += `<div class="wgroup"><b>${esc(g.name)}</b>` + its.map((it) => {
       const gb = wSizeGB(it), size = gb ? (gb >= 1 ? `${gb.toFixed(gb < 10 ? 1 : 0)} GB` : `${Math.round(gb * 1024)} MB`) : "";
-      return `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}${!it.optional ? " disabled" : ""}> ${esc(it.text)}${size ? ` <span class="dim">(${size})</span>` : ""}</label>`;
+      return `<label class="wpick"><input type="checkbox" data-wpick="${esc(it.id)}"${W.pick[it.id] ? " checked" : ""}${!it.optional ? " disabled" : ""}> ${esc(it.text)}${size ? ` <span class="dim">(${size})</span>` : ""}</label>${choicePicker(it, "w")}`;
     }).join("") + "</div>";
   });
   const rest = list.filter((it) => !seen.has(it.id));
@@ -2962,7 +2989,7 @@ async function welcomeClose() {
   try { await api("/api/settings", { ui: { welcomed: true } }); } catch (e) {}
 }
 async function wCheck() {
-  try { W.d = await api("/api/doctor"); doctorData = W.d; } catch (e) { W.d = null; }
+  try { W.d = await api("/api/doctor"); applyChoice(W.d); doctorData = W.d; } catch (e) { W.d = null; }
   if (typeof readyBanner === "function") readyBanner(W.d);
   if (W.open) wRender();
 }
@@ -2987,7 +3014,7 @@ function wItem(it) {
   const busy = state && state.busy;
   const mine = W.asked[it.id];
   const pct = busy && state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "";
-  return `<div class="witem"><div>${esc(say || it.text)}</div>${say ? "" : ""}` +
+  return `<div class="witem"><div>${esc(say || it.text)}</div>${choicePicker(it, "wi")}` +
     (note ? `<div class="dim small">${esc(note)}</div>` : "") +
     (mine && busy ? `<div class="blink">Working on it…${pct}</div>`
       : `<button data-wfix="${esc(it.id)}"${busy ? " disabled title=\"Wait for the current setup to finish\"" : ""}>[ ${yes} ]</button>`) + `</div>`;

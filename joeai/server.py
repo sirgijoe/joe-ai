@@ -1002,6 +1002,11 @@ class App:
                                 and b.get("id") not in ("pull-vision", "pull-small-model", "pull-embed")):
                             self.settings.ollama.text_model = model
                             self.settings.save()
+                        elif (not self.running and b.get("id") in ("pull-model", "upgrade-model")
+                                and model != ((b.get("choices") or [{}])[0].get("name") or model)):
+                            self.settings.ollama.text_model = model    # the person picked this one over Joe's pick
+                            self.settings.save()
+                            self.log(f"Joe now writes with {model}, the one you picked (Setup > Writing to change it).")
                 elif action == "download-image-model":
                     ok = doctor.download_image_model(self.settings, self.log, approved=True, progress=prog)
                 elif action == "download-video-model":

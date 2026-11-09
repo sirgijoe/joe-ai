@@ -568,6 +568,9 @@ body.modern .runbtn, body.modern .toolsbadge { border-radius: 6px; }
 .wgroup { margin: 8px 0; }
 .wgroup > b { display: block; margin-bottom: 2px; }
 .wpick { display: block; margin: 2px 0 2px 8px; }
+.mchoice { display: block; margin: 4px 0 4px 18px; }
+.mchoice .mc { display: block; margin: 3px 0; cursor: pointer; }
+.mchoice .mcnote { display: block; margin-left: 22px; }
 
 .titlebar { flex-wrap: nowrap; white-space: nowrap; }
 @media (max-width: 1750px) { .titlebar .bin { display: none; } }

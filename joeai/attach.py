@@ -22,7 +22,7 @@ HTML_EXT = {".html", ".htm"}
 IMAGE_EXT = {".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp"}
 MAX_BYTES = 25_000_000
 MAX_TEXT = 60_000                    # characters kept per file
-VISION_HINT = re.compile(r"llava|vision|-vl|vl:|qwen2\.5vl|qwen2-vl|gemma3|minicpm-v|moondream|bakllava|granite3\.2-vision|mistral-small3", re.I)
+VISION_HINT = re.compile(r"llava|vision|-vl|vl:|qwen2\.5vl|qwen2-vl|gemma3|gemma4|minicpm-v|moondream|bakllava|granite3\.2-vision|mistral-small3", re.I)
 _BAD = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 
 

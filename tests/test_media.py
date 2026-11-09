@@ -139,7 +139,7 @@ def test_model_pickers():
            {"name": "nomic-embed-text", "size_gb": 0.3, "params": "137M", "writer": False}]
     assert doctor.best_ollama_model(oll, 12) == "qwen3:14b"
     assert doctor.best_ollama_model(oll, 24) == "qwen3:32b"
-    assert doctor.recommended_download(12)["name"] == "qwen3:14b"
+    assert doctor.recommended_download(12)["name"] == "gemma4:12b"
 
 
 def test_reviews(tmp_path):
