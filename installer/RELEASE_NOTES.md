@@ -1,3 +1,23 @@
+## What's new in 2.1
+
+- **20 new tools (48 in all):** Summarize, Rewrite or change the tone, Brainstorm, Study helper,
+  Explain or review my code, Ask my spreadsheet, Sort and rename my files, Dates and to-dos to my
+  calendar, Budget meal planner, Get found by AI search, Clean up a recording, Cut out ums and
+  pauses, Privacy blur, Social graphics and flyers, Dub or voice-over a video, Add B-roll to a
+  talking video, Find a book to read aloud, Hear it in a loved one's voice and more.
+- **Night shift "Stop by" time:** Joe finishes the job he's on, saves the rest for the next night
+  and tells you in the morning report. Type the time any everyday way (7am, 7:30 pm, 0700).
+- **Reminders and lists to your phone,** by voice or the Home box, even with the PC off.
+- **Watch folders:** drop a file in and the tool you picked runs by itself.
+- **Three writing models for your graphics card:** Joe's pick (Gemma or Llama), an alternative
+  (Qwen) and one with little to no filtering. Or type any model's name in Setup > Writing.
+- **More writing programs:** LM Studio, llama.cpp, LocalAI or any OpenAI-compatible program
+  (Jan, KoboldCpp, vLLM), each explained in Setup > Writing.
+- **Connects to more apps** (Claude Desktop, Cursor, LM Studio, VS Code, Gemini) the apps' own
+  way, and System check spots a connection that needs fixing.
+- **Fixes:** plans keep what you asked for even with small models, phone pings work on PCs
+  with old certificates, social graphics keep every line of words.
+
 ## Meet Joe
 
 Joe does the grunt work on your own computer while you sleep. Tell him what you need in plain
@@ -7,7 +27,7 @@ words, check his plan, press RUN IT, and in the morning the drafts are waiting w
   Word, PDF or EPUB copies. He checks his own work and marks anything unsure with [CHECK].
 - **Pictures and short videos** (with ComfyUI): 21 styles, his own image prompts, every picture
   labelled AI-GENERATED.
-- **28 ready-made tools:** transcribe, read aloud, proofread, translate, photo tools, OCR,
+- **48 ready-made tools:** transcribe, read aloud, proofread, translate, photo tools, OCR,
   photo restore and more.
 - **Talk to him** (optional): he listens, answers out loud and drafts the night's plan.
 - **Works with bigger AIs:** ASK A BIGGER AI for any chatbot, or connect him to Claude Desktop,
