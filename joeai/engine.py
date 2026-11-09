@@ -379,6 +379,7 @@ class Engine:
             self.log(f"'{job.name}' {st.note}")
             return st
 
+        self._top_up(job, st, system, out)
         st.status = "done" if not st.skipped_parts else "partial"
         st.finished = datetime.now().isoformat(timespec="seconds")
         self._save_state(job, st)
@@ -649,7 +650,8 @@ class Engine:
                  job.format or "(none given) A heading line, then the item body.", ""]
         if job.min_words:
             lines.append(f"LENGTH: every item body must be at least {job.min_words} words.")
-        lines += [f"This is part {part + 1} of {job.parts}. Write exactly {count} NEW item(s), "
+        lines += [(f"This is part {part + 1} of {job.parts}. " if part < job.parts else
+                   "The list is a few items short. ") + f"Write exactly {count} NEW item(s), "
                   f"numbered from {start} in your head (do not number the headings).",
                   "Begin each item with a line: ## <title> (a short name for the item, not its first line), "
                   "then the complete item underneath."]
@@ -719,9 +721,33 @@ class Engine:
                     raise Stopped()
         raise PartFailed(f"model unreachable after {self.s.engine.max_retries} tries: {last_err}")
 
+    def _top_up(self, job: Job, st: JobState, system: str, out) -> None:
+        """A list that came up a few items short (repeats dropped, a part ran out of tries) gets
+        one more go at the end for the missing ones, so 100 asked means 100 written."""
+        short = job.total_items - st.items
+        if short <= 0 or job.is_csv or job.guided or job.source or self.stop.is_set():
+            return
+        self.log(f"  {short} item(s) short; writing the missing ones")
+        try:
+            items = self._run_part(job, job.parts, st, system, need=short)
+        except (PartFailed, Stopped):
+            return
+        if not items:
+            return
+        atomic_append_text(out, "".join(it.render() + "\n" for it in items))
+        st.titles.extend(it.title for it in items)
+        st.items += len(items)
+        st.words += sum(it.words for it in items)
+        st.flags.extend({"item": it.title, "flag": f} for it in items
+                        for f in find_flags(it.title + "\n" + it.body))
+        if len(items) >= short:
+            st.skipped_parts = []                # every missing item is now written
+        self._save_state(job, st)
+        self.log(f"  added {len(items)} missing item(s)")
+
     def _run_part(self, job: Job, part: int, st: JobState, system: str,
-                  kind: str = "write") -> list[Item]:
-        need = job.part_size
+                  kind: str = "write", need: int = 0) -> list[Item]:
+        need = need or job.part_size
         got: list[Item] = []
         seen = [norm_title(t) for t in st.titles]
         for attempt in range(self.s.engine.max_retries + 1):

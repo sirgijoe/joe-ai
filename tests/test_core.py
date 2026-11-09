@@ -338,3 +338,24 @@ def test_part_retried_without_thinking_when_thinking_fills_the_room(env):
                                "FORMAT: One line.\n=== END ==="))[0]
     assert st.status == "done", st.note
     assert calls.count(False) >= 1 and len([c for c in calls if c is not False]) == 1
+
+
+def test_short_list_is_topped_up_at_the_end(env):
+    from joeai.ollama import ChatResult
+    s, sb, fake = env
+    eng = Engine(s, sb, log=lambda m: None)
+    real = eng.client.chat
+    first = []
+
+    def chat(msgs, model=None, think=None, **kw):
+        u = msgs[-1]["content"]
+        if "part 1 of 1" in u and not first:      # the part itself: only 2 of the 4 asked
+            first.append(1)
+            return ChatResult("## One\n\nfirst joke here ok\n\n## Two\n\nsecond joke here ok", 10, 20, 0.1)
+        if "part 1 of 1" in u:
+            return ChatResult("", 10, 20, 0.1)    # retries give nothing
+        return real(msgs, model=model, think=think, **kw)
+    eng.client.chat = chat
+    st = eng.run_mission(parse("=== JOE MISSION ===\nTASK: Jokes\nCHUNKS: 1 x 4\n"
+                               "FORMAT: One line.\n=== END ==="))[0]
+    assert st.items == 4 and st.status == "done"
