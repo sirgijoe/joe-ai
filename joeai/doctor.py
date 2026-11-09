@@ -171,14 +171,27 @@ def _params_b(p: str) -> float:
     return float(m.group(1)) / (1000 if m.group(2).upper() == "M" else 1)
 
 
-def best_ollama_model(models: list[dict], vram_gb: float) -> str | None:
-    """Biggest installed writing model that fits in VRAM with room for context."""
+def best_ollama_model(models: list[dict], vram_gb: float, prefer: str = "") -> str | None:
+    """Joe's pick for this card (`prefer`) when it's installed and fits; otherwise the biggest
+    installed writing model that fits in VRAM with room for context."""
     writers = [m for m in models if m["writer"]]
     if not writers:
         return None
     budget = (vram_gb or 8) - 1.5
     fits = [m for m in writers if m["size_gb"] <= budget] or [min(writers, key=lambda m: m["size_gb"])]
+    if prefer:
+        hit = next((m for m in fits if m["name"] in (prefer, f"{prefer}:latest")), None)
+        if hit:
+            return hit["name"]
     return max(fits, key=lambda m: (_params_b(m["params"]), m["size_gb"]))["name"]
+
+
+def joes_pick(vram_gb: float) -> str:
+    """The recommended writing model for this card ('' if the list can't be read)."""
+    try:
+        return download_choices(vram_gb)[0]["name"]
+    except Exception:                       # noqa: BLE001
+        return ""
 
 
 def smaller_text_model(sm: ServiceManager, current: str) -> str | None:
@@ -237,7 +250,8 @@ def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
     names = {m["name"] for m in models}
     if want and (want in names or f"{want}:latest" in names):
         return want
-    pick = best_ollama_model(models, hardware.vram_total_gb())
+    vram = hardware.vram_total_gb()
+    pick = best_ollama_model(models, vram, joes_pick(vram))
     if pick:
         log(f"Using {pick}, the best installed model for this PC." if not want else
             f"Model '{want}' isn't installed; using best fit '{pick}' instead.")
@@ -277,7 +291,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     comfy_exe = sm.comfy_exe()
     comfy_up = sm.comfy_up()
     imodels = image_models(settings)
-    best_text = best_ollama_model(omodels, vram)
+    best_text = best_ollama_model(omodels, vram, joes_pick(vram))
     best_img = comfy_mod.best_image_model(imodels, vram, "image")
     best_vid = comfy_mod.best_image_model(imodels, vram, "video")
     text_ok = not settings.ollama.text_model or settings.ollama.text_model in {m["name"] for m in omodels}

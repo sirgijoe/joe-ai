@@ -60,3 +60,13 @@ def test_model_that_cant_think_just_writes(monkeypatch):
     monkeypatch.setattr(om, "request_json", fake)
     r = OllamaClient(OllamaSettings()).chat([{"role": "user", "content": "x"}], model="dolphin3:8b", think=True)
     assert r.text == "hi" and sent == [True, False]
+
+
+def test_auto_prefers_joes_pick_over_a_bigger_model():
+    """Auto mode: the recommended pick when it's installed (a bigger Qwen used to win)."""
+    have = [{"name": "qwen3:14b", "size_gb": 9.3, "params": "14.8B", "writer": True},
+            {"name": "gemma4:12b", "size_gb": 9.6, "params": "12B", "writer": True}]
+    assert doctor.best_ollama_model(have, 12, "gemma4:12b") == "gemma4:12b"
+    assert doctor.best_ollama_model(have, 12) == "qwen3:14b"                # no pick known: biggest
+    assert doctor.best_ollama_model(have, 12, "gemma4:31b") == "qwen3:14b"  # pick not installed
+    assert doctor.best_ollama_model(have, 6, "gemma4:12b") == "qwen3:14b"   # doesn't fit: smallest of them
