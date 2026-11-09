@@ -863,7 +863,7 @@ class App:
                 "jobs": jobs, "eta_s": eta, "log": self.session_log(),
                 "services": self.services_status, "workspace": str(self.sb.root),
                 "engine_label": self.services.ollama.label if hasattr(self.services.ollama, "label") else "Ollama",
-                "model": (getattr(eng, "text_model", "") if eng else "") or s.ollama.text_model or "auto",
+                "model": (getattr(eng, "text_model", "") if eng and self.running else "") or s.ollama.text_model or "auto",
                 "ui": asdict(s.ui),
                 "report": (self.sb.output / "_REPORT.md").exists(),
                 "theme": self.theme_vars(), "hw": hardware.gpu(), "cpu_pct": hardware.cpu_pct(), "pause_c": s.engine.gpu_temp_pause_c,

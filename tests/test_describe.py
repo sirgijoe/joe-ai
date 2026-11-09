@@ -150,3 +150,15 @@ def test_plan_that_drops_the_subject_gets_the_request():
     assert describe.keep_subject(req, kept) == kept
     pics = "=== JOE MISSION ===\nTASK: Pics\nTYPE: image\nCHUNKS: 1 x 1\n=== END ==="
     assert "Stay on" not in describe.keep_subject(req, pics)
+
+
+def test_status_bar_model_follows_setup_once_the_run_is_over(app, monkeypatch):
+    class Done:
+        text_model = "llama3.1:latest"
+        live = []
+    app.engine = Done()
+    app.settings.ollama.text_model = ""
+    monkeypatch.setattr(type(app), "running", property(lambda self: False))
+    assert app.state()["model"] == "auto"
+    monkeypatch.setattr(type(app), "running", property(lambda self: True))
+    assert app.state()["model"] == "llama3.1:latest"
