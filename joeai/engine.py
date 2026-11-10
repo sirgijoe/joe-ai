@@ -1514,7 +1514,10 @@ class Engine:
                 p = st.prompts[pi]
                 self._progress(f"{job.name}: {job.type} {idx + 1}/{total}")
                 seed = comfy_mod.new_seed(job.seed, idx)
-                pos = self._styled(p["prompt"], rec) if builtin else p["prompt"]
+                raw = p["prompt"]
+                if builtin and job.type == "image" and style.id in styles_mod.NO_SIGN_STYLES:
+                    raw = styles_mod.no_signs(raw)        # before the style's own "no signage" words
+                pos = self._styled(raw, rec) if builtin else raw
                 if job.type == "video" and wpref.get("motion") in wfp.MOTION_WORDS:
                     pos = f"{pos.rstrip(' .,')}, {wfp.MOTION_WORDS[wpref['motion']]}"
                 if builtin and job.type == "image" and style.id in PEOPLE_STYLES and styles_mod.crowded(p["prompt"]):

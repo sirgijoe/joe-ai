@@ -997,7 +997,7 @@ centered headings, each chapter on a new page, and a title page. Joe's built-in 
 | `standard` | everyday documents (Word, PDF, web page by default) | Letter, 1 in, Georgia 12, 1.4 lines |
 | `book` | a printed novel | 6 x 9 in, Garamond 11.5, justified, indents, chapters on new pages, title page |
 | `manuscript` | sending to an editor or agent | Letter, 1 in, Times New Roman 12, double spaced, 0.5 in indents |
-| `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (20 pt), centered, a new page per part, a picture on each page (up to 55% of it) |
+| `kids` | a children's picture book | 8.5 x 8.5 in square, big friendly letters (18 pt), centered, a new page per part, a picture on each page (up to 45% of it) |
 | `ebook` | EPUB (the default for .epub) | light styling, since e-readers use their own settings |
 | `report` | business reports | Calibri 11, block paragraphs |
 | `largeprint` | older readers, low vision | Atkinson Hyperlegible 18, 1.5 lines, page numbers |

@@ -50,7 +50,7 @@ def test_templates_edit_reset_and_css(tmp_path, monkeypatch):
     dt.save_defaults(s, {"docx": "manuscript", "xlsx": "book"})        # a doc template can't be the xlsx default
     assert dt.default_for(s, "docx") == "manuscript" and dt.default_for(s, "xlsx") == "sheet"
     c = dt.css(dt.get(s, "kids"))
-    assert "@page { size: 8.5in 8.5in" in c and "font-size: 20pt" in c and "break-before: page" in c
+    assert "@page { size: 8.5in 8.5in" in c and "font-size: 18pt" in c and "break-before: page" in c
     assert "@page" not in dt.css(dt.get(s, "ebook"), epub=True)
     assert dt.margins({"margins": "1 0.5"}) == (1.0, 0.5, 1.0, 0.5)
 

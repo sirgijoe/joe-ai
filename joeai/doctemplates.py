@@ -119,9 +119,9 @@ TEMPLATES: dict[str, dict] = {
     "kids": _doc(label="Children's picture book", about="Big, friendly, easy-to-read letters, centered, a new "
                  "page for each part of the story, pictures as big as fit.", page="8.5x8.5", margins="0.6",
                  font="Andika, Atkinson Hyperlegible, Comic Neue, Verdana, sans-serif",
-                 heading_font="Andika, Atkinson Hyperlegible, Verdana, sans-serif", size=20, line=1.4, indent=0,
-                 para_after=10, align="center", heading_center=True, chapter_break=True, break_level="2",
-                 title_page=True, big_pictures=True, picture_share=0.55),
+                 heading_font="Andika, Atkinson Hyperlegible, Verdana, sans-serif", size=18, line=1.35, indent=0,
+                 para_after=8, align="center", heading_center=True, chapter_break=True, break_level="2",
+                 title_page=True, big_pictures=True, picture_share=0.45),
     "ebook": _doc(label="E-book (EPUB)", about="For e-readers: the reader's own settings win, so this stays light: "
                   "serif text, indents, chapters on new pages.", page="letter", margins="0.5", font="Georgia, serif",
                   heading_font="Georgia, serif", size=12, line=1.4, indent=0.25, para_after=0, align="left",

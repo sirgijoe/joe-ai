@@ -196,9 +196,9 @@ def test_picture_book_pages_get_their_pictures_and_a_real_title(tmp_path):
 def test_kids_template_leaves_room_for_words():
     from joeai import doctemplates as dt
     t = dt.get(None, "kids")
-    assert t["picture_share"] == 0.55 and t["size"] == 20
+    assert t["picture_share"] == 0.45 and t["size"] == 18
     css = dt.css(t)
-    assert "max-height: 4.0in" in css                                   # 8.5 in page, 0.6 margins: 55%
+    assert "max-height: 3.3in" in css                                   # 8.5 in page, 0.6 margins: 45%
 
 
 def test_main_subject_only_drops_the_brush(tmp_path):
@@ -247,3 +247,9 @@ def test_quick_turnaround_makes_three_views(tmp_path):
     finally:
         tools_mod.option_value = orig
     assert [i["stem"] for i in quick] == ["1-front", "3-left", "4-back"] and len(full) == 6
+
+
+def test_neon_prompts_lose_their_signs():
+    from joeai.styles import no_signs
+    out = no_signs("rainy street, glowing neon signs and holographic billboards, kanji, wet asphalt")
+    assert "sign" not in out and "billboard" not in out and "kanji" not in out and "neon light strips" in out

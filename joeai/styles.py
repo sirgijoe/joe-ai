@@ -175,6 +175,19 @@ _RIDER = re.compile(r"\b(?:on|riding|rides|astride)\s+(?:a |an |the |his |her |t
                     r"(?:horse|pony|donkey|camel|elephant|bike|bicycle|motorcycle)|horseback\b", re.I)
 GROUP_WORDS = "medium shot, every face different, natural poses, correct anatomy"
 
+# Neon styles: picture models fill signs, billboards and adverts with made-up letters. The prompt
+# writer still asked for them (QC 2026-11-09), so those words are swapped for shapes of light.
+_SIGNS = re.compile(r"\b(?:glowing\s+|neon\s+|holographic\s+|digital\s+|giant\s+|flickering\s+)*"
+                    r"(?:signs?|signage|billboards?|advertisements?|adverts?|ads|shop\s+signs?|storefront\s+signs?|"
+                    r"banners?|kanji|lettering|logos?|text|words|writing)\b", re.I)
+NO_SIGN_STYLES = frozenset({"cyberpunk", "scifi", "synthwave", "neon"})
+
+
+def no_signs(prompt: str) -> str:
+    out = _SIGNS.sub("neon light strips", prompt or "")
+    out = re.sub(r"(?:neon light strips)(?:\s*(?:,|and|with)\s*neon light strips)+", "neon light strips", out)
+    return out
+
 
 def crowded(prompt: str) -> bool:
     """A picture of 3+ people or someone riding: frame it wider and ask for different faces."""

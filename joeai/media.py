@@ -266,7 +266,7 @@ def blend(ffmpeg: str, base: Path, new: Path, mask: Path, dest: Path, feather: f
 
 
 def pad_for_outpaint(ffmpeg: str, src: Path, dest: Path, shape: str) -> tuple[Path, tuple[int, int, int, int]] | None:
-    """A bigger canvas with the picture in the middle and a blurred stretch of it around (a
+    """A bigger canvas with the picture in the middle and its edge colours smeared around it (a
     head start for the editor). Returns (file, where the original sits: x, y, w, h)."""
     size = size_of(ffmpeg, src)
     if not size:
@@ -282,7 +282,13 @@ def pad_for_outpaint(ffmpeg: str, src: Path, dest: Path, shape: str) -> tuple[Pa
         W, H = int(w * 1.5), h
     W, H = W // 2 * 2, H // 2 * 2
     x, y = (W - w) // 2, (H - h) // 2
-    fc = (f"[0]scale={W}:{H},boxblur=luma_radius=40:luma_power=2[bg];[bg][0]overlay={x}:{y},format=rgb24")
+    # The new space starts as the picture's own edge colours smeared outwards and blurred. (A
+    # blurred stretch of the WHOLE picture put a ghost copy of the subject there, which the editor
+    # painted as a second dragon: QC 2026-11-09.)
+    r, b = W - w - x, H - h - y
+    fc = (f"[0]format=gbrp,pad={W}:{H}:{x}:{y},fillborders=left={x}:right={r}:top={y}:bottom={b}:mode=smear,"
+          f"boxblur=luma_radius=40:luma_power=2:chroma_radius=40:chroma_power=2[bg];"
+          f"[bg][0]overlay={x}:{y},format=rgb24")
     cmd = [ffmpeg, "-y", "-v", "error", "-noautorotate", "-i", str(src), "-filter_complex", fc,
            "-frames:v", "1", str(dest)]
     return (dest, (x, y, w, h)) if _run(cmd) and dest.exists() else None
