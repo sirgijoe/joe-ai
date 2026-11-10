@@ -1,3 +1,23 @@
+## What's new in 2.1.2
+
+- **Stop keeps your waiting work:** missions still in line are kept ON HOLD, with RUN THEM and
+  CLEAR buttons, instead of being thrown away.
+- **Better pictures:** pixel art comes out as real crisp pixels; groups of people, riders, neon
+  cities and a story's pictures use FLUX.2 klein when it's installed (different faces, characters
+  that stay the same from page to page, signs with real letters).
+- **Picture books with pictures:** ask for "a picture book about..." and Joe writes it, makes one
+  picture per page and puts each on its page in the PDF.
+- **Fine-tuning in Setup > Workflows:** prompt strength, style add-on strength, detail pass,
+  sampler and versions per picture style; prompt strength and motion for video.
+- **Joe recommends better models** that suit your graphics card, in the log and at the top of
+  System check (including his pick for writing), and never downloads without your OK.
+- **In Files:** MORE LIKE THIS (same layout, change a few words) and WHY DOES THIS LOOK WRONG?
+- **Tools:** Make bigger all around, remove background "main subject only", quick character
+  turnaround, gentler AI photo repair with a darkroom finish, social graphics without a photo,
+  edits kept at your photo's size, proofreading that leaves names and web addresses alone, and a
+  meal plan that stays under budget.
+- **Fixes:** writing parts keep their own titles and lengths; time estimates match real cards.
+
 ## What's new in 2.1.1
 
 - **Faster, complete lists on High quality:** when the model spends all its room thinking and
