@@ -426,3 +426,13 @@ def test_joe_recommends_a_better_model_that_fits(env, monkeypatch):
     assert [i["id"] for i in out] == ["x", "pack-flux2", "pack-bg", "pack-edit"]
     assert out[1]["text"].startswith("RECOMMENDED for what you make (words in the picture")
     assert "this PC has 8 GB" in out[3]["text"]                                 # the editor wants 12 GB
+
+
+def test_story_pictures_prefer_flux2(env):
+    from types import SimpleNamespace
+    s, sb, fo, fc = env
+    m = parse("TASK: Beep  SAVE: b.md  EXPORT: pdf  TEMPLATE: kids\nPART: ## One. Page one, about 40 words.\n"
+              "TASK: Beep pics  SAVE: bp  TYPE: image  FROM: Beep  CHUNKS: 1 x 1")
+    e = Engine(s, sb, log=lambda x: None)
+    e._mission = m
+    assert e._story_source(m.jobs[1]) and not e._story_source(m.jobs[0])

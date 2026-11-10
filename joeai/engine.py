@@ -273,6 +273,7 @@ class Engine:
         report); finish=False skips sleep/shutdown because more queued work follows."""
         from .report import write_report
         from .storage import cap_logs
+        self._mission = mission
         cap_logs(self.sb)
         states: list[JobState] = []
         self.live = [self._load_state(mission, j) for j in mission.jobs]
@@ -1414,10 +1415,19 @@ class Engine:
         if styles_mod.pick(job).id in styles_mod.NO_SIGN_STYLES:
             # SDXL fills neon streets with made-up letters whatever the words say (QC 2026-11-09)
             return True, "neon city pictures: its signs have real letters, not made-up ones"
+        if job.source and self._story_source(job):
+            # SDXL merged the robot and the kitten into one robot-cat on every page (QC 2026-11-09)
+            return True, "a story's pictures: it keeps each character separate and the same on every page"
         if styles_mod.pick(job).id in ("photo", "general", "bw") and styles_mod.crowded(f"{job.name}\n{job.format}"):
             # SDXL photo models cloned faces, merged bodies and lost a rider's legs (QC 2026-11-09)
             return True, "several people (or a rider) in one picture: it gets bodies and faces right far more often"
         return False, ""
+
+    def _story_source(self, job: Job) -> bool:
+        """Pictures FROM a guided document (a story, page by page)?"""
+        m = getattr(self, "_mission", None)
+        src = next((j for j in m.jobs if j.name == job.source), None) if m else None
+        return bool(src is not None and src.guided)
 
     def _suggest_flux2(self, job: Job) -> None:
         """FLUX.2 klein isn't installed but would draw this better: say so (when it suits the card)."""
@@ -1430,6 +1440,8 @@ class Engine:
             why = "words in the picture: it spells them right"
         elif styles_mod.pick(job).id in styles_mod.NO_SIGN_STYLES:
             why = "neon city pictures: its signs have real letters, not made-up ones"
+        elif job.source and self._story_source(job):
+            why = "a story's pictures: it keeps each character separate and the same on every page"
         elif styles_mod.pick(job).id in ("photo", "general", "bw") and styles_mod.crowded(text):
             why = "several people or a rider in one picture: better bodies and faces"
         elif styles_mod.pick(job).id in ("photo", "general") and len(styles_mod.animals_in(text)) >= 2:
