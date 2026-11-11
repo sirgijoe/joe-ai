@@ -89,6 +89,36 @@ _CACHE: dict = {}
 CACHE_S = 6 * 3600
 
 
+def _cert_problem(e) -> bool:
+    """Python couldn't check the site's certificate. Its copy of the computer's trusted list can
+    be out of date (common on Windows); the site itself is usually fine."""
+    return "certificate verify failed" in str(e).lower() or "CERTIFICATE_VERIFY_FAILED" in str(e)
+
+
+def _curl(url: str, dest: Path | None = None, timeout: float = 60, headers: dict | None = None) -> bytes:
+    """Fetch with the computer's own curl (Windows 10+, Mac and Linux have it), which uses the
+    system's up-to-date certificate list. Still a fully checked secure connection (https only),
+    and the update's checksum and signature are checked afterwards either way."""
+    import shutil
+    from .system import no_window_flags
+    curl = shutil.which("curl")
+    if not curl:
+        raise OSError("this computer has no curl to fall back on")
+    cmd = [curl, "-sS", "-f", "-L", "--proto", "=https", "--proto-redir", "=https", "--max-time", str(int(timeout))]
+    for k, v in (headers or {}).items():
+        cmd += ["-H", f"{k}: {v}"]
+    if dest is not None:
+        cmd += ["-o", str(dest)]
+    try:
+        r = subprocess.run(cmd + [url], capture_output=True, timeout=timeout + 15, stdin=subprocess.DEVNULL,
+                           creationflags=no_window_flags())
+    except subprocess.SubprocessError as e:
+        raise OSError(str(e)) from e
+    if r.returncode != 0:
+        raise OSError(r.stderr.decode("utf-8", "replace").strip()[:200] or f"curl exit {r.returncode}")
+    return r.stdout
+
+
 def parse_version(v: str) -> tuple:
     """'v2.1.0' / '2.0.0.dev27' / '2.0.0rc1' -> comparable tuple. Dev/rc sort before the release."""
     v = v.strip().lstrip("vV")
@@ -107,11 +137,19 @@ def check(force: bool = False, fetch=request_json) -> dict:
     if not force and _CACHE.get("t", 0) > now - CACHE_S:
         return _CACHE["r"]
     url = f"https://api.github.com/repos/{REPO}/releases/latest"
+    heads = {"Accept": "application/vnd.github+json", "User-Agent": f"joe-ai/{__version__}"}
+    rel, problem = None, None
     try:
-        rel = fetch("GET", url, timeout=15, headers={"Accept": "application/vnd.github+json",
-                                                     "User-Agent": f"joe-ai/{__version__}"})
+        rel = fetch("GET", url, timeout=15, headers=heads)
     except HttpError as e:
-        err = str(e)
+        problem = e
+        if _cert_problem(e):                      # Python's certificate list is behind: ask with curl
+            try:
+                rel = json.loads(_curl(url, timeout=20, headers=heads))
+            except (OSError, ValueError):
+                rel = None
+    if not isinstance(rel, dict):
+        err = str(problem or "GitHub sent something odd back")
         if "HTTP 404" in err:
             msg = "No releases published yet."
         elif "HTTP 403" in err or "HTTP 429" in err:
@@ -164,14 +202,37 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
                 if total and progress:
                     progress(100 * got / total)
     except OSError as e:
-        log(f"Couldn't download the update: {e}")
         part.unlink(missing_ok=True)
-        return None
+        if not _cert_problem(e):
+            log(f"Couldn't download the update: {e}")
+            return None
+        # Python's certificate list is behind (common on Windows): the computer's own curl has the
+        # current one. The checksum and signature below are checked exactly the same.
+        log("  Python couldn't check GitHub's certificate; downloading with this computer's own curl instead.")
+        try:
+            _curl(a["url"], dest=part, timeout=1800)
+            h = hashlib.sha256()
+            with open(part, "rb") as f:
+                while chunk := f.read(1 << 20):
+                    h.update(chunk)
+        except OSError as e2:
+            log(f"Couldn't download the update: {e2}")
+            part.unlink(missing_ok=True)
+            return None
+
+    def small(url: str) -> bytes:
+        try:
+            with opener(url, timeout=30) as r:
+                return r.read()
+        except OSError as e:
+            if _cert_problem(e):
+                return _curl(url, timeout=30)
+            raise
+
     want, sums = "", b""
     if info.get("sums"):
         try:
-            with opener(info["sums"], timeout=30) as r:
-                sums = r.read()
+            sums = small(info["sums"])
             want = expected_sha(sums.decode("utf-8", "replace"), a["name"])
         except OSError:
             want = ""
@@ -181,8 +242,7 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
         sig = ""
         if info.get("sig"):
             try:
-                with opener(info["sig"], timeout=30) as r:
-                    sig = r.read().decode("ascii", "replace")
+                sig = small(info["sig"]).decode("ascii", "replace")
             except OSError:
                 sig = ""
         if not sig or not sign.check(sums, sig, SIGN_PUBLIC_KEY):

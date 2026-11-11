@@ -138,3 +138,53 @@ def test_window_page_cannot_be_framed(tmp_path, monkeypatch):
         assert app.token.encode() not in body
     finally:
         httpd.shutdown()
+
+
+# -- updates on a PC whose Python certificate list is out of date -------------------------------
+def test_update_falls_back_to_curl_on_certificate_errors(tmp_path, monkeypatch):
+    import hashlib
+    import ssl
+    import urllib.error
+    from joeai import sign, update
+    from joeai.http import HttpError
+    seed = bytes(range(32))
+    monkeypatch.setattr("joeai.SIGN_PUBLIC_KEY", sign.b64(sign.public_key(seed)))
+    monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
+    body = b"installer-bytes" * 1000
+    name = "Joe-Setup-9.9.9-windows-x64.exe"
+    sums = f"{hashlib.sha256(body).hexdigest()}  {name}\n".encode()
+    files = {"https://x/" + name: body, "https://x/SHA256SUMS.txt": sums,
+             "https://x/SHA256SUMS.txt.sig": sign.sign_file_text(sign.b64(seed), sums).encode()}
+    used = []
+
+    def bad_cert(*a, **k):
+        raise urllib.error.URLError(ssl.SSLCertVerificationError(1, "[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed"))
+
+    def fake_curl(url, dest=None, timeout=60, headers=None):
+        used.append(url)
+        if dest is not None:
+            dest.write_bytes(files[url])
+            return b""
+        return files[url]
+
+    monkeypatch.setattr(update, "_curl", fake_curl)
+    info = {"asset": {"name": name, "url": "https://x/" + name, "size": len(body)},
+            "sums": "https://x/SHA256SUMS.txt", "sig": "https://x/SHA256SUMS.txt.sig"}
+    log = []
+    got = update.download(info, log.append, opener=bad_cert)
+    assert got is not None and got.read_bytes() == body and len(used) == 3, log
+    files["https://x/" + name] = body + b"tampered"                 # the checks still bite with curl
+    assert update.download(info, log.append, opener=bad_cert) is None
+
+    def no_net(*a, **k):                                             # any other error: no curl, plain message
+        raise OSError("network is down")
+    used.clear()
+    assert update.download(info, log.append, opener=no_net) is None and not used
+
+    def cert_fetch(*a, **k):
+        raise HttpError("can't reach https://api.github.com: [SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed")
+    monkeypatch.setattr(update, "_curl", lambda url, **k: b'{"tag_name": "v9.9.9", "assets": []}')
+    update._CACHE.clear()
+    r = update.check(force=True, fetch=cert_fetch)
+    assert r["ok"] and r["newer"] and r["latest"] == "9.9.9"
+    update._CACHE.clear()

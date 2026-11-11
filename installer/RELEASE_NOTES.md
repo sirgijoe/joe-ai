@@ -1,3 +1,12 @@
+## What's new in 2.1.4
+
+- **UPDATE works on PCs with an out-of-date certificate list:** when Joe's own Python can't make
+  a secure connection to GitHub, he now checks and downloads with the computer's own curl
+  instead (still a secure connection, and the checksum and signature are checked as always).
+- **If UPDATE doesn't work on an older Joe** (it says it couldn't make a secure connection, or
+  nothing happens after YES): download the installer from this page and open it. Your files and
+  settings are kept, and UPDATE works from then on.
+
 ## What's new in 2.1.3
 
 A safety update from an outside review of Joe's code. Please update.
