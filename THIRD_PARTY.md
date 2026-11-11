@@ -22,11 +22,11 @@ is, whether it ships inside Joe or Joe downloads it only after you say yes, and 
 | FFmpeg | sound, video and photo conversion | LGPL-2.1+ / GPL-2.0+ (depends on the build) |
 | Pandoc | Word, PDF and EPUB copies | GPL-2.0-or-later |
 | qpdf | the PDF toolkit (join, split, shrink, fill in forms) | Apache-2.0 |
-| uv (Astral) | sets up the private Python for the voice add-ons and Joe's own ComfyUI | MIT or Apache-2.0 |
+| uv (Astral), version 0.13.7 when Joe downloads it (checked against a SHA-256 Joe carries) | sets up the private Python for the voice add-ons and Joe's own ComfyUI | MIT or Apache-2.0 |
 | Python (a private copy made by uv) | runs the voice add-ons | Python Software Foundation License |
 | Python from python-build-standalone (Astral), bundled in the Windows installer, Mac app and Linux AppImage | runs Joe himself, so nobody has to install Python | Python Software Foundation License; build scripts MPL-2.0; includes OpenSSL (Apache-2.0), SQLite (public domain), Tcl/Tk (BSD-style), libffi, zlib, bzip2, xz (MIT/BSD-style) |
 | Inno Setup (Jordan Russell) | builds the Windows installer (not shipped inside Joe) | Inno Setup License (free, permissive) |
-| whisper.cpp (ggml-org), optional | faster transcribing (Transcribe, Make shorts); Joe downloads its Windows CPU build or uses Homebrew's on a Mac | MIT |
+| whisper.cpp (ggml-org), optional | faster transcribing (Transcribe, Make shorts); Joe downloads its Windows CPU build (version 1.9.2, checked against a SHA-256 Joe carries) or uses Homebrew's on a Mac | MIT |
 | Whisper ggml model files (huggingface.co/ggerganov/whisper.cpp) | the hearing model whisper.cpp uses | MIT |
 
 **Other writing programs you can pick instead of Ollama (Joe never installs these; you add models in them)**

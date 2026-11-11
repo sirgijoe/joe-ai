@@ -1044,6 +1044,11 @@ class App:
             self.services = ServiceManager(self.settings, log=self.log)
             self.log("Writing program set back to Ollama.")
             return {"ok": True}
+        if action == "use" and b.get("set") == "talk":   # System check: a quick model just for Talk
+            self.settings.voice.talk_model = model
+            self.settings.save()
+            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
+            return {"ok": True}
         if action == "use":
             if self.running:
                 return {"ok": False, "error": "Can't change the model during a run."}

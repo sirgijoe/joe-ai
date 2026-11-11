@@ -350,12 +350,22 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                            f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
                            f"better drafts.{choices_text(ch)}", "action": "pull", "model": rec["name"],
                            "choices": ch, "optional": True, "what": f"{rec['name']} ({rec['size_gb']} GB)"})
-        if addons_mod_voice_ready() and not settings.voice.talk_model and \
-                not any(1 <= _params_b(m["params"]) <= 4.5 for m in writers):
+        small_ones = sorted((m for m in writers if 1 <= _params_b(m["params"]) <= 4.5),
+                            key=lambda m: -_params_b(m["params"]))
+        if not (settings.voice.talk_model or "").strip() and small_ones and \
+                small_ones[0]["name"] != best_text:
+            # Talk left blank = the big writing model answers (10-20 s a reply): a quick one is already here.
+            sm_name = small_ones[0]["name"]
+            issues.append({"id": "use-talk-model", "text": f"Talk answers with your writing model ({best_text}), "
+                           f"so a reply can take 10-20 seconds. {sm_name} is already installed and quick: use it "
+                           "just for Talk? (Your writing stays with the bigger one.)",
+                           "action": "use", "model": sm_name, "set": "talk", "optional": True})
+        elif not (settings.voice.talk_model or "").strip() and not small_ones and writers:
             from .upkeep import talk_pick
             tp = talk_pick()
             issues.append({"id": "pull-talk-model", "text": f"A small, quick model just for Talk ({tp['name']}, "
-                           f"{tp['size_gb']} GB) makes Joe answer much faster when you talk to him.",
+                           f"{tp['size_gb']} GB) makes Joe answer much faster when you talk or type to him "
+                           "in Talk (today the big writing model answers, 10-20 seconds a reply).",
                            "action": "pull", "model": tp["name"], "set": "talk", "optional": True})
         if settings.quality.writing == "low" and best_text and not smaller_text_model(sm, best_text):
             cur_b = next((_params_b(m["params"]) for m in writers if m["name"] == best_text), 0)
@@ -778,7 +788,7 @@ MODEL_KINDS = (("writing", "Writing and Talk"), ("pictures", "Pictures and pictu
 def model_kind(issue_id: str) -> str:
     """'' for program issues (System check); a MODEL_KINDS key for model downloads."""
     i = issue_id or ""
-    if i in ("pull-model", "use-model", "upgrade-model", "pull-talk-model", "pull-small-model"):
+    if i in ("pull-model", "use-model", "upgrade-model", "pull-talk-model", "use-talk-model", "pull-small-model"):
         return "writing"
     if i in ("pull-vision", "pull-embed"):
         return "helpers"

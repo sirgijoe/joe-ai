@@ -3052,6 +3052,7 @@ const W_TEXT = {
   "upgrade-model": [null, "YES, GET THE BETTER ONE", "It can take a while. Joe uses it as soon as it's done."],
   "get-video-turbo": ["The Turbo add-on makes videos several times faster (under 1 GB).", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "pull-talk-model": ["A small, quick model just for talking, so Joe answers faster.", "YES, DOWNLOAD IT", ""],
+  "use-talk-model": [null, "YES, USE IT FOR TALK", "Setup > Voice & Talk can change it back."],
   "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Your computer may ask for permission. Skip this if you only want writing."],
   "get-image-model": ["ComfyUI needs a picture model to draw with.", "YES, DOWNLOAD ONE", ""],
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],

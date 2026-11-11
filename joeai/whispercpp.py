@@ -21,8 +21,12 @@ from pathlib import Path
 
 from .system import LINUX, MAC, WINDOWS
 
-RELEASE = "https://github.com/ggml-org/whisper.cpp/releases/latest/download/"
+# One known release, checked byte for byte before it's unpacked (2.3). ("latest" stopped carrying the
+# Windows zip after 1.9.2.) Newer on purpose: change both lines after downloading it yourself.
+VERSION = "1.9.2"
+RELEASE = f"https://github.com/ggml-org/whisper.cpp/releases/download/v{VERSION}/"
 WIN_ZIP = "whisper-bin-x64.zip"
+WIN_ZIP_SHA256 = "49dcc16de826f20bd53d44f947a1ae49dfa81f86cad67a64d80820cb192d674a"
 MODEL_URL = "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{name}.bin"
 MODEL_MB = {"tiny": 75, "tiny.en": 75, "base": 142, "base.en": 142, "small": 466, "small.en": 466,
             "medium": 1500, "medium.en": 1500, "large-v3": 3100, "large-v3-turbo": 1600}
@@ -81,8 +85,21 @@ def install(log, approved: bool = False, progress=None) -> bool:
         d = home()
         d.mkdir(parents=True, exist_ok=True)
         z = d / WIN_ZIP
-        log(f"Downloading whisper.cpp ({WIN_ZIP}, about 4 MB, MIT license)...")
+        log(f"Downloading whisper.cpp {VERSION} ({WIN_ZIP}, about 8 MB, MIT license)...")
         if not _download(RELEASE + WIN_ZIP, z, log, progress):
+            return False
+        from .addons import sha256_ok
+        try:
+            good = sha256_ok(z.read_bytes(), WIN_ZIP_SHA256)
+        except OSError:
+            good = False
+        if not good:
+            log("The whisper.cpp download didn't match the checksum Joe knows for it, so it wasn't used "
+                "(a broken download, or not the real one). Try again later.")
+            try:
+                z.unlink()
+            except OSError:
+                pass
             return False
         try:
             with zipfile.ZipFile(z) as f:

@@ -11,6 +11,14 @@
 - **Projects** (Files F7 > PROJECTS, or J): group missions into a project, with an About text Joe
   reads when he writes for it, your own notes, a "what's left" list, and every file of its missions
   in one place. A plan with a PROJECT: line joins its project by itself.
+- **Safer downloads of programs Joe runs:** uv (for the voice add-ons) and whisper.cpp now come from
+  one known release each and are checked byte for byte (SHA-256) before Joe unpacks them; a download
+  that doesn't match is thrown away. This also fixes whisper.cpp on Windows: its newest releases no
+  longer carry the Windows download Joe asked for.
+- **FFmpeg only reads files on your computer:** every picture, video and sound tool now tells FFmpeg
+  not to follow web addresses or other places named inside someone else's media file.
+- **Quicker Talk:** when the Talk model is blank (so the big writing model answers, 10-20 seconds),
+  System check offers a small model you already have, or a small one to download.
 
 ## What's new in 2.2 (in development)
 

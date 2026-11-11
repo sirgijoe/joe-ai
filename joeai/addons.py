@@ -55,8 +55,26 @@ def voice_python() -> Path:
     return env / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
 
 
-UV_RELEASE = "https://github.com/astral-sh/uv/releases/latest/download/"
+# uv is a program Joe runs, so he downloads one known release and checks it byte for byte (2.3).
+# A newer uv is picked on purpose: change the version, download each file from the release page and
+# put its SHA-256 here (the release also publishes <file>.sha256 to compare with).
+UV_VERSION = "0.13.7"
+UV_RELEASE = f"https://github.com/astral-sh/uv/releases/download/{UV_VERSION}/"
 UV_ZIP = UV_RELEASE + "uv-x86_64-pc-windows-msvc.zip"          # kept for older imports
+UV_SHA256 = {
+    "uv-x86_64-pc-windows-msvc.zip": "0cdc5b38fe5a8168ed6a25814f5ba43c21d313dd3187314fccb37b7cec46e021",
+    "uv-aarch64-pc-windows-msvc.zip": "505d9e65e7692bac3ddf98c66754aa26c5050c409c184af30a881a0a72cc85e3",
+    "uv-x86_64-apple-darwin.tar.gz": "20c47e4c1f630b8abaff8c291fa9b9aa300fef92c4fbff95adf198b55287cda7",
+    "uv-aarch64-apple-darwin.tar.gz": "81b811b57e4624df7ed3aac148e0359100d9962f3d9dce00aec533dc2e086731",
+    "uv-x86_64-unknown-linux-gnu.tar.gz": "c5221ff41b7892bfc223543883600125f6a47fe845093e0f5bdff4f359196d83",
+    "uv-aarch64-unknown-linux-gnu.tar.gz": "71279f8d3c67241e807b9d8db872d1bf541579fb9f08b7d1eb1682196d1e57dc",
+}
+
+
+def sha256_ok(data: bytes, want: str) -> bool:
+    import hashlib
+    import hmac
+    return bool(want) and hmac.compare_digest(hashlib.sha256(data).hexdigest(), want.lower())
 
 
 def uv_asset(plat: str | None = None, machine: str | None = None) -> str | None:
@@ -131,14 +149,19 @@ def get_uv(log: Log) -> str | None:
     if uv:
         return uv
     asset = uv_asset()
+    if asset and asset not in UV_SHA256:
+        asset = None                                   # no checked download for this computer: package manager
     if asset:
         import tarfile
         import zipfile
-        log("Getting uv from its official GitHub release (it sets up a private Python just "
+        log(f"Getting uv {UV_VERSION} from its official GitHub release (it sets up a private Python just "
             "for Joe's voice; no admin needed)...")
         try:
             with urllib.request.urlopen(UV_RELEASE + asset, timeout=120) as r:
                 data = r.read()
+            if not sha256_ok(data, UV_SHA256[asset]):
+                raise OSError("the download didn't match the checksum Joe knows for it, so it wasn't used "
+                              "(a broken download, or not the real uv)")
             _unpack_uv(data, asset, addons_dir() / "bin")
         except (OSError, zipfile.BadZipFile, tarfile.TarError) as e:
             log(f"  couldn't download uv: {e}")
