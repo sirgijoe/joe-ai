@@ -316,6 +316,18 @@ def test_hide_patterns_addresses_in_capitals_and_town_lines():
     assert "$1,234.56" not in hits and "2026-11-11" not in hits and "20 in May" not in " ".join(hits)
 
 
+def test_bank_columns_with_a_misspelled_heading_and_a_missing_side():
+    """Joseph's sample statement 2026-11-11 had 'Withdrawls': every payment out was read as 0.00 and the
+    budget said nothing was spent."""
+    head = ["Date", "Description", "Deposits", "Withdrawls", "Balance"]
+    rows = [["21-Aug-2020", "Debit Card", "00.00", "8,843.87", "17,687.73"],
+            ["21-Aug-2020", "Cash", "23,475.67", "00.00", "41,163.40"]]
+    txs, notes = paperwork.read_statement(head, rows)
+    assert [str(t["amount"]) for t in txs] == ["-8843.87", "23475.67"] and not notes
+    txs, notes = paperwork.read_statement(["Date", "Description", "Deposits", "Balance"], [r[:3] + r[4:] for r in rows])
+    assert any("no column for money going out" in n and "[CHECK]" in n for n in notes)
+
+
 def test_hide_without_ai_still_finds_patterns(app):  # noqa: F811
     (app.sb.inbox / "list.csv").write_text("Name,Phone\nSam,555-987-6543\n", encoding="utf-8")
     st = _run(app, "TASK: P  TYPE: hide-details\nINPUT: list.csv\nOPTIONS: style labels")

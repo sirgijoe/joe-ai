@@ -1683,8 +1683,11 @@ def read_statement(header: list[str], rows: list[list[str]]) -> tuple[list[dict]
     c_desc = _find_col(header, "description", "payee", "merchant", "name", "details", "narrative", "memo",
                        "transaction", "reference")
     c_amt = _find_col(header, "amount", "transaction amount", "value")
-    c_out = _find_col(header, "debit", "withdrawal", "money out", "paid out", "withdrawals", "debits", "spent")
-    c_in = _find_col(header, "credit", "deposit", "money in", "paid in", "deposits", "credits", "received")
+    # "withdraw" also finds misspellings banks really use ("Withdrawls"), "Withdrawn" and "Withdrawal amount"
+    c_out = _find_col(header, "debit", "withdrawal", "money out", "paid out", "withdrawals", "debits", "spent",
+                      "withdraw", "outgoing", "outflow")
+    c_in = _find_col(header, "credit", "deposit", "money in", "paid in", "deposits", "credits", "received",
+                     "incoming", "inflow", "lodgement")
     c_type = _find_col(header, "transaction type", "type", "cr/dr", "dr/cr", "debit/credit")
     c_cat = _find_col(header, "category")
     if c_date < 0 or c_desc < 0 or (c_amt < 0 and c_out < 0 and c_in < 0):
@@ -1715,6 +1718,10 @@ def read_statement(header: list[str], rows: list[list[str]]) -> tuple[list[dict]
             signs.add(True)
             signs.add(False)
         out.append({"date": d, "desc": " ".join(cell(c_desc).split()), "amount": a, "bank_cat": cell(c_cat).strip()})
+    if c_amt < 0 and (c_out < 0 or c_in < 0):   # only one of the two money columns was found: say so, loudly
+        have, lack = (header[c_in], "money going out") if c_out < 0 else (header[c_out], "money coming in")
+        notes.append(f"Joe found the '{have}' column but no column for {lack}, so that side of the budget is "
+                     "empty. The sheet's columns are: " + ", ".join(h for h in header if h)[:200] + " [CHECK]")
     if signs == {True}:                         # every amount positive: a card statement lists spending as plus
         for t in out:
             t["amount"] = -t["amount"]
