@@ -687,3 +687,8 @@ body.ph-contrast-light::before, body.ph-contrast-light::after { display: none; }
 body.large button, body.large input, body.large select { min-height: 2.2em; }
 body.large .titlebar .tabs { flex-wrap: wrap; }
 body.large .setnav button { white-space: normal; }
+
+/* 2.3 agents */
+.agform label.block { display: block; }
+.agform textarea { width: 100%; }
+.agtools { display: grid; grid-template-columns: repeat(auto-fill, minmax(16em, 1fr)); gap: .2em 1em; }

@@ -362,8 +362,9 @@ def tonight() -> int:
         (sb.meta / STOP_FILE).write_text(json.dumps({"until": until.isoformat(timespec="seconds")}),
                                          encoding="utf-8")
     try:                                                # recurring missions due tonight -> Missions/Tonight
-        from . import recurring
+        from . import agents, recurring
         recurring.queue_due(sb, s, now)
+        agents.due_tonight(sb, s, now)                  # agents started "on a schedule"
     except Exception:                                   # noqa: BLE001 (never stops the night shift)
         pass
     moved = move_tonight(sb)

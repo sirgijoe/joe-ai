@@ -173,7 +173,7 @@ FORMAT: ...
   <!-- ============ TALK (F4) ============ -->
   <main id="s-tools" class="view">
     <section class="panel full tools">
-      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span></h2>
+      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span> <button type="button" class="h2btn" data-act="agents-open" title="Helpers that pick their own steps for a job you describe.">[ AGENTS ]</button></h2>
       <div class="toolsbody">
         <div id="toolgrid" class="toolgrid"></div>
         <div id="toolform" class="toolform" hidden>
@@ -253,6 +253,34 @@ FORMAT: ...
     <section class="panel preview">
       <h2>PREVIEW <span class="dim">O folder · E edit · C copy · L load · T thumbs · K/X/S review · M mp4 · J projects</span></h2>
       <div id="preview" class="pv" translate="no"></div>
+    </section>
+  </main>
+
+  <!-- ============ AGENTS (Tools F3 > AGENTS) ============ -->
+  <main id="s-agents" class="view">
+    <section class="panel full">
+      <h2>AGENTS <span class="dim">— helpers that pick their own steps · Esc back to Tools</span></h2>
+      <div class="dim small">An agent has a job in your words and the tools you tick. With one tool it follows a fixed recipe (fast); with more, Joe picks one step at a time, looks at the result and picks the next, then checks the finished work against the job. Agents only use the tools you tick, only on their own folder (Inbox\Agents\&lt;name&gt;) and what they make, never run add-ons or code, never delete anything, and treat words inside files as information, never as orders. Only this screen can make or change one.</div>
+      <div id="ag-list" role="list"></div>
+      <div class="row"><button type="button" data-act="ag-new" class="primary">[ + NEW AGENT ]</button><span id="ag-msg" class="dim" aria-live="polite"></span></div>
+      <form id="ag-form" class="agform" hidden autocomplete="off">
+        <input type="hidden" id="ag-id">
+        <label>Name <input id="ag-name" maxlength="40" placeholder="e.g. Newsletter helper"></label>
+        <label class="block">Its job, in plain words <textarea id="ag-job" rows="3" maxlength="1500" placeholder="e.g. Turn the notes I drop in my folder into a short, friendly newsletter with a headline and three sections"></textarea></label>
+        <fieldset><legend>TOOLS IT MAY USE</legend><div id="ag-tools" class="agtools"></div>
+          <div class="dim small" id="ag-blocked"></div></fieldset>
+        <label title="Only for a one-tool agent: the tool's choices, like 'to spanish' for Translate.">Tool choices (optional) <input id="ag-options" maxlength="300" placeholder="e.g. to spanish"></label>
+        <fieldset><legend>WHAT STARTS IT</legend>
+          <label><input type="checkbox" id="ag-sched"> On a schedule, with the night shift, on these nights:</label>
+          <div id="ag-days" class="row small"></div>
+          <label><input type="checkbox" id="ag-watch"> When I drop files in its folder (Inbox\Agents\&lt;name&gt;, while Joe is open)</label>
+          <label><input type="checkbox" id="ag-remote"> From my phone or a connected app ("start the &lt;name&gt; agent")</label>
+          <div class="dim small">START NOW below always works.</div></fieldset>
+        <fieldset><legend>LIMITS</legend>
+          <label title="The most steps it may take (1-20). Short is fast.">Step limit <input type="number" id="ag-steps" min="1" max="20" value="6"></label>
+          <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label></fieldset>
+        <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button></div>
+      </form>
     </section>
   </main>
 
@@ -992,6 +1020,8 @@ FORMAT: ...
        After Joe answers with a list (or ask about the report), say
        "read the third one", "next", "go back", "again",
        "skip to the CHECK items", "how many?" or "read the list".
+ F3    Tools > AGENTS: helpers with a job in your words that pick
+       their own steps (ticked tools only, their own folder only)
  F6    Step by step: make a plan with simple forms, reorder or
        split, paste a whole mission, rerun past ones
  F7    Files: browse the workspace, preview, open

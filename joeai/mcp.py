@@ -116,6 +116,10 @@ TOOLS = [
     {"name": "joe_show_picture",
      "description": "Look at a picture Joe made (a path inside his Output folder). Returns the picture.",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
+    {"name": "joe_start_agent",
+     "description": "Start one of the person's Joe agents by its name (only agents they allowed to be started "
+                    "from a phone or a connected app). Agents can't be made or changed from here.",
+     "inputSchema": {"type": "object", "properties": {"name": {"type": "string"}}, "required": ["name"]}},
     {"name": "joe_memory",
      "description": "Notes the person asked Joe to remember about them (preferences, ongoing projects, "
                     "writing style). Read-only. Listed only when they let connected apps read them.",
@@ -338,6 +342,18 @@ class Joe:
         lines.append("=== END ===")
         return self.queue("\n".join(lines), name or tool)
 
+    def start_agent(self, name: str) -> str:
+        """Queue a run of an agent that allows it (a mission file, like joe_queue_mission)."""
+        from . import agents
+        a = agents.get(name)
+        if not a:
+            return f"There's no agent called '{name[:40]}'."
+        if not (a.get("start") or {}).get("remote"):
+            return f"The {a['name']} agent can only be started on Joe's own screen."
+        if a.get("paused"):
+            return f"The {a['name']} agent is paused."
+        return self.queue(agents.mission_text(a), f"agent {a['name']}")
+
     def stop(self) -> str:
         try:
             import urllib.request
@@ -411,6 +427,8 @@ class Joe:
             return self.stop()
         if name == "joe_show_picture":
             return self.show_picture(str(args.get("path", "")))
+        if name == "joe_start_agent":
+            return self.start_agent(str(args.get("name", "")))
         if name == "joe_memory":
             from . import memory
             if not memory.allowed(self.s, "connector"):

@@ -612,6 +612,10 @@ class App:
         except OSError as e:
             self.log(f"Watch folders: {e}")
 
+    def agent_watch_tick(self, now: float | None = None) -> list[str]:
+        from . import agents
+        return agents.watch_tick(self, now)
+
     def watch_tick(self, now: float | None = None) -> list[str]:
         """New files in Inbox/Watch/<tool> -> one task per tool, queued. Returns the tools queued."""
         if not self.settings.schedule.watch:
@@ -1727,6 +1731,10 @@ def make_handler(app: App):
                     return self._json({"text": app.mission_text})
                 if u.path == "/api/files":
                     return self._json(app.list_dir(arg))
+                if u.path == "/api/agents":              # Tools F3 > AGENTS (Joe's own window only)
+                    from . import agents
+                    return self._json({"ok": True, "agents": agents.load(), "tools": agents.allowed_tools(),
+                                       "blocked": agents.BLOCKED})
                 if u.path == "/api/memory":              # Setup > Memory (Joe's own window only)
                     from . import memory
                     return self._json({"ok": True, "notes": memory.load(), "on": memory.enabled(app.settings)})
@@ -2526,6 +2534,21 @@ def make_handler(app: App):
                     if app.running:
                         return self._json({"ok": False, "error": "Joe is working. Undo when he's done."})
                     return self._json(filing.undo(app.sb, str(b.get("file", ""))))
+                if u.path.startswith("/api/agents/"):    # make / change / pause / delete / start (window only)
+                    from . import agents
+                    act = u.path.rsplit("/", 1)[1]
+                    if act == "save":
+                        return self._json(agents.save(b, app.sb))
+                    if act == "pause":
+                        return self._json(agents.set_paused(str(b.get("id", "")), bool(b.get("paused"))))
+                    if act == "delete":
+                        return self._json(agents.delete(str(b.get("id", ""))))
+                    if act == "start":
+                        a = agents.get(str(b.get("id", "") or b.get("name", "")))
+                        if not a:
+                            return self._json({"ok": False, "error": "There's no agent by that name."})
+                        return self._json(app.enqueue(agents.mission_text(a)))
+                    return self._json({"ok": False, "error": "unknown agent action"}, 400)
                 if u.path.startswith("/api/memory/"):    # Setup > Memory / "remember that ..." (window only)
                     from . import memory
                     act = u.path.rsplit("/", 1)[1]
@@ -2784,6 +2807,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             step("Phone ping", app.ping_tick)
             step("Reminders", app.reminder_tick)
             step("Watch folders", app.watch_tick)      # files dropped in Inbox/Watch/<tool>
+            step("Agents", app.agent_watch_tick)       # files dropped in Inbox/Agents/<agent>
             step("Voice", app.clone.idle_check)
             step("Mission queue", app.watch_queue_folder)   # mission files dropped in Missions/Queue
             for _ in range(10):

@@ -30,6 +30,15 @@
 - **Recurring missions:** start a request with when ("every Sunday night, make next week's meal plan")
   and press REPEAT under the plan. It runs with the night shift on those nights; Setup > General >
   RECURRING MISSIONS lists them to pause or delete.
+- **Agents** (Tools F3 > AGENTS): a helper with a name, a job in your words and the tools you tick.
+  With one tool it follows a fixed recipe; with more, Joe picks one step at a time, looks at the result
+  and picks the next. A **quality check** compares the finished work with the job and sends what's
+  missing back for one more try. Start one on a schedule (with the night shift), by dropping files into
+  its folder, from your phone or a connected app ("start the newsletter agent"), or with START NOW.
+  Step and time limits keep it short; when it can't finish it writes a plain "I got stuck" report.
+  Agents only use the tools you tick, only on their own folder and what they make; they never run
+  add-ons or code, never delete anything, and treat words inside files as information, never as orders.
+  Only Joe's own window can make or change an agent.
 - **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move

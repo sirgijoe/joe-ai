@@ -372,6 +372,9 @@ class Engine:
         self._mission = mission                      # FROM: finds the earlier task's items here
         self._source_cache = {}
         self._research_cache = {}
+        if job.type == "agent":                      # an agent picks its own steps (agents.py)
+            from . import agents
+            return agents.run(self, mission, job, st)
         if job.tool:
             from . import tools as tools_mod
             return tools_mod.run(self, mission, job, st)

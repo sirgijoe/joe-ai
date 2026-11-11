@@ -137,3 +137,22 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 Local-only server, Host check, per-launch token, workspace sandbox with tests, ask-first installs,
 checksum-checked self-updates, `tar` data filter, `.safetensors` preferred, isolated voice
 Python, no `shell=True`, help-file scrubbing, tests that run offline.
+
+## 2.3 additions (dev-2.3)
+
+- [ ] Agents (`agents.py`, engine `TYPE: agent`): only ticked tools (`allowed_tools`, BLOCKED, no `x-`
+      add-ons, no code, no research, no nested agents); inputs only from the trigger files, the agent's
+      own `Inbox/Agents/<name>` and this run's outputs (checked in `_pick`); step SAVE forced under the
+      run folder; DATA markers can't be closed early (`_data`); create/change only via window-token
+      routes `/api/agents/*`; phone `agent-start` and MCP `joe_start_agent` respect `start.remote` and
+      `paused`. Try a prompt-injection file in an agent folder.
+- [ ] Memory (`memory.py`): opt-in; `memory.json` in the config folder; `ORIGIN` set to phone/connector
+      in `phone.ask` and `mcp.handle`; `joe_memory` is not listed or callable unless shared; changes only
+      from the window (and the phone when allowed); backup only with "include memory".
+- [ ] Filing / tidy (`filing.py`): tidy only moves inside Output, never overwrites, writes an undo list;
+      `_repoint` rewrites run state and reports; `translate_input` can't point outside Output.
+- [ ] FFmpeg guard (`ffguard.py`): `-protocol_whitelist file,pipe,fd` before every `-i` for any ffmpeg
+      process started from Joe's Python (subprocess.Popen is wrapped).
+- [ ] Pinned downloads: uv 0.13.7 and whisper.cpp 1.9.2 with SHA-256 (`addons.UV_SHA256`,
+      `whispercpp.WIN_ZIP_SHA256`): cross-check the sums with the release pages.
+

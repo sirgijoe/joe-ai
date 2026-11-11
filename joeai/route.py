@@ -166,10 +166,17 @@ def quick(raw: str, now=None) -> dict | None:
     return None
 
 
+_AGENT = re.compile(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:start|run)\s+(?:"
+                    r"(?:the\s+|my\s+)?(.{1,40}?)\s+agent|(?:the\s+|my\s+)?agent\s+(.{1,40}?))\s*[.!]*$", re.I)
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    am = _AGENT.match(raw)                      # "start the newsletter agent" (an agent that exists)
+    if am:
+        return {"kind": "command", "cmd": "agent-start", "name": (am.group(1) or am.group(2) or "").strip()}
     from . import memory
     mc = memory.command(raw)                    # "remember that ...", "forget that ...", "what do you remember?"
     if mc:

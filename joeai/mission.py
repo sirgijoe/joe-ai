@@ -278,7 +278,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     from .tools import TOOLS, ready_ids
     if jtype in TOOLS and not TOOLS[jtype].ready:
         raise MissionError(f"Task '{name}': the {TOOLS[jtype].name} tool is planned but not built yet.")
-    if jtype not in ("text", "code", "image", "video") + ready_ids():
+    if jtype not in ("text", "code", "image", "video", "agent") + ready_ids():
         raise MissionError(f"Task '{name}': TYPE must be text, code, image, video, or a tool "
                            f"({', '.join(ready_ids())}).")
     source = (d.get("FROM") or "").strip()
@@ -286,8 +286,14 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     inputs = [x.strip() for x in re.split(r"[,\n]", d.get("INPUT", "")) if x.strip()]
     options = [re.sub(r"\s*[:=]\s*|\s+", " ", x.strip().lower())         # "size: 1600" -> "size 1600"
                for x in re.split(r"[,\n]", d.get("OPTIONS", "")) if x.strip()]
-    if options and jtype not in TOOLS:
+    if options and jtype not in TOOLS and jtype != "agent":
         raise MissionError(f"Task '{name}': OPTIONS is for tools (like TYPE: transcribe).")
+    if jtype == "agent":                     # starts an agent that exists (Tools > AGENTS); OPTIONS: its id
+        if len(options) != 1 or "CHUNKS" in d or part_prompts:
+            raise MissionError(f"Task '{name}': an agent task needs OPTIONS: <the agent's id> and nothing else.")
+        if d["SAVE"].strip().lower().endswith((".md", ".csv", ".txt")):
+            d["SAVE"] = d["SAVE"].rsplit(".", 1)[0]
+        parts, size = 1, 1
     if jtype in TOOLS:
         from .makers import NO_INPUT_OK
         if not inputs and TOOLS[jtype].accepts and jtype not in NO_INPUT_OK:

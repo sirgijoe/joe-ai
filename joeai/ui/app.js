@@ -45,6 +45,7 @@ function show(name, page) {
   if (name === "tools") loadTools();
   if (name === "talk") loadTalk(); else if (typeof openMicStop === "function") openMicStop();
   if (name === "projects") loadProjects();
+  if (name === "agents") loadAgents();
 }
 
 let toastTimer;
@@ -384,6 +385,10 @@ async function doCommand(cmd, rt) {
     return cmd === "explain" ? `${r.title}\n\n${r.text}` : r.text;
   }
   if (cmd === "quick") return rt.say;                    // the time, today's date, plain arithmetic (no AI)
+  if (cmd === "agent-start") {
+    const r = await api("/api/agents/start", { name: rt.name || "" });
+    return r.ok ? `Started the ${rt.name} agent.` : r.error;
+  }
   if (cmd === "memory") {                                // "remember that ...", "forget that ...", "what do you remember?"
     const r = await api("/api/memory/cmd", { text: rt.memory === "show" ? "what do you remember about me" : (rt.memory === "forget" ? "forget that " : "remember that ") + (rt.text || "") });
     if (current === "setup") loadMemory();
@@ -1971,6 +1976,7 @@ function handleKey(key) {
     if (current === "talk" && talkBusy()) { talkStop(); return true; }     // Esc = stop Joe talking
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
     if (current === "projects") { show("files"); return true; }
+    if (current === "agents") { show("tools"); return true; }
     if (current !== "queue") show("queue");
     return true;
   }
@@ -4063,7 +4069,7 @@ document.addEventListener("click", async (ev) => {
       return;
     }
     if (b.dataset.projRm) { const r = await api("/api/project/remove", { name: projName, folder: b.dataset.projRm }); $("#proj-msg").textContent = r.note || r.error; await openProject(projName); return; }
-    if (b.dataset.projOpen) { dirPath = b.dataset.projOpen; show("files"); return; }
+    if (b.dataset.projOpen) { dirPath = "Output/" + b.dataset.projOpen; show("files"); return; }
     if (act === "proj-mission") {
       $("#describe").value = `PROJECT: ${projName}\nTASK: `; show("queue"); $("#describe").focus(); return;
     }
@@ -4165,6 +4171,66 @@ document.addEventListener("click", async (ev) => {
     if (b.dataset.recDel) {
       confirmBox(`Delete the recurring mission "${b.dataset.label}"?\n\nIt won't run again. A copy of its plan is kept in Missions/Recurring/removed.`, async () => {
         const r = await api("/api/recurring/delete", { id: b.dataset.recDel }); toast(r.note || r.error); loadRecurring();
+      });
+    }
+  } catch (e) { toast(e.message); }
+});
+
+
+/* ---------------- 2.3: agents (Tools F3 > AGENTS) ---------------- */
+const DAYNAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+let agData = { agents: [], tools: {} };
+async function loadAgents() {
+  agData = await api("/api/agents");
+  $("#ag-list").innerHTML = agData.agents.length ? agData.agents.map((a) => {
+    const lr = a.last_run || {};
+    const starts = [a.start.schedule ? "nights: " + a.start.days.map((d) => DAYNAMES[d]).join(" ") : "", a.start.watch ? "its folder" : "", a.start.remote ? "phone / apps" : ""].filter(Boolean).join(", ") || "START NOW only";
+    return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
+      <span class="dim small">Tools: ${a.tools.map((t) => esc(agData.tools[t] || t)).join(", ")} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}: ${esc(lr.note || "")}` : ""}</span></span>
+      <button type="button" data-ag-start="${esc(a.id)}">[ START NOW ]</button><button type="button" data-ag-edit="${esc(a.id)}">[ EDIT ]</button>
+      <button type="button" data-ag-pause="${esc(a.id)}" data-paused="${a.paused ? 1 : ""}">[ ${a.paused ? "START AGAIN" : "PAUSE"} ]</button>
+      <button type="button" data-ag-del="${esc(a.id)}" data-name="${esc(a.name)}">[ DELETE ]</button>${lr.folder ? `<button type="button" data-ag-open="${esc("Output/" + lr.folder)}">[ ITS LAST RUN ]</button>` : ""}</div>`;
+  }).join("") : `<div class="dim small">No agents yet.</div>`;
+  $("#ag-blocked").textContent = "Never offered to agents: " + Object.entries(agData.blocked || {}).map(([k, v]) => `${k} (${v})`).join("; ") + "; add-on tools; code.";
+}
+function agForm(a) {
+  $("#ag-form").hidden = false;
+  $("#ag-id").value = a ? a.id : ""; $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : "";
+  $("#ag-options").value = a ? (a.options || "") : "";
+  $("#ag-steps").value = a ? a.steps : 6; $("#ag-mins").value = a ? a.minutes : 30;
+  const st = a ? a.start : { schedule: false, days: [], watch: false, remote: false };
+  $("#ag-sched").checked = st.schedule; $("#ag-watch").checked = st.watch; $("#ag-remote").checked = st.remote;
+  $("#ag-days").innerHTML = DAYNAMES.map((d, i) => `<label><input type="checkbox" data-agday="${i}"${st.days.includes(i) ? " checked" : ""}> ${d}</label>`).join(" ");
+  const have = new Set(a ? a.tools : []);
+  $("#ag-tools").innerHTML = Object.entries(agData.tools).map(([id, n]) => `<label><input type="checkbox" data-agtool="${esc(id)}"${have.has(id) ? " checked" : ""}> ${esc(n)}</label>`).join("");
+  $("#ag-name").focus();
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  const act = b.dataset.act;
+  try {
+    if (act === "agents-open") { show("agents"); return; }
+    if (act === "ag-new") { agForm(null); return; }
+    if (act === "ag-cancel") { $("#ag-form").hidden = true; return; }
+    if (act === "ag-save") {
+      const body = { id: $("#ag-id").value, name: $("#ag-name").value, job: $("#ag-job").value, options: $("#ag-options").value,
+        tools: [...document.querySelectorAll("[data-agtool]:checked")].map((x) => x.dataset.agtool),
+        days: [...document.querySelectorAll("[data-agday]:checked")].map((x) => +x.dataset.agday),
+        schedule: $("#ag-sched").checked, watch: $("#ag-watch").checked, remote: $("#ag-remote").checked,
+        steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value };
+      const r = await api("/api/agents/save", body);
+      $("#ag-msg").textContent = r.ok ? "Saved." + (r.note ? " " + r.note : "") : r.error;
+      if (r.ok) { $("#ag-form").hidden = true; loadAgents(); }
+      return;
+    }
+    if (b.dataset.agEdit) { agForm(agData.agents.find((a) => a.id === b.dataset.agEdit)); return; }
+    if (b.dataset.agStart) { const r = await api("/api/agents/start", { id: b.dataset.agStart }); $("#ag-msg").textContent = r.ok ? "Started: it's in the queue (Home shows it)." : r.error; return; }
+    if (b.dataset.agPause) { await api("/api/agents/pause", { id: b.dataset.agPause, paused: !b.dataset.paused }); loadAgents(); return; }
+    if (b.dataset.agOpen) { dirPath = b.dataset.agOpen; show("files"); return; }
+    if (b.dataset.agDel) {
+      confirmBox(`Delete the agent "${b.dataset.name}"?\n\nIt won't run again. What it made stays in Output.`, async () => {
+        const r = await api("/api/agents/delete", { id: b.dataset.agDel }); $("#ag-msg").textContent = r.note || r.error; loadAgents();
       });
     }
   } catch (e) { toast(e.message); }

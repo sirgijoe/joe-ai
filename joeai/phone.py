@@ -305,6 +305,10 @@ class Phone:
             if cmd == "memory":
                 from . import memory
                 return memory.handle(s, rt)
+            if cmd == "agent-start":                       # only agents that allow it; nothing more
+                from . import agents
+                r = agents.start_remote(self.app, rt.get("name", ""))
+                return {"ok": r.get("ok", False), "say": "Started." if r.get("ok") else "", "error": r.get("error", "")}
             if cmd == "quick":
                 return {"ok": True, "say": rt["say"]}
             if cmd == "remind":
