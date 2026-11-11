@@ -44,6 +44,10 @@
   program wasn't answering, the graphics card ran out of memory, a file was open in Excel, the drive was
   full...), that what's done is kept, and what to do next. Missions left for the next night say plainly
   that nothing was lost and how to run them sooner.
+- **Recipe scaling and swaps** in the Budget meal planner: add a recipe (or paste it in the box) and
+  say "double it", "half", "for 10 people", "no eggs" or "out of buttermilk". Joe scales every amount
+  himself in kitchen numbers (1 1/2 cups, 3/4 tsp) and lists swaps from his own table of common kitchen
+  substitutions, saying when a swap changes the dish. No AI guessing, so it's instant.
 - **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move

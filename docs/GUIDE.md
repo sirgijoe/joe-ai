@@ -999,6 +999,17 @@ date or name, Joe's own code checks it against your file and marks anything it c
   the keepers and every one-of-a-kind photo in a `keepers` folder (copies). Without FFmpeg only
   exact copies are found.
 
+### Recipe scaling and swaps (Budget meal planner)
+
+Add a recipe file (or paste the recipe into the box) and say how to change it: "double it", "triple",
+"half", "x3", "for 10 people" (Joe reads "Serves 4" in the recipe to work it out), and/or what to
+avoid: "no eggs", "out of buttermilk", "dairy-free", "without wine". Joe scales every amount himself
+(mixed numbers, ranges like 2-3 tbsp, ½ and ¼ characters) to kitchen numbers, updates "Serves", leaves
+the steps alone, and adds a **Swaps** list from his own table of common substitutions (flax egg,
+milk + lemon for buttermilk, oil for butter...), with a note when a swap changes the dish. An
+ingredient he has no tried-and-true swap for is marked [CHECK]. No AI is used, so it's instant.
+Saved as `recipe.md`. Without a recipe the tool plans a week of meals as before.
+
 ### Picture and sound tools
 
 These five run in ComfyUI on the graphics card, using only ComfyUI's own built-in nodes (nothing

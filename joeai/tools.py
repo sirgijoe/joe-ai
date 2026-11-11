@@ -355,7 +355,8 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          help="Say your budget, how many people and anything to avoid (allergies, picky eaters). Joe adds up "
               "the shopping list himself and says plainly if it goes over. For real prices, add a spreadsheet "
               "from Read scans and receipts (or your own price list): otherwise prices are estimates marked "
-              "[CHECK], because Joe can't see store prices online.",
+              "[CHECK], because Joe can't see store prices online. Got a recipe? Add it (or paste it in the box) "
+              "and say \"double it\", \"for 10 people\" or \"no eggs\": Joe scales every amount and lists swaps himself.",
          plan_hint="Budget meal plan / feed a family on a budget: TYPE: meal-plan, FORMAT: their words (budget, "
                    "people, diet), word for word, OPTIONS: days 3|5|7. INPUT only a receipts spreadsheet or price "
                    "list if they point at one. No CHUNKS.",

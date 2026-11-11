@@ -523,6 +523,12 @@ def _meal_plan(engine, job, files, ask, save, model) -> None:
     from .tools import option_value
     days = int(option_value(job, "days") or 7)
     wish = job.format.strip()
+    from . import recipes                     # a recipe + "double it" / "no eggs": scaled and swapped by Joe (2.3)
+    rec = recipes.make(recipes.recipe_text(_context(engine, files, 12000), wish), wish)
+    if rec is not None:
+        engine.log("  A recipe to scale or swap: Joe does it himself (no AI needed).")
+        save("recipe.md", rec, "recipe")
+        return
     budget = budget_from(wish)
     people = people_from(wish) or 4
     prices = _context(engine, files, 6000)
