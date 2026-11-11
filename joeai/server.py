@@ -1049,6 +1049,8 @@ class App:
         def prog(pct):
             self.busy_pct = round(pct, 1)
 
+        said: list[str] = []                    # update-joe: what went wrong, for the window
+
         def work():
             ok = True
             try:
@@ -1143,9 +1145,17 @@ class App:
                         ok = False
                 elif action == "update-joe":
                     from . import update as update_mod
+
+                    def ulog(m):
+                        said.append(str(m))
+                        self.log(m)
                     info = update_mod.check()
-                    f = update_mod.download(info, self.log, progress=prog) if info.get("newer") else None
-                    ok = bool(f) and update_mod.launch(f, info.get("kind", "source"), self.log)
+                    if not info.get("ok"):
+                        ulog(f"Couldn't check for the update: {info.get('error', '')}")
+                    elif not info.get("newer"):
+                        ulog("There's no newer version to download after all.")
+                    f = update_mod.download(info, ulog, progress=prog) if info.get("newer") else None
+                    ok = bool(f) and update_mod.launch(f, info.get("kind", "source"), ulog)
                     if ok and info.get("kind") in ("windows-installer", "linux-appimage"):
                         self.last_seen = 0.0                 # step aside so the new Joe can start
                         self.quit_now = True
@@ -1155,6 +1165,10 @@ class App:
                 addons_mod.install_log(self.log)(f"!! {action} failed: {e!r}")
             finally:
                 self.fix_result = {"action": action, "ok": bool(ok), "n": self.fix_result.get("n", 0) + 1}
+                if action == "update-joe" and not ok:     # the window says so, in words (not just the log)
+                    from . import REPO
+                    self.fix_result.update(error=(said[-1] if said else "The update stopped (the log says why)."),
+                                           url=f"https://github.com/{REPO}/releases/latest")
                 self.busy, self.busy_pct = "", None
         labels = {"install": f"installing {tool}", "start": f"starting {tool}", "update": f"updating {tool}",
                   "pull": f"downloading {model}", "download-image-model": "downloading image model",
@@ -2125,6 +2139,24 @@ def make_handler(app: App):
                     return self._json({"ok": True})
                 if u.path == "/api/queue/held":                # RUN THEM / CLEAR the missions kept on hold
                     return self._json(app.held_action("run" if b.get("action") == "run" else "clear"))
+                if u.path == "/api/models/pickle":           # ALLOW / UNDO for one older-format model file
+                    # Only Joe's own window reaches this (window token, never a link token); the
+                    # MCP connector and Joe Phone have no way to say YES for the person.
+                    from .doctor import comfy_models_dir
+                    name = str(b.get("name", ""))[:400]
+                    if b.get("undo"):
+                        comfy_mod.forget_pickle(name)
+                        app.log(f"Joe won't use {name} again until you say YES to it.")
+                        return self._json({"ok": True})
+                    if b.get("yes") is not True:
+                        return self._json({"ok": False, "error": "Needs your YES."})
+                    try:
+                        size = comfy_mod.allow_pickle(name, comfy_models_dir(app.settings))
+                    except (ValueError, OSError) as e:
+                        return self._json({"ok": False, "error": str(e)})
+                    app.log(f"You said YES to the older-format model {name} ({size:,} bytes). If the file "
+                            "ever changes, Joe asks again.")
+                    return self._json({"ok": True})
                 if u.path == "/api/models/download-all":
                     if b.get("stop"):
                         app.dl_all["stop"] = True

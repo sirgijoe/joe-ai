@@ -152,7 +152,7 @@ def test_update_falls_back_to_curl_on_certificate_errors(tmp_path, monkeypatch):
     monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
     body = b"installer-bytes" * 1000
     name = "Joe-Setup-9.9.9-windows-x64.exe"
-    sums = f"{hashlib.sha256(body).hexdigest()}  {name}\n".encode()
+    sums = f"{hashlib.sha256(body).hexdigest()}  {name}\n# joe-ai version 9.9.9\n".encode()
     files = {"https://x/" + name: body, "https://x/SHA256SUMS.txt": sums,
              "https://x/SHA256SUMS.txt.sig": sign.sign_file_text(sign.b64(seed), sums).encode()}
     used = []
@@ -168,7 +168,7 @@ def test_update_falls_back_to_curl_on_certificate_errors(tmp_path, monkeypatch):
         return files[url]
 
     monkeypatch.setattr(update, "_curl", fake_curl)
-    info = {"asset": {"name": name, "url": "https://x/" + name, "size": len(body)},
+    info = {"asset": {"name": name, "url": "https://x/" + name, "size": len(body)}, "latest": "9.9.9",
             "sums": "https://x/SHA256SUMS.txt", "sig": "https://x/SHA256SUMS.txt.sig"}
     log = []
     got = update.download(info, log.append, opener=bad_cert)

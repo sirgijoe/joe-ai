@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import copy
 import json
+import os
 import random
 import re
 import sys
@@ -64,11 +65,175 @@ _FAMILIES = [  # (family, pattern) — first match wins; checked against the low
 ]
 # Older model formats are Python "pickles": loading one can run code hidden inside it. Joe
 # prefers .safetensors (data only) whenever there's a choice, and System check lists the others.
-PICKLE_EXTS = {".ckpt", ".pt", ".pth", ".bin"}
+PICKLE_EXTS = {".ckpt", ".pt", ".pt2", ".pth", ".bin", ".pkl", ".pickle"}     # all can run code when loaded
 
 
 def is_pickle(name: str) -> bool:
     return Path(name).suffix.lower() in PICKLE_EXTS
+
+
+# The rule for pickle files (decided 2026-11-11): Joe never downloads or picks one himself. A pickle
+# file the person already has is used only after a one-time plain-words warning and their YES for
+# that file, given in Joe's own window (Setup > System check > Your models). The YES is remembered
+# for that exact file: where it is, its size and when it was last changed, so a swapped file or a
+# different file with the same name needs a new YES. A plan from another AI, Joe Phone or the MCP
+# connector can name the file, but ComfyClient.submit refuses it until then.
+PICKLE_WARNING = ("{name} is an older model format ({ext}). Files like this can run hidden code on "
+                  "your computer when they're loaded, so Joe doesn't use one until you say YES for it. "
+                  "Only say YES if you trust where it came from. A .safetensors version of the same "
+                  "model is always the safer choice.")
+
+
+def _pickle_ok_path() -> Path:
+    from .config import config_dir
+    return config_dir() / "pickle-ok.json"
+
+
+def _file_key(f: Path) -> str:
+    try:
+        f = f.resolve()
+    except OSError:
+        pass
+    return os.path.normcase(str(f))
+
+
+def _name_parts(name: str) -> list[str]:
+    return [p for p in str(name).strip().replace("\\", "/").lower().split("/") if p and p != "."]
+
+
+def pickle_approvals() -> dict[str, dict]:
+    """{full path of the file: {"size": bytes, "mtime_ns": last change}} for every pickle file the
+    person said YES to."""
+    try:
+        d = json.loads(_pickle_ok_path().read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+    if not isinstance(d, dict):
+        return {}
+    ok = lambda v: isinstance(v, int) and not isinstance(v, bool)  # noqa: E731
+    return {str(k): {"size": v["size"], "mtime_ns": v["mtime_ns"]} for k, v in d.items()
+            if isinstance(v, dict) and ok(v.get("size")) and ok(v.get("mtime_ns"))}
+
+
+def _model_roots(models_dir: Path | None) -> list[Path]:
+    if not models_dir:
+        return []
+    roots = [models_dir]
+    try:
+        from .sharedmodels import yaml_for_models_dir, folders_of
+        for y in yaml_for_models_dir(models_dir):
+            for kind in ("checkpoints", "loras", "diffusion_models", "unet", "vae", "upscale_models",
+                         "clip", "text_encoders", "controlnet", "embeddings", "clip_vision"):
+                roots += [p for p in folders_of(y, kind) if p.is_dir()]
+    except Exception:                         # noqa: BLE001  (a broken yaml never unlocks anything)
+        pass
+    return roots
+
+
+def find_model_files(name: str, models_dir: Path | None) -> list[Path]:
+    """Every file under ComfyUI's model folders that `name` could mean: a base name, or a path
+    relative to a model folder as ComfyUI names it ("sub/old.ckpt" only matches inside a "sub")."""
+    parts = _name_parts(name)
+    if not parts:
+        return []
+    out: dict[str, Path] = {}
+    for root in _model_roots(models_dir):
+        try:
+            for f in root.rglob("*"):
+                if f.name.lower() == parts[-1] and f.is_file() \
+                        and [p.lower() for p in f.parts[-len(parts):]] == parts:
+                    out.setdefault(_file_key(f), f)
+        except OSError:
+            continue
+    return list(out.values())
+
+
+def _has_yes(f: Path, approvals: dict) -> bool:
+    a = approvals.get(_file_key(f))
+    if not a:
+        return False
+    try:
+        st = f.stat()
+    except OSError:
+        return False
+    return st.st_size == a["size"] and st.st_mtime_ns == a["mtime_ns"]
+
+
+def pickle_allowed(name: str, models_dir: Path | None) -> bool:
+    """True for a .safetensors (or other data-only) file, or a pickle file with the person's YES
+    that hasn't changed since. When the name could mean more than one file (the same name in two
+    model folders), every one of them needs its own YES: a YES for one never covers another."""
+    if not is_pickle(name):
+        return True
+    files = find_model_files(name, models_dir)
+    if not files:
+        return False
+    approvals = pickle_approvals()
+    return all(_has_yes(f, approvals) for f in files)
+
+
+def allow_pickle(name: str, models_dir: Path | None) -> int:
+    """Remember the person's YES for one pickle file (where it is, its size and when it last
+    changed). Only Joe's window calls this, right after the warning. Returns the size remembered;
+    raises ValueError if the file isn't found."""
+    if not is_pickle(name):
+        raise ValueError("That file isn't an older-format model; it needs no YES.")
+    files = find_model_files(name, models_dir)
+    if not files:
+        raise ValueError(f"Joe can't find {name} in ComfyUI's model folders.")
+    from .fsutil import atomic_write_text
+    d = pickle_approvals()
+    total = 0
+    for f in files:
+        st = f.stat()
+        d[_file_key(f)] = {"size": st.st_size, "mtime_ns": st.st_mtime_ns}
+        total += st.st_size
+    path = _pickle_ok_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    atomic_write_text(path, json.dumps(d, indent=1))
+    return total
+
+
+def forget_pickle(name: str) -> None:
+    parts = _name_parts(name)
+    d = pickle_approvals()
+    keep = {k: v for k, v in d.items() if not parts or _name_parts(k)[-len(parts):] != parts}
+    if len(keep) != len(d):
+        from .fsutil import atomic_write_text
+        atomic_write_text(_pickle_ok_path(), json.dumps(keep, indent=1))
+
+
+def graph_pickles(graph: dict) -> list[str]:
+    """Every pickle-format model file a ComfyUI graph would load (any input value naming one,
+    however deep it sits in a list or a group of settings)."""
+    out: list[str] = []
+
+    def look(v, depth=0):
+        if isinstance(v, str):
+            if is_pickle(v.strip()) and v.strip() not in out:
+                out.append(v.strip())
+        elif depth < 8 and isinstance(v, dict):
+            for x in v.values():
+                look(x, depth + 1)
+        elif depth < 8 and isinstance(v, (list, tuple)):
+            for x in v:
+                look(x, depth + 1)
+
+    for node in (graph or {}).values():
+        if isinstance(node, dict):
+            look(node.get("inputs") or {})
+    return out
+
+
+def check_pickles(graph: dict, models_dir: Path | None) -> None:
+    """Refuse a graph that would load a pickle file the person hasn't said YES to."""
+    bad = [n for n in graph_pickles(graph) if not pickle_allowed(n, models_dir)]
+    if bad:
+        raise WorkflowError(
+            f"{bad[0]} is an older model format that can run hidden code when it's loaded, and you "
+            "haven't said YES to it. Joe doesn't use one without that: Setup > System check > Your "
+            "models > ALLOW next to the file (only if you trust where it came from), or use the "
+            ".safetensors version of the model.")
 
 
 # Tensor names that identify each architecture inside a .safetensors file.
@@ -195,10 +360,12 @@ def best_image_model(models: list[ImageModel], vram_gb: float, kind: str = "imag
     if want:
         w = want.lower()
         hits = [m for m in pool if w in m.name.lower()]
-        return max(hits, key=lambda m: m.mtime) if hits else None
+        # a name the person (or a plan) gave: the .safetensors copy wins when both exist; a pickle
+        # one is only loaded after the person's YES (ComfyClient.submit checks)
+        return max(hits, key=lambda m: (not is_pickle(m.name), m.mtime)) if hits else None
     if family:
         pool = [m for m in pool if m.family == family]
-    pool = [m for m in pool if not is_pickle(m.name)] or pool     # .safetensors first (safer)
+    pool = [m for m in pool if not is_pickle(m.name)]     # Joe never picks a pickle file himself
     if not pool:
         return None
     vram = vram_gb or 8
@@ -210,10 +377,11 @@ def best_image_model(models: list[ImageModel], vram_gb: float, kind: str = "imag
 class ComfyClient:
     MAX_MISSES = 6          # status checks in a row ComfyUI may miss while busy (about 3+ minutes)
 
-    def __init__(self, base: str, timeout_s: int = 900):
+    def __init__(self, base: str, timeout_s: int = 900, models_dir: Path | None = None):
         self.base = base.rstrip("/")
         self.timeout_s = timeout_s
         self.client_id = uuid.uuid4().hex
+        self.models_dir = models_dir          # for the pickle YES check (None: no pickle file at all)
 
     def up(self) -> bool:
         try:
@@ -240,6 +408,7 @@ class ComfyClient:
                      timeout=30)
 
     def submit(self, graph: dict) -> str:
+        check_pickles(graph, self.models_dir)     # every graph passes here, whoever wrote it
         r = request_json("POST", f"{self.base}/prompt",
                          {"prompt": graph, "client_id": self.client_id}, timeout=60)
         if r.get("node_errors"):

@@ -85,6 +85,17 @@ def expected_sha(sums_text: str, name: str) -> str:
             return parts[0].lower()
     return ""
 
+VERSION_LINE = "# joe-ai version "      # the release workflow writes it into SHA256SUMS.txt before signing
+
+
+def listed_version(sums_text: str) -> str:
+    """The version the (signed) checksum list says it belongs to, or ''."""
+    for line in sums_text.splitlines():
+        if line.startswith(VERSION_LINE):
+            return line[len(VERSION_LINE):].strip().lstrip("vV")
+    return ""
+
+
 _CACHE: dict = {}
 CACHE_S = 6 * 3600
 
@@ -248,6 +259,15 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
         if not sig or not sign.check(sums, sig, SIGN_PUBLIC_KEY):
             log("This release's signature is missing or doesn't match Joe's maker, so Joe won't install it. "
                 "Use the release page, or ask on GitHub.")
+            part.unlink(missing_ok=True)
+            return None
+        # The version is inside the signed list, so an older signed release can't be passed off as
+        # a new one (or put back over a newer Joe).
+        listed = listed_version(sums.decode("utf-8", "replace"))
+        latest = str(info.get("latest", "")).lstrip("vV")
+        if not listed or listed != latest or parse_version(listed) <= parse_version(__version__):
+            log(f"This release's signed list is for version {listed or '(none given)'}, not {latest or '?'}, "
+                "so Joe won't install it. Use the release page, or ask on GitHub.")
             part.unlink(missing_ok=True)
             return None
     if not want:

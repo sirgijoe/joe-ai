@@ -54,7 +54,10 @@ def test_sandbox_blocks_symlink_escape(tmp_path):
     sb = Sandbox(tmp_path / "ws").ensure()
     outside = tmp_path / "outside"
     outside.mkdir()
-    (sb.output / "link").symlink_to(outside, target_is_directory=True)
+    try:
+        (sb.output / "link").symlink_to(outside, target_is_directory=True)
+    except OSError:                       # Windows without Developer Mode or admin: no symlinks allowed
+        pytest.skip("this computer doesn't allow making symlinks")
     with pytest.raises(SandboxError):
         sb.resolve("link/x.md")
 

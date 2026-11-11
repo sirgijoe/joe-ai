@@ -30,11 +30,23 @@ Categories=Utility;
 Terminal=false
 DT
 
+# appimagetool is pinned to one release and checked against its SHA-256 before it runs, so a
+# changed download can't end up inside Joe's AppImage. To move to a newer appimagetool, change
+# the tag and both sums together (compare with the digests on its GitHub release page).
+AIT_TAG="1.9.0"
+case "$arch" in
+  x86_64)  ait_sha="46fdd785094c7f6e545b61afcfb0f3d98d8eab243f644b4b17698c01d06083d1" ;;
+  aarch64) ait_sha="04f45ea45b5aa07bb2b071aed9dbf7a5185d3953b11b47358c1311f11ea94a96" ;;
+  *) echo "unknown arch $arch" >&2; exit 1 ;;
+esac
 tool="build/appimagetool"
-if [ ! -x "$tool" ]; then
-  gh release download continuous --repo AppImage/appimagetool -p "appimagetool-${arch}.AppImage" -O "$tool"
-  chmod +x "$tool"
+gh release download "$AIT_TAG" --repo AppImage/appimagetool -p "appimagetool-${arch}.AppImage" -O "$tool" --clobber
+got=$(sha256sum "$tool" | cut -d' ' -f1)
+if [ "$got" != "$ait_sha" ]; then
+  echo "::error::appimagetool $AIT_TAG ($arch) doesn't match its pinned SHA-256 (got $got)" >&2
+  rm -f "$tool"; exit 1
 fi
+chmod +x "$tool"
 mkdir -p dist
 out="dist/Joe-${version}-linux-${arch}.AppImage"
 ARCH="$arch" APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream "$appdir" "$out"

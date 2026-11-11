@@ -152,9 +152,11 @@ class Joe:
                               ("Waiting for the night shift", self.sb.missions / "Tonight")):
             names = _mission_files(folder)
             lines.append(f"{label}: " + (", ".join(names) if names else "nothing"))
-        probs = _mission_files(self.sb.missions / "Queue" / "problems")
+        # only recent ones: an old problem file the person never cleared isn't news a week later
+        probs = _mission_files(self.sb.missions / "Queue" / "problems", max_age_s=PROBLEM_DAYS * 86400)
         if probs:
-            lines.append("Queue files with problems (see the .problem.txt next to each): " + ", ".join(probs[-5:]))
+            lines.append(f"Queue files with problems in the last {PROBLEM_DAYS} days (see the .problem.txt next to "
+                         "each): " + ", ".join(probs[-5:]))
         if self.s.schedule.enabled:
             lines.append(f"Night shift: on, starts at {self.s.schedule.time}")
         return "\n".join(lines)
@@ -408,10 +410,16 @@ class Joe:
         raise KeyError(name)
 
 
-def _mission_files(folder: Path) -> list[str]:
+PROBLEM_DAYS = 7
+
+
+def _mission_files(folder: Path, max_age_s: float = 0) -> list[str]:
+    """Mission files in a folder, oldest first; max_age_s > 0 leaves out older ones."""
+    cut = time.time() - max_age_s if max_age_s else 0
     try:
         return [p.name for p in sorted(folder.iterdir(), key=lambda p: p.stat().st_mtime)
-                if p.is_file() and p.suffix.lower() in (".txt", ".md") and not p.name.endswith(".problem.txt")]
+                if p.is_file() and p.suffix.lower() in (".txt", ".md") and not p.name.endswith(".problem.txt")
+                and p.stat().st_mtime >= cut]
     except OSError:
         return []
 

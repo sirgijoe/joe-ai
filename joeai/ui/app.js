@@ -12,7 +12,7 @@ const TOKEN = (() => {
   return t;
 })();
 const $ = (s) => document.querySelector(s);
-const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
 async function api(path, body) {
   const opt = { headers: { "X-NR-Token": TOKEN } };
@@ -280,7 +280,11 @@ async function poll() {
   if (state.busy !== lastBusy) { lastBusy = state.busy; if (!state.busy) loadDoctor(); }
   const fr = state.fix_result || {};
   if (fr.n && fr.n !== lastFix) {
-    if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > System check > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
+    if (lastFix !== -1 && !fr.ok && fr.action === "update-joe") {
+      $("#setup-msg") && ($("#setup-msg").textContent = "The update didn't finish: " + (fr.error || ""));
+      confirmBox(`The update didn't finish.\n\n${fr.error || "The log on the main screen says why."}\n\nYou can always download the installer yourself from the release page and run it; your files and settings are kept.\n\nOpen the release page?`,
+        () => window.open(fr.url || "https://github.com/sirgijoe/joe-ai/releases/latest", "_blank", "noopener"));
+    } else if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > System check > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
     else if (lastFix !== -1 && fr.ok) toast("Setup finished");
     lastFix = fr.n;
   } else if (lastFix === -1) lastFix = fr.n || 0;
@@ -2959,6 +2963,22 @@ document.addEventListener("click", async (ev) => {
 });
 
 /* ---------------- update check ---------------- */
+// Release notes are Markdown; the question box shows plain text, so tidy them for reading:
+// headings in capitals, bullets as dots, no ** or ` marks, [text](link) as text. Cut at a line.
+function notesText(md, max = 700) {
+  const lines = String(md).replace(/\r/g, "").split("\n").map((l) => {
+    let t = l.replace(/\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\*\*|__|`/g, "").replace(/<[^>]*>/g, "");
+    const h = t.match(/^\s*#{1,6}\s+(.*)$/);
+    if (h) return h[1].trim().toUpperCase();
+    return t.replace(/^(\s*)[-*+]\s+/, "$1• ").replace(/\s+$/, "");
+  });
+  let out = "";
+  for (const l of lines) {
+    if (out.length + l.length + 1 > max) { out += "…"; break; }
+    out += (out ? "\n" : "") + l;
+  }
+  return out.replace(/\n{3,}/g, "\n\n").trim();
+}
 async function checkUpdate(manual) {
   let r;
   try { r = await api("/api/update" + (manual ? "?force=1" : "?auto=1")); } catch (e) { r = { ok: false, error: e.message }; }
@@ -2966,7 +2986,7 @@ async function checkUpdate(manual) {
   if (!r.ok) { if (manual) $("#setup-msg").textContent = `You have ${r.current || "?"}. ${r.error}`; return; }
   if (!r.newer) { if (manual) $("#setup-msg").textContent = `You have the newest version (${r.current}).`; return; }
   if (manual) $("#setup-msg").textContent = `Joe ${r.latest} is out (you have ${r.current}).`;
-  const notes = r.notes ? r.notes.slice(0, 600) + "\n\n" : "";
+  const notes = r.notes ? notesText(r.notes) + "\n\n" : "";
   if (r.asset) {
     const mb = r.asset.size ? ` (${Math.round(r.asset.size / 1048576)} MB)` : "";
     const how = { "windows-installer": "Joe closes while it installs and opens again by himself.",
@@ -3735,11 +3755,39 @@ document.addEventListener("change", (ev) => {
     ? `<h4>${title} (${rows.length})</h4><table class="mtable"><tr>${cols.map((c) => `<th>${c[0]}</th>`).join("")}</tr>` +
       rows.map((r) => `<tr>${cols.map((c) => `<td>${esc(c[1](r))}</td>`).join("")}</tr>`).join("") + "</table>"
     : `<h4>${title}</h4><p class="dim small">None found.</p>`;
+  // Older-format (pickle) files: Joe never picks one; each needs the person's own YES, once.
+  const pickles = (m) => {
+    const u = m.unsafe || [];
+    if (!u.length) return "";
+    const ok = new Set(m.allowed || []);
+    return `<div class="warn small">! ${u.length} model file(s) use an older format (.ckpt, .pt, .pth or .bin) that can run hidden code when loaded. Joe never picks one himself and only uses one after you say YES to that file. Only do that if you trust where it came from; the .safetensors version of a model is always the safer choice.` +
+      `<table class="mtable">` + u.map((n, i) => `<tr><td>${esc(n)}</td><td>${ok.has(n) ? "you said YES" : "not used"}</td>` +
+        `<td><button type="button" class="pickle-btn" data-i="${i}" data-undo="${ok.has(n) ? 1 : ""}">${ok.has(n) ? "[ UNDO ]" : "[ ALLOW… ]"}</button></td></tr>`).join("") +
+      `</table></div>`;
+  };
+  box.addEventListener("click", (ev) => {
+    const b = ev.target.closest(".pickle-btn");
+    if (!b || !box._unsafe) return;
+    const name = box._unsafe[+b.dataset.i];
+    if (!name) return;
+    if (b.dataset.undo) {
+      api("/api/models/pickle", { name, undo: true }).then(() => go.click()).catch((e) => toast(String(e)));
+      return;
+    }
+    const ext = (name.match(/\.[^.\/]+$/) || [""])[0];
+    confirmBox(`${name} is an older model format (${ext}). Files like this can run hidden code on your computer when they're loaded.\n\nSay YES only if you trust where it came from. Joe remembers your YES for this exact file; if the file changes, he asks again.\n\nUse ${name}?`,
+      async () => {
+        const r = await api("/api/models/pickle", { name, yes: true });
+        if (!r.ok) toast(r.error || "Couldn't save that.");
+        go.click();
+      }, null, "[ YES, I TRUST IT ]");
+  });
   go.addEventListener("click", async () => {
     box.textContent = "Looking…";
     try {
       const m = await api("/api/models");
-      box.innerHTML = ((m.unsafe || []).length ? `<div class="warn small">! ${m.unsafe.length} model file(s) use an older format (.ckpt, .pt, .pth or .bin) that can run hidden code when loaded: ${esc(m.unsafe.slice(0, 8).join(", "))}${m.unsafe.length > 8 ? "…" : ""}. Only keep them if you trust where they came from, and get the .safetensors version when there is one. Joe uses .safetensors files first.</div>` : "") +
+      box._unsafe = m.unsafe || [];
+      box.innerHTML = pickles(m) +
         table("Writing and talking (Ollama)", m.writing, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],
           ["Used for", (r) => (r.writer ? "writing, Talk" : "pictures, reading scans or other helpers")]]) +
         table("Picture models (ComfyUI)", m.pictures, [["Model", (r) => r.name], ["Size", (r) => gb(r.size_gb)],

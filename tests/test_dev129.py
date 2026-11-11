@@ -140,7 +140,7 @@ def test_update_refuses_unsigned_when_key_is_set(tmp_path, monkeypatch):
     import joeai
     from joeai import sign, update
     payload = b"installer bytes"
-    sums = f"{hashlib.sha256(payload).hexdigest()}  Joe-Setup-9.9.9-windows-x64.exe\n".encode()
+    sums = f"{hashlib.sha256(payload).hexdigest()}  Joe-Setup-9.9.9-windows-x64.exe\n# joe-ai version 9.9.9\n".encode()
     seed = b"\x09" * 32
     good_sig = sign.sign_file_text(sign.b64(seed), sums)
     files = {"inst": payload, "sums": sums, "sig": good_sig.encode()}
@@ -151,7 +151,8 @@ def test_update_refuses_unsigned_when_key_is_set(tmp_path, monkeypatch):
     def opener(url, timeout=0):
         return contextlib.closing(R(files[url])) if url in files else (_ for _ in ()).throw(OSError("404"))
     monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
-    info = {"asset": {"name": "Joe-Setup-9.9.9-windows-x64.exe", "url": "inst"}, "sums": "sums", "sig": "sig"}
+    info = {"asset": {"name": "Joe-Setup-9.9.9-windows-x64.exe", "url": "inst"}, "sums": "sums", "sig": "sig",
+            "latest": "9.9.9"}
     monkeypatch.setattr(joeai, "SIGN_PUBLIC_KEY", sign.b64(sign.public_key(seed)))
     logs = []
     assert update.download(info, logs.append, opener=opener)

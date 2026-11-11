@@ -173,13 +173,33 @@ class JobState:
     prompt_parts: int = 0             # prompt parts finished or skipped (resume point; 0 = older state)
 
 
+WORDS_PER_SENTENCE = 15
+_COUNT = {"a": 1, "one": 1, "single": 1, "two": 2, "a couple of": 2, "couple of": 2, "three": 3,
+          "a few": 3, "few": 3, "four": 4, "five": 5}
+
+
 def asked_words(text: str) -> int:
-    """The length a part asks for in its own words ("about 60 words", "150-200 words"), or 0."""
+    """The length a part asks for in its own words ("about 60 words", "150-200 words",
+    "two short sentences", "a sentence or two"), or 0. Sentences count as about 15 words each."""
     m = re.search(r"(\d{2,5})\s*(?:-|to|–)\s*(\d{2,5})\s*words", text or "", re.I)
     if m:
         return int(m.group(1))
     m = re.search(r"(\d{2,5})\s*words", text or "", re.I)
-    return int(m.group(1)) if m else 0
+    if m:
+        return int(m.group(1))
+    # "a sentence or two", "one or two sentences", "2-3 short sentences", "two short sentences".
+    # A bare "a sentence" isn't a length ("a sentence about cats"); the smaller number counts.
+    adj = r"(?:short\s+|brief\s+|simple\s+|quick\s+)?"
+    num = r"(\d{1,2}|a couple of|couple of|a few|a single|single|one|two|three|four|five)"
+    t = text or ""
+    m = re.search(rf"\b(a|one|\d{{1,2}}|two|three)\s*(?:-|to|–|or)\s*(?:\d{{1,2}}|two|three|four|five)\s+{adj}sentences\b", t, re.I) \
+        or re.search(rf"\b(a|one)\s+{adj}sentence\s+or\s+two\b", t, re.I) \
+        or re.search(rf"\b{num}\s+{adj}sentences?\b", t, re.I)
+    if m:
+        n = m.group(1).lower().replace("a single", "single")
+        k = int(n) if n.isdigit() else _COUNT.get(n, 0)
+        return k * WORDS_PER_SENTENCE if 0 < k <= 10 else 0
+    return 0
 
 
 PEOPLE_STYLES = frozenset({"photo", "bw", "general", "painting", "concept", "illustration"})
@@ -912,7 +932,10 @@ class Engine:
         best: tuple | None = None
         extra = ""
         tries = 1 + self.s.engine.short_item_retries
-        asked = asked_words(job.part_prompts[part])
+        # the part's own words first, then the task's RULES, then the mission's ("Two short
+        # sentences per section." was retried for being under 80 words: ~50 s a part for nothing)
+        asked = asked_words(job.part_prompts[part]) or asked_words(job.rules) or \
+            asked_words(getattr(getattr(self, "_mission", None), "rules", ""))
         thin = thin_reply_words(st.words, st.parts_done, asked)
         empty = 0
         attempt = 0
@@ -1338,7 +1361,8 @@ class Engine:
         label = "built-in text-to-image"
         if style.lora and m.family == "sdxl":
             from .doctor import comfy_models_dir
-            lora = styles_mod.pick_lora(style, comfy_mod.list_loras(comfy_models_dir(self.s)))
+            lora = styles_mod.pick_lora(style, [n for n in comfy_mod.list_loras(comfy_models_dir(self.s))
+                                                if not comfy_mod.is_pickle(n)])   # Joe never picks a pickle file
             if lora:
                 ls = styles_mod.recipe(job, self._picks()).lora_settings
                 g = comfy_mod.with_lora(g, lora, float(wpref.get("lora", ls.get("strength", style.lora_strength))))
@@ -1464,7 +1488,8 @@ class Engine:
         # A 5-second video can take far longer than a picture on a 12 GB card (part of the model
         # waits in normal memory), so videos get at least an hour before Joe gives up on one.
         limit = self.s.comfy.timeout_s if job.type != "video" else max(self.s.comfy.timeout_s, VIDEO_TIMEOUT_S)
-        client = comfy_mod.ComfyClient(self.services.comfy_base, limit)
+        from .doctor import comfy_models_dir
+        client = comfy_mod.ComfyClient(self.services.comfy_base, limit, comfy_models_dir(self.s))
         try:
             graph, ckpt, family, wf_label = self._pick_graph(job, client, st)
         except (comfy_mod.WorkflowError, SandboxError, HttpError) as e:

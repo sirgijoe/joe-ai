@@ -601,11 +601,32 @@ def rerun_plan(app, request: str) -> dict | None:
             "Say what to make in your own words, or pick it from a past chat (Talk > PAST CHATS)."}
 
 
+def ready_mission(app, text: str) -> dict | None:
+    """The box got a finished mission (TASK: lines), not plain words. Use it exactly as written:
+    handing it to the planner let a small model rewrite it, and it dropped SAVE: (2026-11-10
+    "Fix check" test). None = plain words (or a broken block: the planner can still help)."""
+    if not re.search(r"(?im)^\s*(=== JOE MISSION ===|TASK:)", text or ""):
+        return None
+    try:
+        parse(text)
+        chk = app.check(text)
+    except MissionError:
+        return None
+    if not chk.get("ok"):
+        return None
+    return {"ok": True, "mission": text.strip(), "summary": plain_summary(chk),
+            "time": plain_time(chk["eta_min"]) + ("" if chk.get("eta_learned") else ROUGH),
+            "eta_min": chk["eta_min"], "warnings": chk.get("warnings", [])}
+
+
 def draft(app, request: str) -> dict:
     """Plain request -> {"ok", "mission", "summary", "time", "eta_min", "warnings"}."""
     request = (request or "").strip()
     if len(request) < 4:
         return {"ok": False, "error": "Tell Joe what you need first, in your own words."}
+    ready = ready_mission(app, request)       # a mission typed or pasted as-is: run it as written
+    if ready is not None:
+        return ready
     request = request[:4000]
     again = rerun_plan(app, request)          # "rerun the bw videos": no AI guessing needed
     if again is not None:

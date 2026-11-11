@@ -392,6 +392,12 @@ SmartScreen "couldn't be reached". That's Windows, not Joe: choose **Run anyway*
 
 **Updates:** each release lists a SHA-256 checksum for every file, and releases are signed with
 Joe's own key, so Joe refuses an update that was changed or didn't come from this project.
+If UPDATE doesn't work on your computer, download the installer from the
+[release page](https://github.com/sirgijoe/joe-ai/releases/latest) and run it; your files and settings are kept.
+
+**Older model files:** Joe only downloads `.safetensors` models (data only). Files in the older
+`.ckpt`, `.pt`, `.pth` or `.bin` formats can run hidden code when they're loaded, so Joe never picks
+one himself; if you bring one you trust, say YES to it once in Setup > System check > Your models.
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md) lists what an outside reviewer should check. How releases are signed, and by whom: [Code signing policy](CODE_SIGNING.md).
 
 ## How a night with Joe goes

@@ -17,7 +17,7 @@ from typing import Callable
 from . import styles
 
 Log = Callable[[str], None]
-MODEL_EXT = (".safetensors", ".ckpt")
+MODEL_EXT = (".safetensors",)        # Joe never moves in an older-format (pickle) model
 MIN_BYTES = 500 * 1024 * 1024          # full picture models are bigger than this
 LORA_BYTES = 8 * 1024 * 1024           # style add-ons (LoRAs): 8 MB up to MIN_BYTES
 PAGE_HOSTS = ("https://civitai.com/", "https://huggingface.co/")
@@ -222,7 +222,7 @@ def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = 
         if not root or not root.is_dir():
             continue
         for f in sorted(root.rglob("*")):
-            if f.is_file() and f.suffix.lower() in (".safetensors", ".ckpt", ".pt", ".pth", ".bin", ".gguf"):
+            if f.is_file() and (f.suffix.lower() in (".safetensors", ".gguf") or comfy.is_pickle(f.name)):
                 try:
                     gb = round(f.stat().st_size / 2**30, 2)
                 except OSError:
@@ -239,7 +239,8 @@ def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = 
                 other.append({"name": f.relative_to(ck).as_posix(), "what": "Tool model (music, sound or 3D)",
                               "size_gb": gb})
     unsafe = [x["name"] for x in pics + addons + other if comfy.is_pickle(x["name"])]
-    return {"unsafe": unsafe,
+    ok = [n for n in unsafe if comfy.pickle_allowed(n, models_dir)]
+    return {"unsafe": unsafe, "allowed": ok,
             "writing": [{"name": m["name"], "size_gb": m["size_gb"], "params": m.get("params", ""),
                          "writer": m.get("writer", True)} for m in ollama],
             "pictures": pics, "addons": addons, "other": other,

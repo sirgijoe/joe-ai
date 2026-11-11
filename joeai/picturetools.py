@@ -201,7 +201,7 @@ def download_pack(settings, pack_id: str, log, approved: bool = False, progress=
     """Download a model pack into ComfyUI's models folders (asks first: approved must be True)."""
     if not approved:
         raise PermissionError("download needs the user's approval")
-    from .doctor import _download, comfy_models_dir
+    from .doctor import _download, comfy_models_dir, refuse_pickle
     mdir = comfy_models_dir(settings)
     if not mdir:
         log("Can't find ComfyUI's models folder. Install ComfyUI first, or set its folder in Setup.")
@@ -216,7 +216,7 @@ def download_pack(settings, pack_id: str, log, approved: bool = False, progress=
     done = 0.0
     for folder, name, url, gb in missing:
         log(f"  {name} -> models/{folder}")
-        if not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
+        if refuse_pickle(name, log) or not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
             return False
         done += gb * 2**30
     log(f"{p.label} is ready. Restart ComfyUI once so it sees the new files.")
@@ -826,7 +826,8 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         engine._save_state(job, st)
         return st
     limit = engine.s.comfy.timeout_s if tid not in LONG_TOOLS else max(engine.s.comfy.timeout_s, 3600)
-    client = comfy_mod.ComfyClient(engine.services.comfy_base, limit)
+    from .doctor import comfy_models_dir
+    client = comfy_mod.ComfyClient(engine.services.comfy_base, limit, comfy_models_dir(engine.s))
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(items)} item(s) -> {st.output}")
     failed: list[str] = []
     prefix = f"Joe/{slug(job.name) or tid}"

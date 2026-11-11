@@ -1212,7 +1212,9 @@ with the maker's private key (`SHA256SUMS.txt.sig`, Ed25519). Joe has the public
 changed release can't slip through even if both the file and its checksum were swapped. The maker sets
 it up once: `python installer/make_signing_key.py`, the private line goes into the GitHub secret
 `JOE_SIGNING_KEY` (never anywhere else), the public line into `SIGN_PUBLIC_KEY`. Until then, updates are
-checked against the checksums only.
+checked against the checksums only. The signed list also names its version (`# joe-ai version X`), and
+Joe refuses one whose version isn't the release being offered or isn't newer than his own, so an old
+signed release can't be passed off as a new one.
 
 
 **CHECK FOR UPDATES** (Setup > System check) asks GitHub for the newest release; Joe also checks when he

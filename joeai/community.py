@@ -387,6 +387,7 @@ def command_line(tool: dict, program: Path, src: Path, outdir: Path, opts: set[s
     out_name = re.sub(r"[\\/:*?\"<>|]", "_", out_name) or f"{stem}-out.{ext}"
     cmd = [str(program)] + (["-I"] if tool["program"] == "joe:python" else [])
     for x in tool["args"]:
+        tmpl = x
         flag = re.fullmatch(r"\{flag:([a-z0-9-]+):([^{}]*)\}", x)
         if flag:                                   # a tick box: the words only when it's ticked
             if flag.group(1) in opts:
@@ -396,6 +397,11 @@ def command_line(tool: dict, program: Path, src: Path, outdir: Path, opts: set[s
         x = x.replace("{stem}", stem).replace("{ext}", ext).replace("{name}", src.name).replace("{text}", text)
         x = x.replace("{addon}", str(addon_dir) if addon_dir else "")
         x = re.sub(r"\{option:([a-z0-9-]+)\}", lambda m: values.get(m.group(1), ""), x)
+        if x.startswith("-") and not tmpl.startswith("-"):
+            # a typed text, a file name or a choice filled in here must never turn into an option
+            # for the program (like "--output=..." or "-rf"): refuse instead of guessing
+            raise ValueError(f"the words given for {tmpl} start with '-', which the program would read "
+                             "as a switch; start them with something else")
         cmd.append(x)
     return cmd
 
@@ -444,7 +450,12 @@ def run(engine, mission, job, st):
                 outdir.mkdir()
                 copy = work / src.name                   # the program never touches your original
                 shutil.copy2(src, copy)
-                cmd = command_line(tool, program, copy, outdir, opts, values, text, a["folder"])
+                try:
+                    cmd = command_line(tool, program, copy, outdir, opts, values, text, a["folder"])
+                except ValueError as e:
+                    failed.append(f"{src.name}: {e}")
+                    engine.log(f"  {src.name}: {e}")
+                    continue
                 try:
                     r = subprocess.run(cmd, cwd=tmp, capture_output=True, text=True, encoding="utf-8", errors="replace",
                                        timeout=tool["timeout"], stdin=subprocess.DEVNULL,

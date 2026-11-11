@@ -100,9 +100,13 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
       ("billion laughs") and huge unzipped sizes are worth a look.
 - [ ] PDFs, audio and video go to FFmpeg / other tools: Joe passes them as arguments, not shell
       text.
-- [ ] Model files: `.ckpt/.pt/.pth/.bin` can run code when loaded; Joe prefers `.safetensors`
-      (`comfy.is_pickle`) and `modelcheck.py` reads `.safetensors` headers without loading them.
-      Should Joe warn (or refuse) when only a pickle file is available?
+- [ ] Model files: `.ckpt/.pt/.pth/.bin` can run code when loaded. Since 2.1.5 Joe never downloads
+      or picks one himself (`comfy.best_image_model`, `doctor.refuse_pickle`, `stylemodels.MODEL_EXT`);
+      a pickle file the person already has is used only after their YES in the window (System check >
+      Your models), remembered for that exact file (full path, size and last-changed time) in `pickle-ok.json` in the settings folder
+      (`comfy.allow_pickle`, `/api/models/pickle`, window token only). Every graph passes
+      `comfy.check_pickles` in `ComfyClient.submit`, so a plan from another AI, Joe Phone or MCP can't
+      load one without that YES. `modelcheck.py` reads `.safetensors` headers without loading them.
 
 ## 7. Secrets and privacy (`config.py`, `support.py`, `backup.py`, `websearch.py`)
 

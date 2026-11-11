@@ -618,6 +618,14 @@ def pull_ollama_model(sm: ServiceManager, name: str, log: Log, approved: bool = 
     return True
 
 
+def refuse_pickle(name: str, log: Log) -> bool:
+    """True (and says why) for an older-format model file: Joe never downloads one into ComfyUI."""
+    if comfy_mod.is_pickle(name):
+        log(f"  Joe doesn't download {name}: that older model format can run hidden code when it's loaded.")
+        return True
+    return False
+
+
 def _download(url: str, dest: Path, log: Log, progress: Callable[[float], None] | None = None,
               done_bytes: int = 0, all_bytes: int = 0) -> bool:
     """Download to dest via a .part file (resumes nothing; a failed file is removed)."""
@@ -675,7 +683,7 @@ def download_video_model(settings: Settings, log: Log, approved: bool = False,
     done = 0.0
     for folder, name, url in missing:
         log(f"  {name} -> models\\{folder}")
-        if not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
+        if refuse_pickle(name, log) or not _download(url, mdir / folder / name, log, progress, int(done), int(all_b)):
             return False
         done += sizes[folder] * 2**30
     log(f"{w['label']} is ready. Restart ComfyUI so it sees the new files, then TYPE: video tasks work.")
@@ -697,7 +705,7 @@ def download_video_turbo(settings: Settings, log: Log, approved: bool = False,
         return True
     folder, name, url = t["file"]
     log(f"Downloading the {t['label']} ({t['license']}).")
-    if not _download(url, mdir / folder / name, log, progress, 0, int(t["size_gb"] * 2**30)):
+    if refuse_pickle(name, log) or not _download(url, mdir / folder / name, log, progress, 0, int(t["size_gb"] * 2**30)):
         return False
     log(f"The {t['label']} is ready. Restart ComfyUI so it sees the new file.")
     return True
@@ -712,6 +720,8 @@ def download_image_model(settings: Settings, log: Log, approved: bool = False,
         log("Can't find ComfyUI's models folder. Set it in Setup (F10).")
         return False
     m = STARTER_IMAGE_MODEL
+    if refuse_pickle(m["name"], log):             # never an older-format (pickle) model
+        return False
     dest = mdir / "checkpoints" / m["name"]
     if dest.exists():
         log(f"{m['name']} is already there.")

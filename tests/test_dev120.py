@@ -36,7 +36,7 @@ def test_safetensors_picked_before_pickles():
     mk = lambda n, t: comfy.ImageModel(n, "checkpoints", 6.5, "sdxl", t)  # noqa: E731
     best = comfy.best_image_model([mk("newer.ckpt", 9), mk("older.safetensors", 1)], 12)
     assert best.name == "older.safetensors"
-    assert comfy.best_image_model([mk("only.ckpt", 1)], 12).name == "only.ckpt"
+    assert comfy.best_image_model([mk("only.ckpt", 1)], 12) is None     # Joe never picks a pickle himself (2.1.5)
 
 
 def test_inventory_lists_unsafe_files(tmp_path):
