@@ -1,3 +1,21 @@
+## What's new in 2.1.3
+
+A safety update from an outside review of Joe's code. Please update.
+
+- **Finished copies stay inside Joe's folder:** a Word, PDF, e-book or web-page copy can no longer
+  pull in a file from somewhere else on your PC, and can't carry script. Pictures Joe made still
+  land on their pages.
+- **Joe's window keeps its key to itself:** other programs and other accounts on the PC can no
+  longer pick it up from Joe's page, and other web pages can't put Joe's window inside theirs.
+- **Private stays private:** a plan (from another AI app, the phone or a pasted answer) can't use
+  Joe's own private folders, like your chats, as its INPUT.
+- **Joe Phone:** RUN IT only runs the plan Joe showed you, and REMOVE always sticks.
+- **Restoring a backup** never points Joe's AI programs at another computer and never turns Joe
+  Phone on; Joe's log says what he left as it was.
+- **Fixes:** a ComfyUI start line with a path in its options works; a tiny spreadsheet that
+  unpacks to gigabytes is refused; a tool's results always go in Output; one failed background
+  chore no longer stops the others.
+
 ## What's new in 2.1.2
 
 - **Stop keeps your waiting work:** missions still in line are kept ON HOLD, with RUN THEM and
