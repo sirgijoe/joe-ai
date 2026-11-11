@@ -2437,7 +2437,20 @@ async function voiceSettings() {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; speakReplies = v.settings.speak_replies;
     talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
+    faceMode = v.settings.face || "on";
   } catch (e) {}
+  if (typeof JoeFace !== "undefined") JoeFace.setMode(faceMode);
+}
+// Joe's face beside the chat (ui/joe.js): it asks here what's going on, 20 times a second.
+let faceMode = "on";
+if (typeof JoeFace !== "undefined") {
+  JoeFace.attach($("#joe-face"), "off");          // shown once Talk has read the setting
+  JoeFace.watch(() => ({
+    audio: audioEl,
+    busy: !!talkAbort || busyTalking || speaking,
+    listening: !!micStream || !!rec,
+    sleepy: !$("#saver").hidden || !!(state && state.night),
+  }));
 }
 async function freshStart() {
   talkStop();
@@ -2564,7 +2577,7 @@ async function talkSend(textArg) {
     if (!raw) raw = final.say;                  // read-aloud / status replies come in one piece
     feed(true);
     msg.text = final.say; msg.mission = final.mission; msg.sources = final.sources || [];
-  } else msg.text = "(" + final.error + ")";
+  } else { msg.text = "(" + final.error + ")"; if (typeof JoeFace !== "undefined") JoeFace.mood("worried"); }
   renderTalk();
   loadChats();                                   // a new chat appears in the list after its first reply
   if (voice) speechEnd();
@@ -2600,8 +2613,12 @@ async function fetchSpeech(text) {
   if (!(r.headers.get("Content-Type") || "").startsWith("audio/")) {
     const j = await r.json().catch(() => ({})); throw new Error(j.error || "Joe lost his voice");
   }
-  return URL.createObjectURL(await r.blob());
+  const blob = await r.blob(), url = URL.createObjectURL(blob);
+  speechBlobs.set(url, blob);                    // Joe's face reads the volume from it (no fetch of blob:)
+  while (speechBlobs.size > 40) speechBlobs.delete(speechBlobs.keys().next().value);   // stopped answers
+  return url;
 }
+const speechBlobs = new Map();
 // Speech queue: pieces are made in order (one at a time, so the first comes back fastest)
 // and played back-to-back. hush() cancels everything.
 let speechList = [], speechOpen = false, speechLoop = null;
@@ -2635,15 +2652,16 @@ async function playSpeech(gen) {
     }
     if (!item.made) { await new Promise((r) => setTimeout(r, 40)); continue; }
     const url = await item.made;
-    if (gen !== sayGen) { if (url) URL.revokeObjectURL(url); break; }
+    if (gen !== sayGen) { if (url) { URL.revokeObjectURL(url); speechBlobs.delete(url); } break; }
     if (url) {
       await new Promise((res) => {
         audioEl = new Audio(url);
         audioEl.preservesPitch = true; audioEl.playbackRate = playRate;   // faster, same voice
+        if (typeof JoeFace !== "undefined") JoeFace.voice(audioEl, speechBlobs.get(url));  // his mouth follows the volume
         audioEl.addEventListener("ended", res); audioEl.addEventListener("error", res); audioEl.addEventListener("pause", res);
         audioEl.play().catch(res);
       });
-      URL.revokeObjectURL(url);
+      URL.revokeObjectURL(url); speechBlobs.delete(url);
     }
     i++;
   }
@@ -3442,6 +3460,7 @@ function comfortTick() {
   if (lastFinished >= 0 && f.n > lastFinished) {
     if (state.ui.sounds && !state.quiet) chime(f.ok);
     toast(f.text || "Joe is done");
+    if (typeof JoeFace !== "undefined") JoeFace.mood(f.ok ? "happy" : "worried");
   }
   lastFinished = f.n;
   const mins = (state.comfort || {}).screensaver_min || 0;

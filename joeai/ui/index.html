@@ -213,7 +213,10 @@ FORMAT: ...
       <div class="row"><span id="talk-note" class="dim small"></span><span class="grow"></span>
         <label class="small talkspeed">VOICE SPEED <input type="range" id="talk-speed" min="0.7" max="1.8" step="0.05" value="1"> <span id="talk-speed-v">1.00×</span></label>
         <span id="mic-meter" class="small"></span></div>
-      <div id="talk-log" class="talklog" translate="no"></div>
+      <div class="talkbody">
+        <div id="talk-log" class="talklog" translate="no"></div>
+        <div id="joe-face" class="joeface" aria-hidden="true" hidden></div>
+      </div>
       <div id="talk-files" class="talkfiles"></div>
       <div class="talkin">
         <textarea id="talk-in" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
@@ -514,6 +517,8 @@ FORMAT: ...
                 <label>Joe's voice <select data-path="voice.voice" id="voice-select"><option value="am_adam">Adam (US)</option></select></label>
                 <label title="How fast Joe talks. 1 = normal.">Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
                 <label>Speak replies in Talk (F4) <input type="checkbox" data-path="voice.speak_replies"></label>
+                <label title="Joe's face beside the chat in Talk: he listens, thinks, talks and smiles along. Still = no blinking or moving mouth (also used when your computer is set to reduce motion). Off = no face.">Joe's face in Talk
+                  <select data-path="voice.face"><option value="on">On (moving)</option><option value="still">Still (no blinking or moving mouth)</option><option value="off">Off</option></select></label>
                 <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
               </fieldset>
               <fieldset><legend>LISTENING</legend>
@@ -900,6 +905,8 @@ FORMAT: ...
        and Joe answers when you pause (MIC button mutes). Prefer
        push-to-talk? Setup > Voice & Talk, pick any key. You can always type.
        (Voice needs a one-time setup: F10 > System check.)
+       Joe's face beside the chat shows what he's doing (listening,
+       thinking, talking). Still or Off: Setup > Voice & Talk.
  F6    Step by step: make a plan with simple forms, reorder or
        split, paste a whole mission, rerun past ones
  F7    Files: browse the workspace, preview, open
@@ -1008,6 +1015,7 @@ FORMAT: ...
   <p class="row"><button type="button" id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button type="button" id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>
 <div id="engine-box" class="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="eb-title" aria-describedby="eb-text"><div class="panel"><h2 id="eb-title">WRITING PROGRAM</h2><p id="eb-text" style="white-space:pre-wrap"></p>
   <p class="row"><button type="button" id="eb-get">[ OPEN DOWNLOAD PAGE ]</button> <button type="button" id="eb-ollama">[ SWITCH BACK TO OLLAMA ]</button> <button type="button" id="eb-keep">[ KEEP IT ]</button></p></div></div>
+<script src="/joe.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

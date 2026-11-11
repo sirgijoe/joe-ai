@@ -96,6 +96,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Open Talk (**F4**) and just say what you need: the mic stays open while that screen is up,
   and Joe answers when you pause. Prefer push-to-talk? Pick any key in Setup. Joe hears you, answers out loud, and can draft
   the night's mission into Step by step (F6) for you to check. He never starts a run on his own.
+- **Joe has a face** beside the chat: he listens while the mic is open, thinks while he works out
+  an answer, moves his mouth with his voice, smiles when a run is done, looks worried when
+  something failed and gets sleepy during the night shift. Setup > Voice & Talk > "Joe's face in
+  Talk": On, Still (no blinking or moving mouth; also used when your computer is set to reduce
+  motion) or Off.
 - He can read the morning report to you, or tell you his own backstory.
 - Ask him something current and, with online lookups on, he searches and shows his sources.
   **STOP** (or Esc) cuts him off mid-answer.

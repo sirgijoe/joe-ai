@@ -91,6 +91,7 @@ def check_times(data: dict) -> dict:
 
 
 STOP_FILE = "night_stop.json"
+NIGHT_FILE = "night_run.json"                         # the night shift started this run (cleared at its end)
 
 
 def stop_deadline(start: str, stop: str, now):
@@ -126,10 +127,34 @@ def read_stop(sb):
 
 
 def clear_stop(sb) -> None:
+    for name in (STOP_FILE, NIGHT_FILE):
+        try:
+            (sb.meta / name).unlink()
+        except OSError:
+            pass
+
+
+def mark_night(sb) -> None:
+    """Note that the night shift started the run that's about to begin."""
+    import json
+    from datetime import datetime
     try:
-        (sb.meta / STOP_FILE).unlink()
+        sb.meta.mkdir(parents=True, exist_ok=True)
+        (sb.meta / NIGHT_FILE).write_text(json.dumps({"started": datetime.now().isoformat(timespec="seconds")}),
+                                          encoding="utf-8")
     except OSError:
         pass
+
+
+def night_started(sb) -> bool:
+    """True while a run the night shift started is going (the note is under 20 hours old)."""
+    import json
+    from datetime import datetime, timedelta
+    try:
+        started = datetime.fromisoformat(json.loads((sb.meta / NIGHT_FILE).read_text(encoding="utf-8"))["started"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return datetime.now() - started < timedelta(hours=20)
 
 
 def put_back(sb, texts: list[tuple[str, str]]) -> list[str]:
@@ -340,6 +365,7 @@ def tonight() -> int:
     waiting = [p for p in (sb.missions / "Queue").glob("*.txt")]
     if not moved and not waiting:
         return 0                                        # nothing saved for tonight
+    mark_night(sb)
     if _existing_url():                                 # Joe's window is open: he picks them up
         return 0
     os.environ["JOE_NO_WINDOW"] = "1"                   # no window at night; closes when done

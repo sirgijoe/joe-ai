@@ -549,6 +549,11 @@ class App:
             from .power import when_finished
             when_finished(self.settings.engine.when_finished, self.log)
 
+    def night_run(self) -> bool:
+        """This run was started by the night shift (Joe looks sleepy in Talk)."""
+        from . import schedule
+        return schedule.night_started(self.sb)
+
     # -- comfort: quiet hours, phone ping ---------------------------------------
     def quiet(self) -> bool:
         c = self.settings.comfort
@@ -957,6 +962,7 @@ class App:
                 "chain": len(self.chain),
                 "held_plan": {k: v for k, v in self.held_plan.items() if k != "thread"},
                 "quiet": self.quiet(), "finished": self.finished,
+                "night": self.running and self.night_run(),
                 "comfort": {"screensaver_min": s.comfort.screensaver_min, "screensaver": s.comfort.screensaver}}
 
     def list_dir(self, rel: str) -> dict:
@@ -1690,10 +1696,14 @@ def make_handler(app: App):
                     return self._send(200, f.read_bytes(),
                                       "font/ttf" if f.suffix == ".ttf" else "text/css; charset=utf-8")
                 return self._send(404, b"not found", "text/plain")
-            if u.path in ("/app.css", "/app.js"):
+            if u.path in ("/app.css", "/app.js", "/joe.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"
                 return self._send(200, f.read_bytes(), ctype + "; charset=utf-8")
+            if u.path == "/joe.svg":                       # Joe's face in Talk (ui/joe.js puts it in the page)
+                return self._send(200, (UI_DIR / "joe.svg").read_bytes(), "image/svg+xml",
+                                  {"X-Content-Type-Options": "nosniff",
+                                   "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
             if not self._authed(q, link_ok=u.path in ("/raw", "/player")):
                 return self._json({"error": "bad token"}, 401)
             arg = (q.get("path") or [""])[0]

@@ -283,6 +283,12 @@ textarea#theme-desc { min-height: 2.4em; resize: vertical; width: 100%; }
 /* ---------- talk (F6) ---------- */
 .talk { gap: 6px; }
 .talklog { flex: 1; overflow: auto; border: 1px solid var(--ph-faint); padding: 6px 8px; min-height: 0; }
+/* Joe's face (ui/joe.js, ui/joe.svg) beside the chat */
+.talk > .talkbody { flex: 1; display: flex; gap: 10px; min-height: 0; overflow: hidden; }
+.joeface { flex: 0 0 clamp(96px, 15vw, 190px); align-self: flex-end; pointer-events: none; }
+.joeface[hidden] { display: none; }
+.joeface svg { display: block; width: 100%; height: auto; }
+@media (max-width: 700px) { .joeface { flex-basis: 84px; } }
 .msg { margin-bottom: 10px; white-space: pre-wrap; }
 .msg .who { color: var(--ph-dim); margin-right: 6px; }
 .msg.joe .who { color: var(--ph); }

@@ -98,6 +98,7 @@ class VoiceSettings:
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
     transcriber: str = "auto"        # auto (whisper.cpp when installed) | faster-whisper | whisper.cpp
+    face: str = "on"                 # Joe's face in Talk: on (moving) | still (no blinking/flapping) | off
 
 
 @dataclass

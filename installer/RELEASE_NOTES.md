@@ -1,3 +1,11 @@
+## What's new in 2.2 (in development)
+
+- **Joe has a face in Talk (F4):** the Joe character stands beside the chat. He listens while the
+  mic is open, thinks while he works out an answer, his mouth follows his voice as he talks, he
+  smiles when a run is done, looks worried when something failed and gets sleepy during the night
+  shift and the screen saver. Setup > Voice & Talk > "Joe's face in Talk": On, Still (no blinking
+  or moving mouth; also used when your computer is set to reduce motion) or Off.
+
 ## What's new in 2.1.4
 
 - **UPDATE works on PCs with an out-of-date certificate list:** when Joe's own Python can't make
