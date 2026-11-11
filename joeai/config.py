@@ -210,6 +210,12 @@ class Settings:
                 data = {}
             from . import portable
             _merge(s, portable.unpack(data))
+            from . import vault                    # keys live in the computer's own vault (vault.py)
+            if vault.after_load(s, data, path):    # keys still in the file: move them over now
+                try:
+                    s.save(path)
+                except OSError:
+                    pass
         if s.ui.hello_text == "Hello! Joe here, reporting for duty.":   # old default ran together when spoken
             s.ui.hello_text = UISettings.hello_text
         s.engine.max_retries = max(1, min(int(s.engine.max_retries or 3), 10))   # 0 would never ask the model
@@ -219,8 +225,10 @@ class Settings:
 
     def save(self, path: Path | None = None) -> Path:
         path = path or config_path()
-        from . import portable
-        atomic_write_text(path, json.dumps(portable.pack(asdict(self)), indent=2))
+        from . import portable, vault
+        data = vault.before_save(self, portable.pack(asdict(self)), path)   # keys -> the computer's vault
+        atomic_write_text(path, json.dumps(data, indent=2))
+        vault.after_write(path, data)
         return path
 
 

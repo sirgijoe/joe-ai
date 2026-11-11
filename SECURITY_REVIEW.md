@@ -110,7 +110,10 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 
 ## 7. Secrets and privacy (`config.py`, `support.py`, `backup.py`, `websearch.py`)
 
-- [ ] API keys (web search, MCP key) live in the settings file in the user's config folder.
+- [ ] API keys (web search, MCP key, engine key, ntfy topic) live in the computer's own vault since 2.3
+      (`vault.py`: DPAPI on Windows, `security -i` on a Mac, `secret-tool` on Linux, else the settings
+      file at 0600). Check: a key is only blanked in the file after a read-back; a locked/unreadable
+      vault never deletes; the key never appears on a command line; Portable Joe stays file-only.
       Back-ups include them only when the user ticks the box.
 - [ ] MAKE A HELP FILE (`support.py`) scrubs keys, tokens, the home folder and the user name.
       Try to get one of them through.

@@ -17,6 +17,11 @@
   longer carry the Windows download Joe asked for.
 - **FFmpeg only reads files on your computer:** every picture, video and sound tool now tells FFmpeg
   not to follow web addresses or other places named inside someone else's media file.
+- **Key vault:** your keys and passwords (web-search key, connector password, a writing program's key,
+  the phone-ping topic) now live in the computer's own protected store instead of the plain settings
+  file: Windows' DPAPI, the Mac Keychain, or the Linux keyring (when there isn't one, the settings file
+  is kept readable by your account only, and Setup > Privacy says so). They move over by themselves
+  on the first start, and none is ever lost. Backups with "include keys" and Portable Joe work as before.
 - **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move

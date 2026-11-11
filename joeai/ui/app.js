@@ -1150,6 +1150,7 @@ async function ptPoll() {
 
 async function loadSetup() {
   loadDoctor(); showPerms(); ptInfo().catch(() => {});
+  api("/api/vault").then((v) => { $("#vault-text").textContent = v.text; }).catch(() => {});
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4

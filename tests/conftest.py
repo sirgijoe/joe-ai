@@ -3,6 +3,7 @@ import os
 import pytest
 
 os.environ.setdefault("JOE_OFFLINE", "1")      # no update checks or model-list fetches in tests
+os.environ.setdefault("JOE_VAULT", "file")     # tests never touch this computer's real keychain (vault.py)
 
 
 @pytest.fixture(autouse=True)

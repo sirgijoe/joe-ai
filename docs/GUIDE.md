@@ -66,6 +66,17 @@ Settings live in `%APPDATA%\joe-ai\settings.json` (Mac: `~/Library/Application S
 Linux: `~/.config/joe-ai`), never in the app folder. A Portable Joe keeps everything on its drive
 instead (see Portable Joe below).
 
+**Keys and passwords** (the Ollama web-search key, the connector password, a writing program's key
+and the phone-ping topic) are not kept in that file: Joe puts them in the computer's own protected
+store. Windows: DPAPI, locked to your Windows sign-in (`keys.dpapi.json` beside the settings, unreadable
+for other accounts or on another computer). Mac: the login Keychain (items named "Joe (joe-ai)").
+Linux: the system keyring through `secret-tool` when it's installed and a keyring is running; without
+one they stay in the settings file, readable by your account only, and Setup > Privacy says so. Keys
+from an older Joe move over by themselves on the first start; a key is only taken out of the settings
+file after it was stored and read back the same, and a key Joe can't read one day (a locked keychain)
+is never deleted. A Portable Joe keeps its keys in the settings file on its drive. BACK UP MY SETTINGS
+with "Include keys and passwords" ticked still puts them in the backup.
+
 ## Just describe it (Home, F2)
 
 The big box on the Home screen takes plain words: "40 product descriptions for handmade mugs,

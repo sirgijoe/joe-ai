@@ -1723,6 +1723,10 @@ def make_handler(app: App):
                     return self._json({"text": app.mission_text})
                 if u.path == "/api/files":
                     return self._json(app.list_dir(arg))
+                if u.path == "/api/vault":               # Setup > Privacy: where the keys are kept
+                    from . import vault
+                    from .config import config_path
+                    return self._json(vault.status(app.settings, config_path()))
                 if u.path == "/api/projects":            # Files F7 > PROJECTS
                     from . import projects as projects_mod
                     return self._json({"ok": True, "projects": projects_mod.summary(app.sb)})

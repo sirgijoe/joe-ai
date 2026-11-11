@@ -461,6 +461,9 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 
 ## Good to know
 
+- **Your keys stay locked away.** Keys and passwords you give Joe (web-search key, connector password)
+  are kept in the computer's own protected store (Windows DPAPI, the Mac Keychain, the Linux keyring),
+  not in a plain settings file. Setup > Privacy shows where.
 - **Where your work goes.** Each mission gets one folder in Output with the date in front
   ("2026-11-10 Showcase video"); writing gets its own folder with its Word and PDF copies, and a task
   run again goes beside the first as v2. Prefer the old way? Setup > General > HOW JOE FILES HIS WORK
