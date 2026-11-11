@@ -47,6 +47,17 @@ if [ "$got" != "$ait_sha" ]; then
   rm -f "$tool"; exit 1
 fi
 chmod +x "$tool"
+# appimagetool 1.9.0 stops without desktop-file-validate (it checks joe.desktop), and GitHub's
+# Ubuntu runners don't come with it: both Linux builds of v2.1.5 failed here.
+if ! command -v desktop-file-validate >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    sudo=$(command -v sudo || true)
+    $sudo apt-get update -qq && $sudo apt-get install -y -qq desktop-file-utils
+  else
+    echo "::error::desktop-file-validate is missing: install the desktop-file-utils package first" >&2
+    exit 1
+  fi
+fi
 mkdir -p dist
 out="dist/Joe-${version}-linux-${arch}.AppImage"
 ARCH="$arch" APPIMAGE_EXTRACT_AND_RUN=1 "$tool" --no-appstream "$appdir" "$out"
