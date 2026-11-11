@@ -161,7 +161,7 @@ async function ask() {
   if (r.open) { window.open(r.open, "_blank", "noopener"); }
   if (r.mission) {
     h += `<p>${esc(r.summary || "")}</p><pre class="plan">${esc(r.mission)}</pre><button data-act="run">RUN IT</button><button class="ghost" data-act="drop">NOT NOW</button>`;
-    $("#answer").dataset.mission = r.mission;
+    $("#answer").dataset.plan = r.plan || "";
   }
   $("#answer").innerHTML = h;
   if (r.tab) show(r.tab);
@@ -221,7 +221,7 @@ document.addEventListener("click", async (ev) => {
   if (act === "ask") return ask();
   if (act === "stop") { await api("/api/stop", {}); return loadStatus(); }
   if (act === "run") {
-    const r = await api("/api/run", { mission: $("#answer").dataset.mission || "" });
+    const r = await api("/api/run", { plan: $("#answer").dataset.plan || "" });
     $("#answer").innerHTML = r.ok ? esc(r.say) : `<span class="err">${esc(r.error)}</span>`;
     return loadStatus();
   }

@@ -557,6 +557,45 @@ def add_pictures(text: str, pictures: list[str]) -> str:
     return "\n".join(out)
 
 
+# Pandoc reads Joe's documents with raw HTML, raw TeX, raw blocks and "---" settings blocks turned
+# off: text a model wrote must never become a <script>, an <iframe>, or a "css:" line that makes
+# Pandoc copy a file from somewhere else on the PC into the finished document.
+SAFE_MARKDOWN = "markdown-raw_html-raw_tex-raw_attribute-yaml_metadata_block"
+_PICTURE_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp")
+_MD_IMAGE = re.compile(r"!\[([^\]]*)\]\(\s*(<[^>]*>|[^)\s]*)[^)]*\)")
+_MD_IMAGE_REF = re.compile(r"!\[([^\]]*)\](?:\[[^\]]*\])?(?!\()")
+_MD_LINK_DEF = re.compile(r"(?m)^[ ]{0,3}\[[^\]]+\]:[ \t]*<?([^\s>]*)>?.*$")
+
+
+def _own_picture(target: str, base: Path) -> bool:
+    """A picture link Joe may keep: a plain relative path to a picture file inside `base`."""
+    import os
+    from urllib.parse import unquote
+    t = unquote((target or "").strip().strip("<>").strip())
+    if not t or re.match(r"^[A-Za-z][A-Za-z0-9+.-]*:", t) or t.startswith(("/", "\\", "~")):
+        return False                               # a web address, file:, C:\..., /etc/..., \\server\...
+    try:
+        root = Path(os.path.realpath(base))
+        real = Path(os.path.realpath(root / t))
+        real.relative_to(root)
+    except (ValueError, OSError):
+        return False
+    return real.is_file() and real.suffix.lower() in _PICTURE_EXT
+
+
+def safe_export_text(text: str, base: Path) -> str:
+    """Markdown that's safe to hand to Pandoc: picture links are kept only when they point at a
+    picture inside the document's own folder (anything else becomes its caption), and link
+    definitions that point at local files are dropped. Web links stay: Pandoc doesn't fetch links."""
+    def image(m):
+        return m.group(0) if _own_picture(m.group(2), base) else m.group(1)
+    text = _MD_IMAGE.sub(image, text)
+    text = _MD_IMAGE_REF.sub(lambda m: m.group(1), text)        # ![caption][ref] / ![ref]: never fetched
+    def link_def(m):
+        return m.group(0) if re.match(r"(?i)^(https?://|mailto:|#)", m.group(1)) else ""
+    return _MD_LINK_DEF.sub(link_def, text)
+
+
 def export_document(md: Path, formats: list[str], pandoc: str, log: Log, settings=None,
                     template: str = "", cache: Path | None = None, heading: str = "",
                     pictures: list[Path] | None = None) -> list[Path]:
@@ -589,10 +628,13 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
         first_h2 = next((ln[3:].strip() for ln in lines if ln.startswith("## ") and ln[3:].strip()), "")
         if first_h2 and not _re.match(r"(?i)(?:chapter|part|page|section)\b", first_h2):
             title = first_h2
+    # The words came from a model (and maybe from another AI's plan): take out anything that could
+    # pull in a file from outside this folder or run script, BEFORE Joe adds his own pictures.
+    body = safe_export_text(body if body is not None else "\n".join(lines) + "\n", md.parent)
     if pictures:
         import os
         rel = [os.path.relpath(p, md.parent).replace("\\", "/") for p in pictures]
-        body = add_pictures(body if body is not None else "\n".join(lines) + "\n", rel)
+        body = add_pictures(body, rel)
 
     def tpl(fmt: str) -> dict:
         template_ = dt.resolve(settings, template) if template else ""
@@ -600,28 +642,33 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             (dt.default_for(settings, fmt) if settings is not None else dt.DEFAULTS.get(fmt, "standard"))
         return dt.get(settings, tid)
 
-    def source(t: dict) -> tuple[list[str], Path | None]:
+    def source(t: dict) -> tuple[list[str] | None, Path | None]:
         """Pandoc's input: the .md itself, or a screenplay-marked copy; plus title / line-break options."""
         args = ["--metadata", f"title={title}"] if t.get("show_title", True) else ["--metadata", f"pagetitle={title}"]
-        if t.get("line_breaks"):
-            args = ["-f", "markdown+hard_line_breaks"] + args
-        text = body if body is not None else None
+        args = ["-f", SAFE_MARKDOWN + ("+hard_line_breaks" if t.get("line_breaks") else "")] + args
+        text = body
         if t.get("screenplay"):
             tmp = md.with_name(md.stem + ".script.md")
             try:
-                src = text if text is not None else md.read_text(encoding="utf-8", errors="replace")
-                tmp.write_text(dt.screenplay_md(src), encoding="utf-8")
+                tmp.write_text(dt.screenplay_md(text), encoding="utf-8")
                 return [str(tmp)] + args, tmp
             except OSError:
                 pass
-        if text is not None:
-            tmp = md.with_name(md.stem + ".export.md")
-            try:
-                tmp.write_text(text, encoding="utf-8")
-                return [str(tmp)] + args, tmp
-            except OSError:
-                pass
-        return [str(md)] + args, None
+        tmp = md.with_name(md.stem + ".export.md")
+        try:
+            tmp.write_text(text, encoding="utf-8")
+            return [str(tmp)] + args, tmp
+        except OSError:
+            pass
+        try:                                   # the folder can't be written: use the temp folder
+            import tempfile                    # (pictures still resolve: Pandoc runs in md's folder)
+            fd, name = tempfile.mkstemp(prefix="joe-export-", suffix=".md")
+            with os.fdopen(fd, "w", encoding="utf-8") as fh:
+                fh.write(text)
+            return [name] + args, Path(name)
+        except OSError:
+            log(f"  couldn't make a safe copy of {md.name} to export; skipped.")
+            return None, None                  # never hand Pandoc the unchecked file
 
     def tidy(tmp: Path | None) -> None:
         if tmp:
@@ -636,6 +683,8 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             t = tpl(fmt)
             out = md.with_suffix("." + fmt)
             src_args, tmp_md = source(t)
+            if src_args is None:
+                continue
             cmd = [pandoc, *src_args, "-s", "-o", str(out)]
             css = None
             if fmt == "docx":
@@ -667,6 +716,8 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
             css = md.with_suffix(".print.css")
             css.write_text(dt.css(t, title=title), encoding="utf-8")
             src_args, tmp_md = source(t)
+            if src_args is None:
+                continue
             ok = _run([pandoc, *src_args, "-s", "-o", str(html), "--css", css.name], log, 300, cwd=str(md.parent))
             tidy(tmp_md)
             edge = _edge()

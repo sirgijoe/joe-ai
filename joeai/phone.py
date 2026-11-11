@@ -59,11 +59,15 @@ def save_devices(devices: list[dict]) -> None:
     atomic_write_text(p, json.dumps({"devices": devices}, indent=1))
 
 
+_DEVICES_LOCK = threading.Lock()                # one at a time: read the list, change it, save it
+
+
 def remove_device(dev_id: str) -> bool:
-    devs = load_devices()
-    left = [d for d in devs if d.get("id") != dev_id]
-    save_devices(left)
-    return len(left) < len(devs)
+    with _DEVICES_LOCK:
+        devs = load_devices()
+        left = [d for d in devs if d.get("id") != dev_id]
+        save_devices(left)
+        return len(left) < len(devs)
 
 
 def is_home(ip: str) -> bool:
@@ -102,6 +106,7 @@ class Phone:
         self.error = ""
         self._pair: dict = {}
         self._bad: list[float] = []
+        self._plans: dict[str, str] = {}             # plans Joe made for a phone: id -> mission (newest last)
         self.lock = threading.Lock()
 
     # -- life cycle -----------------------------------------------------------
@@ -178,9 +183,10 @@ class Phone:
         token = secrets.token_urlsafe(32)
         dev = {"id": secrets.token_hex(4), "name": (name or "Phone").strip()[:40] or "Phone", "hash": _hash(token),
                "added": datetime.now().isoformat(timespec="minutes"), "last": ""}
-        devs = load_devices()
-        devs.append(dev)
-        save_devices(devs)
+        with _DEVICES_LOCK:
+            devs = load_devices()
+            devs.append(dev)
+            save_devices(devs)
         self.app.log(f"Joe Phone: paired '{dev['name']}'")
         return {"ok": True, "token": token, "name": dev["name"]}
 
@@ -188,14 +194,18 @@ class Phone:
         if not token:
             return None
         h = _hash(token)
-        devs = load_devices()
-        for d in devs:
-            if secrets.compare_digest(d["hash"], h):
-                stamp = datetime.now().isoformat(timespec="minutes")
-                if d.get("last") != stamp:
-                    d["last"] = stamp
-                    save_devices(devs)
-                return d
+        with _DEVICES_LOCK:                          # so "last seen" can never bring back a removed phone
+            devs = load_devices()
+            for d in devs:
+                if secrets.compare_digest(str(d["hash"]), h):
+                    stamp = datetime.now().isoformat(timespec="minutes")
+                    if d.get("last") != stamp:
+                        d["last"] = stamp
+                        try:
+                            save_devices(devs)
+                        except OSError:              # the note of when it was last seen can wait
+                            pass
+                    return d
         return None
 
     def info(self) -> dict:
@@ -321,13 +331,21 @@ class Phone:
         r = self.app.plan_now(text)
         if not r.get("ok"):
             return r
+        plan = secrets.token_hex(8)
+        with self.lock:
+            self._plans[plan] = r.get("mission", "")
+            for old in list(self._plans)[:-20]:               # keep the last 20
+                self._plans.pop(old, None)
         return {"ok": True, "say": "Here's the plan (" + str(r.get("time", "")) + "):", "summary": r.get("summary", ""),
-                "mission": r.get("mission", "")}
+                "mission": r.get("mission", ""), "plan": plan}
 
-    def run_plan(self, mission: str) -> dict:
-        mission = (mission or "").strip()
+    def run_plan(self, plan: str) -> dict:
+        """RUN IT on the phone: only a plan Joe himself made for a phone (by its id). The phone
+        never sends mission text, so a stolen phone key can't run a plan of someone's own writing."""
+        with self.lock:
+            mission = (self._plans.pop(str(plan or ""), "") or "").strip()
         if not mission:
-            return {"ok": False, "error": "There's no plan to run."}
+            return {"ok": False, "error": "That plan isn't waiting any more. Ask Joe again, then tap RUN IT."}
         r = self.app.run(mission) if not self.app.running else self.app.enqueue(mission)
         if r.get("ok"):
             r["say"] = "Added to the queue." if r.get("queued") else "Started. Watch it on the Home tab."
@@ -453,7 +471,7 @@ def make_handler(phone: Phone):
                 if u.path == "/api/ask":
                     return self._json(phone.ask(str(b.get("text", ""))))
                 if u.path == "/api/run":
-                    return self._json(phone.run_plan(str(b.get("mission", ""))))
+                    return self._json(phone.run_plan(str(b.get("plan", ""))))
                 if u.path == "/api/stop":
                     return self._json(phone.stop_run())
                 if u.path == "/api/list":

@@ -372,7 +372,9 @@ def find_comfy(start_command: str = "", start_dir: str = "", models_dir: str = "
         start_command = ""          # Setup points at a file that's gone (moved/updated): search again
     if start_command.strip():
         cmd = start_command.strip()
-        cwd = start_dir or str(Path(cmd.strip('"')).parent)
+        # the program's own folder (the first word), not the whole line: a line with a path in its
+        # options ('python.exe -s ComfyUI\\main.py') used to give a folder that doesn't exist
+        cwd = start_dir or (str(Path(first_path).parent) if first_path and re.search(r"[\\/]", first_path) else "")
         inst = ComfyInstall("custom", cmd, cwd, "", 8000)
         guess = _inspect(Path(cwd))
         if guess:

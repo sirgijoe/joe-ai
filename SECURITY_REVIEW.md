@@ -28,8 +28,9 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 - [ ] `_host_ok()`: only `Host: 127.0.0.1` or `localhost` is answered (DNS rebinding). Is it applied
       to every route, including `/raw`, `/player`, `/mcp` and the static files?
 - [ ] `_authed()`: every `/api/*` call needs the per-launch token (`secrets.token_urlsafe(24)`,
-      compared with `compare_digest`). The token is put into the page HTML and also accepted as
-      `?t=` on `/raw` (links to pictures and videos). Can it leak through `Referer` headers,
+      compared with `compare_digest`). The token is NOT in the page (anything on the PC can fetch
+      `/`): Joe's window gets it in the address's `#t=` part (`app.py`), keeps it in
+      sessionStorage, and it is accepted as `?t=` only on `/raw` and `/player`. Can it leak through `Referer` headers,
       logs or the help zip (`support.py` scrubs it)?
 - [ ] `/mcp` over HTTP skips the window token and needs `Authorization: Bearer <settings.mcp_key>`
       instead (`_mcp_http()`, `compare_digest`). The key is made once and shown in Setup.
@@ -67,9 +68,9 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
       index, the Ollama registry). No URL comes from a mission or a chatbot.
 - [ ] **Joe's own updates** (`update.py`): `download()` refuses a file without a matching line in
       `SHA256SUMS.txt`; `sign.py` (pure-Python Ed25519) verifies that file once
-      `joeai.SIGN_PUBLIC_KEY` is set. **Open item:** the key is still blank, so today it is
-      checksums only (that catches corruption, not a tampered release). Windows Authenticode
-      isn't done yet either.
+      `joeai.SIGN_PUBLIC_KEY` is set (it is, since 2.1): an update without a matching
+      signature is refused. The signature covers the checksum list, not the version number
+      (an old signed release could be offered again). Windows Authenticode isn't done yet.
 - [ ] **Third-party files are not pinned:** uv, whisper.cpp and some others use `releases/latest`;
       the Kokoro voice files and the picture/video model packs are fetched by URL without a
       fixed hash. Is pinning a version + SHA-256 worth it (at the cost of manual bumps)?
@@ -82,7 +83,10 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 
 ## 5. Starting other programs (`services.py`, `system.py`, `addons.py`, `update.py`, `app.py`)
 
-- [ ] No `shell=True` anywhere (currently none: keep it that way). Commands are argument lists.
+- [ ] No `shell=True` for anything Joe builds himself: commands are argument lists. The one
+      exception is a start line the person typed in Setup (`comfy.start_command`,
+      `ollama.engine_start`): `system.popen_detached` runs a text command through the shell, as
+      typed. Those two settings can't come from a mission, the phone, MCP or a restored backup.
 - [ ] `comfy.start_command` and the Ollama path come from settings or the program finder
       (`finder.py`): could a file in a world-writable folder be picked up as "ComfyUI"?
 - [ ] The voice helpers run as `python -I` (isolated) in their own private environment.

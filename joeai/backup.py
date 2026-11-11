@@ -11,7 +11,8 @@ a friend your setup:
   manifest.json      what this is, which Joe made it, when
 
 Never inside: your Inbox and Output files, chats, recordings, voices or models.
-Restoring never touches where things are on THIS computer (Joe's folder, program paths), and
+Restoring never touches where things are on THIS computer (Joe's folder, program paths), never
+points Joe's AI programs at another machine, never turns Joe Phone on, and
 never overwrites a file you already have: a different file with the same name comes back as
 "name (restored)".
 """
@@ -32,6 +33,12 @@ KEY_PATHS = (("mcp_key",), ("web", "ollama_key"), ("comfort", "ntfy_topic"), ("c
 LOCAL_PATHS = (("workspace",), ("pandoc",), ("ollama", "exe"), ("ollama", "engine_start"),
                ("comfy", "start_command"), ("comfy", "start_dir"), ("comfy", "models_dir"),
                ("comfy", "ffmpeg"), ("comfy", "output_dir"), ("ui", "welcomed"))
+# A backup may come from someone else ("give a friend your setup"). These are only taken from it
+# when they point at THIS computer; an address somewhere else would send every prompt and file
+# Joe works on to that machine without a word.
+URL_PATHS = (("ollama", "url"), ("ollama", "engine_url"), ("comfy", "url"))
+# Never switched on by a backup: Joe Phone opens Joe to the home network, so that's a choice made here.
+NEVER_RESTORED = (("phone", "enabled"),)
 MAX_TOTAL = 300_000_000            # a settings backup is small; refuse anything huge
 MAX_FILES = 5000
 MARK = "joe-settings-backup"
@@ -58,6 +65,18 @@ def _drop(d: dict, path: tuple[str, ...]) -> None:
         d = d[k]
     if isinstance(d, dict):
         d.pop(path[-1], None)
+
+
+def _this_pc(url) -> bool:
+    """True for an address on this computer (127.0.0.1, localhost, ::1) or a blank one (= Joe's default)."""
+    from urllib.parse import urlparse
+    if not isinstance(url, str) or not url.strip():
+        return True
+    try:
+        host = (urlparse(url.strip()).hostname or "").lower()
+    except ValueError:
+        return False
+    return host in ("127.0.0.1", "localhost", "::1")
 
 
 def make(settings, sb, keys: bool = False) -> Path:
@@ -138,6 +157,15 @@ def restore(settings, sb, data: bytes) -> dict:
     for p in KEY_PATHS:                   # a backup without keys keeps the keys you have now
         if _get(incoming, p) in (None, ""):
             _drop(incoming, p)
+    skipped = []
+    for p in URL_PATHS:                   # an AI program address on another machine: not from a backup
+        if _get(incoming, p) is not None and not _this_pc(_get(incoming, p)):
+            skipped.append(".".join(p))
+            _drop(incoming, p)
+    for p in NEVER_RESTORED:
+        if _get(incoming, p):
+            skipped.append(".".join(p))
+        _drop(incoming, p)
     _merge(settings, incoming)
     files = renamed = 0
     for info in z.infolist():
@@ -163,4 +191,4 @@ def restore(settings, sb, data: bytes) -> dict:
         dest.write_bytes(body)
         files += 1
     return {"ok": True, "settings": True, "files": files, "renamed": renamed, "joe": man.get("joe", ""),
-            "made": man.get("made", ""), "keys": bool(man.get("keys"))}
+            "made": man.get("made", ""), "keys": bool(man.get("keys")), "skipped": skipped}

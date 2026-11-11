@@ -81,6 +81,24 @@ class Sandbox:
         self.check(target)
         return target
 
+    def resolve_input(self, rel: str | os.PathLike) -> Path:
+        """An INPUT / FROM-file path from a mission: like resolve() from Inbox, but never one of
+        Joe's private folders (names starting with a dot, like Output/.joe = chats and run state),
+        whoever wrote the mission."""
+        target = self.resolve(rel, base="Inbox")
+        self.check_not_private(target)
+        return target
+
+    def check_not_private(self, path: Path) -> Path:
+        for p in (Path(path), Path(os.path.realpath(path))):
+            try:
+                parts = p.relative_to(self.root).parts
+            except ValueError:
+                continue
+            if any(part.startswith(".") for part in parts):
+                raise SandboxError(f"that's one of Joe's private folders: {path.name}")
+        return path
+
     def check(self, path: Path) -> Path:
         """Verify an absolute path (after following symlinks) is inside root."""
         real = Path(os.path.realpath(path))

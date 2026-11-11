@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read          # the build jobs only read; the release job below may write
 
 jobs:
   windows:
@@ -163,6 +163,8 @@ jobs:
   release:
     if: always() && github.ref_type == 'tag' && needs.windows.result == 'success'
     needs: [windows, mac, linux]
+    permissions:
+      contents: write       # only this job publishes the release
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ github.token }}

@@ -77,6 +77,15 @@ def _number(v: str) -> str:
     return str(int(f)) if f.is_integer() and abs(f) < 1e15 else repr(f)
 
 
+MAX_PART_BYTES = 200_000_000        # one unpacked piece of a workbook (a tiny "zip bomb" can claim gigabytes)
+
+
+def _part(z: zipfile.ZipFile, name: str) -> bytes:
+    if z.getinfo(name).file_size > MAX_PART_BYTES:
+        raise SheetError("that Excel file unpacks to far more than a real spreadsheet; Joe won't open it")
+    return z.read(name)
+
+
 def read_xlsx(p: Path) -> tuple[list[str], list[list[str]]]:
     try:
         z = zipfile.ZipFile(p)
@@ -86,11 +95,11 @@ def read_xlsx(p: Path) -> tuple[list[str], list[list[str]]]:
         names = set(z.namelist())
         shared: list[str] = []
         if "xl/sharedStrings.xml" in names:
-            for si in ET.fromstring(z.read("xl/sharedStrings.xml")).findall("m:si", _NS):
+            for si in ET.fromstring(_part(z, "xl/sharedStrings.xml")).findall("m:si", _NS):
                 shared.append("".join(t.text or "" for t in si.iter(f"{{{_NS['m']}}}t")))
         date_styles: set[int] = set()
         if "xl/styles.xml" in names:
-            st = ET.fromstring(z.read("xl/styles.xml"))
+            st = ET.fromstring(_part(z, "xl/styles.xml"))
             custom = {int(n.get("numFmtId")): n.get("formatCode", "")
                       for n in st.findall("m:numFmts/m:numFmt", _NS)}
             for i, xf in enumerate(st.findall("m:cellXfs/m:xf", _NS)):
@@ -100,10 +109,10 @@ def read_xlsx(p: Path) -> tuple[list[str], list[list[str]]]:
                     date_styles.add(i)
         sheet = "xl/worksheets/sheet1.xml"
         try:                                             # the first sheet in the workbook's order
-            wb = ET.fromstring(z.read("xl/workbook.xml"))
+            wb = ET.fromstring(_part(z, "xl/workbook.xml"))
             first = wb.find("m:sheets/m:sheet", _NS)
             rid = first.get(f"{{{_NS['r']}}}id")
-            rels = ET.fromstring(z.read("xl/_rels/workbook.xml.rels"))
+            rels = ET.fromstring(_part(z, "xl/_rels/workbook.xml.rels"))
             for rel in rels.findall("pr:Relationship", _NS):
                 if rel.get("Id") == rid:
                     t = rel.get("Target").lstrip("/")
@@ -113,7 +122,7 @@ def read_xlsx(p: Path) -> tuple[list[str], list[list[str]]]:
         if sheet not in names:
             raise SheetError("no sheet found in that Excel file")
         rows: list[list[str]] = []
-        for r in ET.fromstring(z.read(sheet)).iter(f"{{{_NS['m']}}}row"):
+        for r in ET.fromstring(_part(z, sheet)).iter(f"{{{_NS['m']}}}row"):
             row: list[str] = []
             for c in r.findall("m:c", _NS):
                 idx = _col_index(c.get("r", "A1")) if c.get("r") else len(row)

@@ -47,7 +47,7 @@ def _existing_url() -> str | None:
             info2 = json.loads(r.read() or b"{}")
         from . import __version__
         if info2.get("version") == __version__ or info2.get("running"):
-            return url + "/"                       # same version, or mid-run: reuse it
+            return f"{url}/#t={info['token']}"     # same version, or mid-run: reuse it
         quit_req = urllib.request.Request(url + "/api/quit", data=b"{}", method="POST",
                                           headers={"X-NR-Token": info["token"],
                                                    "Content-Type": "application/json"})
@@ -104,7 +104,7 @@ def main() -> int:
             os.chmod(config_dir(), 0o700)
     except OSError:
         pass
-    open_window(f"http://127.0.0.1:{port}/")
+    open_window(f"http://127.0.0.1:{port}/#t={app.token}")   # the window's key rides in the #part
     try:
         httpd.serve_forever()
     finally:

@@ -694,7 +694,7 @@ class Engine:
         chunks = []
         for rel in job.inputs:
             try:
-                p = self.sb.resolve(rel, base="Inbox")
+                p = self.sb.resolve_input(rel)
             except SandboxError as e:
                 self.log(f"  INPUT ignored: {e}")
                 continue

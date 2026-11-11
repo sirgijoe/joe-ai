@@ -133,7 +133,9 @@ def test_plan_needs_run_it(ph, monkeypatch):
     monkeypatch.setattr(ph, "run", lambda text: started.append(text) or {"ok": True, "queued": 0})
     _, r = _call(ph, "/api/ask", {"text": "write 3 captions for my candle shop"}, key)
     assert r["ok"] and r["mission"].startswith("=== JOE MISSION") and not started     # nothing runs yet
-    _, r = _call(ph, "/api/run", {"mission": r["mission"]}, key)
+    _, bad = _call(ph, "/api/run", {"mission": r["mission"], "plan": "not-a-plan"}, key)
+    assert not bad["ok"] and not started                       # mission text from a phone is never run
+    _, r = _call(ph, "/api/run", {"plan": r["plan"]}, key)
     assert r["ok"] and started and "Started" in r["say"]
     _, r = _call(ph, "/api/stop", {}, key)
     assert r["say"] == "Nothing is running."

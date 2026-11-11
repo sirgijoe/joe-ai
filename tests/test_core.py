@@ -186,7 +186,10 @@ def test_server_needs_token_and_stays_in_sandbox(env):
             return r.status, r.read()
 
     status, html = get("/", token=False)
-    assert status == 200 and app.token.encode() in html
+    assert status == 200 and app.token.encode() not in html      # the page itself never holds the key
+    with pytest.raises(urllib.error.HTTPError) as e:              # ?t= only opens /raw and /player
+        urllib.request.urlopen(base + "/api/state?t=" + app.token, timeout=5)
+    assert e.value.code == 401
     with pytest.raises(urllib.error.HTTPError) as e:
         get("/api/state", token=False)
     assert e.value.code == 401

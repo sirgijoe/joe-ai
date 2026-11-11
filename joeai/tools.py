@@ -1032,12 +1032,13 @@ def resolve_inputs(engine: "Engine", job: "Job") -> tuple[list[Path], list[str]]
     problems: list[str] = []
     for rel in job.inputs:
         try:
-            p = engine.sb.resolve(rel, base="Inbox")
+            p = engine.sb.resolve_input(rel)
         except SandboxError as e:
             problems.append(f"{rel}: {e}")
             continue
         if p.is_dir():
-            found = sorted(f for f in p.rglob("*") if f.is_file() and f.suffix.lower() in tool.accepts)
+            found = sorted(f for f in p.rglob("*") if f.is_file() and f.suffix.lower() in tool.accepts
+                           and not any(part.startswith(".") for part in f.relative_to(p).parts))
             if not found:
                 problems.append(f"{rel}: no files Joe can use in that folder")
             files.extend(found)
@@ -1070,7 +1071,7 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
         p = engine.sb.resolve(st.output)
         p.mkdir(parents=True, exist_ok=True)
         return p
-    target = engine.sb.resolve(job.save)
+    target = engine._under_output(engine.sb.resolve(job.save))     # like text tasks: always inside Output
     if target.suffix:
         target = target.with_suffix("")
     cand, n = target, 2
@@ -2259,7 +2260,7 @@ def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     if mark:
         if mark.lower().endswith(".png"):
             try:
-                logo = engine.sb.resolve(mark, base="Inbox")
+                logo = engine.sb.resolve_input(mark)
             except SandboxError:
                 logo = None
             if not logo or not logo.is_file():
@@ -3628,7 +3629,7 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     problems: list[str] = []
     for rel in job.inputs:
         try:
-            p = engine_sb.resolve(rel, base="Inbox")
+            p = engine_sb.resolve_input(rel)
         except SandboxError as e:
             problems.append(f"{rel}: {e}")
             continue

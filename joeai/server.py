@@ -1624,18 +1624,27 @@ def make_handler(app: App):
         def _json(self, obj, code=200):
             self._send(code, json.dumps(obj).encode(), "application/json")
 
-        def _authed(self, q: dict) -> bool:
-            tok = self.headers.get("X-NR-Token") or (q.get("t") or [""])[0]
-            return secrets.compare_digest(tok, app.token)
+        def _authed(self, q: dict, link_ok: bool = False) -> bool:
+            """The window's token: in the X-NR-Token header, or as ?t= only for /raw and /player
+            (links to pictures and videos can't carry a header)."""
+            tok = self.headers.get("X-NR-Token") or ((q.get("t") or [""])[0] if link_ok else "")
+            try:
+                return secrets.compare_digest(tok.encode("utf-8"), app.token.encode("utf-8"))
+            except (AttributeError, UnicodeError):
+                return False
 
         def _body(self) -> dict:
-            n = int(self.headers.get("Content-Length") or 0)
-            if n > 2_000_000:
+            try:
+                n = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                return {}
+            if not 0 <= n <= 2_000_000:           # a negative length would read until the line closes
                 return {}
             try:
-                return json.loads(self.rfile.read(n) or b"{}")
-            except json.JSONDecodeError:
+                b = json.loads(self.rfile.read(n) or b"{}")
+            except (json.JSONDecodeError, UnicodeDecodeError):
                 return {}
+            return b if isinstance(b, dict) else {}
 
         # -- routes --
         def do_GET(self):
@@ -1647,12 +1656,15 @@ def make_handler(app: App):
             if u.path in ("/", "/index.html"):
                 html = (UI_DIR / "index.html").read_text(encoding="utf-8")
                 html = html.replace("__INTRO__", "1" if app.settings.ui.intro else "0")
-                return self._send(200, html.replace("__TOKEN__", app.token).encode(),
+                # The page never carries the token: anything on this PC can fetch "/". Joe's own
+                # window gets it in the address's #t=... part (app.py), which is never sent anywhere.
+                return self._send(200, html.replace("__TOKEN__", "").encode(),
                                   "text/html; charset=utf-8",
                                   {"Content-Security-Policy":
                                    "default-src 'self'; img-src 'self' data:; media-src 'self' blob:; "
                                    "style-src 'self' 'unsafe-inline'; "
-                                   "font-src 'self'; script-src 'self'"})
+                                   "font-src 'self'; script-src 'self'; frame-ancestors 'none'",
+                                   "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"})
             if u.path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon")
             if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle
@@ -1668,7 +1680,7 @@ def make_handler(app: App):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"
                 return self._send(200, f.read_bytes(), ctype + "; charset=utf-8")
-            if not self._authed(q):
+            if not self._authed(q, link_ok=u.path in ("/raw", "/player")):
                 return self._json({"error": "bad token"}, 401)
             arg = (q.get("path") or [""])[0]
             try:
@@ -1904,6 +1916,9 @@ def make_handler(app: App):
                 ch = app._settings_changed(old_ws, old_sched)
                 app.log(f"Restored settings from a backup made {r['made'][:16].replace('T', ' ')} "
                         f"(Joe {r['joe']}): {r['files']} file(s)" + (f", {r['renamed']} kept as '(restored)'" if r["renamed"] else "") + ".")
+                if r.get("skipped"):
+                    app.log("  Left as they are here (a backup can't point Joe at another machine or turn Joe Phone on): "
+                            + ", ".join(r["skipped"]) + ". Set them in Setup if you meant to.")
                 return self._json({**r, "warning": "" if ch.get("ok") else ch.get("error", "")})
             if u.path == "/api/tools/upload":           # a file for a tool (streamed to Inbox/tools/<id>/)
                 from urllib.parse import unquote
@@ -2232,7 +2247,7 @@ def make_handler(app: App):
                         raw = b""
                     if not raw.startswith(b"\x89PNG") or len(raw) > 40_000_000:
                         return self._json({"ok": False, "error": "That mark couldn't be read. Try again."})
-                    pic = app.sb.resolve(rel, base="Inbox")
+                    pic = app.sb.resolve_input(rel)
                     if not pic.is_file():
                         return self._json({"ok": False, "error": "That picture isn't in Inbox any more."})
                     from .picturetools import MASK_SUFFIX
@@ -2620,19 +2635,25 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
         app.log(f"Joe Phone: {e}")
 
     def background():
+        def step(what, fn):                            # one chore failing must never end the loop
+            try:                                       # (it also closes Joe when he's idle)
+                fn()
+            except Exception as e:                     # noqa: BLE001
+                try:
+                    app.log(f"{what}: {e}")
+                except Exception:                      # noqa: BLE001
+                    pass
+
         while True:
-            app.refresh_services()
-            app.voice.idle_check()                     # free the voice models after a quiet spell
+            step("Status check", app.refresh_services)
+            step("Voice", app.voice.idle_check)        # free the voice models after a quiet spell
             if not app.running:
-                app.tool_voice.idle_check()
-            app.ping_tick()
-            app.reminder_tick()
-            try:
-                app.watch_tick()                       # files dropped in Inbox/Watch/<tool>
-            except Exception as e:                     # noqa: BLE001 (never stop the loop)
-                app.log(f"Watch folders: {e}")
-            app.clone.idle_check()
-            app.watch_queue_folder()                   # mission files dropped in Missions/Queue
+                step("Voice", app.tool_voice.idle_check)
+            step("Phone ping", app.ping_tick)
+            step("Reminders", app.reminder_tick)
+            step("Watch folders", app.watch_tick)      # files dropped in Inbox/Watch/<tool>
+            step("Voice", app.clone.idle_check)
+            step("Mission queue", app.watch_queue_folder)   # mission files dropped in Missions/Queue
             for _ in range(10):
                 time.sleep(1)
                 idle = time.monotonic() - app.last_seen

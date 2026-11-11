@@ -1,6 +1,16 @@
 /* Joe UI — talks to the local server on 127.0.0.1 with a per-launch token. */
 "use strict";
-const TOKEN = document.querySelector('meta[name="nr-token"]').content;
+// The token comes in the address's #t=... part when Joe opens his window (never in the page itself,
+// which any program on the PC could fetch). It's kept for this window only, so a reload still works.
+const TOKEN = (() => {
+  const m = /[#&]t=([\w-]+)/.exec(location.hash || "");
+  let t = m ? m[1] : "";
+  try {
+    if (t) { sessionStorage.setItem("joeToken", t); history.replaceState(null, "", location.pathname); }
+    else t = sessionStorage.getItem("joeToken") || "";
+  } catch (e) { /* storage off: the token still works until a reload */ }
+  return t;
+})();
 const $ = (s) => document.querySelector(s);
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
