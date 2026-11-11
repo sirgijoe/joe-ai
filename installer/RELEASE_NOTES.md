@@ -1,4 +1,4 @@
-## What's new in 2.2 (in development)
+## What's new in 2.2
 
 - **Joe has a face in Talk (F4):** the Joe character stands beside the chat. He listens while the
   mic is open, thinks while he works out an answer, his mouth follows his voice as he talks, he
@@ -20,6 +20,8 @@
   - **Duplicate photo finder:** copies grouped with the best one to keep. Nothing is deleted.
 - **Safer add-on tools:** words filled into an add-on's program can't start with "/" or "@" either
   (some programs read those as a switch or as "read this file").
+- **Linux is back:** 2.1.5 went out without its Linux files; the Linux build is fixed and this
+  release has them again.
 
 ## What's new in 2.1.4
 
