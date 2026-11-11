@@ -646,6 +646,8 @@ class App:
                         continue
                     seen.add(key)
                     changed = True
+                    if any(ord(c) < 32 for c in p.name):         # a line break in a name: never into a mission
+                        continue
                     if "," in p.name:
                         self.log(f"Watch folder: {p.name} has a comma in its name; rename it to use it.")
                         continue

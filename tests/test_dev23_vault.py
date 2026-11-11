@@ -207,3 +207,43 @@ def test_setup_privacy_says_where_keys_are(tmp_path, fake):
     assert "Mac Keychain" in vault.status(s, tmp_path / "s.json")["text"]
     html = (__import__("pathlib").Path(__file__).parent.parent / "joeai" / "ui" / "index.html").read_text(encoding="utf-8")
     assert 'id="vault-text"' in html
+
+
+def test_going_back_to_an_older_joe_and_forward_again_keeps_the_keys(tmp_path, fake):
+    """Fable review: 2.2 saves the settings file without the "vault" part and with blank keys; 2.3
+    must find the keys still in the vault instead of leaving them stranded."""
+    p = tmp_path / "settings.json"
+    _old_settings_file(p)
+    Settings.load(p)                                              # 2.3: keys move into the vault
+    d = _file(p)
+    d.pop("vault")                                                # 2.2 opened and saved this file
+    d["mcp_key"] = "made-by-2.2"                                  # ...and made itself a new connector key
+    p.write_text(json.dumps(d), encoding="utf-8")
+    s = Settings.load(p)                                          # 2.3 again
+    assert s.web.ollama_key == "web-secret-123" and s.comfort.ntfy_topic == "joe-topic-789"
+    assert s.mcp_key == "made-by-2.2"                             # what the file has wins
+    d = _file(p)
+    assert set(d["vault"]["keys"]) == {"web.ollama_key", "mcp_key", "comfort.ntfy_topic"}
+    assert "secret" not in p.read_text(encoding="utf-8") and "made-by-2.2" not in p.read_text(encoding="utf-8")
+    assert not vault.status(s, p)["unread"] and not fake.deleted
+
+
+def test_a_key_cleared_on_purpose_stays_cleared(tmp_path, fake):
+    p = tmp_path / "settings.json"
+    _old_settings_file(p)
+    s = Settings.load(p)
+    s.web.ollama_key = ""
+    s.save(p)
+    assert Settings.load(p).web.ollama_key == ""                  # the file has its "vault" part: no look-around
+
+
+def test_a_backup_without_keys_leaves_out_the_ai_server_key(tmp_path):
+    import zipfile
+    s = Settings()
+    s.workspace = str(tmp_path / "ws")
+    s.ollama.engine_key = "engine-secret-321"
+    sb = Sandbox(s.workspace_path).ensure()
+    with zipfile.ZipFile(backup.make(s, sb, keys=False)) as z:
+        assert "engine-secret-321" not in z.read("settings.json").decode("utf-8")
+    with zipfile.ZipFile(backup.make(s, sb, keys=True)) as z:
+        assert "engine-secret-321" in z.read("settings.json").decode("utf-8")

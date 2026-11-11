@@ -125,7 +125,7 @@ _WHY = [
      "the graphics card ran out of memory", "Try a smaller SIZE, fewer VARIANTS, or Quality: Low (Setup > Images & video)."),
     (r"timed? ?out|timeout|took longer",
      "one step took longer than Joe waits for it", "Run it again (it often works the second time), or raise the time limit in Setup > Images & video."),
-    (r"No space|disk full|ENOSPC|free on the drive|room",
+    (r"No space|disk full|ENOSPC|free on the drive|out of room",
      "the drive ran out of room", "Stats (F9) > CLEAN UP frees space; then RUN the plan again."),
     (r"open in another program|PermissionError|being used by another process",
      "a file was open in another program (Excel, a viewer)", "Close it and RUN the plan again."),

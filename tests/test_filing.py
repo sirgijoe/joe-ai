@@ -343,3 +343,27 @@ def test_setup_has_the_filing_choice_with_reset_and_the_projects_page():
     html = (ui / "index.html").read_text(encoding="utf-8")
     assert 'data-path="filing.how"' in html and 'id="s-projects"' in html
     assert "TIDY MY OUTPUT" in html and "UNDO THE LAST TIDY" in html
+
+
+def test_a_number_in_a_name_is_not_a_rerun_without_the_original(tmp_path):
+    """Fable review: "chapter 3.md" is chapter three, not run number 3 of "chapter"."""
+    sb = Sandbox(tmp_path / "ws").ensure()
+    out = sb.output
+    out.mkdir(parents=True, exist_ok=True)
+    for n in (1, 2, 3):
+        (out / f"chapter {n}.md").write_text(f"ch {n}", encoding="utf-8")
+    (out / "blurbs.md").write_text("b", encoding="utf-8")
+    (out / "blurbs2.md").write_text("b2", encoding="utf-8")
+    tos = {p["from"]: p["to"] for p in filing.tidy_plan(sb)}
+    for n in (1, 2, 3):
+        assert tos[f"chapter {n}.md"].endswith(f"/chapter {n}.md")       # each keeps its own name
+    assert tos["blurbs2.md"].endswith(" Blurbs/blurbs v2.md")            # a real rerun still goes inside
+
+
+def test_a_bare_input_name_stays_an_inbox_file(tmp_path, fake):
+    """Fable review: INPUT: notes/a.md means Inbox/notes/a.md even when a task SAVEs notes/a.md."""
+    e = _engine(tmp_path, fake)
+    e.run_mission(parse("TASK: Notes  SAVE: notes/a.md  CHUNKS: 1 x 2"))
+    assert filing.translate_input(e, "notes/a.md") == "notes/a.md"
+    assert filing.translate_input(e, "Output/notes/a.md").startswith("Output/") and \
+        filing.translate_input(e, "Output/notes/a.md") != "Output/notes/a.md"

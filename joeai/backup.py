@@ -28,7 +28,7 @@ from pathlib import Path
 from . import __version__
 
 FOLDERS = ("Themes", "Workflows", "Projects", "Missions/Packs")
-KEY_PATHS = (("mcp_key",), ("web", "ollama_key"), ("comfort", "ntfy_topic"), ("comfort", "ntfy_server"))
+KEY_PATHS = (("mcp_key",), ("web", "ollama_key"), ("ollama", "engine_key"), ("comfort", "ntfy_topic"), ("comfort", "ntfy_server"))
 # where things are on THIS computer: never taken from a backup
 LOCAL_PATHS = (("workspace",), ("pandoc",), ("ollama", "exe"), ("ollama", "engine_start"),
                ("comfy", "start_command"), ("comfy", "start_dir"), ("comfy", "models_dir"),

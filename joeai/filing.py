@@ -221,6 +221,8 @@ def translate_input(engine, rel: str) -> str:
     """INPUT: Output/notes/a.md written in the same mission as the task that SAVEs notes/a.md: point
     it at where that task really went (its mission folder). Anything else is returned unchanged."""
     placed = engine.__dict__.get("_placed") or {}
+    if not (rel or "").replace("\\", "/").strip().lstrip("/").lower().startswith("output/"):
+        return rel                                                    # a bare name is an Inbox file
     n = _norm(rel)
     if n in placed:
         return "Output/" + placed[n]
@@ -280,10 +282,14 @@ def tidy_plan(sb) -> list[dict]:
     taken_projects = {clean_name(p) for p in projects_mod.names(sb)}
     dates = _state_dates(sb)
     items = [p for p in sorted(out.iterdir(), key=lambda p: p.name.lower()) if not _skip_top(sb, p, taken_projects)]
+    originals = {(p.stem if p.is_file() else p.name).lower() for p in items}
     groups: dict[str, list[tuple[Path, int]]] = {}
     for p in items:
         key = p.stem if p.is_file() else p.name
         base, ver = _base_name(key)
+        m = _RERUN.match(key)
+        if ver > 1 and m and m.group("n") and base.lower() not in originals:
+            base, ver = key, 1                    # "chapter 3", "top 5": a name, not run number 3 of "chapter"
         groups.setdefault(base.lower(), []).append((p, ver))
     plan = []
     used: set[str] = set()

@@ -299,16 +299,21 @@ def after_write(settings_path: Path, data: dict) -> None:
 
 
 def after_load(settings, data: dict, settings_path: Path) -> bool:
-    """Fill the keys in from the vault. Returns True when the file still has keys that should move
-    into the vault now (the first start after updating: Joe saves once and they move)."""
+    """Fill the keys in from the vault. Returns True when the file should be saved once now: it still
+    has keys that should move into the vault (the first start after updating), or it has no "vault"
+    part yet."""
     info = data.get("vault") if isinstance(data.get("vault"), dict) else {}
     listed = [k for k in (info.get("keys") or []) if isinstance(k, str)]
     b = backend(settings_path)
     unread = []
     known = {}
+    # A settings file with no "vault" part was last saved by an older Joe (someone went back to 2.2
+    # and forward again) or was rebuilt after it broke: the keys may still be in the vault, so look
+    # there for any the file doesn't have, instead of leaving them stranded.
+    older = "vault" not in data and b.name != "file"
     for p in SECRETS:
         name = dotted(p)
-        if name not in listed or _get(data, p):
+        if _get(data, p) or (name not in listed and not older):
             continue
         val = None
         if b.name != "file":
@@ -317,8 +322,11 @@ def after_load(settings, data: dict, settings_path: Path) -> bool:
             except Exception:                                # noqa: BLE001
                 val = None
         if val is None:
-            unread.append(name)
+            if name in listed:
+                unread.append(name)
             continue
+        if name not in listed:
+            listed.append(name)
         known[name] = val
         obj = settings
         for k in p[:-1]:
@@ -327,7 +335,7 @@ def after_load(settings, data: dict, settings_path: Path) -> bool:
     settings._vault_unread = unread
     settings._vault_listed = set(listed)
     settings._vault_known = known
-    return b.name != "file" and any(_get(data, p) for p in SECRETS)
+    return b.name != "file" and (older or any(_get(data, p) for p in SECRETS))
 
 
 def status(settings, settings_path: Path) -> dict:

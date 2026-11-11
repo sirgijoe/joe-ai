@@ -211,6 +211,12 @@ class Joe:
             m = parse(block)
             for j in m.jobs:
                 self.sb.resolve(j.save)
+                if j.type == "agent":                   # same rule as joe_start_agent: only agents that allow it
+                    from . import agents
+                    a = agents.get(j.options[0] if j.options else "")
+                    if not a or not (a.get("start") or {}).get("remote") or a.get("paused"):
+                        raise MissionError(f"Task '{j.name}': that agent can only be started on Joe's own "
+                                           "screen (or it doesn't exist or is paused).")
         except (MissionError, SandboxError) as e:
             return False, f"Problem: {e}"
         out = [f"OK: {len(m.jobs)} task(s)" + (f" for project {m.project}" if m.project else "")]

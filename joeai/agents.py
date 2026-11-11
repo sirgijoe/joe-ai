@@ -53,6 +53,12 @@ BLOCKED = {
     "sort-files": "it moves your files around",
 }
 DATA_OPEN, DATA_CLOSE = "<<<DATA", "DATA>>>"
+
+
+def _plain_name(name: str) -> bool:
+    """A file name an agent may use: no comma (INPUT: splits on it) and no control characters
+    (a line break in a name would read as a new line of the mission)."""
+    return bool(name) and not name.startswith(".") and "," not in name and not any(ord(c) < 32 for c in name)
 EXCERPT = 600
 
 
@@ -229,7 +235,7 @@ def watch_tick(app, now: float | None = None) -> list[str]:
         new = []
         try:
             for p in sorted(folder.iterdir()):
-                if not p.is_file() or p.name.startswith(".") or "," in p.name:
+                if not p.is_file() or not _plain_name(p.name):
                     continue
                 stt = p.stat()
                 if now - stt.st_mtime < 5:
@@ -321,7 +327,8 @@ def _step_mission(agent: dict, n: int, tool: str, inputs: list[str], options: li
     if inputs:
         lines.append("INPUT: " + ", ".join(inputs))
     if options:
-        lines.append("OPTIONS: " + ", ".join(_safe(o)[:80] for o in options[:6]))
+        # one line each: an option from the model must never start a new line (a new KEY:) in the step
+        lines.append("OPTIONS: " + ", ".join(" ".join(_safe(o).split())[:80] for o in options[:6]))
     lines.append("FORMAT: " + instr)
     return "\n".join(lines)
 
@@ -397,12 +404,12 @@ def run(engine, mission, job, st):
             p = sb.resolve_input(rel)
         except SandboxError:
             continue
-        if p.is_file():
+        if p.is_file() and _plain_name(p.name):
             allowed.append(str(p.relative_to(sb.root)).replace("\\", "/"))
     af = agent_folder(sb, agent)
     if not job.inputs and af.is_dir():
         allowed += [str(p.relative_to(sb.root)).replace("\\", "/") for p in sorted(af.iterdir())
-                    if p.is_file() and not p.name.startswith(".") and "," not in p.name][:50]
+                    if p.is_file() and _plain_name(p.name)][:50]
     log: list[dict] = []
     made: list[str] = []
     stuck = ""

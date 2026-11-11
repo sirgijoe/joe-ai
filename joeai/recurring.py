@@ -23,9 +23,10 @@ DAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sun
 SHORT = {d[:3]: i for i, d in enumerate(DAYS)} | {"tues": 1, "weds": 2, "thur": 3, "thurs": 3}
 MAX = 50
 _DAY = r"(?:mon|tues?|wed(?:nes)?|thu(?:rs?)?|fri|sat(?:ur)?|sun)(?:day)?s?"
+_DAYS = r"(?:mon|tues|wednes|thurs|fri|satur|sun)days"          # "on Sundays" repeats; "on Sunday" is one day
 _WHEN = re.compile(
     r"^\s*(?:please\s+)?(?:(?:every|each)\s+(?P<every>day|night|evening|weekday|weekend|week|"
-    + _DAY + r"(?:\s*(?:,|and|&)\s*" + _DAY + r")*)|on\s+(?P<on>" + _DAY + r"(?:\s*(?:,|and|&)\s*" + _DAY + r")*))"
+    + _DAY + r"(?:\s*(?:,|and|&)\s*" + _DAY + r")*)|on\s+(?P<on>" + _DAYS + r"(?:\s*(?:,|and|&)\s*" + _DAYS + r")*))"
     r"(?:\s+(?:night|evening|morning|overnight))?\s*[,:-]?\s+(?P<rest>.{4,})$", re.I | re.S)
 
 
