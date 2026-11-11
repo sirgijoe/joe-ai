@@ -52,6 +52,7 @@ function toast(msg, ms = 2600) {
   const t = $("#toast");
   t.textContent = " " + msg + " ";
   t.hidden = false;
+  if ((((typeof state !== "undefined" && state) || {}).ui || {}).announce !== "off") srSay(String(msg));
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => (t.hidden = true), ms);
 }
@@ -131,12 +132,14 @@ function applyTheme(vars) {
   if (vars) Object.entries(vars).forEach(([k, v]) => document.body.style.setProperty(k, v));
 }
 // Retro looks (green / amber / white / custom) keep the CRT effect; the modern looks don't use it.
-const MODERN = ["modern-auto", "modern-night", "modern-day", "futuristic"];
+const MODERN = ["modern-auto", "modern-night", "modern-day", "futuristic", "contrast-dark", "contrast-light"];
+const LARGE = { normal: 1, large: 1.3, larger: 1.6 };
 function applyUI(ui, themeVars) {
   const ph = /^custom:/.test(ui.phosphor) ? "custom" : ui.phosphor;
   const modern = MODERN.includes(ph);
-  document.body.className = `ph-${ph} crt-${modern ? 0 : ui.crt}${modern ? " modern" : ""}${ui.easy_read ? " easyread" : ""}`;
-  document.documentElement.style.setProperty("--fs", ui.text_size + "px");
+  const big = LARGE[ui.large_text] || 1;
+  document.body.className = `ph-${ph} crt-${modern ? 0 : ui.crt}${modern ? " modern" : ""}${ui.easy_read ? " easyread" : ""}${big > 1 ? " large" : ""}`;
+  document.documentElement.style.setProperty("--fs", Math.round(ui.text_size * big) + "px");
   applyTheme(themeVars);
   // Easy-to-read font wins over every look (set inline, like a custom theme's own font).
   if (ui.easy_read) document.body.style.setProperty("--font", '"Atkinson Hyperlegible", system-ui, sans-serif');
@@ -295,6 +298,7 @@ async function poll() {
   if (runKey !== lastRunKey) { if (lastRunKey) loadChats(); lastRunKey = runKey; }   // runs show up in the chat list
   welcomeTick();
   comfortTick();
+  announceTick();
   $("#btn-run").innerHTML = state.running ? '[ STOP <span class="k">F5</span> ]' : '[ RUN <span class="k">F5</span> ]';
 }
 
@@ -4060,3 +4064,42 @@ document.addEventListener("click", async (ev) => {
     }
   } catch (e) { toast(e.message); }
 });
+
+
+/* ---------------- 2.3: screen-reader announcements (Setup > Display & sound) ----------------
+   Said through the screen reader only (nothing shows): a run starting, each task finished or failed,
+   progress at a quarter, half and three quarters, and the run's end. Failures use role="alert". */
+let srSeen = null, srLastText = "";
+function srSay(text, urgent) {
+  if (!text) return;
+  const el = urgent ? $("#sr-alert") : $("#sr-live");
+  if (!el) return;
+  // the same words twice in a row are only re-read if the region changes, so clear it first
+  el.textContent = "";
+  setTimeout(() => { el.textContent = text === srLastText ? text + " " : text; srLastText = text; }, 60);
+}
+function announceTick() {
+  const how = ((state && state.ui) || {}).announce || "progress";
+  const jobs = state.jobs || [];
+  const now = { running: !!state.running, finished: (state.finished || {}).n || 0,
+    jobs: Object.fromEntries(jobs.map((j) => [j.name, j.status])), quarter: 0 };
+  const done = jobs.reduce((a, j) => a + j.parts_done, 0), total = jobs.reduce((a, j) => a + j.parts_total, 0);
+  now.quarter = total ? Math.floor((4 * done) / total) : 0;
+  const was = srSeen;
+  srSeen = now;
+  if (!was || how === "off") return;
+  if (now.running && !was.running && how === "progress") srSay(`Joe started: ${jobs.length} task${jobs.length === 1 ? "" : "s"}.`);
+  for (const j of jobs) {
+    const before = was.jobs[j.name];
+    if (before === j.status) continue;
+    if (j.status === "failed") srSay(`${j.name} failed. ${j.note || ""} The report says more.`, true);
+    else if (j.status === "done" && how === "progress") srSay(`${j.name} is finished.`);
+    else if (j.status === "partial") srSay(`${j.name} finished, with parts missing. The report says which.`, true);
+  }
+  if (how === "progress" && now.running && now.quarter > was.quarter && now.quarter > 0 && now.quarter < 4)
+    srSay(`${now.quarter * 25} percent done` + (state.eta_s != null ? `, about ${fmtEta(state.eta_s).replace("h", " hours ").replace("m", " minutes")} left.` : "."));
+  if (now.finished > was.finished) {
+    const f = state.finished || {};
+    srSay(f.text || "Joe is done.", !f.ok);
+  }
+}

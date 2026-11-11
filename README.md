@@ -329,6 +329,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Modern light and dark looks, a futuristic one, or the retro green, amber and white screens
   with CRT glow — or describe your own theme in words and Joe designs it for you. An
   easy-to-read font (Atkinson Hyperlegible) works with every look.
+- **For low vision and screen readers:** two high contrast themes, a Large text setting that makes
+  every button and box bigger, screen-reader announcements while Joe works (progress, finished and
+  failed jobs), and voice commands in Talk to move through a list or the morning report ("read the
+  third one", "next", "skip to the CHECK items"). [ACCESSIBILITY.md](ACCESSIBILITY.md) says what
+  works and what doesn't yet.
 - Stats for the number nerds (**F9**): words written, items, pictures, video, hours of work, and
   how much you'd have paid a cloud AI for the same thing, for today, this week, month, year or all
   time. The same screen shows how much room Joe takes up, with clean-up buttons (everything goes

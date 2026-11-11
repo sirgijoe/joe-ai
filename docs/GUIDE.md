@@ -577,6 +577,20 @@ so after changing a level the first estimate may be off.
 
 ## Comfort (Setup > Display & sound, and Setup > General)
 
+- **High contrast** (Theme): *High contrast (dark)* is white and yellow on black, *High contrast
+  (light)* is black on white; both meet the strictest contrast level (WCAG AAA, 7:1), give every box
+  a solid border and the keyboard focus a thick outline. With *Modern (follows day and night)*,
+  Joe turns high contrast by himself when your computer asks for more contrast.
+- **Large text**: Normal, Large or Larger grows everything (text, buttons, boxes, the tab bar);
+  Text size (14-48) fine-tunes it.
+- **Screen reader announcements**: what your screen reader says while Joe works, with nothing on
+  screen: progress (a run starting, each task finished, 25/50/75 percent, the end) and finished or
+  failed jobs (the default), only finished and failed jobs, or off. A failure is an alert.
+- **Moving through results by voice (Talk, F4)**: after Joe answers with a list, say "read the
+  third one", "number 4", "next", "go back", "again", "the last one", "skip to the CHECK items",
+  "how many are there?", "read the list" or "read them all". Add "in the report" for the morning
+  report. Joe reads the words exactly as written, straight away (no AI in between).
+
 - **Chime when Joe is done**: a soft chime when a run finishes (a lower one if something didn't).
 - **Intro (when Joe opens)**: **Show the intro screen** turns the opening 01000001 01001001 / JOE
   screen on or off (it stays up about 3 seconds; a click or any key skips it). **Intro sound**:

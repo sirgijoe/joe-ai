@@ -176,6 +176,11 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if to_read:                               # just read it, word for word: no model needed
         return {"final": {"ok": True, "say": speakable(to_read)[:6000], "mission": "",
                           "raw": "(read the pasted text aloud)"}}
+    if not files:                             # "read the third one", "next", "skip to the CHECK items" (2.3)
+        from . import resultsnav
+        nav = resultsnav.answer(app, history, text)
+        if nav:
+            return {"final": nav}
     if not files:                             # "what can you do?" / "how does X work?": straight from the code
         from . import abilities
         ab = abilities.answer(text)

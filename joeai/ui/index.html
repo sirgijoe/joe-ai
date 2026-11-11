@@ -613,13 +613,19 @@ FORMAT: ...
                   <select data-path="ui.phosphor" id="theme-select">
                     <option value="modern-auto">Modern (follows day and night)</option>
                     <option value="modern-day">Modern day (light)</option><option value="modern-night">Modern night (dark)</option>
+                    <option value="contrast-dark">High contrast (dark: white and yellow on black)</option>
+                    <option value="contrast-light">High contrast (light: black on white)</option>
                     <option value="futuristic">Futuristic</option>
                     <option value="green">Retro green screen</option>
                     <option value="amber">Retro amber screen</option><option value="white">Retro white screen</option></select></label>
                 <label title="Scanlines and glow, for the retro looks only.">Old-screen effect
                   <select data-path="ui.crt"><option value="0">Off</option><option value="1">Subtle</option>
                     <option value="2">Normal</option><option value="3">Heavy</option></select></label>
-                <label>Text size <input type="number" data-path="ui.text_size" min="14" max="36"></label>
+                <label>Text size <input type="number" data-path="ui.text_size" min="14" max="48"></label>
+                <label title="Makes all of Joe bigger: text, buttons, boxes and the tab bar. Works with every look and on top of Text size.">Large text
+                  <select data-path="ui.large_text"><option value="normal">Normal</option><option value="large">Large</option><option value="larger">Larger</option></select></label>
+                <label title="For screen readers (NVDA, JAWS, Narrator, VoiceOver, Orca): what Joe says out loud through them while he works. Nothing shows on the screen.">Screen reader announcements
+                  <select data-path="ui.announce"><option value="progress">Progress, finished and failed jobs</option><option value="finish">Only finished and failed jobs</option><option value="off">Off</option></select></label>
                 <label title="Atkinson Hyperlegible, a font made by the Braille Institute so letters like I, l and 1 never look alike. Works with every look.">Easy-to-read font <input type="checkbox" data-path="ui.easy_read"></label>
                 <label title="The language of Joe's own screens. Lines not translated yet stay in English.">Language <select data-path="ui.language" id="lang-select"><option value="en">English</option></select></label>
                 <div class="row"><span class="dim small" id="lang-cover"></span>
@@ -953,6 +959,9 @@ FORMAT: ...
        (Voice needs a one-time setup: F10 > System check.)
        Joe's face beside the chat shows what he's doing (listening,
        thinking, talking). Still or Off: Setup > Voice & Talk.
+       After Joe answers with a list (or ask about the report), say
+       "read the third one", "next", "go back", "again",
+       "skip to the CHECK items", "how many?" or "read the list".
  F6    Step by step: make a plan with simple forms, reorder or
        split, paste a whole mission, rerun past ones
  F7    Files: browse the workspace, preview, open
@@ -979,6 +988,7 @@ FORMAT: ...
  K X S Review: keep / reject / star (press again to clear)
  M     Make an MP4 from a GIF, WebP or video (FFmpeg)
  P     Make Word + PDF copies of a .md file (Pandoc)
+ J     Projects: missions grouped together, notes, what's left
 
  Closing this window does NOT stop a run. Reopen Joe
  any time to check on it. Everything stays inside the workspace.
@@ -1057,6 +1067,9 @@ FORMAT: ...
   <div class="row buttons"><button type="button" data-act="bigger-use" class="primary">[ USE THIS PLAN ]</button>
     <button type="button" data-act="bigger-close">[ CLOSE ]</button></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
+<!-- screen readers only (Setup > Display & sound > Screen reader announcements) -->
+<div id="sr-live" class="sronly" aria-live="polite" aria-atomic="true"></div>
+<div id="sr-alert" class="sronly" role="alert" aria-atomic="true"></div>
 <div id="confirm" class="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="confirm-text"><div class="panel"><h2 id="cf-title">CONFIRM</h2><p id="confirm-text"></p>
   <p class="row"><button type="button" id="confirm-yes">[ YES <span class="k">Y</span> ]</button> <button type="button" id="confirm-no">[ NO <span class="k">N</span> ]</button></p></div></div>
 <div id="engine-box" class="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="eb-title" aria-describedby="eb-text"><div class="panel"><h2 id="eb-title">WRITING PROGRAM</h2><p id="eb-text" style="white-space:pre-wrap"></p>

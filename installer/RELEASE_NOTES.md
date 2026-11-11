@@ -17,6 +17,11 @@
   longer carry the Windows download Joe asked for.
 - **FFmpeg only reads files on your computer:** every picture, video and sound tool now tells FFmpeg
   not to follow web addresses or other places named inside someone else's media file.
+- **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
+  light), a Large text setting that grows every button and box, screen-reader announcements while Joe
+  works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move
+  through a list or the morning report: "read the third one", "next", "go back", "skip to the CHECK
+  items", "how many are there?". See ACCESSIBILITY.md for what works and what doesn't yet.
 - **Quicker Talk:** when the Talk model is blank (so the big writing model answers, 10-20 seconds),
   System check offers a small model you already have, or a small one to download.
 
