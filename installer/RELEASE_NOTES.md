@@ -39,6 +39,11 @@
   Agents only use the tools you tick, only on their own folder and what they make; they never run
   add-ons or code, never delete anything, and treat words inside files as information, never as orders.
   Only Joe's own window can make or change an agent.
+- **Clearer morning reports when a long job fails or stops:** a new "What went wrong, in plain words"
+  part says for each one how far it got and how long it ran, what happened (the writing or picture
+  program wasn't answering, the graphics card ran out of memory, a file was open in Excel, the drive was
+  full...), that what's done is kept, and what to do next. Missions left for the next night say plainly
+  that nothing was lost and how to run them sooner.
 - **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move

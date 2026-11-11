@@ -37,8 +37,9 @@ def add_left_note(sb: Sandbox, labels: list[str]) -> None:
     if not n:
         return
     L = ["", f"## {n} mission{'s' if n != 1 else ''} left for tomorrow night", "",
-         "The night shift's stop time came first. These weren't started; they're back in "
-         "Missions/Tonight and run at the next night shift (or press RUN).", ""]
+         "The night shift's stop time came first, so these weren't started (nothing of them was lost). "
+         "They're back in Missions/Tonight and start at the next night shift by themselves. Want them "
+         "sooner? Open Missions/Tonight in Files (F7), L loads one, then RUN.", ""]
     L += [f"- {x}" for x in labels] + [""]
     path = sb.output / "_REPORT.md"
     try:
@@ -89,6 +90,10 @@ def _mission_lines(mission: Mission, states: list) -> list[str]:
             L.append(f"- …and {len(flag_lines) - MAX_FLAG_LINES} more (search the files for '[').")
         L.append("")
 
+    plain = [explain(s) for s in states if s.status in ("failed", "stopped", "partial")]
+    if plain:                                   # 2.3: long jobs that failed or stopped, in plain words
+        L += ["## What went wrong, in plain words", "", *plain, ""]
+
     left = [s for s in states if s.status not in ("done",)]
     L += ["## What's left", ""]
     if left:
@@ -108,3 +113,65 @@ def _mission_lines(mission: Mission, states: list) -> list[str]:
     L.append("")
 
     return L
+
+
+# (pattern in Joe's note, what happened, what to do) — first match wins
+_WHY = [
+    (r"Ollama is not running|Ollama isn't running|couldn't think|Connection refused.*11434",
+     "the writing program (Ollama) wasn't answering", "Setup (F10) > System check starts it; then RUN the plan again."),
+    (r"ComfyUI.*(not running|didn't start|couldn't start)|8188|8000.*refused",
+     "the picture program (ComfyUI) wasn't answering", "Setup (F10) > System check starts it; then RUN the plan again."),
+    (r"out of memory|CUDA|OOM|not enough (?:video|GPU) memory",
+     "the graphics card ran out of memory", "Try a smaller SIZE, fewer VARIANTS, or Quality: Low (Setup > Images & video)."),
+    (r"timed? ?out|timeout|took longer",
+     "one step took longer than Joe waits for it", "Run it again (it often works the second time), or raise the time limit in Setup > Images & video."),
+    (r"No space|disk full|ENOSPC|free on the drive|room",
+     "the drive ran out of room", "Stats (F9) > CLEAN UP frees space; then RUN the plan again."),
+    (r"open in another program|PermissionError|being used by another process",
+     "a file was open in another program (Excel, a viewer)", "Close it and RUN the plan again."),
+    (r"bad SAVE path|SandboxError|outside the workspace|not allowed",
+     "the plan named a place Joe isn't allowed to write", "Change the SAVE: name in the plan (Step by step, F6)."),
+    (r"Pandoc", "the Word/PDF copies need Pandoc", "Setup (F10) > System check installs it."),
+    (r"stopped|run stopped|STOP", "the run was stopped (STOP, the night shift's stop time, or Joe was closed)",
+     "RUN the plan again: finished parts are kept and Joe carries on where he stopped."),
+    (r"I got stuck", "the agent got stuck", "Its AGENT REPORT.md says why and what would help."),
+    (r"not found|no files", "a file the plan asked for wasn't there", "Put it in Inbox (or fix the INPUT: name) and RUN the plan again."),
+]
+
+
+def _took(s) -> str:
+    try:
+        a = datetime.fromisoformat(getattr(s, "started", "") or "")
+        b = datetime.fromisoformat(s.finished) if getattr(s, "finished", "") else None
+    except (TypeError, ValueError):
+        return ""
+    if not b:
+        return f"started {a:%H:%M}"
+    m = int((b - a).total_seconds() // 60)
+    return f"ran {m // 60}h {m % 60:02d}m" if m >= 60 else f"ran {m} min"
+
+
+def explain(s) -> str:
+    """One plain line for a task that failed, stopped or finished with gaps: what happened, how far it
+    got, what's kept and what to do. (The raw note is still under Problems for whoever helps.)"""
+    import re as _re
+    note = getattr(s, "note", "") or ""
+    what, todo = "something went wrong", "The log on the main screen says more; RUN the plan again to retry."
+    if s.status == "stopped" and not note:
+        note = "stopped"
+    for rx, w, t in _WHY:
+        if _re.search(rx, note, _re.I):
+            what, todo = w, t
+            break
+    if s.status == "partial" and what == "something went wrong":
+        what = "some parts came out empty after every retry and were skipped"
+        todo = "Running the plan again writes the whole task again, as a new copy beside this one."
+    far = []
+    if getattr(s, "parts_total", 0):
+        far.append(f"{s.parts_done} of {s.parts_total} parts done")
+    took = _took(s)
+    if took:
+        far.append(took)
+    kept = (f" What's done is kept in {s.output}." if getattr(s, "output", "") and
+            (getattr(s, "parts_done", 0) or getattr(s, "items", 0)) else "")
+    return f"- **{s.name}** ({', '.join(far) or s.status}): {what}.{kept} What to do: {todo}"

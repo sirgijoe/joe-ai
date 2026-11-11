@@ -1358,6 +1358,14 @@ style blank to pick it per task with `WORKFLOW:`.
 Each folder gets `_prompts.md` and `_media.json` (prompt, seed, model, review marks).
 These are AI pictures: never present them as photos of real products.
 
+### When a long job fails or stops (morning report)
+
+Under **What went wrong, in plain words** the report gives each task that failed, was stopped or
+finished with gaps one line: how far it got ("41 of 60 parts done, ran 2h 13m"), what happened in
+plain words, that what's done is kept (and where), and what to do. The raw message is still under
+**Problems** for whoever helps you. Missions the night shift's stop time left for the next night are
+listed with where they wait (Missions\Tonight) and how to run them sooner.
+
 ## Storage (F9)
 
 F9 shows how much room each folder takes, the disk's free space, and five CLEAN buttons
