@@ -1787,6 +1787,7 @@ def make_handler(app: App):
                     have = {"voice": voice, "vision": vision,
                             "whispercpp": tools_mod.hearing_backend(app.settings) == "whisper.cpp",
                             "ffmpeg": bool(ffmpeg_exe(app.settings.comfy.ffmpeg)),
+                            "qpdf": bool(tools_mod.paperwork_qpdf()),
                             "ollama": app.services.ollama_up() or bool(find_ollama_exe(app.settings.ollama.exe))
                             or app.services.engine != "ollama",
                             "comfy": bool(mdir), "packs": packs,

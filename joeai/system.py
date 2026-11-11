@@ -294,6 +294,7 @@ PACKAGES: dict[str, dict[str, str]] = {
     "pandoc":  {"winget": "JohnMacFarlane.Pandoc", "brew": "pandoc", "apt": "pandoc",
                 "dnf": "pandoc", "pacman": "pandoc"},
     "uv":      {"winget": "astral-sh.uv", "brew": "uv", "pacman": "uv"},
+    "qpdf":    {"winget": "QPDF.QPDF", "brew": "qpdf", "apt": "qpdf", "dnf": "qpdf", "pacman": "qpdf"},
 }
 _MAC_CASKS = {"ollama"}            # Homebrew installs these as apps (--cask)
 

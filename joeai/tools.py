@@ -37,6 +37,7 @@ VISION_HELP_TEXT = ("Uses a vision model on this PC (Setup > System check offers
                     "photos are shrunk first with FFmpeg. Your pictures never leave this computer "
                     "and are never changed.")
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
+TEXT_DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 LANGUAGES = (("spanish", "Spanish"), ("french", "French"), ("german", "German"),
              ("italian", "Italian"), ("portuguese", "Portuguese"), ("dutch", "Dutch"),
              ("polish", "Polish"), ("russian", "Russian"), ("ukrainian", "Ukrainian"),
@@ -912,6 +913,190 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          examples=("Make 3 calm background tracks for my videos", "A door creak and a doorbell sound effect"),
          extra_label="Describe each piece (one per line)",
          extra_hint="e.g. calm acoustic guitar, warm, slow, for a pottery video"),
+    # ---- everyday paperwork (2.2, paperwork.py)
+    Tool("pdf-tools", "PDF toolkit", "Files",
+         "Join, split, reorder, turn or shrink PDFs, and fill in PDF forms.",
+         accepts=(".pdf",),
+         options=(Option("do", "What to do", choices=(("merge", "Join them into one PDF"),
+                                                     ("split", "Split into pieces"),
+                                                     ("pages", "Pick or reorder pages"),
+                                                     ("rotate", "Turn pages"),
+                                                     ("compress", "Make it smaller"),
+                                                     ("fill", "Fill in a form")), value="merge"),
+                  Option("shrink", "How small (Make it smaller)",
+                         choices=(("safe", "Nothing looks different"),
+                                  ("smaller", "Smaller: photos re-saved as JPEG")), value="safe"),
+                  Option("turn", "Which way (Turn pages)", choices=(("right", "A quarter turn right"),
+                                                                    ("left", "A quarter turn left"),
+                                                                    ("upside", "Upside down")), value="right"),
+                  Option("lock", "Lock the filled form", False,
+                         "Flattens it so the answers can't be changed (for sending a final copy).")),
+         needs=("qpdf",), ready=True,
+         help="No AI: qpdf (free, Apache license) does the work exactly, on this computer. Join: drop the PDFs in "
+              "the order you want. Pick or reorder: say the pages in the box (3, 1, 2 or 1-4, 7 or last). "
+              "Split: empty = every page, or every 2, or 1-3, 4-6. Turn: all pages, or say which. Fill in a form: "
+              "run it once to get a list of the form's fields, fill it in, paste it in the box and run again. "
+              "Locked PDFs need their password first: save an unlocked copy from your PDF reader. Your PDFs are "
+              "never changed; new ones are saved next to the results.",
+         plan_hint="PDFs: join / split / pick or reorder pages / turn / make smaller / fill in a form: TYPE: pdf-tools, "
+                   "INPUT: the PDF file(s) in the order given, OPTIONS: do merge|split|pages|rotate|compress|fill "
+                   "(+ turn right|left|upside for rotate, shrink safe|smaller for compress, lock for a final filled "
+                   "form), FORMAT: the pages they said (3, 1, 2 / 1-3, 4-6 / every 2) or their form answers as "
+                   "'Field: answer' lines, word for word. No CHUNKS.",
+         examples=("Join these three PDFs into one", "Take pages 2 and 5 out into their own PDF",
+                   "Make this PDF small enough to email", "Fill in this form with my name and address"),
+         extra_label="Pages, or your form answers (optional)",
+         extra_hint="e.g. 3, 1, 2   or   1-3, 4-6   or   Full name: Jane Smith"),
+    Tool("explain-letter", "Explain this letter", "Writing",
+         "A bill, lease, insurance or benefits letter in plain words: what to do, by when, and a reply.",
+         accepts=TEXT_DOC_EXT + PHOTO_EXT,
+         options=(Option("reply", "Draft a reply", True, "A polite reply to fill in and send (never agrees to "
+                                                          "pay or admits anything unless you say so)."),
+                  Option("calendar", "Deadlines to my calendar", False, "A calendar file (.ics) with each date.")),
+         needs=("ollama",), ready=True,
+         help="Joe reads the letter (a photo of it works with a vision model) and explains it in everyday words: "
+              "what it is, what it means for you, what to do next and questions to ask. Joe lists every date, "
+              "amount, phone number and reference number himself and checks each one is really in the letter "
+              "(anything that isn't is marked [CHECK]); dates show how many days are left. Common scam signs are "
+              "pointed out first. Not legal or money advice: for anything serious, call the number on the letter "
+              "or a free advice service.",
+         plan_hint="Explain a letter / bill / lease / notice in plain words (what to do, by when, a reply): TYPE: "
+                   "explain-letter, INPUT: the letter file(s) or photo(s), OPTIONS: reply (unless they don't want "
+                   "one), calendar (only if they want dates in their calendar), FORMAT: what they want to say "
+                   "back, word for word (if they said). No CHUNKS.",
+         examples=("Explain this letter from my insurance", "What does this bill want me to do and by when?",
+                   "Help me understand my lease renewal and write a reply asking for more time"),
+         extra_label="What do you want to say back? (optional)",
+         extra_hint="e.g. I want to ask for a payment plan"),
+    Tool("hide-details", "Hide personal details", "Files",
+         "Names, addresses, phone numbers and account numbers hidden in a copy before you share it.",
+         accepts=(".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm", ".csv"),
+         options=(Option("names", "Let AI find names and addresses too", True,
+                         "Joe's own patterns always find emails, phones, card, account and ID numbers; the "
+                         "writing model adds people's names and home addresses."),
+                  Option("style", "Hide them as", choices=(("labels", "Labels: [NAME 1], [PHONE 1]"),
+                                                           ("blocks", "Black blocks: ██████")), value="labels"),
+                  Option("key", "Save a private key of the labels", False,
+                         "A separate file saying what each label stands for. Keep it to yourself.")),
+         needs=("ollama",), ready=True,
+         help="Makes a cleaned copy; your file is never changed. Word files stay Word files (the author's name, "
+              "reviewer names, the links behind email addresses and picture descriptions are cleaned too; "
+              "pictures inside the file, like a signature or a scanned page, are not looked at); text and CSV stay as they are; PDFs and web pages "
+              "come back as plain text (blacking out a PDF by drawing boxes leaves the words underneath). The "
+              "same person always gets the same label, so the copy still reads well. Type extra words to hide "
+              "in the box (one per line), or 'keep: Acme Bakery' for words to leave. Joe can miss things: read "
+              "the copy before sharing. For faces and plates in photos, use Privacy blur.",
+         plan_hint="Hide / black out / remove personal details (names, addresses, phone numbers, account numbers) "
+                   "from documents before sharing: TYPE: hide-details, INPUT: the document(s), OPTIONS: names "
+                   "(unless they say patterns only), style labels|blocks (blocks if they say black out), key (only "
+                   "if they want a key), FORMAT: extra words to hide or 'keep: ...' words, word for word. No CHUNKS.",
+         examples=("Black out the names and account numbers in this statement before I send it",
+                   "Remove personal details from my medical letter", "Hide everyone's phone numbers in this list"),
+         extra_label="Extra words to hide, or keep: words (optional)",
+         extra_hint="e.g. Sam Rivera\nkeep: Acme Bakery"),
+    Tool("meeting-minutes", "Meeting minutes", "Audio",
+         "A meeting recording (or its transcript) into minutes: decisions, to-dos, who and by when.",
+         accepts=AUDIO_EXT + VIDEO_IN_EXT + (".txt", ".md", ".srt", ".vtt", ".docx"),
+         options=(Option("language", "Spoken in", choices=HEAR_LANGUAGES, value="english"),
+                  Option("transcript", "Keep the transcript too", True),
+                  Option("calendar", "To-dos to my calendar", False, "A calendar file (.ics) with each to-do that has a date.")),
+         needs=("voice", "ollama"), ready=True,
+         help="One step from a recording to minutes: Joe listens (Whisper, on this PC), then the writing model "
+              "writes the summary, decisions, to-dos with who and by when, and open questions. Joe can't tell voices "
+              "apart: a name is given only when the recording makes it clear (people say names); names and dates "
+              "not heard word for word are marked [CHECK]. A transcript or subtitles file works too (no voice "
+              "add-on needed). Your recording is never changed or sent anywhere.",
+         plan_hint="Meeting minutes / notes with decisions and to-dos from a meeting recording or transcript: TYPE: "
+                   "meeting-minutes, INPUT: the recording(s) or transcript(s), OPTIONS: language <what's spoken> "
+                   "(english if not said), transcript, calendar (only if they want to-dos in a calendar). No CHUNKS.",
+         examples=("Make minutes from this meeting recording", "Who agreed to do what in yesterday's call?",
+                   "Turn this Zoom transcript into minutes with to-dos"),
+         extra_label="Anything else? (optional)", extra_hint="e.g. focus on the budget decisions"),
+    Tool("bank-budget", "Bank statement to budget", "Files",
+         "Your bank's CSV sorted into a budget: where the money went, subscriptions and price rises.",
+         accepts=SHEET_EXT,
+         options=(Option("ai", "Let AI sort shops Joe doesn't know", True,
+                         "Joe sorts well-known names himself; the writing model gets only the shop names, never "
+                         "your amounts or account numbers."),),
+         needs=("ollama",), ready=True,
+         help="Download your statement as CSV (or Excel) from your bank's website, one or more months or accounts. "
+              "Joe's own code reads it, works out money in and out, spending by category and month, the biggest "
+              "payments, and finds regular payments (weekly, monthly, yearly) with their cost a year and any price "
+              "rises. All the math is Joe's, never the AI's. You get budget.md to read and two CSVs to open in a "
+              "spreadsheet (change any category there). Your statement is never changed and never leaves this "
+              "computer.",
+         plan_hint="Budget from a bank statement / where does my money go / find my subscriptions: TYPE: bank-budget, "
+                   "INPUT: the bank CSV or Excel file(s), OPTIONS: ai (unless they say no AI), else none. No CHUNKS.",
+         examples=("Turn my bank statement into a budget", "Which subscriptions am I paying for?",
+                   "Where did my money go last month?")),
+    Tool("resume-tailor", "Resume tailor", "Writing",
+         "Your resume and a job posting in; a matched resume, cover letter and gap list out. Nothing invented.",
+         accepts=DOC_EXT,
+         options=(Option("letter", "Write a cover letter", True),
+                  Option("word", "Word copies too", True, "Needs Pandoc (Setup > System check).")),
+         needs=("ollama",), ready=True,
+         help="Give your resume and the job posting (paste it in the box, or add it as a second file with 'job' in "
+              "its name). Joe lists what the job asks for and finds each one in your resume, quoting the line (each "
+              "quote checked word for word). The tailored resume puts your matching experience first in the job's "
+              "words, and never adds a job, skill, number or result you don't have: anything that isn't in your "
+              "resume is marked [CHECK: not in your resume], and the gaps are listed so you can decide. Your "
+              "resume file is never changed.",
+         plan_hint="Tailor a resume / CV to a job posting, with a cover letter: TYPE: resume-tailor, INPUT: the resume "
+                   "file (and the posting file if they have one), OPTIONS: letter, word (unless they don't want "
+                   "them), FORMAT: the job posting, word for word, if they pasted it. No CHUNKS.",
+         examples=("Tailor my resume to this job posting", "Write a cover letter for this job from my CV"),
+         extra_label="The job posting (paste it here)",
+         extra_hint="Paste the whole job posting here, or add it as a file with 'job' in its name"),
+    Tool("mail-merge", "Mail merge", "Files",
+         "One letter and a spreadsheet of names in: a personal letter for every row out.",
+         accepts=(".docx", ".txt", ".md", ".csv", ".tsv", ".xlsx"),
+         options=(Option("one", "Also one file with every letter", True, "Ready to print in one go."),
+                  Option("blank", "Leave empty cells blank", False,
+                         "Off: a row with an empty cell gets [CHECK: no ...] so nothing goes out half-done.")),
+         needs=(), ready=True,
+         help="No AI, nothing invented. In your letter, put a column name from the spreadsheet in curly brackets "
+              "where it should go: Dear {First name}, ... your order {Order number}. (<<Name>> and «Name» work "
+              "too, and the letter can be Word, .txt or .md.) Joe makes one letter per row in the letters folder, "
+              "keeping your Word formatting, plus one file with all of them. Any {spot} that doesn't match a column "
+              "is listed. Your letter and spreadsheet are never changed.",
+         plan_hint="Mail merge / personalised letters from a list: TYPE: mail-merge, INPUT: the letter file and the "
+                   "spreadsheet (both), OPTIONS: one (unless they want separate files only), blank (only if they "
+                   "want empty cells left blank). No CHUNKS.",
+         examples=("Make a letter for everyone on this list", "Merge my thank-you note with the customer spreadsheet")),
+    Tool("alt-text", "Picture descriptions (alt text)", "Pictures",
+         "A short description of each picture, for screen readers, websites and shop listings.",
+         accepts=PHOTO_EXT,
+         options=(Option("long", "Also a longer description", True),
+                  Option("sidecar", "A .txt for each picture", False, "Named like the picture, for upload tools.")),
+         needs=("ollama", "vision"), ready=True,
+         help=VISION_HELP_TEXT + " Each short description is one sentence of 125 characters or less (what screen "
+              "readers handle best), most important thing first, without 'image of'. Joe never names or guesses "
+              "who people are. Say what the pictures are for in the box (like: my pottery shop) for better words. "
+              "Saved as alt-text.csv (for spreadsheets and shop uploads) and alt-text.md.",
+         plan_hint="Alt text / picture descriptions for screen readers, a website or shop listings: TYPE: alt-text, "
+                   "INPUT: the picture(s) or folder, OPTIONS: long, sidecar (only if they want a file per picture), "
+                   "FORMAT: what the pictures are for, if they said. No CHUNKS.",
+         examples=("Write alt text for my website photos", "Describe these pictures for a blind reader"),
+         extra_label="What are the pictures for? (optional)", extra_hint="e.g. product photos for my pottery shop"),
+    Tool("duplicate-photos", "Duplicate photo finder", "Pictures",
+         "Finds copies and near-copies of photos and suggests the best one to keep. Nothing is deleted.",
+         accepts=PHOTO_EXT,
+         options=(Option("how", "How alike", choices=(("exact", "Exact copies only"),
+                                                      ("close", "Copies, also resized or re-saved"),
+                                                      ("loose", "Similar shots too (bursts)")), value="close"),
+                  Option("sheets", "Side-by-side pictures of each group", True),
+                  Option("copy", "Copy the keepers into a clean folder", False,
+                         "The best of each group plus every one-of-a-kind photo. Copies only.")),
+         needs=("ffmpeg",), ready=True,
+         help="No AI. Joe compares every photo's bytes (exact copies) and a tiny fingerprint of how it looks "
+              "(near copies), then suggests a keeper for each group: the biggest picture, then the sharpest, then "
+              "the one with the plainest name, and says why. Nothing is moved or deleted: you get duplicates.md "
+              "with a side-by-side picture of each group, and a CSV, so you decide. Without FFmpeg only exact "
+              "copies are found. Drop a whole folder.",
+         plan_hint="Find duplicate / similar photos and which to keep: TYPE: duplicate-photos, INPUT: the photo "
+                   "folder(s) or files, OPTIONS: how exact|close|loose (close if not said), sheets, copy (only if "
+                   "they want the keepers copied out). No CHUNKS.",
+         examples=("Find the duplicate photos in my phone dump", "Which of these burst shots should I keep?")),
 )}
 GROUPS = ("Writing", "Pictures", "Video", "Audio", "Files")
 
@@ -1038,7 +1223,8 @@ def resolve_inputs(engine: "Engine", job: "Job") -> tuple[list[Path], list[str]]
             continue
         if p.is_dir():
             found = sorted(f for f in p.rglob("*") if f.is_file() and f.suffix.lower() in tool.accepts
-                           and not any(part.startswith(".") for part in f.relative_to(p).parts))
+                           and not any(part.startswith(".") for part in f.relative_to(p).parts)
+                           and _inside(engine.sb, f))
             if not found:
                 problems.append(f"{rel}: no files Joe can use in that folder")
             files.extend(found)
@@ -1052,6 +1238,18 @@ def resolve_inputs(engine: "Engine", job: "Job") -> tuple[list[Path], list[str]]
     seen: set[Path] = set()
     unique = [f for f in files if not (f in seen or seen.add(f))]
     return unique, problems
+
+
+def _inside(sb, f: Path) -> bool:
+    """A file found inside a folder is only used when it really is in the workspace (a shortcut/link
+    pointing somewhere else on the computer is skipped)."""
+    from .sandbox import SandboxError
+    try:
+        sb.check(f)
+        sb.check_not_private(f)
+    except SandboxError:
+        return False
+    return True
 
 
 def _key(engine: "Engine", src: Path) -> str:
@@ -1113,6 +1311,9 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     if job.type == "joe-language":
         from . import i18n
         fn = i18n.run
+    from . import paperwork
+    if job.type in paperwork.PAPER_TOOLS:
+        fn = paperwork.run
     if not fn:
         st.status, st.note = "failed", f"the {TOOLS[job.type].name} tool isn't built yet"
         engine.log(f"'{job.name}' failed: {st.note}")
@@ -1179,7 +1380,8 @@ def hearing_model(stt_model: str, language: str) -> str:
     return name
 
 
-HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "edit-words", "dub-video", "b-roll")
+HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "edit-words", "dub-video", "b-roll",
+                 "meeting-minutes")
 
 
 def hearing_backend(settings) -> str:
@@ -3608,7 +3810,7 @@ def mission_for(tool_id: str, files: list[str], options: list[str], name: str = 
     if tool.options:
         lines.append("OPTIONS: " + (", ".join(options) if options else "none"))
     if extra.strip():
-        sep = " | " if tool.id in ("music", "social-graphic") else " "   # one piece / one line of words per |
+        sep = " | " if tool.id in ("music", "social-graphic", "pdf-tools", "hide-details") else " "   # one piece / line per |
         lines.append("FORMAT: " + sep.join(x.strip() for x in extra.strip().splitlines() if x.strip()))
     if mark.strip() and tool.mark:
         lines.append("WATERMARK: " + " ".join(mark.split())[:120])
@@ -3683,6 +3885,9 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     elif job.type == "proofread":
         for f in files:
             secs += max(1, -(-_guess_words(f) // PROOF_WORDS)) * speeds.get("part", 25.0)
+    elif job.type in PAPER_GUESS:
+        from . import paperwork
+        secs += paperwork.guess_seconds(job, files, speeds)
     elif job.type in COMFY_GUESS_S:
         from .picturetools import pieces_from
         n = len(pieces_from(job.format)) if job.type == "music" else len(files)
@@ -3696,6 +3901,8 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
     return {"files": len(files), "seconds": secs, "problems": problems}
 
 
+PAPER_GUESS = ("pdf-tools", "explain-letter", "hide-details", "meeting-minutes", "bank-budget", "resume-tailor",
+               "mail-merge", "alt-text", "duplicate-photos")             # paperwork.PAPER_TOOLS
 # Picture editor: about 4.5 min a picture on a 12 GB card (its request is read on the processor),
 # measured in the showcase test 2026-11-09; a turnaround is per view. Learned speeds replace these.
 COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 270.0, "restore-photo": 150.0,
@@ -3734,6 +3941,14 @@ def needs_problem(settings, job: "Job") -> str:
             return (f"Task '{job.name}': {tool.name.lower()} needs "
                     + " and ".join(picturetools.pack_offer(p, mdir) for p in missing)
                     + ". Setup (F10) > System check > DOWNLOAD, or the button on the Tools form.")
+    if "qpdf" in tool.needs:
+        from .paperwork import qpdf_exe
+        if not qpdf_exe():
+            return (f"Task '{job.name}': the PDF toolkit needs qpdf (free). Setup (F10) > System check > "
+                    "qpdf > INSTALL.")
+    if job.type == "meeting-minutes" and job.inputs and all(
+            Path(i).suffix.lower() in (".txt", ".md", ".srt", ".vtt", ".docx") for i in job.inputs):
+        return ""                                       # a transcript needs no ears
     if "voice" in tool.needs:
         from .addons import voice_python
         if tool.id in HEARING_TOOLS and hearing_ready(settings):
@@ -3742,6 +3957,11 @@ def needs_problem(settings, job: "Job") -> str:
             return (f"Task '{job.name}': {tool.name.lower()} needs Joe's voice add-on first. "
                     "Setup (F10) > System check > \"Joe's voice\" > SET UP.")
     return ""
+
+
+def paperwork_qpdf() -> str | None:
+    from .paperwork import qpdf_exe
+    return qpdf_exe()
 
 
 def sdxl_installed(mdir) -> bool:
@@ -3769,6 +3989,8 @@ def tool_status(have: dict) -> list[dict]:
                    else "needs Ollama running with a vision model")
         elif t.needs == ("ffmpeg",) and not have.get("ffmpeg"):
             why = "needs FFmpeg"
+        elif "qpdf" in t.needs and not have.get("qpdf"):
+            why = "needs qpdf (a free PDF program)"
         elif "comfy" in t.needs:
             if not have.get("comfy"):
                 why = "needs ComfyUI"

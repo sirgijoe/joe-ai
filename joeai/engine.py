@@ -755,7 +755,7 @@ class Engine:
     THINK_KINDS = frozenset({"write", "expand"})
     # Jobs where a smaller model makes real mistakes: they always use the best model,
     # even on Low quality.
-    BEST_MODEL_KINDS = frozenset({"proofread", "translate", "ask-files", "ask-summary"})
+    BEST_MODEL_KINDS = frozenset({"proofread", "translate", "ask-files", "ask-summary", "letter", "resume"})
     # Jobs whose reply can't be much longer than the text sent: the reply is capped, so a model
     # that starts repeating itself stops in a few minutes instead of hitting the 10-min timeout
     # (big test 2026-11-05: one proofread call still hung 10 min with thinking off).

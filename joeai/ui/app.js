@@ -3032,7 +3032,7 @@ const W_GROUPS = [
   { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "get-engine", "use-ollama", "engine-model", "pull-model", "use-model", "upgrade-model"] },
   { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d", "share-models"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
+  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-qpdf", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
 ];
 const W_STEPS = [
   { id: "hello", name: "Hello" },
@@ -3059,12 +3059,13 @@ const W_TEXT = {
   "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice & Talk."],
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
+  "install-qpdf": ["For the PDF toolkit: join, split, shrink and fill in PDFs (small and free).", "YES, INSTALL IT", ""],
 };
 let W = { open: false, i: 0, d: null, busyWas: "", asked: {}, pick: null, queue: [], auto: false, tried: {} };
 // The checklist: everything Joe could install, grouped, with sizes. Small and needed things
 // start ticked; big downloads (picture editor, video, music) start unticked. Nothing is
 // installed until the person presses INSTALL WHAT'S TICKED.
-const W_SMALL = ["install-voice", "install-ffmpeg", "install-pandoc", "pull-vision", "pull-embed",
+const W_SMALL = ["install-voice", "install-ffmpeg", "install-pandoc", "install-qpdf", "pull-vision", "pull-embed",
   "pull-talk-model", "pack-bg", "pack-upscale", "get-video-turbo"];
 function wSizeGB(it) {
   const m = /(?:about |under )?(\d+(?:\.\d+)?)\s*(GB|MB)/i.exec((it.what || "") + " " + it.text);
@@ -3524,6 +3525,8 @@ function toolNeeds() {
   if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > System check installs it.");
   if (needs.includes("vision") && toolHave.vision === false) msgs.push("This needs a vision model (one that can look at pictures). Setup (F10) > System check offers a free one to download.");
   if (needs.includes("vision") && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only JPG, PNG and WebP photos under 6 MB can be used. Setup (F10) > System check installs it.");
+  if (needs.includes("qpdf") && !toolHave.qpdf) msgs.push("This needs qpdf, a small free PDF program (Apache license). Setup (F10) > System check > qpdf > INSTALL.");
+  if (t.id === "duplicate-photos" && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only exact copies can be found. Setup (F10) > System check installs it.");
   if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > System check installs it.");
   let html = msgs.map(esc).join("<br>");
   if (needs.includes("comfy")) {

@@ -379,6 +379,9 @@ def is_addon_tool(typ: str) -> bool:
     return typ in _by_type
 
 
+_JOE_PATH = re.compile(r"^\{(?:input|outdir|output|addon)\}")
+
+
 def command_line(tool: dict, program: Path, src: Path, outdir: Path, opts: set[str], values: dict, text: str,
                  addon_dir: Path | None = None) -> list[str]:
     stem, ext = src.stem, src.suffix.lstrip(".")
@@ -402,6 +405,14 @@ def command_line(tool: dict, program: Path, src: Path, outdir: Path, opts: set[s
             # for the program (like "--output=..." or "-rf"): refuse instead of guessing
             raise ValueError(f"the words given for {tmpl} start with '-', which the program would read "
                              "as a switch; start them with something else")
+        lead = x[:1]
+        if lead in ("/", "@") and not tmpl.startswith(lead) and not _JOE_PATH.match(tmpl):
+            # the same for "/" (a switch for many Windows programs, like /Q) and "@" (ImageMagick and
+            # others read the rest as a file name and use that file's contents). Joe's own paths
+            # ({input}, {output}...) are absolute and may start with "/" on Mac and Linux: those are fine.
+            raise ValueError(f"the words given for {tmpl} start with '{lead}', which the program could read "
+                             + ("as a switch" if lead == "/" else "as 'read this file'")
+                             + "; start them with something else")
         cmd.append(x)
     return cmd
 

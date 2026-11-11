@@ -5,6 +5,21 @@
   smiles when a run is done, looks worried when something failed and gets sleepy during the night
   shift and the screen saver. Setup > Voice & Talk > "Joe's face in Talk": On, Still (no blinking
   or moving mouth; also used when your computer is set to reduce motion) or Off.
+- **Nine everyday paperwork tools** on the Tools tab (or just ask on Home). Your files are only read,
+  never changed, and everything stays on your computer:
+  - **PDF toolkit:** join, split, pick or reorder pages, turn pages, make a PDF smaller, and fill in
+    PDF forms. Uses qpdf, a small free program that System check installs for you.
+  - **Explain this letter:** a bill, lease or benefits letter in plain words, with every deadline and
+    the days left, scam warnings and a polite reply to fill in.
+  - **Hide personal details:** names, addresses and account numbers replaced in a copy you can share.
+  - **Meeting minutes:** a recording or transcript into decisions, to-dos (who, by when) and a summary.
+  - **Bank statement to budget:** where your money went, your regular payments and their price rises.
+  - **Resume tailor:** a resume matched to a job posting, plus a cover letter. Nothing invented.
+  - **Mail merge:** one letter and a spreadsheet into a personal letter for everyone on the list.
+  - **Picture descriptions (alt text):** short descriptions for screen readers and shop listings.
+  - **Duplicate photo finder:** copies grouped with the best one to keep. Nothing is deleted.
+- **Safer add-on tools:** words filled into an add-on's program can't start with "/" or "@" either
+  (some programs read those as a switch or as "read this file").
 
 ## What's new in 2.1.4
 

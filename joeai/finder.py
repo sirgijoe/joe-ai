@@ -179,6 +179,20 @@ def pandoc_exe(configured: str = "") -> str | None:
     return find_tool("pandoc", configured, ("Pandoc",))
 
 
+def qpdf_exe(configured: str = "") -> str | None:
+    """qpdf (the PDF toolkit's helper). winget puts it in a folder named for its version
+    (C:\\Program Files\\qpdf 12.2.0\\bin), so those folders are looked through too (newest wins)."""
+    hit = find_tool("qpdf", configured, ("qpdf",))
+    if hit or not WINDOWS:
+        return hit
+    hits = []
+    for base in (_env("ProgramFiles"), _env("ProgramFiles(x86)"), _env("LOCALAPPDATA") and _env("LOCALAPPDATA") / "Programs"):
+        for d in _children(base) if base else []:
+            if d.name.lower().startswith("qpdf") and _exists(d / "bin" / "qpdf.exe"):
+                hits.append(d / "bin" / "qpdf.exe")
+    return str(max(hits, key=_mtime)) if hits else None
+
+
 # --------------------------------------------------------------------------- ComfyUI
 @dataclass
 class ComfyInstall:

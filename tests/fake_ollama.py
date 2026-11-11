@@ -208,6 +208,67 @@ class FakeOllama:
                 return 200, self._reply("\n".join(f"{n}| [ES] {t}" for n, t in nums if n != "2"))
             if sysmsg.startswith("You are a video editor adding B-roll"):
                 return 200, self._reply('[{"line": 3, "clip": "mugs-on-shelf"}, {"line": 2, "clip": "nope"}, {"line": 1, "clip": "kiln"}]')
+            # ---- 2.2 paperwork tools
+            if sysmsg.startswith("You help people understand letters"):
+                if "scam_signs" in user:
+                    body = re.search(r"<<<\n(.*)\n>>>", user, re.S).group(1)
+                    scam = "gift card" in body.lower()
+                    return 200, self._reply(json.dumps({"from": "City Water", "about": "Your water bill is overdue.",
+                        "deadlines": [{"what": "Pay the bill", "date": "2099-12-15", "as_written": "December 15, 2099"},
+                                      {"what": "Shut-off", "date": "2099-12-30", "as_written": "Dec 30th"}],
+                        "amounts": [{"what": "Amount due", "amount": "$84.20"}, {"what": "Late fee", "amount": "$999.00"}],
+                        "contacts": [{"how": "phone", "detail": "555-0100"}],
+                        "references": ["AC-77812"], "scam_signs": ["Asks for gift cards"] if scam else []}))
+                if "polite reply" in user:
+                    return 200, self._reply("Dear City Water,\nRe: account AC-77812\nI'd like a payment plan.\n[YOUR NAME]")
+                return 200, self._reply("## What this letter is\nA water bill.\n## What it means for you\nYou owe money.\n"
+                                        "## What to do next\n1. Pay it.\n## Questions you could ask them\n- Can I pay later?")
+            if sysmsg.startswith("You find personal details"):
+                body = re.search(r"<<<\n(.*)\n>>>", user, re.S).group(1)
+                items = [{"text": "Maria Lopez", "kind": "name"}, {"text": "Maria", "kind": "name"},
+                         {"text": "Invented Person", "kind": "name"}, {"text": "the", "kind": "name"}]
+                return 200, self._reply(json.dumps({"items": [i for i in items if i["text"] in body or "Invented" in i["text"]
+                                                              or i["text"] == "the"]}))
+            if sysmsg.startswith("You write meeting minutes"):
+                if '"todos"' in user:
+                    return 200, self._reply(json.dumps({"people": ["Sam", "Priya"],
+                        "decisions": ["Ship the new mugs on Friday"],
+                        "todos": [{"task": "Update the price list", "who": "Sam", "due": "2099-01-09", "due_said": "Friday"},
+                                  {"task": "Call the kiln repair", "who": "Bob", "due": "", "due_said": ""}],
+                        "questions": ["Who pays for shipping?"]}))
+                return 200, self._reply("## Summary\nThe team planned the mug launch.\n## Who said what\n- Sam: will update prices\n"
+                                        "## Discussion\n- Launch timing")
+            if sysmsg.startswith("You sort bank transactions"):
+                names = re.findall(r"^- (.+)$", user, re.M)
+                out = {}
+                for n in names:
+                    low = n.lower()
+                    out[n] = ("Pets" if "pet" in low else "Shopping" if "store" in low else
+                              "Made Up Category" if "mystery" in low else "Other")
+                return 200, self._reply(json.dumps(out))
+            if sysmsg.startswith("You help a person apply for a job honestly"):
+                if '"must"' in user:
+                    return 200, self._reply(json.dumps({"title": "Office Manager", "company": "Acme Co",
+                        "must": ["Scheduling", "Excel", "Forklift license"], "nice": ["Spanish"],
+                        "keywords": ["QuickBooks", "scheduling"]}))
+                if '"matches"' in user:
+                    return 200, self._reply(json.dumps({"matches": [
+                        {"requirement": "Scheduling", "evidence": "Ran the schedule for 12 staff"},
+                        {"requirement": "Excel", "evidence": "Expert in Excel and PowerBI since 1999"},
+                        {"requirement": "Forklift license", "evidence": ""}, {"requirement": "Spanish", "evidence": ""}]}))
+                if "cover letter" in user:
+                    return 200, self._reply("Dear [HIRING MANAGER],\nI ran the schedule for 12 staff and know QuickBooks.\n[YOUR NAME]")
+                return 200, self._reply("## Summary\nOffice lead who ran the schedule for 12 staff.\n## Skills\n- Scheduling\n"
+                                        "- QuickBooks\n- Grew sales 40%")
+            if sysmsg.startswith("You write alt text"):
+                if not seen:
+                    return 200, self._reply("no picture?")
+                name = re.search(r"Picture file: (\S+)", user).group(1)
+                if "blank" in name:
+                    return 200, self._reply("{}")
+                long = "A very long description of a blue mug sitting on a wooden table in soft morning light " * 3
+                return 200, self._reply(json.dumps({"alt": ("Image of " + long) if "long" in name else "A blue mug on a table",
+                                                    "long": "The mug is glazed blue. A window is behind it."}))
             if sysmsg.startswith("You brainstorm"):
                 return 200, self._reply("\n".join(f"{i}. Idea {i}" for i in range(1, 11)))
             if sysmsg.startswith("You are a patient tutor"):

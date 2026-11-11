@@ -366,6 +366,30 @@ def _plain_summary(chk: dict) -> list[str]:
                 tail += ", with wording suggestions" if "clarity" in opts else ""
                 out.append(f"Proofread {_n(n, 'document', 'documents')} with a list of every change"
                            f"{tail}: {name}")
+            elif t in ("pdf-tools", "explain-letter", "hide-details", "meeting-minutes", "bank-budget",
+                       "resume-tailor", "mail-merge", "alt-text", "duplicate-photos"):
+                o = j.get("options") or []
+                pick = lambda k, d: next((x.split(" ", 1)[1] for x in o if x.startswith(k + " ")), d)  # noqa: E731
+                if t == "pdf-tools":
+                    do = pick("do", "merge")
+                    line = {"merge": f"Join {_n(n, 'PDF', 'PDFs')} into one",
+                            "split": f"Split {_n(n, 'PDF', 'PDFs')} into pieces",
+                            "pages": f"Pick or reorder pages of {_n(n, 'PDF', 'PDFs')}",
+                            "rotate": f"Turn pages of {_n(n, 'PDF', 'PDFs')}",
+                            "compress": f"Make {_n(n, 'PDF', 'PDFs')} smaller",
+                            "fill": f"Fill in {_n(n, 'PDF form', 'PDF forms')}"}.get(do, f"PDF toolkit: {_n(n, 'PDF', 'PDFs')}")
+                else:
+                    line = {"explain-letter": f"Explain {_n(n, 'letter', 'letters')} in plain words"
+                                              + (" with a draft reply" if not o or "reply" in o else ""),
+                            "hide-details": f"Hide personal details in {_n(n, 'document', 'documents')}",
+                            "meeting-minutes": f"Minutes from {_n(n, 'meeting', 'meetings')}",
+                            "bank-budget": f"A budget from {_n(n, 'bank statement', 'bank statements')}",
+                            "resume-tailor": "Tailor a resume to a job"
+                                             + (" with a cover letter" if not o or "letter" in o else ""),
+                            "mail-merge": "A personal letter for every row of the spreadsheet",
+                            "alt-text": f"Descriptions (alt text) for {_n(n, 'picture', 'pictures')}",
+                            "duplicate-photos": f"Find copies among {_n(n, 'photo', 'photos')}"}[t]
+                out.append(f"{line}: {name}")
             elif t == "ai-search":
                 out.append(f"Get found by AI search (FAQ, schema code, llms.txt): {name}")
             elif t == "meal-plan":

@@ -21,6 +21,7 @@ is, whether it ships inside Joe or Joe downloads it only after you say yes, and 
 | PyTorch (with the copy of ComfyUI Joe sets up) | runs ComfyUI on the graphics card | BSD-3-Clause |
 | FFmpeg | sound, video and photo conversion | LGPL-2.1+ / GPL-2.0+ (depends on the build) |
 | Pandoc | Word, PDF and EPUB copies | GPL-2.0-or-later |
+| qpdf | the PDF toolkit (join, split, shrink, fill in forms) | Apache-2.0 |
 | uv (Astral) | sets up the private Python for the voice add-ons and Joe's own ComfyUI | MIT or Apache-2.0 |
 | Python (a private copy made by uv) | runs the voice add-ons | Python Software Foundation License |
 | Python from python-build-standalone (Astral), bundled in the Windows installer, Mac app and Linux AppImage | runs Joe himself, so nobody has to install Python | Python Software Foundation License; build scripts MPL-2.0; includes OpenSSL (Apache-2.0), SQLite (public domain), Tcl/Tk (BSD-style), libffi, zlib, bzip2, xz (MIT/BSD-style) |

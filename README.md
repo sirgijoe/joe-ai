@@ -195,6 +195,31 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   about cancelling?") and Joe answers only from them, showing the excerpts he used, or says
   the documents don't say. It can also summarize each document. A small optional search model
   (about 270 MB) helps with big folders.
+- **Everyday paperwork** (new in 2.2; nothing you give them is changed, and numbers, dates and names
+  the AI gives are checked against your own file, [CHECK] where they aren't there):
+  - **PDF toolkit**: join, split, pick or reorder pages, turn pages, make a PDF smaller, and fill in
+    PDF forms (Joe lists the fields, you type the answers). No AI: uses qpdf, a small free program
+    System check installs.
+  - **Explain this letter**: a bill, lease, insurance or benefits letter (or a photo of it) in plain
+    words: what it means, what to do, every deadline with the days left, money and reference numbers
+    checked against the letter, scam warnings, and a polite reply to fill in. Not legal advice.
+  - **Hide personal details**: names, addresses, phone, card, account and ID numbers replaced by
+    labels like [NAME 1] (or black blocks) in a copy to share. Word files stay Word files; Joe only
+    hides words that are really there. Read the copy before you send it.
+  - **Meeting minutes**: a recording or transcript into minutes: summary, decisions, to-dos (who, by
+    when), open questions. Names only when the recording makes them clear.
+  - **Bank statement to budget**: your bank's CSV into where the money went, by category and month,
+    regular payments with their yearly cost, and price rises. Joe's own math; the AI only ever sees
+    shop names.
+  - **Resume tailor**: your resume plus a job posting into a matched resume, a cover letter and a
+    list of what the job asks for that your resume does or doesn't show. Nothing invented: anything
+    not in your resume is marked [CHECK].
+  - **Mail merge**: one letter with {Name}-style spots plus a spreadsheet into a personal letter per
+    row (Word formatting kept), and one file with all of them.
+  - **Picture descriptions (alt text)**: a short description of every picture for screen readers
+    and shop listings, never naming people.
+  - **Duplicate photo finder**: copies and near-copies grouped, with the best one to keep and why.
+    Nothing is moved or deleted.
 - **Picture and sound tools** (run in ComfyUI on the graphics card; each needs its model once,
   offered with its size and license):
   - **Remove background and upscale**: see-through PNG or white JPG cutouts, optionally 2x/4x
@@ -334,7 +359,7 @@ internet. None of them send your files, chats or recordings.
 
 | What | Goes to | When | Your choice |
 |---|---|---|---|
-| Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
+| Installing programs (Ollama, ComfyUI, FFmpeg, Pandoc, qpdf) | Windows' winget, or the program's own download page | Setup, or when a task needs one | Asks you first, every time |
 | Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files, and the picture/sound tool models) | Ollama's model library, Hugging Face | Setup, the Tools form, or when you pick a better model | Asks you first, every time |
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |

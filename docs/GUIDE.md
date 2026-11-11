@@ -768,6 +768,103 @@ your original files.
 - **Joe's screens in another language** (`TYPE: joe-language`, `OPTIONS: to <language>`): see
   "Joe's screens in other languages" above.
 
+### Everyday paperwork tools (new in 2.2)
+
+Nine tools for the jobs people usually pay a monthly fee for, or struggle to do alone. Same rules as the
+rest: a card on the Tools tab, or just ask on Home ("join these PDFs", "explain this letter"). Your
+files are only read, never changed; everything runs on your computer. Where the AI gives a number,
+date or name, Joe's own code checks it against your file and marks anything it can't find **[CHECK]**.
+
+- **PDF toolkit** (`TYPE: pdf-tools`, `OPTIONS: do merge|split|pages|rotate|compress|fill`, plus
+  `turn right|left|upside`, `shrink safe|smaller`, `lock`): no AI. It uses **qpdf**, a small free
+  program (Apache license) that System check installs with one click (winget, Homebrew or your Linux
+  package manager; about 10 MB). What goes in the box (`FORMAT:`):
+  - **Join**: nothing; drop the PDFs in the order you want them. You get `joined.pdf`.
+  - **Pick or reorder pages**: the pages, like `3, 1, 2`, `1-4, 7`, `2 to 5 and last`, `odd`.
+  - **Split**: empty = one file per page; `every 2`; or `1-3, 4-6` for those pieces.
+  - **Turn pages**: empty = every page, or say which; pick the direction.
+  - **Make it smaller**: "Nothing looks different" packs the file tighter without touching any
+    picture; "Smaller" also re-saves photos as JPEG (scanned pages shrink a lot, a little softer). If
+    the file can't get smaller, Joe says so and keeps nothing extra.
+  - **Fill in a form**: run it once with the box empty. Joe saves `<name>-form-fields.txt` listing
+    every field (with "tick box: yes or no" or the choices). Fill in after each colon, paste the
+    lines into the box and run it again: you get `<name>-filled.pdf`. A field name Joe can't find,
+    a choice that isn't on the list or a signature box is listed in `pdf-report.md`. Tick **Lock the
+    filled form** for a final copy nobody can change. Letters outside the basic Latin set may not
+    show in every PDF reader ([CHECK]).
+  - A PDF locked with a password: open it in your PDF reader with the password, save or print a copy
+    as PDF, and use that. A damaged file is named in the report.
+- **Explain this letter** (`TYPE: explain-letter`, `OPTIONS: reply, calendar`): a bill, lease,
+  insurance, benefits, tax, school or court letter (a document, or a photo of it with a vision
+  model). You get `<name>-explained.md`: who it's from, what it's about, **dates and deadlines** with
+  how many days are left (Joe counts them himself), money, who to contact and reference numbers
+  (each checked against the letter), then what it means in plain words, what to do next and
+  questions to ask. Common scam signs (gift cards, "pay today or else", a link to log in) are
+  pointed out first. With `reply`, a polite draft to fill in (`<name>-reply.txt`); it never agrees to
+  pay or admits anything unless you say so in the box. With `calendar`, the deadlines as an `.ics`
+  file. Not legal or money advice: for anything serious, call the number on the letter or a free
+  advice service.
+- **Hide personal details** (`TYPE: hide-details`, `OPTIONS: names, style labels|blocks, key`):
+  a cleaned copy to share. Joe's own patterns always find emails, phone numbers, card numbers (only
+  real ones: they pass the card-number check), Social Security-style numbers, bank account (IBAN),
+  account, policy, case and ID numbers, street addresses and birth dates. With `names` the writing
+  model adds people's names and home addresses; Joe hides only words that are really in the text,
+  never a guess. Labels keep it readable (`[NAME 1] called [NAME 2]`: the same person always gets
+  the same label); blocks give ██████. In the box, type extra words to hide (one per line) and
+  `keep: Acme Bakery` for words to leave. Word files come back as Word files with the formatting
+  kept, and the author and reviewer names Word stores are blanked; text and CSV stay as they are;
+  PDFs and web pages come back as plain text (blacking out a PDF by drawing boxes leaves the words
+  underneath). `what-was-hidden.md` says how many of each were hidden, without the details. `key`
+  saves `KEEP-PRIVATE-label-key.md` (which label stood for what): never share it. Joe can miss
+  things: read the copy before you send it. For photos, use **Privacy blur**.
+- **Meeting minutes** (`TYPE: meeting-minutes`, `OPTIONS: language <spoken in>, transcript, calendar`):
+  a recording (or video) in, minutes out, in one step: Joe listens (like Transcribe), then writes a
+  summary, decisions, a to-do table (what, who, by when), open questions and "who said what". Joe
+  can't tell voices apart: a name is only given when the recording makes it clear (someone is
+  called by name); names and dates that weren't heard word for word are marked [CHECK]. A
+  transcript or subtitles file (`.txt`, `.srt`, `.vtt`, `.docx`) works too and needs no voice
+  add-on. `calendar` puts the to-dos with a date in an `.ics` file.
+- **Bank statement to budget** (`TYPE: bank-budget`, `OPTIONS: ai`): download your statement as CSV
+  (or Excel) from your bank's website: one or more months, one or more accounts. Joe finds the date,
+  description and amount columns himself (one Amount column, or Debit and Credit; US or day-first
+  dates; `$1,234.56`, `(12.00)`, `1.234,56 €`). A transaction that's in two files is counted once.
+  Well-known names are sorted by Joe; with `ai` the writing model sorts the rest **from the shop
+  names only** (never your amounts or account numbers). All the math is Joe's: money in and out
+  (transfers between your own accounts left out), spending by category and month, the biggest
+  payments, and **regular payments** (the same amount on a weekly, monthly or yearly rhythm) with
+  what they cost a year and any **price rise**. You get `budget.md` to read, plus
+  `budget-transactions.csv` (change any category there) and `budget-by-category.csv` for a
+  spreadsheet.
+- **Resume tailor** (`TYPE: resume-tailor`, `OPTIONS: letter, word`): your resume plus the job
+  posting (paste it in the box, or add it as a second file with "job" in its name). The writing
+  model lists what the job asks for and finds each one in your resume; a match only counts when the
+  quoted line is really in your resume. You get the tailored resume (your matching experience
+  first, in the job's words), a cover letter (with `letter`) and `match-report.md` (every
+  requirement: shown in your resume, with the quote, or not). **Nothing is invented**: any number or
+  posting skill in the new resume or letter that isn't in your resume is marked
+  `[CHECK: not in your resume]`, and the gaps are listed so you decide. `word` adds Word copies
+  (needs Pandoc).
+- **Mail merge** (`TYPE: mail-merge`, `OPTIONS: one, blank`): no AI. One letter (Word, `.txt` or
+  `.md`) and one spreadsheet (CSV or Excel). In the letter, put a column name in curly brackets where
+  it goes: `Dear {First name},` (also `{{Name}}`, `<<Name>>` or `«Name»`; letter case and spaces
+  don't matter). Joe makes one letter per row in the `letters` folder (named like
+  `001-ann-lee.docx`), keeping your Word formatting, headers and footers, plus `all-letters` with
+  every one on its own page (`one`). An empty cell becomes `[CHECK: no Company]` so nothing goes out
+  half-done (`blank` leaves it empty instead); a `{spot}` that matches no column is left and listed.
+- **Picture descriptions (alt text)** (`TYPE: alt-text`, `OPTIONS: long, sidecar`): a short
+  description of each picture for screen readers, websites and shop listings: one sentence, at most
+  125 characters, most important thing first, never starting "image of". `long` adds 2-4 sentences
+  of detail; `sidecar` a `.txt` per picture. People are never named or guessed at. Say what the
+  pictures are for in the box ("product photos for my pottery shop"). Needs a vision model.
+- **Duplicate photo finder** (`TYPE: duplicate-photos`, `OPTIONS: how exact|close|loose, sheets, copy`):
+  no AI. Joe compares each photo's exact bytes and a tiny fingerprint of how it looks (with FFmpeg),
+  so resized or re-saved copies are found too (`close`, the default); `loose` also groups burst
+  shots. For each group he suggests a keeper (the biggest picture, then the sharpest, then the
+  plainest name) and says why. **Nothing is moved or deleted**: `duplicates.md` lists the groups
+  with a side-by-side picture of each (`sheets`), and `duplicates.csv` has every file. `copy` puts
+  the keepers and every one-of-a-kind photo in a `keepers` folder (copies). Without FFmpeg only
+  exact copies are found.
+
 ### Picture and sound tools
 
 These five run in ComfyUI on the graphics card, using only ComfyUI's own built-in nodes (nothing

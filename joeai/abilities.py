@@ -354,6 +354,43 @@ STEPS: dict[str, tuple[str, ...]] = {
     "make-shorts": ("Joe writes down every word with its time (Whisper).",
                     "The writing model picks moments that stand on their own: a strong start, one complete thought, a clean ending.",
                     "FFmpeg cuts each one as a tall 1080x1920 clip, following the speaker's face if a vision model is installed, with big captions, a hook title and a post for each if ticked."),
+    "pdf-tools": ("qpdf (a free PDF program) opens your PDFs on this computer: no AI is used.",
+                  "It joins, splits, picks or reorders pages, turns them or shrinks the file exactly as you chose; "
+                  "for a form, Joe first lists every field so you can fill them in plain lines.",
+                  "Joe saves the new PDFs and a short report; locked or damaged PDFs are explained in plain words."),
+    "explain-letter": ("Joe reads the letter (a photo is read word for word by the vision model first).",
+                       "The writing model lists the dates, amounts, contacts and reference numbers; Joe checks each "
+                       "one is really in the letter, works out the days left and points out scam signs.",
+                       "Then it explains the letter in plain words with next steps, and drafts a reply you can fill in."),
+    "hide-details": ("Joe's own patterns find emails, phone numbers, card numbers (checked with the card-number "
+                     "sum), account, ID and policy numbers, street addresses and birth dates.",
+                     "The writing model adds people's names and home addresses; Joe only hides words that are "
+                     "really in the text, plus anything you typed.",
+                     "He saves a cleaned copy with labels like [NAME 1] (or black blocks) and a list of how many of "
+                     "each were hidden."),
+    "meeting-minutes": ("Joe listens to the recording with Whisper on this PC (or reads your transcript).",
+                        "The writing model pulls out decisions, to-dos (who, by when) and open questions, and writes "
+                        "a summary; a long meeting is done in parts.",
+                        "Joe checks names and dates against what was said ([CHECK] if not) and saves the minutes, "
+                        "the transcript and, if ticked, a calendar file of to-dos."),
+    "bank-budget": ("Joe reads your bank's CSV or Excel file and finds the date, description and amount columns.",
+                    "He sorts well-known shops himself; the writing model sorts the rest from their names only.",
+                    "Joe's own math adds it all up: money in and out, categories by month, regular payments with "
+                    "their cost a year, and price rises."),
+    "resume-tailor": ("The writing model lists what the job posting asks for.",
+                      "It finds each one in your resume; Joe keeps a match only when the quoted line is really there.",
+                      "It writes the tailored resume and cover letter; Joe marks anything not in your resume "
+                      "[CHECK] and lists the gaps."),
+    "mail-merge": ("Joe finds the {Name}-style spots in your letter and matches them to the spreadsheet's columns.",
+                   "For every row he makes a copy of the letter with that row's details (Word formatting kept).",
+                   "He saves one letter per row, one file with them all, and a list of empty cells or unmatched spots."),
+    "alt-text": ("Big pictures are shrunk first so the vision model can look at them.",
+                 "The vision model describes what it sees, without naming people.",
+                 "Joe trims each short description to 125 characters at a whole word and saves a CSV and a document."),
+    "duplicate-photos": ("Joe fingerprints every photo: its exact bytes, and a tiny 9x8 picture of how it looks.",
+                         "Photos with the same or nearly the same fingerprint are grouped.",
+                         "For each group he suggests a keeper (biggest, then sharpest) and makes a side-by-side "
+                         "picture; nothing is moved or deleted."),
     "music": ("Each line you type becomes one piece.",
               "ACE-Step (music) or Stable Audio Open (sound effects) makes it in ComfyUI on your graphics card.",
               "Joe saves it as an MP3."),
@@ -362,7 +399,7 @@ STEPS: dict[str, tuple[str, ...]] = {
 NEED_WORDS = {"voice": "Joe's voice add-on (about 500 MB; whisper.cpp also works for hearing)",
               "ollama": "Ollama and a writing model", "ffmpeg": "FFmpeg (free; System check installs it)",
               "comfy": "ComfyUI", "vision": "a vision model in Ollama (System check offers a free one)",
-              "sdxl": "an SDXL picture model"}
+              "sdxl": "an SDXL picture model", "qpdf": "qpdf (a free PDF program; System check installs it)"}
 
 
 def _tool_abilities() -> list[Ability]:

@@ -36,6 +36,8 @@ TOOLS = {
                 "label": "ComfyUI Desktop (makes images and video)"},
     "ffmpeg": {"winget": "Gyan.FFmpeg", "page": "https://ffmpeg.org/download.html",
                "label": "FFmpeg (turns frames into MP4 video)"},
+    "qpdf": {"winget": "QPDF.QPDF", "page": "https://qpdf.readthedocs.io/en/stable/download.html",
+             "label": "qpdf (the PDF toolkit's helper)"},
 }
 
 # Ollama text models by VRAM (GB): Joe's pick for each size when model_picks.json can't be read.
@@ -468,6 +470,11 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     if not addons_mod.pandoc_exe(settings.pandoc):
         issues.append({"id": "install-pandoc", "text": "Pandoc isn't installed (only needed for EXPORT: "
                        "finished Word, PDF and EPUB copies).", "action": "install-pandoc", "optional": True})
+    from .finder import qpdf_exe
+    if not qpdf_exe():
+        issues.append({"id": "install-qpdf", "text": "qpdf isn't installed (optional: the PDF toolkit uses it to "
+                       "join, split, shrink and fill in PDFs; free, Apache license, about 10 MB).",
+                       "action": "install", "tool": "qpdf", "optional": True})
     if not ffmpeg_exe(settings.comfy.ffmpeg):
         issues.append({"id": "install-ffmpeg", "text": "FFmpeg not found (only needed to turn "
                        "frames/GIFs into MP4).", "action": "install", "tool": "ffmpeg", "optional": True})
