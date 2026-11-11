@@ -639,3 +639,9 @@ label:has(> input[data-pick]) > input { flex: 1 1 auto; }
 .abtext b { display: block; margin-bottom: .4em; }
 @media (max-width: 800px) { .abwrap { flex-direction: column; } .ablist { flex-basis: auto; max-height: 30vh; border-right: 0; } }
 .tlearn { display: block; margin-top: .3em; font-size: .8em; text-decoration: underline; opacity: .8; cursor: pointer; }
+
+/* 2.3 projects */
+.h2btn { font-size: .8em; margin-left: 1ch; }
+.projlist > div { margin: .2em 0; }
+.projpage textarea { width: 100%; }
+.projpage label.block { display: block; margin: .5em 0; }

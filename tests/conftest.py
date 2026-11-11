@@ -21,6 +21,19 @@ def _no_real_graphics_card(request, monkeypatch):
     hardware.reset_cache()
 
 
+@pytest.fixture(autouse=True)
+def _flat_filing_for_older_tests(request, monkeypatch):
+    """Tests written before 2.3 check where things land with the old "flat" filing (still a Setup
+    choice). Tests of the dated mission folders (test_filing.py, test_dev23*) use the real choice."""
+    name = request.module.__name__
+    if name.endswith("test_filing") or "test_dev23" in name:
+        yield
+        return
+    from joeai import filing
+    monkeypatch.setattr(filing, "how", lambda settings: "flat")
+    yield
+
+
 # The programs and services usually on a Joe user's own computer. Tests never see the real ones
 # (13 tests failed on a PC with Ollama, ComfyUI and Claude Desktop installed, and passed on GitHub):
 # connections to their usual addresses on this computer are refused, home and app-data folders

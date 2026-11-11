@@ -44,6 +44,7 @@ function show(name, page) {
   if (name === "builder") loadBuilder();
   if (name === "tools") loadTools();
   if (name === "talk") loadTalk(); else if (typeof openMicStop === "function") openMicStop();
+  if (name === "projects") loadProjects();
 }
 
 let toastTimer;
@@ -1955,6 +1956,7 @@ function handleKey(key) {
   if (key === "Escape") {
     if (current === "talk" && talkBusy()) { talkStop(); return true; }     // Esc = stop Joe talking
     if (document.activeElement && document.activeElement !== document.body) document.activeElement.blur();
+    if (current === "projects") { show("files"); return true; }
     if (current !== "queue") show("queue");
     return true;
   }
@@ -3946,3 +3948,114 @@ function langCover() {
 }
 $("#lang-select").addEventListener("change", langCover);
 i18nStart();
+
+
+/* ---------------- 2.3: how Joe files his work, tidy my Output, projects ---------------- */
+function tidyMsg(text) { const m = $("#tidy-msg"); m.hidden = !text; m.textContent = text || ""; }
+async function tidyLook() {
+  const r = await api("/api/tidy");
+  if (!r.count) { tidyMsg("Nothing to tidy: Output is already in dated folders (or empty)."); return r; }
+  tidyMsg(`Tidying would move ${r.count} thing${r.count === 1 ? "" : "s"} (nothing is deleted):\n` +
+    r.plan.slice(0, 60).map((x) => `${x.from}  ->  ${x.to}`).join("\n") + (r.count > 60 ? `\n…and ${r.count - 60} more` : ""));
+  return r;
+}
+let projName = "", projTodo = [];
+async function loadProjects() {
+  const r = await api("/api/projects");
+  const box = $("#proj-list");
+  box.innerHTML = r.projects.length ? r.projects.map((p) =>
+    `<div role="listitem"><button type="button" data-proj="${esc(p.name)}">[ ${esc(p.name)} ]</button> <span class="dim small">${p.missions} mission folder${p.missions === 1 ? "" : "s"} · ${p.left} left to do</span></div>`).join("")
+    : `<div class="dim">No projects yet. Make one above, or put a PROJECT: line in a plan.</div>`;
+  if (projName && r.projects.some((p) => p.name === projName)) await openProject(projName);
+  else { $("#proj-page").hidden = true; projName = ""; }
+}
+function renderTodo() {
+  $("#proj-todo").innerHTML = projTodo.map((t, i) =>
+    `<div role="listitem"><label><input type="checkbox" data-todo="${i}"${t.done ? " checked" : ""}> ${esc(t.text)}</label> <button type="button" data-todo-del="${i}" title="Take this off the list.">[ X ]</button></div>`).join("") ||
+    `<div class="dim small">Nothing on the list.</div>`;
+}
+async function openProject(name) {
+  const r = await api("/api/project?name=" + encodeURIComponent(name));
+  if (!r.ok) { $("#proj-msg").textContent = r.error; return; }
+  projName = r.name; projTodo = r.todo || [];
+  $("#proj-page").hidden = false;
+  $("#proj-title").textContent = r.name;
+  $("#proj-about").value = r.about; $("#proj-notes").value = r.notes;
+  renderTodo();
+  $("#proj-unfinished").textContent = r.unfinished.length ? "Tasks in its folders that didn't finish: " + r.unfinished.join(" · ") : "";
+  $("#proj-missions").innerHTML = r.missions.map((m) =>
+    `<details class="more"><summary>${esc(m.folder)}${m.there ? "" : " (not in Output any more)"} <span class="dim small">${m.files.length} file${m.files.length === 1 ? "" : "s"}</span></summary>
+      <div class="row"><button type="button" data-proj-open="${esc(m.folder)}">[ OPEN IN FILES ]</button><button type="button" data-proj-rm="${esc(m.folder)}" title="Take it off this project. The folder stays.">[ TAKE OFF THE PROJECT ]</button></div>
+      <ul class="small">${m.files.slice(0, 80).map((f) => `<li>${esc(f)}</li>`).join("")}${m.files.length > 80 ? "<li>…</li>" : ""}</ul></details>`).join("") ||
+    `<div class="dim small">No mission folders yet.</div>`;
+}
+document.addEventListener("change", (ev) => {
+  const t = ev.target;
+  if (t.dataset && t.dataset.todo !== undefined) { const i = +t.dataset.todo; if (projTodo[i]) projTodo[i].done = t.checked; }
+});
+document.addEventListener("keydown", (ev) => {
+  if (current === "files" && (ev.key === "j" || ev.key === "J") && !ev.ctrlKey && !ev.metaKey && !ev.altKey &&
+      !/^(INPUT|TEXTAREA|SELECT)$/.test((ev.target && ev.target.tagName) || "") && !document.querySelector(".modal:not([hidden])")) {
+    ev.preventDefault(); show("projects");
+  }
+});
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  const act = b.dataset.act;
+  try {
+    if (act === "tidy-look") { await tidyLook(); return; }
+    if (act === "tidy-go") {
+      const r = await tidyLook();
+      if (!r.count) return;
+      confirmBox(`Tidy Output now?\n\nJoe moves ${r.count} thing${r.count === 1 ? "" : "s"} into dated folders (the list is below the buttons). Nothing is deleted or written over, and UNDO THE LAST TIDY puts it all back.`, async () => {
+        const x = await api("/api/tidy", {});
+        tidyMsg(x.ok ? `Moved ${x.moved}.` + (x.skipped.length ? ` Left ${x.skipped.length} where they were: ` + x.skipped.map((k) => `${k.from} (${k.why})`).join(", ") + "." : "") + " The undo list is in Output (_TIDY_UNDO_….txt)." : x.error);
+      });
+      return;
+    }
+    if (act === "tidy-undo") {
+      confirmBox("Undo the last tidy?\n\nEverything it moved goes back to where it was. Nothing is deleted.", async () => {
+        const x = await api("/api/tidy/undo", {});
+        tidyMsg(x.ok ? `Put back ${x.moved_back}.` + (x.skipped.length ? ` ${x.skipped.length} couldn't go back (something else is in that place now): ` + x.skipped.map((k) => k.to).join(", ") : "") : x.error);
+      });
+      return;
+    }
+    if (act === "projects-open") { show("projects"); return; }
+    if (act === "proj-new") {
+      const n = $("#proj-new").value.trim();
+      if (!n) { $("#proj-msg").textContent = "Type a name first."; return; }
+      const r = await api("/api/project/new", { name: n });
+      $("#proj-msg").textContent = r.ok ? "Made." : r.error;
+      if (r.ok) { $("#proj-new").value = ""; projName = r.name; await loadProjects(); }
+      return;
+    }
+    if (b.dataset.proj) { await openProject(b.dataset.proj); return; }
+    if (b.dataset.todoDel !== undefined) { projTodo.splice(+b.dataset.todoDel, 1); renderTodo(); return; }
+    if (act === "proj-todo-add") {
+      const t = $("#proj-todo-new").value.trim();
+      if (t) { projTodo.push({ text: t, done: false }); $("#proj-todo-new").value = ""; renderTodo(); }
+      return;
+    }
+    if (act === "proj-save") {
+      const r = await api("/api/project/save", { name: projName, about: $("#proj-about").value, notes: $("#proj-notes").value, todo: projTodo });
+      $("#proj-msg").textContent = r.ok ? "Saved." : r.error; if (r.ok) await loadProjects();
+      return;
+    }
+    if (act === "proj-add") {
+      const r = await api("/api/project/add", { name: projName, folder: $("#proj-folder").value.trim() });
+      $("#proj-msg").textContent = r.ok ? "Added." : r.error; if (r.ok) { $("#proj-folder").value = ""; await openProject(projName); }
+      return;
+    }
+    if (b.dataset.projRm) { const r = await api("/api/project/remove", { name: projName, folder: b.dataset.projRm }); $("#proj-msg").textContent = r.note || r.error; await openProject(projName); return; }
+    if (b.dataset.projOpen) { dirPath = b.dataset.projOpen; show("files"); return; }
+    if (act === "proj-mission") {
+      $("#describe").value = `PROJECT: ${projName}\nTASK: `; show("queue"); $("#describe").focus(); return;
+    }
+    if (act === "proj-delete") {
+      confirmBox(`Remove the project "${projName}"?\n\nIt comes off the list. Its folders, files and About text stay where they are.`, async () => {
+        const r = await api("/api/project/delete", { name: projName }); $("#proj-msg").textContent = r.note || r.error; projName = ""; await loadProjects();
+      });
+    }
+  } catch (e) { toast(e.message); }
+});

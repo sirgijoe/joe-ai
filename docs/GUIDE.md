@@ -17,6 +17,51 @@ Themes\     custom color themes and screen savers (made in F10, or by hand)
 Ideas.md    ideas you parked ("park this: ...")
 ```
 
+### How Joe files his work (Setup > General)
+
+New in 2.3. **By date** (the default): every mission gets one folder in Output with the date in
+front, named after its first task, and everything it makes goes inside:
+
+```
+Output\2026-11-10 Product blurbs +1\
+    product-blurbs\product-blurbs.md, product-blurbs.docx, product-blurbs v2.md
+    mug-photos\001_....png ...
+```
+
+- A piece of writing gets its own folder with its finished copies (EXPORT) and versions inside.
+- A mission with just one task uses the mission folder itself.
+- Running a task again (RUN on a past mission, or the same plan another day) puts the new result
+  inside the original's folder: `name v2.md` for writing, a `v2` folder for pictures and tools.
+  Nothing is ever written over. Joe remembers where each task went in `Output\.joe\filing.json`.
+- A SAVE: line still names the file; its folder part is replaced by the mission folder. Watch
+  folders keep `Output\watch-<tool>`. An INPUT: that points at a file an earlier task of the same
+  mission SAVEs is pointed at the new place for you.
+
+**By project**: the same mission folders, inside `Output\<PROJECT name>\` (a mission without a
+PROJECT: line goes in Output as "by date"). **Flat**: straight into Output under the SAVE: name,
+like Joe did before 2.3.
+
+Changing this never moves anything you already have. **TIDY MY OUTPUT** does that, once, when you
+press it: **LOOK FIRST** lists every move; nothing is deleted or written over; reruns named
+`x_v2`, `x-redo`, `x-retry`, `x2` go inside the original's folder as v2, v3; loose files that belong
+together (`notes.md`, `notes.docx`) go into one folder; `_REPORT.md`, Backups, watch folders and
+folders that already start with a date stay where they are. The list of moves is saved in
+`Output\_TIDY_UNDO_<date>.txt`, and **UNDO THE LAST TIDY** moves everything back. Joe updates his run
+records, the morning reports and project lists so resume and the reports still find your files.
+
+### Projects (Files F7 > PROJECTS)
+
+A project groups missions. A plan with `PROJECT: My Shop` joins the project "My Shop" by itself
+when it runs (the project is made if it's new); any folder in Output can be added by hand. The
+project page has:
+- **About this project**: Joe reads this when he writes for the project (it's the
+  `Projects\<name>.md` profile, as before).
+- **My notes**: just for you; Joe doesn't read them.
+- **What's left**: a to-do list you tick off, plus any task in its folders that didn't finish.
+- **Its missions and files**: every file in its folders; OPEN IN FILES jumps there.
+- **NEW MISSION IN THIS PROJECT** starts a plan on Home with the PROJECT: line filled in.
+Removing a project only takes it off the list: its folders and files stay.
+
 Settings live in `%APPDATA%\joe-ai\settings.json` (Mac: `~/Library/Application Support/joe-ai`,
 Linux: `~/.config/joe-ai`), never in the app folder. A Portable Joe keeps everything on its drive
 instead (see Portable Joe below).

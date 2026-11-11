@@ -158,6 +158,13 @@ class QualitySettings:
 
 
 @dataclass
+class FilingSettings:
+    # How Joe files what he makes (filing.py): date = one dated folder per mission (2026-11-10 Showcase video),
+    # project = the same inside a folder per PROJECT:, flat = straight into Output like before 2.3.
+    how: str = "date"
+
+
+@dataclass
 class Settings:
     workspace: str = ""
     ollama: OllamaSettings = field(default_factory=OllamaSettings)
@@ -171,6 +178,7 @@ class Settings:
     web: WebSettings = field(default_factory=WebSettings)
     schedule: ScheduleSettings = field(default_factory=ScheduleSettings)
     phone: PhoneSettings = field(default_factory=PhoneSettings)
+    filing: FilingSettings = field(default_factory=FilingSettings)
     templates: dict = field(default_factory=dict)   # Setup > Writing > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)

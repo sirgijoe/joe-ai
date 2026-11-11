@@ -244,14 +244,46 @@ FORMAT: ...
   <!-- ============ FILES (F7) ============ -->
   <main id="s-files" class="view">
     <section class="panel listing">
-      <h2>DIRECTORY</h2>
+      <h2>DIRECTORY <button type="button" class="h2btn" data-act="projects-open" title="Missions grouped into projects, with notes and what's left (J).">[ PROJECTS ]</button></h2>
       <div id="dirpath" class="prompt"></div>
       <div id="dir" class="dir" tabindex="0"></div>
       <div id="dirfoot" class="dim"></div>
     </section>
     <section class="panel preview">
-      <h2>PREVIEW <span class="dim">O folder · E edit · C copy · L load · T thumbs · K/X/S review · M mp4</span></h2>
+      <h2>PREVIEW <span class="dim">O folder · E edit · C copy · L load · T thumbs · K/X/S review · M mp4 · J projects</span></h2>
       <div id="preview" class="pv" translate="no"></div>
+    </section>
+  </main>
+
+  <!-- ============ PROJECTS (Files F7 > PROJECTS) ============ -->
+  <main id="s-projects" class="view">
+    <section class="panel full">
+      <h2>PROJECTS <span class="dim">— missions that belong together · Esc back to Files</span></h2>
+      <div class="dim small">A project groups missions. A mission joins one when its plan has a PROJECT: line (Joe adds it here when it runs), or with ADD A FOLDER below. Nothing is moved: a project is a list of folders plus your notes.</div>
+      <div class="row"><input id="proj-new" placeholder="New project name" aria-label="New project name" maxlength="50">
+        <button type="button" data-act="proj-new">[ + NEW PROJECT ]</button><span id="proj-msg" class="dim" aria-live="polite"></span></div>
+      <div id="proj-list" class="projlist" role="list"></div>
+      <div id="proj-page" class="projpage" hidden>
+        <h3 id="proj-title" class="settitle"></h3>
+        <label class="block" title="Joe reads this when he writes for this project (its profile).">About this project (Joe reads this when he writes for it)
+          <textarea id="proj-about" rows="4"></textarea></label>
+        <label class="block" title="Your own notes. Joe doesn't read these.">My notes (just for you)
+          <textarea id="proj-notes" rows="4"></textarea></label>
+        <fieldset><legend>WHAT'S LEFT</legend>
+          <div id="proj-todo" role="list"></div>
+          <div class="row"><input id="proj-todo-new" placeholder="Something still to do" aria-label="Something still to do" maxlength="300">
+            <button type="button" data-act="proj-todo-add">[ ADD ]</button></div>
+          <div id="proj-unfinished" class="dim small"></div>
+        </fieldset>
+        <div class="row"><button type="button" class="primary" data-act="proj-save">[ SAVE THE PROJECT ]</button>
+          <button type="button" data-act="proj-mission" title="Start a plan on the Home screen with this project's PROJECT: line.">[ NEW MISSION IN THIS PROJECT ]</button>
+          <button type="button" data-act="proj-delete" title="Take the project off the list. Its folders and files stay.">[ REMOVE PROJECT ]</button></div>
+        <fieldset><legend>ITS MISSIONS AND FILES</legend>
+          <div class="row"><input id="proj-folder" placeholder="A folder in Output, e.g. 2026-11-10 Showcase video" aria-label="Folder in Output to add">
+            <button type="button" data-act="proj-add">[ ADD A FOLDER ]</button></div>
+          <div id="proj-missions"></div>
+        </fieldset>
+      </div>
     </section>
   </main>
 
@@ -357,6 +389,20 @@ FORMAT: ...
               <fieldset><legend>WHILE JOE WORKS</legend>
                 <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
                 <div class="dim small">Turn this on when you use the PC while Joe works. Leave it off overnight for the fastest runs and the biggest videos.</div>
+              </fieldset>
+              <fieldset id="filing-box"><legend>HOW JOE FILES HIS WORK</legend>
+                <label title="Where new work goes. Nothing already in Output moves when you change this.">File new work
+                  <select data-path="filing.how">
+                    <option value="date">By date: one folder per mission (2026-11-10 Showcase video)</option>
+                    <option value="project">By project: the same, inside a folder for each PROJECT</option>
+                    <option value="flat">Flat: straight into Output, like before</option></select></label>
+                <div class="dim small">By date: each mission gets one folder with the date in front, and every task it does goes inside. A piece of writing gets its own folder with its Word, PDF and other copies. Running a task again puts the new one beside the old one as v2, v3 (never over it). Flat uses SAVE: names exactly as written.</div>
+                <div class="dim small">TIDY MY OUTPUT sorts what's already there the same way, once. It only moves things: nothing is deleted or written over, and it keeps a list so UNDO can put everything back.</div>
+                <div class="row"><button type="button" data-act="tidy-look" title="Show what tidying would move. Nothing moves yet.">[ LOOK FIRST ]</button>
+                  <button type="button" data-act="tidy-go" title="Sort Output into dated folders. Asks first. Only moves; writes an undo list.">[ TIDY MY OUTPUT ]</button>
+                  <button type="button" data-act="tidy-undo" title="Put everything from the last tidy back where it was. Asks first.">[ UNDO THE LAST TIDY ]</button>
+                  <button type="button" data-act="projects-open" title="Missions grouped into projects, with notes and what's left.">[ PROJECTS ]</button></div>
+                <pre id="tidy-msg" class="out small" aria-live="polite" hidden></pre>
               </fieldset>
               <fieldset><legend>WHEN A RUN ENDS</legend>
                 <label>When finished

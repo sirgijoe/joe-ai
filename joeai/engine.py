@@ -543,14 +543,17 @@ class Engine:
             if p.exists() and st.parts_done == 0:             # stopped before part 1: start it over
                 p.unlink(missing_ok=True)
                 return p
-        target = self._under_output(self.sb.resolve(job.save))
-        if not target.suffix:
-            target = target.with_suffix(".md")
-        target.parent.mkdir(parents=True, exist_ok=True)
-        cand, n = target, 2
-        while cand.exists():                                   # never overwrite
-            cand = target.with_name(f"{target.stem}_v{n}{target.suffix}")
-            n += 1
+        from . import filing
+        cand = filing.place(self, job, "file")                 # Setup > General > HOW JOE FILES HIS WORK
+        if cand is None:                                       # flat: as written, like before 2.3
+            target = self._under_output(self.sb.resolve(job.save))
+            if not target.suffix:
+                target = target.with_suffix(".md")
+            target.parent.mkdir(parents=True, exist_ok=True)
+            cand, n = target, 2
+            while cand.exists():                               # never overwrite
+                cand = target.with_name(f"{target.stem}_v{n}{target.suffix}")
+                n += 1
         st.output = str(cand.relative_to(self.sb.output)).replace("\\", "/")
         st.parts_done = 0                                      # a new file: earlier counts don't belong to it
         st.items = st.words = st.short_items = st.duplicates_dropped = 0
@@ -712,9 +715,10 @@ class Engine:
 
     def _load_inputs(self, job: Job) -> str:
         chunks = []
+        from . import filing
         for rel in job.inputs:
             try:
-                p = self.sb.resolve_input(rel)
+                p = self.sb.resolve_input(filing.translate_input(self, rel))
             except SandboxError as e:
                 self.log(f"  INPUT ignored: {e}")
                 continue
@@ -1079,13 +1083,16 @@ class Engine:
             p = self.sb.resolve(st.output)
             p.mkdir(parents=True, exist_ok=True)
             return p
-        target = self._under_output(self.sb.resolve(job.save))
-        if target.suffix:                                  # "art/kiln.png" -> folder art/kiln
-            target = target.with_suffix("")
-        cand, n = target, 2
-        while cand.exists() and any(cand.iterdir()):       # never mix with an older run
-            cand = target.with_name(f"{target.name}_v{n}")
-            n += 1
+        from . import filing
+        cand = filing.place(self, job, "folder")
+        if cand is None:
+            target = self._under_output(self.sb.resolve(job.save))
+            if target.suffix:                              # "art/kiln.png" -> folder art/kiln
+                target = target.with_suffix("")
+            cand, n = target, 2
+            while cand.exists() and any(cand.iterdir()):   # never mix with an older run
+                cand = target.with_name(f"{target.name}_v{n}")
+                n += 1
         cand.mkdir(parents=True, exist_ok=True)
         st.output = str(cand.relative_to(self.sb.output)).replace("\\", "/")
         return cand

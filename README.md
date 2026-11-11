@@ -456,6 +456,12 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 
 ## Good to know
 
+- **Where your work goes.** Each mission gets one folder in Output with the date in front
+  ("2026-11-10 Showcase video"); writing gets its own folder with its Word and PDF copies, and a task
+  run again goes beside the first as v2. Prefer the old way? Setup > General > HOW JOE FILES HIS WORK
+  > Flat. TIDY MY OUTPUT sorts older work the same way, only moving things, with an UNDO. Group
+  missions into **projects** (Files F7 > PROJECTS) with notes and a "what's left" list.
+
 - **AI makes mistakes.** Joe flags what he's unsure of, but always read before you publish,
   sell, or rely on anything he writes.
 - **Check model licenses** before using pictures or text commercially. Each AI model has its

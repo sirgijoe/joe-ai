@@ -1,3 +1,17 @@
+## What's new in 2.3 (in development)
+
+- **Tidier Output: one folder per mission.** New work goes into a folder with the date in front
+  ("2026-11-10 Showcase video") with every task of that mission inside. A piece of writing gets its
+  own folder with its Word, PDF and other copies. Running a task again puts the new one beside the
+  old one as "v2", "v3" (never over it), even on another day. Setup > General > HOW JOE FILES HIS
+  WORK: by date (new), by project, or flat like before. Nothing you already have moves.
+- **TIDY MY OUTPUT** (same place): sorts what's already in Output the same way, once. It only moves
+  things (nothing is deleted or written over), shows you the list first, and UNDO puts it all back.
+  Morning reports, resume, the Files tab, Joe Phone and the connector follow the moved files.
+- **Projects** (Files F7 > PROJECTS, or J): group missions into a project, with an About text Joe
+  reads when he writes for it, your own notes, a "what's left" list, and every file of its missions
+  in one place. A plan with a PROJECT: line joins its project by itself.
+
 ## What's new in 2.2 (in development)
 
 - **Joe has a face in Talk (F4):** the Joe character stands beside the chat. He listens while the

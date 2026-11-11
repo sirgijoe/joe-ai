@@ -1215,9 +1215,10 @@ def resolve_inputs(engine: "Engine", job: "Job") -> tuple[list[Path], list[str]]
     tool = TOOLS[job.type]
     files: list[Path] = []
     problems: list[str] = []
+    from . import filing
     for rel in job.inputs:
         try:
-            p = engine.sb.resolve_input(rel)
+            p = engine.sb.resolve_input(filing.translate_input(engine, rel))
         except SandboxError as e:
             problems.append(f"{rel}: {e}")
             continue
@@ -1269,13 +1270,16 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
         p = engine.sb.resolve(st.output)
         p.mkdir(parents=True, exist_ok=True)
         return p
-    target = engine._under_output(engine.sb.resolve(job.save))     # like text tasks: always inside Output
-    if target.suffix:
-        target = target.with_suffix("")
-    cand, n = target, 2
-    while cand.exists() and any(cand.iterdir()):
-        cand = target.with_name(f"{target.name}_v{n}")
-        n += 1
+    from . import filing
+    cand = filing.place(engine, job, "folder")                     # Setup > General > HOW JOE FILES HIS WORK
+    if cand is None:
+        target = engine._under_output(engine.sb.resolve(job.save))  # like text tasks: always inside Output
+        if target.suffix:
+            target = target.with_suffix("")
+        cand, n = target, 2
+        while cand.exists() and any(cand.iterdir()):
+            cand = target.with_name(f"{target.name}_v{n}")
+            n += 1
     cand.mkdir(parents=True, exist_ok=True)
     st.output = str(cand.relative_to(engine.sb.output)).replace("\\", "/")
     return cand

@@ -1718,6 +1718,17 @@ def make_handler(app: App):
                     return self._json({"text": app.mission_text})
                 if u.path == "/api/files":
                     return self._json(app.list_dir(arg))
+                if u.path == "/api/projects":            # Files F7 > PROJECTS
+                    from . import projects as projects_mod
+                    return self._json({"ok": True, "projects": projects_mod.summary(app.sb)})
+                if u.path == "/api/project":
+                    from . import projects as projects_mod
+                    return self._json(projects_mod.page(app.sb, (q.get("name") or [""])[0]))
+                if u.path == "/api/tidy":                # Setup > General > HOW JOE FILES HIS WORK: LOOK
+                    from . import filing
+                    plan = filing.tidy_plan(app.sb)
+                    return self._json({"ok": True, "plan": plan[:400], "count": len(plan),
+                                       "undo": filing.undo_lists(app.sb)[:10]})
                 if u.path == "/api/preview":
                     return self._json(app.preview(arg))
                 if u.path == "/api/report":
@@ -2485,6 +2496,34 @@ def make_handler(app: App):
                     return self._json(app.open_path(b.get("path", ""), b.get("how", "default")))
                 if u.path == "/api/settings":
                     return self._json(app.save_settings(b))
+                if u.path == "/api/tidy":               # TIDY MY OUTPUT (after "are you sure"): only moves
+                    from . import filing
+                    if app.running:
+                        return self._json({"ok": False, "error": "Joe is working. Tidy up when he's done."})
+                    return self._json(filing.tidy(app.sb))
+                if u.path == "/api/tidy/undo":
+                    from . import filing
+                    if app.running:
+                        return self._json({"ok": False, "error": "Joe is working. Undo when he's done."})
+                    return self._json(filing.undo(app.sb, str(b.get("file", ""))))
+                if u.path.startswith("/api/project/"):   # the project page (Joe's own window only)
+                    from . import projects as projects_mod
+                    act, name = u.path.rsplit("/", 1)[1], str(b.get("name", ""))
+                    try:
+                        if act == "new":
+                            return self._json({"ok": True, "name": projects_mod.ensure(app.sb, name)})
+                        if act == "save":
+                            return self._json(projects_mod.save(app.sb, name, b.get("notes"), b.get("todo"),
+                                                                b.get("about")))
+                        if act == "add":
+                            return self._json(projects_mod.add_folder(app.sb, name, str(b.get("folder", ""))))
+                        if act == "remove":
+                            return self._json(projects_mod.remove_folder(app.sb, name, str(b.get("folder", ""))))
+                        if act == "delete":
+                            return self._json(projects_mod.delete(app.sb, name))
+                    except ValueError as e:
+                        return self._json({"ok": False, "error": str(e)})
+                    return self._json({"ok": False, "error": "unknown project action"}, 400)
                 if u.path == "/api/settings/reset":    # RESET THIS PAGE / RESET ALL SETTINGS (after "are you sure")
                     paths = b.get("paths")
                     if b.get("all"):
