@@ -692,3 +692,5 @@ body.large .setnav button { white-space: normal; }
 .agform label.block { display: block; }
 .agform textarea { width: 100%; }
 .agtools { display: grid; grid-template-columns: repeat(auto-fill, minmax(16em, 1fr)); gap: .2em 1em; }
+#s-agents > .panel, #s-projects > .panel { display: block; overflow-y: auto; min-height: 0; }
+#s-agents .issue { flex-wrap: wrap; }
