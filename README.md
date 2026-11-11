@@ -461,6 +461,10 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 
 ## Good to know
 
+- **Memory, only if you want it.** Turn it on in Setup > Memory and say "remember that I like short
+  captions": Joe keeps a note you can see, edit and delete, on this computer only.
+- **Recurring missions.** "Every Sunday night, make next week's meal plan", then REPEAT under the plan:
+  it runs with the night shift on those nights (Setup > General lists them to pause or delete).
 - **Your keys stay locked away.** Keys and passwords you give Joe (web-search key, connector password)
   are kept in the computer's own protected store (Windows DPAPI, the Mac Keychain, the Linux keyring),
   not in a plain settings file. Setup > Privacy shows where.

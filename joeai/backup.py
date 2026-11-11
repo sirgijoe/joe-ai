@@ -79,7 +79,7 @@ def _this_pc(url) -> bool:
     return host in ("127.0.0.1", "localhost", "::1")
 
 
-def make(settings, sb, keys: bool = False) -> Path:
+def make(settings, sb, keys: bool = False, memory: bool = False) -> Path:
     """The backup zip, saved in Output/Backups. Returns its path."""
     data = asdict(settings)
     if not keys:
@@ -98,8 +98,11 @@ def make(settings, sb, keys: bool = False) -> Path:
     with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as z:
         z.writestr("manifest.json", json.dumps({"kind": MARK, "joe": __version__,
                                                 "made": datetime.now().isoformat(timespec="seconds"),
-                                                "keys": bool(keys)}, indent=1))
+                                                "keys": bool(keys), "memory": bool(memory)}, indent=1))
         z.writestr("settings.json", json.dumps(data, indent=2))
+        if memory:                        # Setup > Memory notes: only when "include memory" is ticked
+            from . import memory as memory_mod
+            z.writestr("memory.json", json.dumps(memory_mod.for_backup(), indent=1, ensure_ascii=False))
         for folder in FOLDERS:
             root = sb.root / folder
             if not root.is_dir():
@@ -136,7 +139,7 @@ def read(data: bytes) -> tuple[dict, zipfile.ZipFile]:
     for n in names:
         if not _safe_name(n):
             raise ValueError("That backup has an unsafe file name in it; nothing was restored.")
-        if n not in ("manifest.json", "settings.json") and not any(
+        if n not in ("manifest.json", "settings.json", "memory.json") and not any(
                 n.startswith(f + "/") for f in FOLDERS) and n.rstrip("/") not in FOLDERS:
             raise ValueError(f"That backup has an unexpected file in it ({n}); nothing was restored.")
     return man, z
@@ -170,7 +173,7 @@ def restore(settings, sb, data: bytes) -> dict:
     files = renamed = 0
     for info in z.infolist():
         n = info.filename
-        if info.is_dir() or n in ("manifest.json", "settings.json"):
+        if info.is_dir() or n in ("manifest.json", "settings.json", "memory.json"):
             continue
         dest = sb.root / Path(*n.split("/"))
         sb.check(dest)
@@ -190,5 +193,13 @@ def restore(settings, sb, data: bytes) -> dict:
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_bytes(body)
         files += 1
-    return {"ok": True, "settings": True, "files": files, "renamed": renamed, "joe": man.get("joe", ""),
+    remembered = 0
+    if "memory.json" in z.namelist():     # notes are added to the ones here (none are dropped)
+        from . import memory as memory_mod
+        try:
+            remembered = memory_mod.restore(json.loads(z.read("memory.json")))
+        except (ValueError, OSError):
+            remembered = 0
+    return {"ok": True, "settings": True, "files": files, "renamed": renamed, "memory": remembered,
+            "joe": man.get("joe", ""),
             "made": man.get("made", ""), "keys": bool(man.get("keys")), "skipped": skipped}

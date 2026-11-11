@@ -318,6 +318,9 @@ function showPlan(r) {
     $("#plan-offer-btn").textContent = `[ ${q.button} ]`;
     $("#plan-offer").hidden = false;
   } else if (!r.keepOffer) { planOffer = null; $("#plan-offer").hidden = true; }
+  const rp = $("#plan-repeat");
+  if (r.repeat) { planRepeat = r.repeat; rp.hidden = false; rp.textContent = `[ REPEAT ${r.repeat.when.toUpperCase()} ]`; }
+  else if (!r.keepOffer) { planRepeat = null; rp.hidden = true; }
   $("#plancard").hidden = false;
 }
 async function mcpShow() {
@@ -335,7 +338,7 @@ async function mcpShow() {
   $("#mcp-http").hidden = false;
   $("#mcp-http").innerHTML = `Apps that connect by address (on this PC only, while Joe's window is open): <b>${esc(r.url)}</b> with the header <b>Authorization: Bearer ${esc(r.key)}</b>. Keep the key private.`;
 }
-let planOffer = null;
+let planOffer = null, planRepeat = null;
 async function takeQualityOffer() {             // the plan card's "use High / Low for this" button
   if (!planOffer) return;
   const quality = {};
@@ -381,6 +384,11 @@ async function doCommand(cmd, rt) {
     return cmd === "explain" ? `${r.title}\n\n${r.text}` : r.text;
   }
   if (cmd === "quick") return rt.say;                    // the time, today's date, plain arithmetic (no AI)
+  if (cmd === "memory") {                                // "remember that ...", "forget that ...", "what do you remember?"
+    const r = await api("/api/memory/cmd", { text: rt.memory === "show" ? "what do you remember about me" : (rt.memory === "forget" ? "forget that " : "remember that ") + (rt.text || "") });
+    if (current === "setup") loadMemory();
+    return r.say || r.error;
+  }
   if (cmd === "hush") { talkStop(); return "OK."; }
   if (cmd === "repeat") {
     const last = [...talkLog].reverse().find((m) => m.who === "joe" && m.text && m.text !== "…" && m.text !== "OK.");
@@ -1151,6 +1159,7 @@ async function ptPoll() {
 async function loadSetup() {
   loadDoctor(); showPerms(); ptInfo().catch(() => {});
   api("/api/vault").then((v) => { $("#vault-text").textContent = v.text; }).catch(() => {});
+  loadMemory().catch(() => {}); loadRecurring().catch(() => {});
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
@@ -1717,7 +1726,7 @@ document.addEventListener("click", async (ev) => {
     if (act === "models-check") { await modelsCheck(); return; }
     if (act === "backup") {
       $("#bk-msg").textContent = "Making the backup…";
-      const r = await api("/api/backup", { keys: $("#bk-keys").checked });
+      const r = await api("/api/backup", { keys: $("#bk-keys").checked, memory: $("#bk-mem").checked });
       $("#bk-msg").textContent = r.ok ? `Saved ${r.path} in Output (the folder opens).${$("#bk-keys").checked ? " It has your keys in it: keep it private." : ""}` : r.error;
       return;
     }
@@ -4104,3 +4113,59 @@ function announceTick() {
     srSay(f.text || "Joe is done.", !f.ok);
   }
 }
+
+
+/* ---------------- 2.3: memory notes (Setup > Memory) and recurring missions (Setup > General) ---------------- */
+let mmNotes = [];
+async function loadMemory() {
+  const r = await api("/api/memory");
+  mmNotes = r.notes || [];
+  $("#mm-list").innerHTML = mmNotes.length ? mmNotes.map((n) =>
+    `<div role="listitem" class="mmnote"><textarea data-mm="${esc(n.id)}" rows="2" maxlength="500" aria-label="Note">${esc(n.text)}</textarea>
+      <button type="button" data-mm-save="${esc(n.id)}">[ SAVE ]</button><button type="button" data-mm-del="${esc(n.id)}" title="Delete this note.">[ DELETE ]</button></div>`).join("")
+    : `<div class="dim small">${r.on ? "No notes yet." : "Memory is off: Joe keeps nothing."}</div>`;
+}
+async function loadRecurring() {
+  const r = await api("/api/recurring");
+  $("#rec-warn").hidden = r.night || !r.items.length;
+  $("#rec-list").innerHTML = r.items.length ? r.items.map((x) =>
+    `<div role="listitem" class="issue"><span class="t"><b>${esc(x.label)}</b> — ${esc(x.when)}${x.paused ? " (paused)" : ""}${x.last ? ` <span class="dim small">last queued ${esc(x.last)}</span>` : ""}</span>
+      <button type="button" data-rec-pause="${esc(x.id)}" data-paused="${x.paused ? 1 : ""}">[ ${x.paused ? "START AGAIN" : "PAUSE"} ]</button>
+      <button type="button" data-rec-del="${esc(x.id)}" data-label="${esc(x.label)}">[ DELETE ]</button></div>`).join("")
+    : `<div class="dim small">None yet.</div>`;
+}
+document.addEventListener("click", async (ev) => {
+  const b = ev.target.closest("button");
+  if (!b) return;
+  try {
+    if (b.dataset.act === "repeat-add" && planRepeat) {
+      const r = await api("/api/recurring/add", { mission: $("#mission").value, days: planRepeat.days });
+      toast(r.ok ? r.say + " Setup > General lists it." : r.error, 4000);
+      return;
+    }
+    if (b.dataset.act === "mm-add") {
+      const r = await api("/api/memory/add", { text: $("#mm-new").value });
+      $("#mm-msg").textContent = r.ok ? "Added." : r.error; if (r.ok) { $("#mm-new").value = ""; loadMemory(); }
+      return;
+    }
+    if (b.dataset.mmSave) {
+      const t = document.querySelector(`textarea[data-mm="${CSS.escape(b.dataset.mmSave)}"]`).value;
+      const r = await api("/api/memory/edit", { id: b.dataset.mmSave, text: t });
+      $("#mm-msg").textContent = r.ok ? "Saved." : r.error; loadMemory();
+      return;
+    }
+    if (b.dataset.mmDel) { const r = await api("/api/memory/delete", { id: b.dataset.mmDel }); $("#mm-msg").textContent = r.ok ? "Deleted." : r.error; loadMemory(); return; }
+    if (b.dataset.act === "mm-clear") {
+      confirmBox("Forget everything?\n\nEvery note in Joe's memory is deleted. This can't be undone.", async () => {
+        const r = await api("/api/memory/clear", {}); $("#mm-msg").textContent = `Deleted ${r.deleted}.`; loadMemory();
+      }, null, "[ YES, FORGET IT ALL ]");
+      return;
+    }
+    if (b.dataset.recPause) { await api("/api/recurring/pause", { id: b.dataset.recPause, paused: !b.dataset.paused }); loadRecurring(); return; }
+    if (b.dataset.recDel) {
+      confirmBox(`Delete the recurring mission "${b.dataset.label}"?\n\nIt won't run again. A copy of its plan is kept in Missions/Recurring/removed.`, async () => {
+        const r = await api("/api/recurring/delete", { id: b.dataset.recDel }); toast(r.note || r.error); loadRecurring();
+      });
+    }
+  } catch (e) { toast(e.message); }
+});

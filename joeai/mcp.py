@@ -116,6 +116,10 @@ TOOLS = [
     {"name": "joe_show_picture",
      "description": "Look at a picture Joe made (a path inside his Output folder). Returns the picture.",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}}, "required": ["path"]}},
+    {"name": "joe_memory",
+     "description": "Notes the person asked Joe to remember about them (preferences, ongoing projects, "
+                    "writing style). Read-only. Listed only when they let connected apps read them.",
+     "inputSchema": {"type": "object", "properties": {}}},
     {"name": "joe_read_file",
      "description": "Read a text file Joe made (inside his Output folder).",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}},
@@ -407,6 +411,11 @@ class Joe:
             return self.stop()
         if name == "joe_show_picture":
             return self.show_picture(str(args.get("path", "")))
+        if name == "joe_memory":
+            from . import memory
+            if not memory.allowed(self.s, "connector"):
+                raise KeyError(name)                        # not shared: as if the tool didn't exist
+            return memory.context(self.s, "connector") or "Nothing remembered yet."
         raise KeyError(name)
 
 
@@ -439,6 +448,17 @@ def _window_open() -> bool:
 
 # --------------------------------------------------------------------------- JSON-RPC
 def handle(joe: Joe | None, msg: dict) -> dict | None:
+    """One request in, one reply out (None for notifications). Everything in it counts as the
+    connector asking (memory.ORIGIN), so memory notes stay private unless the person shares them."""
+    from . import memory
+    token = memory.ORIGIN.set("connector")
+    try:
+        return _handle(joe, msg)
+    finally:
+        memory.ORIGIN.reset(token)
+
+
+def _handle(joe: Joe | None, msg: dict) -> dict | None:
     """One request in, one reply out (None for notifications)."""
     mid, method = msg.get("id"), msg.get("method", "")
     if mid is None:                                  # notifications (initialized, cancelled...)
@@ -455,7 +475,13 @@ def handle(joe: Joe | None, msg: dict) -> dict | None:
     if method == "ping":
         return ok({})
     if method == "tools/list":
-        return ok({"tools": TOOLS})
+        try:
+            from . import memory
+            from .config import Settings
+            share = memory.allowed(joe.s if joe else Settings.load(), "connector")
+        except Exception:                                # noqa: BLE001
+            share = False
+        return ok({"tools": [t for t in TOOLS if share or t["name"] != "joe_memory"]})
     if method == "tools/call":
         p = msg.get("params") or {}
         try:

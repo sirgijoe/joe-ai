@@ -288,6 +288,32 @@ was asleep or off and the scheduler only starts Joe after the stop time, he leav
 the next night instead of running into your day. A mission that's already running is never cut
 off half-way.
 
+### Recurring missions (Setup > General)
+
+Start a request on Home with when it should happen again: "every Sunday night, make next week's meal
+plan", "every weekday write a short to-do list", "on Fridays, a summary of the week's sales", "every
+night ...", "each weekend ...". Joe plans the rest as usual and adds **REPEAT EVERY SUNDAY NIGHT** (or
+whichever nights) under the plan. Pressing it saves the plan; the night shift then puts a copy into
+`Missions\Tonight` on each of those nights, once per night, and it runs with the rest. A night shift
+that starts after midnight (01:30) counts as the night before. The night shift has to be on; the list
+under **RECURRING MISSIONS** says so when it isn't, and has PAUSE / START AGAIN and DELETE for each one
+(a deleted one's plan is kept in `Missions\Recurring\removed`).
+
+### Memory (Setup > Memory)
+
+Off until you turn on **Joe may remember things I tell him**. Then, in Talk or on Home:
+- "remember that I sell handmade pottery" / "remember this about me: keep captions under 20 words" /
+  "remember my shop is called ..." keeps a note ("remember to buy milk" is still a reminder).
+- "what do you remember about me?" lists them; "forget that I ..." removes the note that matches.
+Setup > Memory shows every note to change or delete, adds one by hand, or FORGET EVERYTHING.
+Joe uses the notes when you talk to him, and when he plans work on Home, where a note that matters
+is written into the plan's RULES line (so you see it before you press RUN). Overnight work follows the
+plan as written and doesn't read the notes by itself. The notes are kept on this computer only
+(`memory.json` in Joe's settings folder, not in your work folder) and never sent anywhere. **Joe Phone
+may use them too** and **Apps connected to Joe may read them** are separate switches, both off; a
+connected app can only read them (through `joe_memory`), never change them. BACK UP MY SETTINGS leaves
+them out unless **Include memory** is ticked; restoring adds the notes to the ones you have.
+
 ### Watch folders (Setup > General)
 
 Turn on **Watch folders** and Joe makes a folder per tool in `Inbox\Watch` (`clean-audio`,

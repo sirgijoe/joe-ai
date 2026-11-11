@@ -176,6 +176,13 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if to_read:                               # just read it, word for word: no model needed
         return {"final": {"ok": True, "say": speakable(to_read)[:6000], "mission": "",
                           "raw": "(read the pasted text aloud)"}}
+    if not files:                             # "remember that ...", "what do you remember about me?" (2.3)
+        from . import memory
+        mc = memory.command(text)
+        if mc:
+            r = memory.handle(app.settings, mc)
+            return {"final": {"ok": r.get("ok", True), "say": r.get("say") or r.get("error", ""), "mission": "",
+                              "raw": r.get("say") or r.get("error", "")}}
     if not files:                             # "read the third one", "next", "skip to the CHECK items" (2.3)
         from . import resultsnav
         nav = resultsnav.answer(app, history, text)
@@ -217,6 +224,10 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     # The system prompt stays the same every turn, so Ollama can reuse its cache of the
     # conversation so far; the live status rides along with the newest message instead.
     system = PERSONA + _tools_note()
+    from . import memory
+    notes = memory.context(app.settings)          # only when memory is on, and this caller may see it
+    if notes:
+        system += "\n\n" + notes
     if projects:
         system += "\n\nProject profiles available: " + ", ".join(projects[:30])
     msgs = [{"role": "system", "content": system}]

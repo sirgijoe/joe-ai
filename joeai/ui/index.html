@@ -79,6 +79,7 @@ fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
           <button data-act="plan-run" class="primary" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
           <button data-act="queue-add" title="Put this plan in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
           <button data-act="tonight-add" title="Joe starts it at the night-shift time (Setup > General), even with his window closed.">[ SAVE FOR TONIGHT ]</button>
+          <button data-act="repeat-add" id="plan-repeat" hidden title="Run this plan again on these nights, with the night shift. Setup > General lists it to pause or delete.">[ REPEAT ]</button>
           <button data-act="to-builder" title="Change the numbers, style or details with simple forms.">[ CHANGE IT <span class="k">F6</span> ]</button>
           <button data-act="clear" title="Throw this plan away and start fresh.">[ START OVER ]</button>
         </div>
@@ -324,6 +325,7 @@ FORMAT: ...
           <button type="button" data-page="display" title="Theme, text size, intro, sounds, screen saver.">Display &amp; sound</button>
           <button type="button" data-page="phone" title="Joe Phone: use Joe from your phone on your home Wi-Fi.">Phone</button>
           <button type="button" data-page="addons" title="Tools, packs, workflows and themes made by other people.">Add-ons</button>
+          <button type="button" data-page="memory" title="Things you asked Joe to remember about you. Off until you turn it on.">Memory</button>
           <button type="button" data-page="privacy" title="Microphone and what Joe sends anywhere.">Privacy</button>
           <button type="button" data-page="stats" title="Prices used for the savings numbers on F9.">Stats &amp; costs</button>
         </nav>
@@ -425,6 +427,7 @@ FORMAT: ...
               <fieldset><legend>BACK UP &amp; RESTORE MY SETTINGS</legend>
                 <div class="dim small">One small zip with everything you set up by hand: your settings, your own writing templates, workflow words, color themes and screen savers, imported workflows, project profiles and your own starter packs. Handy for a new computer, after a reinstall, or to give a friend your setup. Never inside: your files, chats, recordings or models. Restoring keeps where things are on this computer and never overwrites a file you have (a different one comes back as "(restored)").</div>
                 <label title="Also save the Ollama web-search key, the connector password and the phone-ping topic. Leave it off for a backup you'll give to someone else.">Include keys and passwords <input type="checkbox" id="bk-keys"></label>
+                <label title="Also save your Memory notes (Setup > Memory). Leave it off for a backup you'll give to someone else.">Include memory <input type="checkbox" id="bk-mem"></label>
                 <div class="row"><button type="button" data-act="backup" title="Save the backup zip in Output/Backups (the folder opens).">[ BACK UP MY SETTINGS ]</button>
                   <button type="button" data-act="restore" title="Pick a backup zip made by Joe and bring it back.">[ RESTORE FROM A BACKUP ]</button>
                   <input type="file" id="bk-file" accept=".zip" hidden></div>
@@ -452,6 +455,11 @@ FORMAT: ...
                 <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
                 <label title="Optional, 24-hour clock, e.g. 07:00. At this time Joe finishes the mission he's on and leaves the rest for the next night. Earlier than the start time = the next morning. Blank = run until everything is done.">Stop by <input data-path="schedule.stop" placeholder="blank = until done" size="12"></label>
                 <div class="dim small">Stop by (optional): at that time Joe finishes the mission he's working on, puts the plans he hasn't started back in Missions\Tonight for the next night and says so in the morning report ("3 missions left for tomorrow night"). A stop time earlier than the start means the next morning (start 23:00, stop 06:00). Blank = he runs until everything is done.</div>
+              </fieldset>
+              <fieldset><legend>RECURRING MISSIONS</legend>
+                <div class="dim small">Plans that run again on set nights, with the night shift. Make one by starting your request with when, like "every Sunday night, make next week's meal plan", then press REPEAT under the plan.</div>
+                <div id="rec-warn" class="warn small" hidden>The night shift is off, so these won't run. Turn it on under NIGHT SHIFT above.</div>
+                <div id="rec-list" role="list"></div>
               </fieldset>
               <fieldset><legend>DIRECTIONS AND SHOPPING</legend>
                 <div class="dim small">"Directions to the feed store" or "where can I buy a cheap air fryer?" opens the site you pick here in your browser. Joe doesn't pick stores, track where you go, or get paid by anyone.</div>
@@ -661,6 +669,24 @@ FORMAT: ...
             </div>
 
             <!-- PRIVACY -->
+            <div class="setpage" data-page="memory" data-title="Memory">
+              <h3 class="settitle">Memory</h3>
+              <fieldset><legend>REMEMBER THINGS ABOUT ME</legend>
+                <div class="dim small">When this is on, say or type "remember that I like short captions" (or "remember this about me: ...") and Joe keeps it as a note. He uses your notes when you talk to him and when he plans work on Home (they show up in the plan's RULES, so you see them before anything runs). Overnight work follows the plan as written. "What do you remember about me?" lists them; "forget that ..." removes one.</div>
+                <div class="dim small">The notes stay on this computer only (in Joe's settings folder, not in your work folder) and are never sent anywhere. They're left out of a settings backup unless you tick "Include memory" there.</div>
+                <label title="Off: Joe keeps nothing and uses nothing.">Joe may remember things I tell him <input type="checkbox" data-path="memory.enabled"></label>
+                <label title="Off: Joe Phone can't see, add or use your notes.">Joe Phone may use them too <input type="checkbox" data-path="memory.phone"></label>
+                <label title="Off: AI apps connected to Joe (the connector) can't read your notes.">Apps connected to Joe may read them <input type="checkbox" data-path="memory.connector"></label>
+              </fieldset>
+              <fieldset><legend>MY NOTES</legend>
+                <div id="mm-list" role="list"></div>
+                <label class="block">Add a note <textarea id="mm-new" rows="2" maxlength="500" placeholder="e.g. I sell handmade pottery; keep captions under 20 words"></textarea></label>
+                <div class="row"><button type="button" data-act="mm-add">[ ADD NOTE ]</button>
+                  <button type="button" data-act="mm-clear" title="Delete every note. Asks first.">[ FORGET EVERYTHING ]</button>
+                  <span id="mm-msg" class="dim small" aria-live="polite"></span></div>
+              </fieldset>
+            </div>
+
             <div class="setpage" data-page="privacy" data-title="Privacy">
               <h3 class="settitle">Privacy</h3>
               <fieldset class="perms"><legend>MICROPHONE</legend>

@@ -170,6 +170,10 @@ def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    from . import memory
+    mc = memory.command(raw)                    # "remember that ...", "forget that ...", "what do you remember?"
+    if mc:
+        return {"kind": "command", "cmd": "memory", **mc}
     hit = assistant(raw) or quick(raw)
     if hit:
         return hit

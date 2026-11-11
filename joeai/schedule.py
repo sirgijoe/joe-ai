@@ -361,6 +361,11 @@ def tonight() -> int:
         sb.meta.mkdir(parents=True, exist_ok=True)
         (sb.meta / STOP_FILE).write_text(json.dumps({"until": until.isoformat(timespec="seconds")}),
                                          encoding="utf-8")
+    try:                                                # recurring missions due tonight -> Missions/Tonight
+        from . import recurring
+        recurring.queue_due(sb, s, now)
+    except Exception:                                   # noqa: BLE001 (never stops the night shift)
+        pass
     moved = move_tonight(sb)
     waiting = [p for p in (sb.missions / "Queue").glob("*.txt")]
     if not moved and not waiting:

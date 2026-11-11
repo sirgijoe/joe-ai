@@ -286,14 +286,25 @@ class Phone:
     def ask(self, text: str) -> dict:
         """The phone's box: reminders, lists, quick answers and stop happen right away; questions get
         Joe's answer; work gets a plan the person can RUN IT from the phone."""
-        from . import reminders, route
         text = (text or "").strip()[:2000]
         if not text:
             return {"ok": False, "error": "Type or say what you need."}
+        from . import memory
+        token = memory.ORIGIN.set("phone")              # memory notes only if Setup > Memory lets the phone
+        try:
+            return self._ask(text)
+        finally:
+            memory.ORIGIN.reset(token)
+
+    def _ask(self, text: str) -> dict:
+        from . import reminders, route
         rt = route.classify(text)
         if rt.get("kind") == "command":
             cmd = rt.get("cmd")
             sb, s = self.app.sb, self.app.settings
+            if cmd == "memory":
+                from . import memory
+                return memory.handle(s, rt)
             if cmd == "quick":
                 return {"ok": True, "say": rt["say"]}
             if cmd == "remind":

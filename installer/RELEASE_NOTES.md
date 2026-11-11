@@ -22,6 +22,14 @@
   file: Windows' DPAPI, the Mac Keychain, or the Linux keyring (when there isn't one, the settings file
   is kept readable by your account only, and Setup > Privacy says so). They move over by themselves
   on the first start, and none is ever lost. Backups with "include keys" and Portable Joe work as before.
+- **Memory (off until you turn it on):** say "remember that I like short captions" and Joe keeps it
+  as a note. Setup > Memory lists every note to edit or delete ("forget that ..." works too). Notes stay
+  on this computer only, Joe Phone and connected AI apps can't see them unless you allow it, and a
+  settings backup leaves them out unless you tick "Include memory". Joe uses them in Talk and when he
+  plans on Home, where they show up in the plan's RULES before anything runs.
+- **Recurring missions:** start a request with when ("every Sunday night, make next week's meal plan")
+  and press REPEAT under the plan. It runs with the night shift on those nights; Setup > General >
+  RECURRING MISSIONS lists them to pause or delete.
 - **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move

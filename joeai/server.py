@@ -873,7 +873,11 @@ class App:
 
     def plan_now(self, text: str) -> dict:
         from . import describe as describe_mod
-        r = describe_mod.draft(self, text)
+        from . import recurring
+        rep = recurring.parse(text)              # "every Sunday night, make ..." -> plan the rest, offer REPEAT
+        r = describe_mod.draft(self, rep["request"] if rep else text)
+        if rep and r.get("ok"):
+            r["repeat"] = {"days": rep["days"], "when": rep["when"]}
         if r.get("ok"):                          # the request and the plan go in this chat
             self.note_chat({"who": "you", "text": text.strip()[:4000]})
             self.note_chat({"who": "joe", "kind": "plan", "text": "Here's the plan (" + r["time"] + "):",
@@ -1723,6 +1727,13 @@ def make_handler(app: App):
                     return self._json({"text": app.mission_text})
                 if u.path == "/api/files":
                     return self._json(app.list_dir(arg))
+                if u.path == "/api/memory":              # Setup > Memory (Joe's own window only)
+                    from . import memory
+                    return self._json({"ok": True, "notes": memory.load(), "on": memory.enabled(app.settings)})
+                if u.path == "/api/recurring":           # Setup > General > RECURRING MISSIONS
+                    from . import recurring
+                    return self._json({"ok": True, "items": recurring.load(app.sb),
+                                       "night": app.settings.schedule.enabled, "time": app.settings.schedule.time})
                 if u.path == "/api/vault":               # Setup > Privacy: where the keys are kept
                     from . import vault
                     from .config import config_path
@@ -2202,7 +2213,7 @@ def make_handler(app: App):
                 if u.path == "/api/backup":                     # BACK UP MY SETTINGS
                     from . import backup
                     try:
-                        f = backup.make(app.settings, app.sb, keys=bool(b.get("keys")))
+                        f = backup.make(app.settings, app.sb, keys=bool(b.get("keys")), memory=bool(b.get("memory")))
                     except OSError as e:
                         return self._json({"ok": False, "error": str(e)})
                     try:
@@ -2515,6 +2526,36 @@ def make_handler(app: App):
                     if app.running:
                         return self._json({"ok": False, "error": "Joe is working. Undo when he's done."})
                     return self._json(filing.undo(app.sb, str(b.get("file", ""))))
+                if u.path.startswith("/api/memory/"):    # Setup > Memory / "remember that ..." (window only)
+                    from . import memory
+                    act = u.path.rsplit("/", 1)[1]
+                    if act == "add":
+                        return self._json(memory.add(app.settings, str(b.get("text", ""))))
+                    if act == "edit":
+                        return self._json(memory.edit(str(b.get("id", "")), str(b.get("text", ""))))
+                    if act == "delete":
+                        return self._json(memory.delete(str(b.get("id", ""))))
+                    if act == "clear":
+                        return self._json(memory.clear())
+                    if act == "cmd":
+                        mc = memory.command(str(b.get("text", "")))
+                        return self._json(memory.handle(app.settings, mc) if mc else {"ok": False, "error": "?"})
+                    return self._json({"ok": False, "error": "unknown memory action"}, 400)
+                if u.path.startswith("/api/recurring/"):  # REPEAT under a plan; pause / delete in Setup
+                    from . import recurring
+                    act = u.path.rsplit("/", 1)[1]
+                    if act == "add":
+                        days = b.get("days") if isinstance(b.get("days"), list) else []
+                        try:
+                            days = [int(d) for d in days][:7]
+                        except (TypeError, ValueError):
+                            days = []
+                        return self._json(recurring.add(app.sb, str(b.get("mission", "")), days, str(b.get("label", ""))))
+                    if act == "pause":
+                        return self._json(recurring.set_paused(app.sb, str(b.get("id", "")), bool(b.get("paused"))))
+                    if act == "delete":
+                        return self._json(recurring.delete(app.sb, str(b.get("id", ""))))
+                    return self._json({"ok": False, "error": "unknown action"}, 400)
                 if u.path.startswith("/api/project/"):   # the project page (Joe's own window only)
                     from . import projects as projects_mod
                     act, name = u.path.rsplit("/", 1)[1], str(b.get("name", ""))

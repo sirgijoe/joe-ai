@@ -667,8 +667,13 @@ def draft(app, request: str) -> dict:
     files_note = ("\n\nFiles waiting in Joe's Inbox (use these exact names in INPUT):\n"
                   + "\n".join("- " + f for f in waiting)) if waiting else \
                  "\n\nNo files are waiting in Joe's Inbox right now."
+    from . import memory
+    notes = memory.context(app.settings)
+    if notes:                                 # used only where they fit, and then visibly (as RULES)
+        notes = ("\n\n" + notes + "\nIf one of these matters for this request, put it in the plan's RULES "
+                 "line in plain words. Leave out the ones that don't.")
     msgs = [{"role": "system", "content": planner_text()},
-            {"role": "user", "content": "The request, in the person's words:\n" + request + files_note}]
+            {"role": "user", "content": "The request, in the person's words:\n" + request + files_note + notes}]
     problem = ""
     for attempt in range(2):
         try:
