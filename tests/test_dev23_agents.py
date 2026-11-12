@@ -218,9 +218,17 @@ def test_the_time_limit(env, monkeypatch):
     app, fake, script = env
     aid = agents.save({"name": "Slow", "job": "keep writing", "tools": ["text", "summarize"], "minutes": 5})["id"]
     script["plan"] = [{"tool": "text", "input": [], "instruction": f"part {i}"} for i in range(5)]
-    real = time.monotonic
-    start = real()
-    monkeypatch.setattr(agents.time, "monotonic", lambda: real() + (0 if real() - start < 0.05 else 3600))
+    # The agent's own clock: its first two readings (the start, then the check before step 1) are the
+    # real time, every later one is an hour on. (The old version went by real seconds since the test
+    # began, so on a slow Windows runner the hour was already added before the agent started and the
+    # limit never showed.)
+    from types import SimpleNamespace
+    real, calls = time.monotonic, []
+
+    def clock():
+        calls.append(1)
+        return real() + (0 if len(calls) <= 2 else 3600)
+    monkeypatch.setattr(agents, "time", SimpleNamespace(monotonic=clock, time=time.time))
     last, folder = _run(app, aid)
     assert "ran out of time" in last["note"]
 
