@@ -524,9 +524,11 @@
           "negative": "modern digital look, 3d, photo"
         }
       ],
+      "no_anatomy": true,
       "prompt_style": "tags"
     },
     "manga": {
+      "no_anatomy": true,
       "looks": [
         {
           "id": "action",
