@@ -730,7 +730,7 @@ const WHY = {
   "Cloned faces or the wrong number of people": "Keep it to 1-3 people in a medium shot; give each person something different (age, hair, clothes). FLUX.2 klein handles groups far better. Versions per prompt 3 helps.",
   "Looks plastic, waxy or overcooked": "Lower Prompt strength (CFG) by 1-2, and add 'natural skin texture' under Also add. The Photo style already leaves out plastic skin.",
   "Blurry, muddy or smeared": "Turn the Detail pass off (FINE-TUNING) for that style, or raise Steps. Pixel art and flat styles look best with no detail pass.",
-  "It ignored my words": "Raise Prompt strength (CFG) by 1-2, put the most important thing first, and remove anything the style's own words fight (see Words Joe adds to every prompt).",
+  "It ignored my words": "Raise Prompt strength (CFG) by 1-2, put the most important thing first, and remove anything the style's own words fight (see Words Joe adds to every prompt (positive prompt)).",
   "Wrong look or style": "Pick the style in your plan (STYLE: watercolor, anime...) or set a Model for that style in Setup > Workflows. A style add-on (LoRA) that's too strong: lower Style add-on strength.",
   "Good, but I want small changes": "MORE LIKE THIS keeps the seed (the layout) so you can change a few words and run it again.",
 };

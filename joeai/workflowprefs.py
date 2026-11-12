@@ -63,7 +63,7 @@ def tune_defaults(wid: str) -> dict:
     _ = styles
     return out
 TEXT_FIELDS = ("note", "words", "leave")       # Joe's own words, shown and editable (replace his)
-TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe adds to every prompt",
+TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe adds to every prompt (positive prompt)",
                "leave": "Joe's leave-out list (negative prompt)"}
 
 # id -> (group, label, what it covers, can pick a model, can set steps)
