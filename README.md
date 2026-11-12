@@ -461,9 +461,6 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 
 ## Good to know
 
-- **Agents.** Give a helper a job in your words and tick the tools it may use (Tools F3 > AGENTS). It
-  picks its own steps, checks its work against the job, and says plainly when it got stuck. It only
-  uses what you ticked, only on its own folder, never runs add-ons or code and never deletes anything.
 - **Memory, only if you want it.** Turn it on in Setup > Memory and say "remember that I like short
   captions": Joe keeps a note you can see, edit and delete, on this computer only.
 - **Recurring missions.** "Every Sunday night, make next week's meal plan", then REPEAT under the plan:

@@ -173,7 +173,7 @@ FORMAT: ...
   <!-- ============ TALK (F4) ============ -->
   <main id="s-tools" class="view">
     <section class="panel full tools">
-      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span> <button type="button" class="h2btn" data-act="agents-open" title="Helpers that pick their own steps for a job you describe.">[ AGENTS ]</button></h2>
+      <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span></h2>
       <div class="toolsbody">
         <div id="toolgrid" class="toolgrid"></div>
         <div id="toolform" class="toolform" hidden>
@@ -256,7 +256,9 @@ FORMAT: ...
     </section>
   </main>
 
-  <!-- ============ AGENTS (Tools F3 > AGENTS) ============ -->
+  <!-- ============ AGENTS: not offered in 2.3 (no button opens this page). Joseph's PC test, 2026-11-11: as built
+       they were missions with extra steps. The page, agents.py and its tests stay for the real Agents build
+       (plan, lookups, self-check, reset rule; see the private NEXT_STEPS.md). ============ -->
   <main id="s-agents" class="view">
     <section class="panel full">
       <h2>AGENTS <span class="dim">— helpers that pick their own steps · Esc back to Tools</span></h2>
@@ -1020,8 +1022,6 @@ FORMAT: ...
        After Joe answers with a list (or ask about the report), say
        "read the third one", "next", "go back", "again",
        "skip to the CHECK items", "how many?" or "read the list".
- F3    Tools > AGENTS: helpers with a job in your words that pick
-       their own steps (ticked tools only, their own folder only)
  F6    Step by step: make a plan with simple forms, reorder or
        split, paste a whole mission, rerun past ones
  F7    Files: browse the workspace, preview, open

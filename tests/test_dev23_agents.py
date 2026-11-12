@@ -316,3 +316,15 @@ def test_a_connected_app_cant_start_a_screen_only_agent_with_its_own_mission(env
         assert "Nothing was queued" in j.queue(f"TASK: sneak\nTYPE: agent\nOPTIONS: {who}")
     agents.save({**agents.get(aid), "remote": True})
     assert j.check(f"TASK: fine\nTYPE: agent\nOPTIONS: {aid}")[0]
+
+
+def test_agents_are_not_offered_in_2_3(env):
+    """Joseph, 2026-11-11: as built they were missions with extra steps. No button opens the page and a
+    connected app isn't told about joe_start_agent unless an agent already exists."""
+    ui = (Path(agents.__file__).parent / "ui" / "index.html").read_text(encoding="utf-8")
+    assert 'data-act="agents-open"' not in ui and "[ AGENTS ]" not in ui
+    listed = [t["name"] for t in mcp.handle(None, {"id": 1, "method": "tools/list"})["result"]["tools"]]
+    assert "joe_start_agent" not in listed
+    agents.save({"name": "Kept", "job": "write a note", "tools": ["text"]})
+    listed = [t["name"] for t in mcp.handle(None, {"id": 2, "method": "tools/list"})["result"]["tools"]]
+    assert "joe_start_agent" in listed

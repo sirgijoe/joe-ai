@@ -505,7 +505,13 @@ def _handle(joe: Joe | None, msg: dict) -> dict | None:
             share = memory.allowed(joe.s if joe else Settings.load(), "connector")
         except Exception:                                # noqa: BLE001
             share = False
-        return ok({"tools": [t for t in TOOLS if share or t["name"] != "joe_memory"]})
+        try:                                             # agents aren't offered in 2.3: listed only if one exists
+            from . import agents
+            have_agents = bool(agents.load())
+        except Exception:                                # noqa: BLE001
+            have_agents = False
+        return ok({"tools": [t for t in TOOLS if (share or t["name"] != "joe_memory")
+                             and (have_agents or t["name"] != "joe_start_agent")]})
     if method == "tools/call":
         p = msg.get("params") or {}
         try:
