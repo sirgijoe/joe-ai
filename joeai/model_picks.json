@@ -534,7 +534,7 @@
           "id": "action",
           "label": "Action panel",
           "match": "action|fight|run|toss|jump|clash|motion",
-          "words": "manga panel, high-contrast black ink, screentone shading, speed lines, impact lines, masterpiece, high score, great score, absurdres",
+          "words": "manga panel, monochrome, greyscale, high-contrast black ink, screentone shading, speed lines, impact lines, masterpiece, high score, great score, absurdres",
           "example": "manga panel, two fighters clashing fists mid-air, explosive impact lines radiating outward, cracked ground, screentone shading, high-contrast ink.",
           "negative": "color, photorealistic, 3d render, soft gradients, watercolor, gray wash"
         },
@@ -542,7 +542,7 @@
           "id": "closeup",
           "label": "Close-up",
           "match": "close.?up|eyes|face|portrait|emotion",
-          "words": "manga panel, extreme close-up, thick ink lines, screentone under the brow, masterpiece, high score, great score, absurdres",
+          "words": "manga panel, monochrome, greyscale, extreme close-up, thick ink lines, screentone under the brow, masterpiece, high score, great score, absurdres",
           "example": "manga panel, extreme close-up of eyes, intense focused gaze, thick ink eyelashes, screentone shading under the brow.",
           "negative": "color, photorealistic, 3d render, soft gradients"
         },
@@ -550,7 +550,7 @@
           "id": "quiet",
           "label": "Quiet scene",
           "match": "",
-          "words": "manga panel, black and white, clean ink lines, classic dot screentone, masterpiece, high score, great score, absurdres",
+          "words": "manga panel, monochrome, greyscale, black and white, clean ink lines, classic dot screentone, masterpiece, high score, great score, absurdres",
           "example": "manga panel, a man standing in the rain, classic circular dot-pattern screentone on background and clothing shadows, clean ink lines.",
           "negative": "color, photorealistic, 3d render, soft gradients, watercolor"
         }

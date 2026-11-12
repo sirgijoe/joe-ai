@@ -1115,6 +1115,8 @@ class Engine:
         out = prompt.rstrip(" .,")
         if rec.words:
             out += ", " + rec.words
+        if styles_mod.wants_no_humans(prompt, rec.style.id):     # per prompt: "a woman reading" keeps people
+            out += ", no humans"
         if rec.trigger and getattr(self, "_lora_used", False):
             out = f"{rec.trigger}, {out}"
         return out

@@ -354,6 +354,26 @@ def animals_in(text: str) -> set:
     return {m.group(1).lower().replace("racoon", "raccoon") for m in _ANIMAL_RE.finditer(text or "")}
 
 
+# Anime/manga (Animagine tags): with no person named the model still draws a girl, so say "no humans".
+NO_HUMANS_STYLES = frozenset({"anime", "manga"})
+_PERSON_RE = re.compile(r"\b(?:\d+(?:girl|boy|other)s?|" + _PEOPLE + r"|person|man|woman|girl|boy|kid|child|"
+                        r"baby|toddler|teen(?:ager)?|lady|guy|dude|he|she|him|her|his|hers|they|them|"
+                        r"character|hero(?:ine)?|villain|warrior|samurai|ninja|knight|princess|prince|king|queen|"
+                        r"witch|wizard|mage|student|schoolgirl|schoolboy|soldier|fighters?|idol|maid|"
+                        r"mother|father|mom|dad|son|daughter|brother|sister|grandma|grandpa|couple|crowd|"
+                        r"face|eyes|portrait|selfie)\b", re.I)
+
+
+def names_person(text: str) -> bool:
+    """True when a request names or implies a person ('a girl', 'two fighters', '1boy', 'her eyes')."""
+    return bool(_PERSON_RE.search(text or ""))
+
+
+def wants_no_humans(prompt: str, style_id: str) -> bool:
+    """Anime/manga picture prompt that names no person: it gets the Animagine tag "no humans"."""
+    return style_id in NO_HUMANS_STYLES and not names_person(prompt) and "no humans" not in (prompt or "")
+
+
 # Your edited look words (Setup > Workflows; workflowprefs.apply fills it): {style: {look id: {"words", "negative"}}}
 LOOK_EDITS: dict = {}
 
