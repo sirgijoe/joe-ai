@@ -447,5 +447,9 @@
  "Want a different one? Type any model's name in Setup (F10) > Writing > Model, or bring your own with LM Studio, llama.cpp or LocalAI.": "¿Quieres otro? Escribe el nombre de cualquier modelo en Configuración (F10) > Escritura > Modelo, o trae el tuyo con LM Studio, llama.cpp o LocalAI.",
  "Words Joe adds to every prompt (positive prompt)": "Palabras que Joe añade a cada indicación (prompt positivo)",
  "Joe's leave-out list (negative prompt)": "Lo que Joe pide dejar fuera (prompt negativo)",
- "What Joe tells the prompt writer": "Lo que Joe le dice al que escribe la indicación"
+ "What Joe tells the prompt writer": "Lo que Joe le dice al que escribe la indicación",
+ "DAILY RESTART": "REINICIO DIARIO",
+ "Restart Joe once a day (recommended)": "Reiniciar a Joe una vez al día (recomendado)",
+ "We recommend a restart daily. What time would you like that to happen?": "Recomendamos reiniciar a diario. ¿A qué hora quieres que ocurra?",
+ "It could take a few minutes. Leaving this blank restarts at 6am. If Joe is working then (the night shift, an agent, a download), he restarts right after it's done; the queue, missions on hold and the night shift carry on afterwards.": "Puede tardar unos minutos. Si lo dejas en blanco, se reinicia a las 6 de la mañana. Si Joe está trabajando a esa hora (el turno de noche, un agente, una descarga), se reinicia justo al terminar; la cola, las misiones en espera y el turno de noche siguen después."
 }

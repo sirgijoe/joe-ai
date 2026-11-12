@@ -8,6 +8,11 @@
   shows how it's going on every tab. Risky abilities (looking things up online, renaming and moving
   files, sending to your phone) are off until you turn them on, each explained on its own screen first.
   Once an agent has read one of your files, its searches only use words from the job you typed.
+- **Daily restart** (Setup > General): a Joe left running closes and opens again once a day (6am unless
+  you pick another time), to free memory, the graphics card and the voice programs. Never in the
+  middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.
+- **Setup > Workflows shows each look's words**: every picture style's looks (Portrait, Landscape...)
+  now show the words Joe adds and leaves out for them, filled in, with EDIT, like the style's own words.
 - **Tidier Output: one folder per mission.** New work goes into a folder with the date in front
   ("2026-11-10 Showcase video") with every task of that mission inside. A piece of writing gets its
   own folder with its Word, PDF and other copies. Running a task again puts the new one beside the

@@ -370,6 +370,19 @@ may use them too** and **Apps connected to Joe may read them** are separate swit
 connected app can only read them (through `joe_memory`), never change them. BACK UP MY SETTINGS leaves
 them out unless **Include memory** is ticked; restoring adds the notes to the ones you have.
 
+### Daily restart (Setup > General)
+
+For a Joe that is left running: once a day he closes and opens again (the same as RESTART JOE), which
+frees memory, the graphics card and the voice programs. It could take a few minutes. Type the time
+on the 24-hour clock (06:00); blank = 6am, and "6am" gets the usual "Joe changed it to 06:00" yes or
+no. Untick **Restart Joe once a day** to turn it off.
+
+Never in the middle of a job: if the night shift, an agent, a queued mission, a plan being written, a
+download or an install is going at that time, Joe waits and restarts right after it's done. The
+queue, missions on hold and the night shift carry on afterwards. A PC that was off at that time does
+nothing extra (starting Joe is already a fresh start), and one that was asleep doesn't restart the
+moment it wakes up more than an hour late: it waits for the next day.
+
 ### Watch folders (Setup > General)
 
 Turn on **Watch folders** and Joe makes a folder per tool in `Inbox\Watch` (`clean-audio`,

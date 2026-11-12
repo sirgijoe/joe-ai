@@ -86,6 +86,8 @@ class App:
         self.parts_at_start = 0
         self.last_seen = time.monotonic()
         self.quit_now = False
+        from .dailyrestart import DailyRestart
+        self.daily = DailyRestart(self.settings)      # Setup > General > DAILY RESTART
         self.services_status = {"ollama": False, "comfyui": False, "loaded": []}
         self.dl_all: dict = {}            # Setup > Models > DOWNLOAD ALL progress
         self.restart_hint = ""            # "restart Joe" advice shown in the window (with a button)
@@ -147,6 +149,9 @@ class App:
         if any(p == ".." for p in rel.split("/")):
             raise SandboxError("'..' not allowed")
         return self.sb.check(self.sb.root / rel) if rel else self.sb.root
+
+    def daily_restart_tick(self) -> str:
+        return self.daily.tick(self)
 
     def background_work(self) -> bool:
         """A download, install or portable copy is still going (closing the window mustn't kill it)."""
@@ -1568,6 +1573,7 @@ class App:
         old_ws = self.settings.workspace_path
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         _merge(self.settings, data)
+        self.daily.reset(self.settings)               # a new daily restart time counts from now
         return self._settings_changed(old_ws, old_sched)
 
     def reset_settings(self, paths: list[str] | None) -> dict:
@@ -2826,6 +2832,8 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             step("Agents", app.agent_watch_tick)       # files dropped in Inbox/Agents/<agent>
             step("Voice", app.clone.idle_check)
             step("Mission queue", app.watch_queue_folder)   # mission files dropped in Missions/Queue
+            if not app.quit_now:
+                step("Daily restart", app.daily_restart_tick)
             for _ in range(10):
                 time.sleep(1)
                 idle = time.monotonic() - app.last_seen

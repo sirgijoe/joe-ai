@@ -68,7 +68,8 @@ def loose_time(text: str) -> str | None:
 
 
 TIME_FIELDS = {"schedule.time": "Night shift start", "schedule.stop": "Stop by",
-               "comfort.quiet_start": "Quiet hours from", "comfort.quiet_end": "Quiet hours until"}
+               "comfort.quiet_start": "Quiet hours from", "comfort.quiet_end": "Quiet hours until",
+               "engine.restart_time": "Daily restart"}
 
 
 def check_times(data: dict) -> dict:

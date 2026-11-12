@@ -68,6 +68,8 @@ class EngineSettings:
     when_finished: str = "nothing"   # nothing | sleep | shutdown
     gpu_temp_pause_c: int = 85       # pause between parts above this (0 = off)
     keep_pc_usable: bool = False     # Ollama/ComfyUI at below-normal priority + smaller videos
+    daily_restart: bool = True       # Joe closes and opens again once a day (dailyrestart.py), never mid-job
+    restart_time: str = ""           # 24-hour clock; blank = 06:00
 
 
 @dataclass

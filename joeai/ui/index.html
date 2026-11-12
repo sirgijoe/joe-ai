@@ -431,6 +431,11 @@ FORMAT: ...
                 <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
                 <div class="dim small">Turn this on when you use the PC while Joe works. Leave it off overnight for the fastest runs and the biggest videos.</div>
               </fieldset>
+              <fieldset><legend>DAILY RESTART</legend>
+                <label title="Joe closes and opens again once a day, which frees memory, the graphics card and the voice programs. Never in the middle of a job: he waits until it's done. Only matters when Joe is left running.">Restart Joe once a day (recommended) <input type="checkbox" data-path="engine.daily_restart"></label>
+                <label title="24-hour clock, e.g. 06:00. Blank = 6am.">We recommend a restart daily. What time would you like that to happen? <input data-path="engine.restart_time" placeholder="06:00" size="6"></label>
+                <div class="dim small">It could take a few minutes. Leaving this blank restarts at 6am. If Joe is working then (the night shift, an agent, a download), he restarts right after it's done; the queue, missions on hold and the night shift carry on afterwards.</div>
+              </fieldset>
               <fieldset id="filing-box"><legend>HOW JOE FILES HIS WORK</legend>
                 <label title="Where new work goes. Nothing already in Output moves when you change this.">File new work
                   <select data-path="filing.how">

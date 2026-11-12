@@ -177,6 +177,10 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         `joe_start_agent` respect `start.remote` and `paused`.
       - Not built, on purpose (Joseph): anything that clicks through websites, anything that connects to
         an inbox. Nothing an agent does sends to other people.
+- [ ] Daily restart (`dailyrestart.py`): starts a new Joe the same way as RESTART JOE (`app.restart`,
+      `joe_command("restart")`, no shell); never while a run, the queue, a plan being written, a
+      download or an install is going (`busy`); a failed start leaves this Joe running. Tests:
+      `tests/test_dev23_restart.py`.
 - [ ] Memory (`memory.py`): opt-in; `memory.json` in the config folder; `ORIGIN` set to phone/connector
       in `phone.ask` and `mcp.handle`; `joe_memory` is not listed or callable unless shared; changes only
       from the window (and the phone when allowed); backup only with "include memory".
