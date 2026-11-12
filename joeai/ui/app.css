@@ -705,3 +705,5 @@ body.modern .agentstrip { border-radius: var(--radius); border-color: var(--line
 .agabilities label { display: block; margin: 3px 0; }
 .agtpls { display: inline-flex; gap: 6px; flex-wrap: wrap; }
 .agentsrow .row { gap: 10px; align-items: center; flex-wrap: wrap; }
+.wflooks { margin: 10px 0 2px; border-top: 1px dashed var(--ph-dim); padding-top: 6px; }
+.wftext.wflook { margin-left: 1em; }

@@ -1385,11 +1385,11 @@ async function loadWorkflows() {
       return `<details class="wf" data-wf="${esc(r.id)}"><summary>${esc(r.label)}${set ? ' <span class="dim">· changed</span>' : ""}</summary>
         <div class="dim small">${esc(r.about)}</div>
         ${r.model_ok ? `<label>Model <select data-wff="model">${opt(r)}</select></label>` : ""}
-        ${(r.texts || []).map((t) => `<div class="wftext" data-field="${t.field}">
+        ${(r.texts || []).map((t, i) => (t.look && !(r.texts[i - 1] || {}).look ? `<div class="wflooks small"><b>LOOKS</b> <span class="dim">— Joe picks one by what you ask for (a portrait, a landscape...); its words go after the style's.</span></div>` : "") + `<div class="wftext${t.look ? " wflook" : ""}" data-field="${t.field}">
           <div class="row"><span>${esc(t.label)}${t.changed ? ' <span class="dim">· your words</span>' : ' <span class="dim">· Joe\'s words</span>'}</span>
             <button type="button" data-act="wf-edit" title="Change these words. SAVE keeps your copy; RESET THIS WORKFLOW brings Joe's back.">[ EDIT ]</button>
             ${t.changed ? `<button type="button" data-act="wf-joes" title="Put Joe's own words back in the box (then SAVE).">[ JOE'S WORDS ]</button>` : ""}</div>
-          <textarea data-wff="${t.field}" rows="${t.field === "note" ? 5 : 3}" readonly data-builtin="${esc(t.builtin)}">${esc(t.value)}</textarea></div>`).join("")}
+          <textarea data-wff="${t.field}" rows="${t.field === "note" ? 5 : t.look ? 2 : 3}" readonly data-builtin="${esc(t.builtin)}">${esc(t.value)}</textarea></div>`).join("")}
         <label title="Your own extra words, added after Joe's at the end of every prompt for this workflow.">Also add <input data-wff="add" maxlength="600" value="${esc(r.prefs.add || "")}" placeholder="e.g. soft morning light, shallow depth of field"></label>
         ${r.id === "editor" || r.id === "music" || r.id === "sfx" ? "" : `<label title="Your own extra leave-out words, added to the list above.">Also leave out <input data-wff="avoid" maxlength="600" value="${esc(r.prefs.avoid || "")}" placeholder="e.g. text, watermark, extra fingers"></label>`}
         ${r.steps_ok ? `<label title="0 = Joe decides from the Quality setting.">Steps (0 = Joe decides) <input type="number" min="0" max="150" data-wff="steps" value="${r.prefs.steps || 0}"></label>` : ""}

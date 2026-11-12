@@ -344,6 +344,10 @@ def animals_in(text: str) -> set:
     return {m.group(1).lower().replace("racoon", "raccoon") for m in _ANIMAL_RE.finditer(text or "")}
 
 
+# Your edited look words (Setup > Workflows; workflowprefs.apply fills it): {style: {look id: {"words", "negative"}}}
+LOOK_EDITS: dict = {}
+
+
 def recipe(job, picks: dict | None = None) -> Recipe:
     """Everything one picture task gets from its style and sub-look."""
     st = pick(job)
@@ -352,6 +356,8 @@ def recipe(job, picks: dict | None = None) -> Recipe:
     looks = [l for l in data.get("looks") or [] if isinstance(l, dict)]
     look = next((l for l in looks if l.get("match") and _safe_search(l["match"], text)), None) \
         or next((l for l in looks if not l.get("match")), None) or (looks[0] if looks else {})
+    if look and LOOK_EDITS.get(st.id, {}).get(look.get("id")):
+        look = {**look, **LOOK_EDITS[st.id][look["id"]]}
     notes = [st.note] if st.note else []
     if data.get("note"):
         notes.append(str(data["note"]))

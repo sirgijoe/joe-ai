@@ -13,6 +13,9 @@ Joe's back. The Pictures leave-out list is the same as Setup's old "negative" se
 """
 from __future__ import annotations
 
+import re
+import time
+
 from pathlib import Path
 
 FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave",
@@ -97,8 +100,32 @@ def _originals() -> dict:
     return _ORIG
 
 
+_LOOKS_CACHE: dict = {}
+
+
+def looks_of(sid: str) -> list[dict]:
+    """A picture style's looks (model_picks.json "looks": GitHub's copy when Joe has one, else his
+    own; never fetched from here). Each: {"id", "label", "words", "negative", ...}."""
+    now = time.monotonic()
+    if not _LOOKS_CACHE or now - _LOOKS_CACHE.get("t", 0) > 60:
+        try:
+            from .upkeep import picks
+            p = picks(net=False)
+        except Exception:                          # noqa: BLE001 (Joe's own list then)
+            p = None
+        from . import styles
+        _LOOKS_CACHE.update(t=now, looks=styles._looks(p))
+    data = _LOOKS_CACHE["looks"].get(sid) or {}
+    return [l for l in data.get("looks") or [] if isinstance(l, dict) and re.fullmatch(r"[a-z0-9_-]{1,30}", str(l.get("id", "")))]
+
+
+def look_field(lid: str, kind: str) -> str:
+    return f"look:{lid}:{kind}"                    # kind: words | leave
+
+
 def builtin_text(wid: str) -> dict:
-    """Joe's own words for one workflow: {field: text} (only the fields it has)."""
+    """Joe's own words for one workflow: {field: text} (only the fields it has). A picture style also
+    has each look's words and leave-out words (2.3: shown and editable in Setup > Workflows)."""
     o = _originals()
     if wid == "pictures":
         return {"leave": o["image_negative"]}
@@ -107,8 +134,22 @@ def builtin_text(wid: str) -> dict:
     if wid.startswith("style:"):
         st = o["styles"].get(wid[6:])
         if st:
-            return {"note": st.note, "words": st.suffix, "leave": st.negative}
+            out = {"note": st.note, "words": st.suffix, "leave": st.negative}
+            for lk in looks_of(wid[6:]):
+                out[look_field(lk["id"], "words")] = str(lk.get("words") or "")
+                out[look_field(lk["id"], "leave")] = str(lk.get("negative") or "")
+            return out
     return {}
+
+
+def text_label(field: str, wid: str = "") -> str:
+    if field in TEXT_LABELS:
+        return TEXT_LABELS[field]
+    _, lid, kind = field.split(":", 2)
+    name = next((str(lk.get("label") or lid) for lk in looks_of(wid[6:]) if lk["id"] == lid), lid) \
+        if wid.startswith("style:") else lid
+    return (f"Look '{name}': words Joe adds (positive prompt)" if kind == "words"
+            else f"Look '{name}': leave-out words (negative prompt)")
 
 
 def _text(v, field: str) -> str:
@@ -127,8 +168,8 @@ def _clean(p: dict | None, wid: str = "") -> dict:
         if v:
             out[k] = v
     base = builtin_text(wid) if wid else {}
-    for k in TEXT_FIELDS:
-        if k in p and k in base:
+    for k in base:
+        if k in p:
             v = _text(p[k], k)
             if v != _text(base[k], k):        # unchanged = Joe's own (nothing stored)
                 out[k] = v
@@ -192,6 +233,15 @@ def apply(settings) -> None:
         mine = _clean(wf.get(f"style:{sid}"), f"style:{sid}")
         ch = {f: mine[k] for k, f in (("note", "note"), ("words", "suffix"), ("leave", "negative")) if k in mine}
         styles.STYLES[sid] = replace(st, **ch) if ch else st
+        looks = {}
+        for k, v in mine.items():
+            if k.startswith("look:"):
+                _, lid, kind = k.split(":", 2)
+                looks.setdefault(lid, {})["words" if kind == "words" else "negative"] = v
+        if looks:
+            styles.LOOK_EDITS[sid] = looks
+        else:
+            styles.LOOK_EDITS.pop(sid, None)
     v = _clean(wf.get("video"), "video")
     comfy.WAN_NEGATIVE = v.get("leave", o["wan"])
     comfy.WAN_VIDEO["negative"] = comfy.WAN_NEGATIVE
@@ -235,8 +285,8 @@ def entries(settings, sb, models_dir: Path | None) -> dict:
     rows = []
     def texts(wid: str) -> list[dict]:
         base, now = builtin_text(wid), text_of(settings, wid)
-        return [{"field": k, "label": TEXT_LABELS[k], "builtin": base[k], "value": now[k],
-                 "changed": _text(now[k], k) != _text(base[k], k)} for k in TEXT_FIELDS if k in base]
+        return [{"field": k, "label": text_label(k, wid), "builtin": base[k], "value": now[k],
+                 "look": k.startswith("look:"), "changed": _text(now[k], k) != _text(base[k], k)} for k in base]
 
     for wid, (group, label, about, can_model, can_steps) in BUILTIN.items():
         rows.append({"id": wid, "group": group, "label": label, "about": about, "model_ok": can_model,

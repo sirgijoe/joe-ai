@@ -400,3 +400,36 @@ def test_app_connect_uses_the_apps_own_way(app, monkeypatch):  # noqa: F811
     assert "cursor" in app.settings.mcp_apps
     r = app.connect_app("claude", True, "extension")
     assert r["ok"] and opened[-1].endswith("Joe.mcpb")
+
+
+def test_look_words_are_shown_filled_in_and_editable(tmp_path, monkeypatch):
+    """2.3 stage 4: each look's words from model_picks.json, in Setup > Workflows, with EDIT."""
+    from types import SimpleNamespace
+    monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
+    s = Settings()
+    try:
+        base = wfp.builtin_text("style:photo")
+        portrait = next(lk for lk in wfp.looks_of("photo") if lk["id"] == "portrait")
+        assert base["look:portrait:words"] == portrait["words"] and base["look:portrait:leave"] == portrait["negative"]
+        rows = {r["id"]: r for r in wfp.entries(s, SimpleNamespace(workflows=tmp_path / "wf"), None)["rows"]}
+        f = {t["field"]: t for t in rows["style:photo"]["texts"]}
+        assert f["look:portrait:words"]["label"] == "Look 'Portrait': words Joe adds (positive prompt)"
+        assert f["look:portrait:words"]["value"] == portrait["words"] and f["look:portrait:words"]["look"]
+        assert not f["words"]["look"]
+        job = SimpleNamespace(name="portrait of my grandmother", format="", style="photo")
+        assert portrait["words"] in styles.recipe(job).words
+        # an edit is kept, used, and only the changed one is stored
+        r = wfp.save(s, "style:photo", {"look:portrait:words": "85mm, f/2, window light",
+                                        "look:landscape:words": base["look:landscape:words"],
+                                        "look:nope:words": "ignored", "look:portrait:leave": "plastic skin"})
+        assert r["prefs"] == {"look:portrait:words": "85mm, f/2, window light", "look:portrait:leave": "plastic skin"}
+        rec = styles.recipe(job)
+        assert "85mm, f/2, window light" in rec.words and portrait["words"] not in rec.words
+        assert "plastic skin" in rec.negative and "dead eyes" not in rec.negative
+        land = styles.recipe(SimpleNamespace(name="a landscape of a misty lake", format="", style="photo"))
+        assert "16mm" in land.words                                       # other looks keep Joe's words
+        wfp.save(s, "style:photo", None)                                    # RESET THIS WORKFLOW
+        assert portrait["words"] in styles.recipe(job).words and styles.LOOK_EDITS.get("photo") is None
+    finally:
+        s.workflows = {}
+        wfp.apply(s)
