@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Joe 2.3 — Tools page redesign (MOCKUP)</title>
+<style>
+:root {
+  --ph: #39ff6a; --ph-dim: rgba(57,255,106,.62); --ph-faint: rgba(57,255,106,.12);
+  --bg: #030803; --line: rgba(57,255,106,.45); --accent: var(--ph); --on-accent: #030803; --btn: transparent;
+  --font: "VT323", "Cascadia Mono", Consolas, "Lucida Console", monospace; --fs: 22px; --radius: 0px;
+}
+body.modern {
+  --ph: #e7eaf0; --ph-dim: #a3adbd; --ph-faint: rgba(255,255,255,.07); --bg: #0f1218; --line: #2a303c;
+  --accent: #4f9cff; --on-accent: #fff; --btn: #222836; --font: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --fs: 16px; --radius: 10px;
+}
+body.modern.day {
+  --ph: #1c2230; --ph-dim: #4f5a6b; --ph-faint: rgba(0,0,0,.06); --bg: #eef0f4; --line: #d0d5de;
+  --accent: #2563eb; --btn: #ffffff;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ph); font-family: var(--font); font-size: var(--fs); line-height: 1.2; }
+button { font: inherit; color: inherit; background: var(--btn); border: 1px solid var(--line); border-radius: var(--radius); padding: 2px 10px; cursor: pointer; }
+button:hover { background: var(--accent); color: var(--on-accent); }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.dim { color: var(--ph-dim); } .small { font-size: .78em; }
+.mockbar { background: repeating-linear-gradient(45deg, #5a4500 0 12px, #3b2d00 12px 24px); color: #ffd66b; padding: 6px 14px; font-size: .8em; display: flex; gap: 14px; align-items: center; flex-wrap: wrap; }
+.mockbar button { border-color: #ffd66b; color: #ffd66b; }
+.mockbar button:hover { background: #ffd66b; color: #2a2000; }
+.wrap { display: grid; grid-template-columns: minmax(0, 1fr) 21em; gap: 14px; padding: 10px 14px; }
+@media (max-width: 1100px) { .wrap { grid-template-columns: 1fr; } }
+.tabs { display: flex; gap: 6px; padding: 8px 14px 0; border-bottom: 4px double var(--line); flex-wrap: wrap; }
+.tabs span { padding: 2px 10px; } .tabs .on { background: var(--accent); color: var(--on-accent); border-radius: var(--radius) var(--radius) 0 0; }
+/* the agent status strip: shows on every tab while an agent works */
+.strip { display: flex; gap: 12px; align-items: center; padding: 4px 14px; border-bottom: 1px solid var(--line); background: var(--ph-faint); font-size: .85em; flex-wrap: wrap; }
+.strip[hidden] { display: none; }
+.strip .bar { flex: 0 0 9em; height: .7em; border: 1px solid var(--line); position: relative; }
+.strip .bar i { position: absolute; inset: 0 auto 0 0; width: 43%; background: var(--accent); }
+.panel { border: 4px double var(--line); border-radius: var(--radius); padding: 8px 14px 14px; }
+body.modern .panel { border: 1px solid var(--line); background: color-mix(in srgb, var(--btn) 40%, transparent); }
+h2 { margin: 0 0 8px; font-size: 1.15em; letter-spacing: .04em; font-weight: normal; }
+h3 { margin: 0; font-size: 1em; font-weight: normal; letter-spacing: .06em; }
+body.modern h2, body.modern h3 { font-weight: 600; letter-spacing: 0; }
+.search { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; }
+.search input { flex: 1; font: inherit; color: var(--ph); background: transparent; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; }
+.search input::placeholder { color: var(--ph-dim); }
+.controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
+section.sec { margin: 0 0 10px; }
+.sechead { display: flex; gap: 10px; align-items: baseline; margin: 6px 0; }
+details.cat { border-top: 1px dashed var(--line); padding: 4px 0; }
+details.cat > summary { cursor: pointer; list-style: none; padding: 4px 0; display: flex; gap: 10px; align-items: baseline; }
+details.cat > summary::-webkit-details-marker { display: none; }
+details.cat > summary::before { content: "▸"; width: 1em; }
+details.cat[open] > summary::before { content: "▾"; }
+details.cat > summary:hover h3 { text-decoration: underline; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15em, 1fr)); gap: 10px; margin: 6px 0 4px 1.4em; }
+.card { position: relative; border: 1px solid var(--line); border-radius: var(--radius); padding: 8px 2.4em 8px 12px; min-height: 4.6em; background: var(--btn); text-align: left; display: block; width: 100%; }
+.card .n { display: block; } .card .b { display: block; font-size: .8em; color: var(--ph-dim); margin-top: 3px; }
+.card:hover .b { color: inherit; }
+.card .cat-tag { display: inline-block; font-size: .7em; color: var(--ph-dim); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; margin-top: 4px; }
+.cardwrap { position: relative; }
+.star { position: absolute; top: 4px; right: 4px; border: none; background: transparent; font-size: 1.1em; padding: 0 6px; line-height: 1.3; color: var(--ph-dim); }
+.star[aria-pressed="true"] { color: #ffd23f; }
+.star:hover { background: transparent; color: #ffd23f; }
+.chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: 1.4em; }
+.chips button { font-size: .85em; border-radius: 999px; }
+mark { background: var(--accent); color: var(--on-accent); }
+.agentcard { border-style: dashed; }
+.note { border-left: 3px solid var(--accent); padding: 2px 0 2px 10px; margin: 6px 0 10px 1.4em; font-size: .85em; }
+aside .panel { position: sticky; top: 10px; font-size: .82em; }
+aside ol, aside ul { padding-left: 1.2em; margin: 4px 0 10px; } aside li { margin: 3px 0; }
+.toast { position: fixed; bottom: 14px; left: 50%; transform: translateX(-50%); background: var(--accent); color: var(--on-accent); padding: 6px 14px; border-radius: var(--radius); font-size: .85em; }
+.toast[hidden] { display: none; }
+.empty { margin-left: 1.4em; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.listdemo { margin: 6px 0 0 1.4em; display: grid; grid-template-columns: repeat(auto-fill, minmax(13em, 1fr)); gap: 4px 14px; font-size: .9em; }
+.listdemo div { display: flex; gap: 6px; align-items: center; }
+.listdemo .star { position: static; }
+</style>
+</head>
+<body>
+<div class="mockbar" role="note"><b>MOCKUP</b> — not built into Joe yet. Nothing here runs a tool. Stars, search and opening work so you can try them.
+  <span style="flex:1"></span>
+  <button type="button" id="look">LOOK: RETRO</button>
+  <button type="button" id="striptoggle">HIDE THE AGENT STRIP</button>
+</div>
+<nav class="tabs" aria-label="Joe's tabs (picture only)"><span>F1 HOME</span><span class="on">F3 TOOLS</span><span>F4 TALK</span><span>F7 FILES</span><span>REPORT</span><span>SETUP</span></nav>
+<div class="strip" id="strip" role="status">
+  <b>AGENT</b> <span>Researcher “cheapest heat pump for a 1,500 sq ft house”</span>
+  <span class="bar" aria-hidden="true"><i></i></span><span>step 3 of 7 · checking facts (2 of 5) · 4 min</span>
+  <span style="flex:1"></span>
+  <button type="button" data-say="Opens the live step list: the plan with ticks, each step, what it looked up and the plain log.">[ SEE STEPS ]</button>
+  <button type="button" data-say="Asks “Stop the Researcher? What's done so far is kept.” and stops at once on YES.">[ STOP ]</button>
+</div>
+
+<div class="wrap">
+<main class="panel" aria-labelledby="ttl">
+  <h2 id="ttl">TOOLS <span class="dim small">— pick one, add your files, press RUN · or just ask on the Home screen</span></h2>
+  <div class="search" role="search">
+    <label for="q">SEARCH TOOLS</label>
+    <input id="q" type="search" autocomplete="off" placeholder="type what you want: “blur faces”, “PDF”, “subtitles”, “budget”…  (press / to jump here)">
+    <button type="button" id="clear" hidden>[ CLEAR ]</button>
+  </div>
+  <div id="live" class="sr" aria-live="polite"></div>
+  <div class="controls"><span id="count" class="dim small"></span><span style="flex:1"></span>
+    <button type="button" id="openall">[ OPEN ALL ]</button><button type="button" id="closeall">[ CLOSE ALL ]</button></div>
+  <div id="top"></div>
+  <div id="cats"></div>
+  <section class="sec" aria-labelledby="otherlists">
+    <div class="sechead"><h3 id="otherlists">THE SAME RULE ON OTHER LONG LISTS</h3><span class="dim small">example: Setup &gt; Workflows &gt; picture styles</span></div>
+    <div class="note">Favorites first, then A–Z. “Joe decides” stays first because it's the default. The same goes for writing templates, voices, themes and your agents.</div>
+    <div class="listdemo" id="styles"></div>
+  </section>
+</main>
+<aside>
+  <div class="panel">
+    <h2>FOR JOSEPH: WHAT TO LOOK AT</h2>
+    <ol>
+      <li><b>Search bar</b> at the top: matches a tool's name, its one-line blurb, its example phrases and its category. Every word you type must match. Try “faces”, “pdf”, “voice”, “money”.</li>
+      <li><b>★ Favorites</b> at the top, then <b>Used lately</b> (the last 5 tools you ran). Click ☆ on any tool. Favorites are kept in settings, so they survive updates and come along in a backup.</li>
+      <li><b>Agents</b> get their own section, with the five templates. The <b>status strip</b> under the tabs shows on every tab while one works.</li>
+      <li><b>Categories</b> open and close like Setup &gt; Workflows. Joe remembers which ones you left open. Inside each one, tools are A–Z (in the language Joe's screens are in).</li>
+      <li><b>Pictures is split</b> (it had 20): fix, sort and describe (8) · change a picture (6) · make new ones (6).</li>
+    </ol>
+    <h2>DECISIONS FOR YOU</h2>
+    <ul>
+      <li>The Pictures split and its three names: OK, or keep one Pictures group?</li>
+      <li>Categories closed when Tools opens the first time (as shown), or all open?</li>
+      <li>“Used lately”: keep it, and 5 tools or a different number?</li>
+      <li>Search: also look in each tool's LEARN MORE text? (finds more, but more wrong hits)</li>
+      <li>Agents section above or below the tool categories?</li>
+      <li>Retro and modern looks both shown here (LOOK button, top right).</li>
+    </ul>
+    <p class="dim">Keyboard: / jumps to search, Esc clears it, Tab moves through tools and stars, Enter opens.</p>
+  </div>
+</aside>
+</div>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script>
+const TOOLS = [{"id": "transcribe", "name": "Transcribe a recording", "group": "Audio", "blurb": "Turn audio or video into text, subtitles and short notes.", "ex": ["Turn my meeting recording into notes", "Make subtitles for this video"], "ready": true}, {"id": "read-aloud", "name": "Read a document aloud", "group": "Audio", "blurb": "Turn writing into an MP3 you can listen to.", "ex": ["Read my short story aloud as an MP3", "Turn this guide into an audiobook"], "ready": true}, {"id": "find-book", "name": "Find a book to read aloud", "group": "Audio", "blurb": "By ISBN, title or a photo of the cover: free public-domain books downloaded and read aloud.", "ex": ["Read me Pride and Prejudice", "Find the book with ISBN 978-0-14-143951-8"], "ready": true}, {"id": "memory-voice", "name": "Hear it in a loved one's voice", "group": "Audio", "blurb": "A letter, story or note read in the voice of someone you miss, made from family recordings.", "ex": ["Read my letter in Grandpa's voice"], "ready": true}, {"id": "proofread", "name": "Proofread my writing", "group": "Writing", "blurb": "Fix spelling and grammar, with a list of every change.", "ex": ["Proofread my cover letter", "Check the grammar in my newsletter"], "ready": true}, {"id": "translate", "name": "Translate", "group": "Writing", "blurb": "Make a copy of finished text in another language.", "ex": ["Translate my menu into Spanish", "Make French and German copies of this flyer"], "ready": true}, {"id": "ask-files", "name": "Ask my files", "group": "Writing", "blurb": "Answers and summaries from a folder of your documents.", "ex": ["What do my contracts say about cancelling?", "Summarize every document in this folder"], "ready": true}, {"id": "summarize", "name": "Summarize", "group": "Writing", "blurb": "The key points of an article, PDF, book or web page.", "ex": ["Summarize this article", "Give me the key points of my lease", "Summarize this book chapter by chapter"], "ready": true}, {"id": "rewrite", "name": "Rewrite or change the tone", "group": "Writing", "blurb": "Friendlier, more formal, shorter, simpler, an email, or a resume for a job.", "ex": ["Make my email sound friendlier", "Turn my notes into an email", "Tailor my resume to this job post"], "ready": true}, {"id": "brainstorm", "name": "Brainstorm", "group": "Writing", "blurb": "Ideas, names, gift ideas, marketing angles, outlines or ways to solve a problem.", "ex": ["Give me 25 names for my bakery", "Gift ideas for my dad who loves fishing", "Outline a blog post about raised garden beds"], "ready": true}, {"id": "study", "name": "Study helper", "group": "Writing", "blurb": "Explains your material at your level, with flashcards and a practice quiz.", "ex": ["Make flashcards from my biology notes", "Explain this chapter like I'm 10", "Quiz me on this manual"], "ready": true}, {"id": "code-review", "name": "Explain or review my code", "group": "Writing", "blurb": "What your code does, likely bugs with fixes, and tests to add. Joe never runs it.", "ex": ["Explain what this script does", "Find bugs in my Python file"], "ready": true}, {"id": "ai-search", "name": "Get found by AI search", "group": "Writing", "blurb": "FAQ, website code and llms.txt so AI assistants can describe your business correctly.", "ex": ["Help my pottery studio show up in ChatGPT answers", "Make an FAQ and schema for my shop"], "ready": true}, {"id": "meal-plan", "name": "Budget meal planner", "group": "Writing", "blurb": "A week of meals and a shopping list that fits your budget, with the total added up.", "ex": ["I have $80 this week to feed a family of 8", "Cheap dinners for 2 for 5 days, no pork"], "ready": true}, {"id": "clean-audio", "name": "Clean up a recording", "group": "Audio", "blurb": "Less background noise and hum, and an even volume, for a recording or a video's sound.", "ex": ["Clean up the background noise in my podcast", "Fix the hum in this video"], "ready": true}, {"id": "tidy-speech", "name": "Cut out ums and long pauses", "group": "Audio", "blurb": "A recording or talking video without the 'um', 'uh' and long silences.", "ex": ["Cut the ums out of my podcast", "Remove the long pauses from this video"], "ready": true}, {"id": "joe-language", "name": "Joe's screens in another language", "group": "Writing", "blurb": "Joe translates his own window into another language with the writing model.", "ex": ["Translate Joe's screens into Spanish"], "ready": true}, {"id": "edit-words", "name": "Edit a video by its words", "group": "Video", "blurb": "Delete words from what was said and Joe cuts them out of the video or recording (like Descript).", "ex": ["Let me edit my video by deleting words", "Cut the sentences I deleted out of my video"], "ready": true}, {"id": "dub-video", "name": "Dub or voice-over a video", "group": "Video", "blurb": "Your video in another language: translated subtitles, and a voice-over for many languages.", "ex": ["Dub my video into Spanish", "Spanish subtitles for this video"], "ready": true}, {"id": "b-roll", "name": "Add B-roll to a talking video", "group": "Video", "blurb": "Cut to your own clips and photos where they match what's being said.", "ex": ["Add my B-roll clips to this video", "Cut to my product photos when I talk about them"], "ready": true}, {"id": "privacy-blur", "name": "Privacy blur", "group": "Pictures", "blurb": "Blur faces, license plates, house numbers and screens before you post a photo.", "ex": ["Blur the faces in these party photos", "Hide the license plate in my car photo"], "ready": true}, {"id": "social-graphic", "name": "Social graphics and flyers", "group": "Pictures", "blurb": "Your exact words on a photo or a plain color, at each social site's size.", "ex": ["Make an Instagram post that says Grand Opening Saturday", "A flyer for our yard sale"], "ready": true}, {"id": "ask-sheet", "name": "Ask my spreadsheet", "group": "Files", "blurb": "Totals, averages, counts and charts from a spreadsheet, worked out by Joe's own math.", "ex": ["Which product sold the most?", "Total spent per month in my expenses sheet"], "ready": true}, {"id": "sort-files", "name": "Sort and rename my files", "group": "Files", "blurb": "Documents sorted into folders with clear names like '2026-03-02 Electric bill.pdf'.", "ex": ["Sort my scanned bills into folders", "Give my downloads clear names"], "ready": true}, {"id": "calendar-file", "name": "Dates and to-dos to my calendar", "group": "Files", "blurb": "A calendar file (.ics) with the dates and to-dos from notes, emails or a transcript.", "ex": ["Put the dates from my meeting notes in my calendar", "Make a calendar file from this school letter"], "ready": true}, {"id": "tidy-sheet", "name": "Tidy a spreadsheet", "group": "Files", "blurb": "Fix duplicates, spelling and categories in a CSV.", "ex": ["Remove the duplicates from my customer list", "Sort my product sheet into categories"], "ready": true}, {"id": "photo-batch", "name": "Resize and convert photos", "group": "Files", "blurb": "Shrink, convert, rename or watermark a folder of photos.", "ex": ["Shrink my product photos for the website", "Convert these photos to JPG"], "ready": true}, {"id": "read-scans", "name": "Read scans and receipts", "group": "Files", "blurb": "Pull the text out of scans, receipts and forms.", "ex": ["Type up the text from these scanned pages", "Put my receipts in a spreadsheet"], "ready": true}, {"id": "photo-listing", "name": "Listings from photos", "group": "Pictures", "blurb": "Titles, descriptions, tags and alt text from product photos.", "ex": ["Write listings for my product photos", "Alt text for these pictures"], "ready": true}, {"id": "sort-photos", "name": "Sort my photos", "group": "Pictures", "blurb": "Tag and sort a folder of pictures by what's in them.", "ex": ["Sort my vacation photos", "Tag these pictures by what's in them"], "ready": true}, {"id": "remove-bg", "name": "Remove background and upscale", "group": "Pictures", "blurb": "Clean, sharp product shots.", "ex": ["Remove the background from my product photos", "White background for my shop pictures"], "ready": true}, {"id": "edit-picture", "name": "Edit a picture by asking", "group": "Pictures", "blurb": "\"Swap the background\", \"remove the cup\".", "ex": ["Swap the background of this photo for a beach", "Remove the cup from these pictures"], "ready": true}, {"id": "restore-photo", "name": "Restore old photos", "group": "Pictures", "blurb": "Undo fading and color casts, true to the photo.", "ex": ["Restore my grandparents' old photos", "Fix and colorize this old picture"], "ready": true}, {"id": "fix-spot", "name": "Fix one spot", "group": "Pictures", "blurb": "Mark a spot; only that spot changes.", "ex": ["Remove the date stamp from this photo", "Take the cup off the table in this picture"], "ready": true}, {"id": "merge-pictures", "name": "Put pictures together", "group": "Pictures", "blurb": "Two or three pictures into one.", "ex": ["Put my dog from this photo into the beach picture", "Place my mug on this kitchen counter"], "ready": true}, {"id": "relight", "name": "Change the lighting", "group": "Pictures", "blurb": "Golden hour, studio light, night...", "ex": ["Make this photo look like golden hour", "Give my product photo studio lighting"], "ready": true}, {"id": "restyle", "name": "Redraw in a new style", "group": "Pictures", "blurb": "Your picture as watercolor, anime, a sketch...", "ex": ["Turn this photo of my house into a watercolor", "Make my dog photo look like anime"], "ready": true}, {"id": "redraw", "name": "Change a picture a little or a lot", "group": "Pictures", "blurb": "Same picture, new take: you pick how much changes.", "ex": ["Make this sketch look finished", "Turn my rough drawing into a clean picture"], "ready": true}, {"id": "make-bigger", "name": "Make a picture wider or taller", "group": "Pictures", "blurb": "AI fills in more of the scene around it.", "ex": ["Make this photo wide enough for a banner", "Make my picture tall for a phone wallpaper"], "ready": true}, {"id": "character-scenes", "name": "Same character, new scenes", "group": "Pictures", "blurb": "One character, many pictures that match.", "ex": ["Put my mascot in 5 different scenes", "Show my dragon drawing at the beach and in space"], "ready": true}, {"id": "character-spin", "name": "Character turnaround", "group": "Pictures", "blurb": "Front, side and back views, plus a sheet.", "ex": ["Make a turnaround sheet of my mascot", "Show my character from every side"], "ready": true}, {"id": "sketch-to-picture", "name": "Sketch to picture", "group": "Pictures", "blurb": "Your drawing, finished by the AI.", "ex": ["Turn my sketch of a castle into a real painting", "Finish my kid's drawing as a cartoon"], "ready": true}, {"id": "illusion-art", "name": "Hidden-picture illusion", "group": "Pictures", "blurb": "A scene with a shape or word hidden in it.", "ex": ["Hide the word JOE in a forest picture", "Make a spiral illusion of a medieval village"], "ready": true}, {"id": "make-3d", "name": "Picture to 3D model", "group": "Pictures", "blurb": "One picture in, a 3D model (.glb) out.", "ex": ["Make a 3D model from my mascot drawing", "Turn this photo of my mug into a 3D model"], "ready": true}, {"id": "animate-photo", "name": "Animate a photo", "group": "Video", "blurb": "Turn one of your photos into a short clip.", "ex": ["Make this photo move", "Animate my product photo with a slow turn"], "ready": true}, {"id": "restyle-video", "name": "Restyle a video", "group": "Video", "blurb": "Same motion, new look: anime, watercolor...", "ex": ["Make my dance video look like anime", "Turn this clip into a watercolor painting"], "ready": true}, {"id": "make-shorts", "name": "Make shorts from a long video", "group": "Video", "blurb": "The best moments as vertical clips with big captions.", "ex": ["Cut my podcast into 5 shorts for TikTok", "Make YouTube Shorts from my class recording"], "ready": true}, {"id": "music", "name": "Music and sound effects", "group": "Audio", "blurb": "Background music and short jingles.", "ex": ["Make 3 calm background tracks for my videos", "A door creak and a doorbell sound effect"], "ready": true}, {"id": "pdf-tools", "name": "PDF toolkit", "group": "Files", "blurb": "Join, split, reorder, turn or shrink PDFs, and fill in PDF forms.", "ex": ["Join these three PDFs into one", "Take pages 2 and 5 out into their own PDF", "Make this PDF small enough to email"], "ready": true}, {"id": "explain-letter", "name": "Explain this letter", "group": "Writing", "blurb": "A bill, lease, insurance or benefits letter in plain words: what to do, by when, and a reply.", "ex": ["Explain this letter from my insurance", "What does this bill want me to do and by when?", "Help me understand my lease renewal and write a reply asking for more time"], "ready": true}, {"id": "hide-details", "name": "Hide personal details", "group": "Files", "blurb": "Names, addresses, phone numbers and account numbers hidden in a copy before you share it.", "ex": ["Black out the names and account numbers in this statement before I send it", "Remove personal details from my medical letter", "Hide everyone's phone numbers in this list"], "ready": true}, {"id": "meeting-minutes", "name": "Meeting minutes", "group": "Audio", "blurb": "A meeting recording (or its transcript) into minutes: decisions, to-dos, who and by when.", "ex": ["Make minutes from this meeting recording", "Who agreed to do what in yesterday's call?", "Turn this Zoom transcript into minutes with to-dos"], "ready": true}, {"id": "bank-budget", "name": "Bank statement to budget", "group": "Files", "blurb": "Your bank's CSV sorted into a budget: where the money went, subscriptions and price rises.", "ex": ["Turn my bank statement into a budget", "Which subscriptions am I paying for?", "Where did my money go last month?"], "ready": true}, {"id": "resume-tailor", "name": "Resume tailor", "group": "Writing", "blurb": "Your resume and a job posting in; a matched resume, cover letter and gap list out. Nothing invented.", "ex": ["Tailor my resume to this job posting", "Write a cover letter for this job from my CV"], "ready": true}, {"id": "mail-merge", "name": "Mail merge", "group": "Files", "blurb": "One letter and a spreadsheet of names in: a personal letter for every row out.", "ex": ["Make a letter for everyone on this list", "Merge my thank-you note with the customer spreadsheet"], "ready": true}, {"id": "alt-text", "name": "Picture descriptions (alt text)", "group": "Pictures", "blurb": "A short description of each picture, for screen readers, websites and shop listings.", "ex": ["Write alt text for my website photos", "Describe these pictures for a blind reader"], "ready": true}, {"id": "duplicate-photos", "name": "Duplicate photo finder", "group": "Pictures", "blurb": "Finds copies and near-copies of photos and suggests the best one to keep. Nothing is deleted.", "ex": ["Find the duplicate photos in my phone dump", "Which of these burst shots should I keep?"], "ready": true}];
+const STYLES = [{"id": "general", "name": "Joe decides"}, {"id": "photo", "name": "Photo"}, {"id": "bw", "name": "Black and white photo"}, {"id": "anime", "name": "Anime / manga"}, {"id": "painting", "name": "Painting (oil, watercolor...)"}, {"id": "concept", "name": "Concept art / digital painting"}, {"id": "render3d", "name": "3D render / CGI"}, {"id": "scifi", "name": "Sci-fi / cyberpunk"}, {"id": "cartoon", "name": "Cartoon / comic"}, {"id": "pixel", "name": "Pixel art"}, {"id": "surreal", "name": "Surreal / abstract"}, {"id": "manga", "name": "Manga (black and white)"}, {"id": "watercolor", "name": "Watercolor"}, {"id": "fantasy", "name": "Fantasy art"}, {"id": "cyberpunk", "name": "Cyberpunk"}, {"id": "comic", "name": "Comic book"}, {"id": "abstract", "name": "Abstract"}, {"id": "illustration", "name": "Illustration / flat art"}, {"id": "character", "name": "Mascot (brand character)"}, {"id": "product", "name": "Product shot"}, {"id": "coloring", "name": "Coloring page"}];
+// Pictures split in three (the proposal); every other tool keeps its group.
+const PIC = {
+  "Pictures — fix, sort and describe": ["restore-photo", "fix-spot", "remove-bg", "privacy-blur", "duplicate-photos", "sort-photos", "alt-text", "photo-listing"],
+  "Pictures — change a picture": ["edit-picture", "relight", "restyle", "redraw", "make-bigger", "merge-pictures"],
+  "Pictures — make new ones": ["character-scenes", "character-spin", "sketch-to-picture", "illusion-art", "make-3d", "social-graphic"],
+};
+const CATS = ["Writing", ...Object.keys(PIC), "Video", "Audio", "Files"];
+const catOf = (t) => { if (t.group !== "Pictures") return t.group; for (const [k, ids] of Object.entries(PIC)) if (ids.includes(t.id)) return k; return "Pictures — make new ones"; };
+TOOLS.forEach((t) => (t.cat = catOf(t)));
+const AGENTS = [
+  { id: "a-researcher", name: "Researcher", blurb: "A question in; several sources read online; an answer with its sources, every fact checked.", ex: ["compare heat pumps", "find out", "look up"] },
+  { id: "a-clerk", name: "Paperwork clerk", blurb: "Watches a folder: sorts, renames, summarizes, converts, explains letters. Asks before changing a file; keeps an undo list.", ex: ["sort my scans", "watch a folder"] },
+  { id: "a-briefing", name: "Daily briefing", blurb: "On a schedule: news on your topics, the weather, a price, a page that changed. One digest to your phone.", ex: ["every morning", "news", "weather", "price"] },
+  { id: "a-maker", name: "Maker", blurb: "An idea carried through to finished pieces: the writing, the pictures or video, the exports.", ex: ["make a", "from idea to"] },
+  { id: "a-assistant", name: "Personal assistant", blurb: "In Talk: reminders, lists, calendar entries, quick lookups, drafted replies, and starting the other four. Sending always asks.", ex: ["remind me", "calendar", "jarvis"] },
+];
+AGENTS.forEach((a) => (a.cat = "Agents"));
+const ALL = [...TOOLS, ...AGENTS];
+const byId = Object.fromEntries(ALL.map((t) => [t.id, t]));
+
+let favs = new Set(["summarize", "remove-bg", "pdf-tools"]);
+let lately = ["transcribe", "proofread", "privacy-blur", "summarize", "make-shorts"];
+let openCats = new Set(["Agents"]);
+const sfavs = new Set(["photo"]);
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const az = (a, b) => a.name.localeCompare(b.name, document.documentElement.lang || "en", { sensitivity: "base" });
+const words = (q) => q.toLowerCase().split(/\s+/).filter((w) => w.length > 1 && !["a", "an", "the", "my", "to", "of", "and", "for", "in", "on", "me", "i"].includes(w));
+const hay = (t) => [t.name, t.blurb, (t.ex || []).join(" "), t.cat].join(" ").toLowerCase();
+const matches = (t, ws) => ws.every((w) => hay(t).includes(w));
+function hl(text, ws) {
+  let out = esc(text);
+  for (const w of ws) out = out.replace(new RegExp("(" + w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + ")", "ig"), "<mark>$1</mark>");
+  return out;
+}
+function card(t, ws, tag) {
+  const isAgent = t.cat === "Agents";
+  const on = favs.has(t.id);
+  return `<div class="cardwrap"><button type="button" class="card${isAgent ? " agentcard" : ""}" data-open="${t.id}">
+    <span class="n">${hl(t.name, ws)}</span><span class="b">${hl(t.blurb, ws)}</span>${tag ? `<span class="cat-tag">${esc(t.cat)}</span>` : ""}</button>
+    <button type="button" class="star" data-star="${t.id}" aria-pressed="${on}" title="${on ? "Remove from favorites" : "Add to favorites"}" aria-label="${on ? "Remove " : "Add "}${esc(t.name)} ${on ? "from" : "to"} favorites">${on ? "★" : "☆"}</button></div>`;
+}
+function catBlock(name, items, ws, extra) {
+  const open = ws.length ? true : openCats.has(name);
+  return `<details class="cat" data-cat="${esc(name)}"${open ? " open" : ""}><summary><h3>${esc(name.toUpperCase())}</h3><span class="dim small">${items.length} ${name === "Agents" ? "templates" : "tools"}</span></summary>
+    ${extra || ""}<div class="cards">${items.sort(az).map((t) => card(t, ws)).join("")}</div></details>`;
+}
+function render() {
+  const q = $("#q").value.trim(); const ws = words(q);
+  $("#clear").hidden = !q;
+  let top = "";
+  if (!ws.length) {
+    const f = ALL.filter((t) => favs.has(t.id)).sort(az);
+    top += `<section class="sec" aria-labelledby="h-fav"><div class="sechead"><h3 id="h-fav">★ FAVORITES</h3><span class="dim small">${f.length}</span></div>
+      ${f.length ? `<div class="cards">${f.map((t) => card(t, [], true)).join("")}</div>` : `<p class="dim small empty">Press ☆ on any tool to keep it up here.</p>`}</section>`;
+    top += `<section class="sec" aria-labelledby="h-late"><div class="sechead"><h3 id="h-late">USED LATELY</h3></div>
+      <div class="chips">${lately.map((id) => `<button type="button" data-open="${id}">${esc(byId[id].name)}</button>`).join("")}</div></section>`;
+  }
+  $("#top").innerHTML = top;
+  const shown = ws.length ? ALL.filter((t) => matches(t, ws)) : ALL;
+  const agentsNote = `<div class="note">An agent works through a whole job by himself: makes a plan, looks things up online, checks his own answers and only finishes when every point of the job is done. Each risky ability is <b>off</b> until you turn it on, and is explained first on its own short screen. Start from one of these five; “build your own” = start from a copy. <span class="dim">Your agents: none yet.</span></div>`;
+  let h = "";
+  const ag = shown.filter((t) => t.cat === "Agents");
+  if (ag.length) h += catBlock("Agents", ag, ws, ws.length ? "" : agentsNote);
+  for (const c of CATS) { const its = shown.filter((t) => t.cat === c); if (its.length) h += catBlock(c, its, ws); }
+  if (ws.length && !shown.length) h = `<p class="empty">No tool matches “${esc(q)}”. <span class="dim">Try fewer words, or just ask on the Home screen: Joe works out which tools to use.</span></p>`;
+  $("#cats").innerHTML = h;
+  const n = shown.length;
+  $("#count").textContent = ws.length ? `${n} match${n === 1 ? "" : "es"} for “${q}”` : `${TOOLS.length} tools in ${CATS.length} groups · 5 agent templates`;
+  $("#live").textContent = ws.length ? $("#count").textContent : "";
+  // styles demo
+  const st = STYLES.slice(1).sort(az);
+  const ordered = [STYLES[0], ...st.filter((s) => sfavs.has(s.id)), ...st.filter((s) => !sfavs.has(s.id))];
+  $("#styles").innerHTML = ordered.map((s) => `<div><button type="button" class="star" data-sstar="${s.id}" aria-pressed="${sfavs.has(s.id)}" aria-label="${sfavs.has(s.id) ? "Remove " : "Add "}${esc(s.name)} ${sfavs.has(s.id) ? "from" : "to"} favorites" ${s.id === "general" ? "disabled style='visibility:hidden'" : ""}>${sfavs.has(s.id) ? "★" : "☆"}</button>${esc(s.name)}${s.id === "general" ? ' <span class="dim small">(default)</span>' : ""}</div>`).join("");
+}
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3200); }
+document.addEventListener("click", (e) => {
+  const s = e.target.closest("[data-star]");
+  if (s) { const id = s.dataset.star; favs.has(id) ? favs.delete(id) : favs.add(id); render(); toast(favs.has(id) ? `★ ${byId[id].name} is a favorite` : `${byId[id].name} is no longer a favorite`); const again = document.querySelector(`[data-star="${id}"]`); if (again) again.focus(); return; }
+  const ss = e.target.closest("[data-sstar]");
+  if (ss) { const id = ss.dataset.sstar; sfavs.has(id) ? sfavs.delete(id) : sfavs.add(id); render(); document.querySelector(`[data-sstar="${id}"]`)?.focus(); return; }
+  const o = e.target.closest("[data-open]");
+  if (o) { const t = byId[o.dataset.open]; toast(t.cat === "Agents" ? `Here the ${t.name} setup opens: the job first, then one short screen per risky ability.` : `Here “${t.name}” opens, the same form as today.`); return; }
+  const say = e.target.closest("[data-say]"); if (say) { toast(say.dataset.say); return; }
+});
+document.addEventListener("toggle", (e) => {
+  const d = e.target; if (!d.matches || !d.matches("details.cat") || $("#q").value.trim()) return;
+  d.open ? openCats.add(d.dataset.cat) : openCats.delete(d.dataset.cat);
+}, true);
+$("#q").addEventListener("input", render);
+$("#q").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("#q").value = ""; render(); } });
+$("#clear").onclick = () => { $("#q").value = ""; render(); $("#q").focus(); };
+document.addEventListener("keydown", (e) => { if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); } });
+$("#openall").onclick = () => { ["Agents", ...CATS].forEach((c) => openCats.add(c)); render(); };
+$("#closeall").onclick = () => { openCats.clear(); render(); };
+$("#look").onclick = () => { const b = document.body; if (!b.classList.contains("modern")) { b.classList.add("modern"); $("#look").textContent = "LOOK: MODERN NIGHT"; } else if (!b.classList.contains("day")) { b.classList.add("day"); $("#look").textContent = "LOOK: MODERN DAY"; } else { b.classList.remove("modern", "day"); $("#look").textContent = "LOOK: RETRO"; } };
+$("#striptoggle").onclick = () => { const s = $("#strip"); s.hidden = !s.hidden; $("#striptoggle").textContent = s.hidden ? "SHOW THE AGENT STRIP" : "HIDE THE AGENT STRIP"; };
+render();
+</script>
+</body>
+</html>
