@@ -10,6 +10,7 @@ model_picks.json ("style_models") so it can change on GitHub without a new versi
 from __future__ import annotations
 
 import os
+import re
 import shutil
 from pathlib import Path
 from typing import Callable
@@ -60,8 +61,31 @@ def recommendations(picks: dict | None = None) -> list[dict]:
     return [r for r in rows if _ok(r)]
 
 
+def _key(text: str) -> str:
+    return re.sub(r"[^a-z0-9]", "", (text or "").lower())
+
+
+def has_model(models: list, rec: dict) -> bool:
+    """Is the recommended model itself installed? Its name (or its file's name) is in a picture
+    checkpoint's file name: 'DreamShaper XL' = dreamshaperXL_v21.safetensors.
+    (Until 2.3.0.dev16 any model that "suited" the style counted, and for art styles that was any
+    model that isn't a photo model: so with only SDXL base installed, DreamShaper and Animagine were
+    never offered, and Juggernaut hid RealVisXL. Found on Joseph's PC.)"""
+    keys = {_key(str(rec.get("match") or str(rec.get("name", "")).split(" ")[0]))}
+    if rec.get("file"):
+        keys.add(_key(Path(str(rec["file"])).stem))
+    keys = {k for k in keys if len(k) >= 4}
+    for m in models:
+        if getattr(m, "family", "sdxl") in ("svd", "video"):
+            continue
+        name = _key(Path(str(m.name).replace("\\", "/")).stem)
+        if any(k in name for k in keys):
+            return True
+    return False
+
+
 def offers(models: list, picks: dict | None = None, loras: list[str] | None = None) -> list[dict]:
-    """System-check items: one per style that has a recommendation but no suitable model installed."""
+    """System-check items: one per style whose recommended model (or style add-on) isn't installed."""
     out, seen = [], set()
     for r in recommendations(picks):
         s = r["style"]
@@ -70,7 +94,7 @@ def offers(models: list, picks: dict | None = None, loras: list[str] | None = No
         if r.get("kind") == "lora":
             if loras is None or styles.pick_lora(styles.STYLES[s], loras):
                 continue
-        elif styles.choose_model(models, s, picks):
+        elif has_model(models, r):
             continue
         seen.add(s)
         label = styles.STYLES[s].label
@@ -203,7 +227,11 @@ def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = 
     for m in comfy.scan_models(models_dir):
         if m.folder != "checkpoints":
             continue
-        good = [s for s in styles.NAMES if s != "general" and m in styles.choose_model([m], s, picks)]
+        # only models Joe really draws pictures with (never a video model like SVD), and never an
+        # SD 1.5 model for a style whose add-on is made for SDXL (pixel art, watercolor, coloring page)
+        good = [s for s in styles.NAMES if s != "general" and m.family in ("sdxl", "sd15", "other")
+                and not (m.family == "sd15" and styles.STYLES[s].lora)
+                and m in styles.choose_model([m], s, picks)]
         pics.append({"name": m.name, "size_gb": m.size_gb, "family": m.family,
                      "styles": [styles.STYLES[s].label for s in good]})
     addons = []

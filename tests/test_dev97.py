@@ -9,7 +9,7 @@ def M(n):
 
 
 def test_offers_only_missing_styles():
-    have = [M("realismByStableYogi_v50.safetensors")]
+    have = [M("juggernautXL_ragnarokBy.safetensors")]
     ids = [o["id"] for o in sm.offers(have)]
     assert "style-anime" in ids and "style-photo" not in ids
     o = next(o for o in sm.offers(have) if o["id"] == "style-anime")
