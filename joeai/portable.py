@@ -593,7 +593,8 @@ class Job:
                 log(f"MAKE A PORTABLE JOE failed: {e}")
             finally:
                 self._set(running=False)
-        threading.Thread(target=go, daemon=True).start()
+        self.thread = threading.Thread(target=go, daemon=True)
+        self.thread.start()
         return {"ok": True, "dest": str(target)}
 
     def add(self, n: int) -> None:

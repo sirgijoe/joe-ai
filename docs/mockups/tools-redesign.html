@@ -12,12 +12,12 @@
 }
 body.modern {
   --ph: #e7eaf0; --ph-dim: #a3adbd; --ph-faint: rgba(255,255,255,.07); --bg: #0f1218; --line: #2a303c;
-  --accent: #4f9cff; --on-accent: #fff; --btn: #222836; --font: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
+  --accent: #4f9cff; --on-accent: #06101f; --btn: #222836; --font: "Segoe UI", system-ui, -apple-system, Arial, sans-serif;
   --fs: 16px; --radius: 10px;
 }
 body.modern.day {
   --ph: #1c2230; --ph-dim: #4f5a6b; --ph-faint: rgba(0,0,0,.06); --bg: #eef0f4; --line: #d0d5de;
-  --accent: #2563eb; --btn: #ffffff;
+  --accent: #2563eb; --on-accent: #fff; --btn: #ffffff; --star: #8a6100;
 }
 * { box-sizing: border-box; }
 body { margin: 0; background: var(--bg); color: var(--ph); font-family: var(--font); font-size: var(--fs); line-height: 1.2; }
@@ -43,7 +43,7 @@ h2 { margin: 0 0 8px; font-size: 1.15em; letter-spacing: .04em; font-weight: nor
 h3 { margin: 0; font-size: 1em; font-weight: normal; letter-spacing: .06em; }
 body.modern h2, body.modern h3 { font-weight: 600; letter-spacing: 0; }
 .search { display: flex; gap: 8px; align-items: center; margin: 4px 0 10px; }
-.search input { flex: 1; font: inherit; color: var(--ph); background: transparent; border: 1px solid var(--line); border-radius: var(--radius); padding: 4px 10px; }
+.search input { flex: 1; font: inherit; color: var(--ph); background: transparent; border: 1px solid var(--ph-dim); border-radius: var(--radius); padding: 4px 10px; }
 .search input::placeholder { color: var(--ph-dim); }
 .controls { display: flex; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; align-items: center; }
 section.sec { margin: 0 0 10px; }
@@ -61,8 +61,8 @@ details.cat > summary:hover h3 { text-decoration: underline; }
 .card .cat-tag { display: inline-block; font-size: .7em; color: var(--ph-dim); border: 1px solid var(--line); border-radius: 999px; padding: 0 6px; margin-top: 4px; }
 .cardwrap { position: relative; }
 .star { position: absolute; top: 4px; right: 4px; border: none; background: transparent; font-size: 1.1em; padding: 0 6px; line-height: 1.3; color: var(--ph-dim); }
-.star[aria-pressed="true"] { color: #ffd23f; }
-.star:hover { background: transparent; color: #ffd23f; }
+.star[aria-pressed="true"] { color: var(--star, #ffd23f); }
+.star:hover { background: transparent; color: var(--star, #ffd23f); }
 .chips { display: flex; gap: 6px; flex-wrap: wrap; margin-left: 1.4em; }
 .chips button { font-size: .85em; border-radius: 999px; }
 mark { background: var(--accent); color: var(--on-accent); }
@@ -234,7 +234,7 @@ document.addEventListener("toggle", (e) => {
 $("#q").addEventListener("input", render);
 $("#q").addEventListener("keydown", (e) => { if (e.key === "Escape") { $("#q").value = ""; render(); } });
 $("#clear").onclick = () => { $("#q").value = ""; render(); $("#q").focus(); };
-document.addEventListener("keydown", (e) => { if (e.key === "/" && document.activeElement !== $("#q")) { e.preventDefault(); $("#q").focus(); } });
+document.addEventListener("keydown", (e) => { if (e.key === "/" && !e.ctrlKey && !e.altKey && !e.metaKey && !/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName) && !document.activeElement.isContentEditable) { e.preventDefault(); $("#q").focus(); } });
 $("#openall").onclick = () => { ["Agents", ...CATS].forEach((c) => openCats.add(c)); render(); };
 $("#closeall").onclick = () => { openCats.clear(); render(); };
 $("#look").onclick = () => { const b = document.body; if (!b.classList.contains("modern")) { b.classList.add("modern"); $("#look").textContent = "LOOK: MODERN NIGHT"; } else if (!b.classList.contains("day")) { b.classList.add("day"); $("#look").textContent = "LOOK: MODERN DAY"; } else { b.classList.remove("modern", "day"); $("#look").textContent = "LOOK: RETRO"; } };

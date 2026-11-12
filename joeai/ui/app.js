@@ -4198,7 +4198,7 @@ async function loadAgents() {
     const ab = Object.keys(a.abilities || {}).filter((k) => a.abilities[k]).map((k) => (agData.abilities[k] || {}).title || k);
     const pend = (a.pending || {}).changes || [];
     return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b> <span class="dim">· ${esc(t.name)}</span>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
-      <span class="dim small">May: ${ab.length ? esc(ab.join(", ")) : "nothing risky"} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}${lr.plan ? ` (${lr.done || 0} of ${lr.plan.length} points done)` : ""}: ${esc(lr.note || "")}` : ""}</span>
+      ${a.paused && a.paused_why ? `<span class="warn small">PAUSED BY JOE: ${esc(a.paused_why)}</span><br>` : ""}<span class="dim small">May: ${ab.length ? esc(ab.join(", ")) : "nothing risky"} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}${lr.plan ? ` (${lr.done || 0} of ${lr.plan.length} points done)` : ""}: ${esc(lr.note || "")}` : ""}</span>
       ${pend.length ? `<br><span class="warn small">${pend.length} suggested name(s) or folder(s) wait for your OK.</span> <button type="button" data-ag-apply="${esc(a.id)}" data-n="${pend.length}">[ APPLY ]</button>` : ""}
       ${a.undo ? `<button type="button" data-ag-undo="${esc(a.id)}">[ UNDO THE LAST CHANGES ]</button>` : ""}</span>
       <button type="button" data-ag-start="${esc(a.id)}">[ START NOW ]</button><button type="button" data-ag-edit="${esc(a.id)}">[ EDIT ]</button>
@@ -4256,6 +4256,7 @@ function agForm(a, tplId) {
   $("#ag-tpl-blurb").textContent = tpl.blurb;
   $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : ""; $("#ag-job").placeholder = tpl.hint;
   $("#ag-steps").value = a ? a.steps : tpl.steps; $("#ag-mins").value = a ? a.minutes : tpl.minutes;
+  $("#ag-fails").value = a ? (a.max_fails || 10) : 10;
   const st = a ? a.start : { schedule: false, days: [], watch: !!tpl.watch, remote: false };
   $("#ag-sched").checked = st.schedule; $("#ag-watch").checked = st.watch; $("#ag-remote").checked = st.remote;
   $("#ag-days").innerHTML = DAYNAMES.map((d, i) => `<label><input type="checkbox" data-agday="${i}"${st.days.includes(i) ? " checked" : ""}> ${d}</label>`).join(" ");
@@ -4297,7 +4298,7 @@ document.addEventListener("click", async (ev) => {
         tools: $("#ag-tools-box").hidden ? [] : tools, abilities, acks: agAcks,
         days: [...document.querySelectorAll("[data-agday]:checked")].map((x) => +x.dataset.agday),
         schedule: $("#ag-sched").checked, watch: $("#ag-watch").checked, remote: $("#ag-remote").checked,
-        steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value };
+        steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value, max_fails: +$("#ag-fails").value };
       const r = await api("/api/agents/save", body);
       $("#ag-msg").textContent = r.ok ? "Saved." + (r.note ? " " + r.note : "") : r.error;
       $("#ag-form-msg").textContent = r.ok ? "" : "Not saved: " + (r.error || "something went wrong.");   // beside the button
@@ -4310,7 +4311,9 @@ document.addEventListener("click", async (ev) => {
     if (b.dataset.agPause) { await api("/api/agents/pause", { id: b.dataset.agPause, paused: !b.dataset.paused }); loadAgents(); return; }
     if (b.dataset.agOpen) { dirPath = b.dataset.agOpen; show("files"); return; }
     if (b.dataset.agApply) {
-      confirmBox(`Rename or move ${b.dataset.n} file(s) in this agent's folder, as suggested in PROPOSED CHANGES.md?\n\nOnly files in its own folder, never over another file, nothing is deleted, and UNDO puts them all back.`, async () => {
+      const ch = (((agData.agents.find((x) => x.id === b.dataset.agApply) || {}).pending || {}).changes || []);
+      const shown = ch.slice(0, 12).map((c) => `${c.from}  ->  ${c.to}`).join("\n") + (ch.length > 12 ? `\n... and ${ch.length - 12} more (all of them are in PROPOSED CHANGES.md)` : "");
+      confirmBox(`Rename or move ${b.dataset.n} file(s) in this agent's folder?\n\n${shown}\n\nOnly files in its own folder, never over another file, nothing is deleted, and UNDO puts them all back.`, async () => {
         const r = await api("/api/agents/apply", { id: b.dataset.agApply }); $("#ag-msg").textContent = r.note || r.error; loadAgents();
       });
       return;

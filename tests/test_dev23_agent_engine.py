@@ -344,7 +344,7 @@ def test_the_assistant_does_lists_and_starts_other_agents_from_a_talk_request(en
     script["tick"] = [{"done": []}, {"done": [1]}]
     script["pick"] = [{"action": "list", "list": "groceries", "things": "milk, eggs"},
                       {"action": "start", "agent": "Heat research", "request": "costs in Michigan"}]
-    last, folder = run(app, aid, request="add milk and eggs to groceries and start the heat research")
+    last, folder = run(app, aid, request="add milk and eggs to groceries and start the heat research on costs in Michigan")
     assert "This time: add milk and eggs" in calls["plan"][0]
     from joeai import reminders
     assert reminders.read_list(app.sb, "groceries") == ["milk", "eggs"]

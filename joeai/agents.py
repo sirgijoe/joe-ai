@@ -44,6 +44,8 @@ from .fsutil import atomic_write_text
 FILE = "agents.json"
 MAX_AGENTS = 30
 MAX_STEPS, MAX_MINUTES = 30, 240
+PAUSE_AFTER_FAILS = 3        # runs in a row that failed or got stuck, then the agent pauses itself
+MAX_FAILS, DEFAULT_FAILS = 100, 10   # failures, errors or retries in ONE run before it stops (the owner picks 1-100)
 BASIC = {"text": "Writing (a document or a list)", "image": "Pictures", "video": "Short video"}
 # Joe's own tools an agent may never use, and why.
 BLOCKED = {
@@ -181,6 +183,7 @@ def load() -> list[dict]:
         a.setdefault("abilities", {})
         a.setdefault("acks", {})
         a.setdefault("start", {})
+        a.setdefault("max_fails", DEFAULT_FAILS)
     return items
 
 
@@ -226,8 +229,8 @@ def agent_folder(sb, agent: dict) -> Path:
 def ability_on(agent: dict, ability: str) -> bool:
     """On only if switched on AND its screen was seen and said yes to (this version of it)."""
     ab = ABILITIES.get(ability)
-    return bool(ab and (agent.get("abilities") or {}).get(ability)
-                and int((agent.get("acks") or {}).get(ability) or 0) == ab["version"])
+    return bool(ab and (agent.get("abilities") or {}).get(ability) is True
+                and str((agent.get("acks") or {}).get(ability)) == str(ab["version"]))
 
 
 def save(data: dict, sb=None) -> dict:
@@ -253,10 +256,12 @@ def save(data: dict, sb=None) -> dict:
         return {"ok": False, "error": "Tick at least one tool the agent may use."}
     # Risky abilities: on only with a yes to that ability's own screen (see THE DESIGN RULE).
     abilities, acks = {}, dict((cur or {}).get("acks") or {})
-    for k, v in (data.get("acks") or {}).items():
-        if k in ABILITIES and int(v or 0) == ABILITIES[k]["version"]:
+    acks = {k: v for k, v in acks.items() if k in ABILITIES and str(v) == str(ABILITIES[k]["version"])}
+    seen = data.get("acks") if isinstance(data.get("acks"), dict) else {}
+    for k, v in seen.items():
+        if k in ABILITIES and str(v) == str(ABILITIES[k]["version"]):
             acks[k] = ABILITIES[k]["version"]
-    for k, on in (data.get("abilities") or {}).items():
+    for k, on in (data.get("abilities") if isinstance(data.get("abilities"), dict) else {}).items():
         if k not in ABILITIES or not on:
             continue
         if k not in tpl["abilities"]:
@@ -268,6 +273,7 @@ def save(data: dict, sb=None) -> dict:
     try:
         steps = max(1, min(MAX_STEPS, int(data.get("steps") or tpl["steps"])))
         minutes = max(5, min(MAX_MINUTES, int(data.get("minutes") or tpl["minutes"])))
+        max_fails = max(1, min(MAX_FAILS, int(data.get("max_fails") or DEFAULT_FAILS)))     # never without a limit
         days = sorted({int(d) for d in (data.get("days") or []) if 0 <= int(d) <= 6})
     except (TypeError, ValueError):
         return {"ok": False, "error": "The limits and days must be numbers."}
@@ -282,7 +288,7 @@ def save(data: dict, sb=None) -> dict:
                "paused": False, "last": "", "last_run": {}}
         items.append(cur)
     cur.update({"name": name, "job": job, "template": tpl_id, "tools": tools, "steps": steps, "minutes": minutes,
-                "start": start, "abilities": abilities, "acks": acks})
+                "max_fails": max_fails, "start": start, "abilities": abilities, "acks": acks})
     cur.pop("options", None)
     _save_all(items)
     if sb is not None and start["watch"]:
@@ -315,6 +321,8 @@ def set_paused(aid: str, paused: bool) -> dict:
     for a in items:
         if a["id"] == aid:
             a["paused"] = bool(paused)
+            a["fails"] = 0
+            a.pop("paused_why", None)
             _save_all(items)
             return {"ok": True}
     return {"ok": False, "error": "That agent is gone."}
@@ -338,6 +346,28 @@ def _update(aid: str, **fields) -> None:
 
 def _note_run(aid: str, info: dict) -> None:
     _update(aid, last_run=info)
+
+
+def note_outcome(aid: str, bad: bool) -> str:
+    """The fail-safe across runs: an agent whose runs failed or got stuck PAUSE_AFTER_FAILS times in a
+    row pauses itself (a schedule or a watch folder would otherwise start it again and again) and says
+    why on Tools > AGENTS. START AGAIN there clears it. Returns the reason when it paused now."""
+    a = next((x for x in load() if x["id"] == aid), None)
+    if not a:
+        return ""
+    n = (int(a.get("fails") or 0) + 1) if bad else 0
+    if n >= PAUSE_AFTER_FAILS and not a.get("paused"):
+        return pause_by_joe(aid, f"Its last {n} runs failed or got stuck, so Joe paused it instead of starting it "
+                                 "again and again.")
+    _update(aid, fails=n)
+    return ""
+
+
+def pause_by_joe(aid: str, why: str) -> str:
+    """Joe pauses an agent himself (a fail-safe) and says why on Tools > AGENTS until START AGAIN."""
+    why += " Read the last AGENT REPORT.md, change the job or what it may use, then press START AGAIN."
+    _update(aid, fails=0, paused=True, paused_why=why)
+    return why
 
 
 # ----------------------------------------------------------------------------- the clerk's changes
@@ -379,9 +409,33 @@ def apply_pending(sb, aid: str) -> dict:
         except OSError as e:
             skipped.append(f"{c['from']} ({e})")
     _update(aid, pending={}, undo=undo_p.name if done else (a.get("undo") or ""))
+    _mark_seen(sb, a, [c["to"] for c in done])
     return {"ok": True, "done": len(done), "skipped": skipped,
             "note": f"Moved or renamed {len(done)} file(s)." + (" UNDO puts them back." if done else "") +
                     (" Left alone: " + "; ".join(skipped[:10]) if skipped else "")}
+
+
+def _mark_seen(sb, a: dict, names: list[str]) -> None:
+    """A file the owner just renamed with APPLY is not a new file: the watch folder must not start
+    another run on it (which would suggest names again, round and round)."""
+    seen_p, base = sb.meta / "agent_seen.json", agent_folder(sb, a)
+    try:
+        seen = set(json.loads(seen_p.read_text(encoding="utf-8")))
+    except (OSError, ValueError):
+        seen = set()
+    for name in names:
+        p = base / name
+        try:
+            if "/" not in name and p.is_file():
+                stt = p.stat()
+                seen.add(f"{a['id']}/{p.name}|{stt.st_size}|{int(stt.st_mtime)}")
+        except OSError:
+            pass
+    try:
+        seen_p.parent.mkdir(parents=True, exist_ok=True)
+        atomic_write_text(seen_p, json.dumps(sorted(seen)[-5000:]))
+    except OSError:
+        pass
 
 
 def undo_last(sb, aid: str) -> dict:
@@ -395,7 +449,9 @@ def undo_last(sb, aid: str) -> dict:
     except (OSError, ValueError):
         return {"ok": False, "error": "The undo list is missing."}
     back, left = 0, []
-    for m in reversed(moves):
+    for m in reversed(moves if isinstance(moves, list) else []):
+        if not (isinstance(m, dict) and isinstance(m.get("to"), str) and isinstance(m.get("from"), str)):
+            continue
         src, dst = base / m["to"], base / m["from"]
         if not (_inside(base, src) and _inside(base, dst)) or not src.is_file() or dst.exists():
             left.append(m["to"])
@@ -504,8 +560,8 @@ def watch_tick(app, now: float | None = None) -> list[str]:
         new = []
         try:
             for p in sorted(folder.iterdir()):
-                if not p.is_file() or not _plain_name(p.name):
-                    continue
+                if not p.is_file() or not _plain_name(p.name) or p.name.startswith("_"):
+                    continue                           # (_UNDO lists are Joe's own, not work for the agent)
                 stt = p.stat()
                 if now - stt.st_mtime < 5:
                     continue

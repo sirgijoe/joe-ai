@@ -20,6 +20,7 @@ JOE_OFFLINE) no network call is made at all: every function here returns before 
 """
 from __future__ import annotations
 
+import http.client
 import ipaddress
 import os
 import re
@@ -77,6 +78,13 @@ def safe_query(proposed: str, job: str, tainted: bool) -> str:
     return " ".join(out[:QUERY_WORDS])[:200]
 
 
+def owner_words(text: str, job: str) -> str:
+    """`text` with only the words that are in the owner's job (and the small words): what one agent
+    may hand to another as its request, so that nothing a web page said is taken for the owner's words."""
+    allowed = {_stem(w) for w in words(job)} | SMALL
+    return " ".join(t for t in _TOKEN.findall(_URLISH.sub(" ", text or "")) if t.lower() in SMALL or _stem(t.lower()) in allowed)[:300]
+
+
 def owner_urls(job: str) -> list[str]:
     return [u.rstrip(".,);]") for u in re.findall(r"https?://[^\s<>\"']+", job or "")]
 
@@ -93,9 +101,21 @@ def public_url(url: str) -> bool:
     if host in ("localhost",) or host.endswith((".local", ".lan", ".home", ".internal")) or "." not in host:
         return False
     try:
-        return ipaddress.ip_address(host).is_global
+        return _global_ip(host)
     except ValueError:
         return True
+
+
+def _global_ip(addr: str) -> bool:
+    """An address out on the internet. An IPv4 address written inside an IPv6 one (::ffff:127.0.0.1,
+    64:ff9b::7f00:1) is judged by the IPv4 address in it."""
+    ip = ipaddress.ip_address(addr.split("%")[0])
+    if isinstance(ip, ipaddress.IPv6Address):
+        inner = ip.ipv4_mapped or ip.sixtofour or (
+            ipaddress.IPv4Address(int(ip) & 0xFFFFFFFF) if ip in ipaddress.ip_network("64:ff9b::/96") else None)
+        if inner is not None:
+            return inner.is_global
+    return ip.is_global
 
 
 def _resolves_public(url: str) -> bool:
@@ -105,7 +125,52 @@ def _resolves_public(url: str) -> bool:
         infos = socket.getaddrinfo(host, None)
     except OSError:
         return False
-    return bool(infos) and all(ipaddress.ip_address(i[4][0].split("%")[0]).is_global for i in infos)
+    try:
+        return bool(infos) and all(_global_ip(i[4][0]) for i in infos)
+    except ValueError:
+        return False
+
+
+def _checked_connect(address, *a, **k):
+    """Open the connection, then look at the address it really reached. A name can point somewhere
+    public when it is checked and at this PC or the home network a moment later (DNS rebinding);
+    the check on the connection itself can't be fooled that way. Nothing is sent before it."""
+    sock = socket.create_connection(address, *a, **k)
+    try:
+        ok = _global_ip(sock.getpeername()[0])
+    except (OSError, ValueError, IndexError):
+        ok = False
+    if not ok:
+        sock.close()
+        raise urllib.error.URLError("the page's address is on this PC or the home network; refused")
+    return sock
+
+
+class _HTTP(http.client.HTTPConnection):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self._create_connection = _checked_connect
+
+
+class _HTTPS(http.client.HTTPSConnection):
+    def __init__(self, *a, **k):
+        super().__init__(*a, **k)
+        self._create_connection = _checked_connect
+
+
+class _CheckedHTTP(urllib.request.HTTPHandler):
+    def http_open(self, req):
+        return self.do_open(_HTTP, req)
+
+
+class _CheckedHTTPS(urllib.request.HTTPSHandler):
+    def https_open(self, req):
+        return self.do_open(_HTTPS, req)
+
+
+def _opener():
+    """Downloads a page straight from its site (no proxy: the address check needs the real connection)."""
+    return urllib.request.build_opener(urllib.request.ProxyHandler({}), _CheckedHTTP, _CheckedHTTPS, _CheckRedirects)
 
 
 class _CheckRedirects(urllib.request.HTTPRedirectHandler):
@@ -201,13 +266,13 @@ def fetch_page(url: str, key: str = "") -> dict | None:
             text = websearch._clean(str(r.get("content", "")))
             if text:
                 return {"title": str(r.get("title", ""))[:200], "url": url, "text": text}
-        except HttpError:
+        except Exception:                       # noqa: BLE001 (an odd answer: read the page ourselves)
             pass
     if not (public_url(url) and _resolves_public(url)):
         return None
     try:
         req = urllib.request.Request(url, headers=websearch.AGENT)
-        with urllib.request.build_opener(_CheckRedirects).open(req, timeout=20) as resp:
+        with _opener().open(req, timeout=20) as resp:
             kind = resp.headers.get("Content-Type", "")
             if "html" not in kind and "text" not in kind:
                 return None

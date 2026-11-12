@@ -155,7 +155,7 @@ def test_the_same_step_twice_is_stuck_with_a_plain_report(env):
     aid = make({"name": "Loop", "job": "write it", "tools": ["text", "summarize"], "steps": 6})
     script["tick"] = [{"done": []}]
     step = {"action": "write", "input": [], "instruction": "write the same thing"}
-    script["pick"] = [step, dict(step)]
+    script["pick"] = [step, dict(step), dict(step)]          # (2.3.0.dev15: the first repeat is sent back once)
     last, folder = _run(app, aid)
     rep = (folder / "AGENT REPORT.md").read_text(encoding="utf-8")
     assert "## I got stuck" in rep and "same step again" in rep and "What would help" in rep

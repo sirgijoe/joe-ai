@@ -44,6 +44,12 @@ READ_CHARS = 12000           # of one file read whole
 CONTEXT_CHARS = 2500         # of one step's result carried in the working context
 MAX_POINTS = 8
 MAX_CLAIMS = 6
+# The fail-safes (Joseph, 2026-11-11: "some sort of fail safe if something goes wrong, rather than just
+# letting it cycle in an endless loop of fails and errors"). On top of the step and minute limits:
+#   - the agent's own limit (Tools > AGENTS, 1-100, 10 unless changed): after that many failures, errors
+#     or retries in one run, the run stops, the agent is paused and the phone is pinged (if pings are set up)
+NO_PROGRESS_STEPS = 6        # steps that worked but ticked no point of the plan, then it stops
+MAX_REMINDERS = 3            # reminders one run may make (never the same one twice)
 
 PLAN_SYS = "You make the plan for one of Joe's agents."
 PICK_SYS = "You are the planner inside one of Joe's agents."
@@ -118,6 +124,10 @@ class Run:
         self.facts: list[dict] = []
         self.sent = False
         self.proposed: list[dict] = []
+        self.troubles = 0                              # failures, errors and retries so far in this run
+        self.limit_hit = False
+        self.started: set[str] = set()                 # other agents this run started (once each)
+        self.reminded: set[str] = set()
 
     # -- the plain log -----------------------------------------------------
     def log(self, msg: str) -> None:
@@ -150,7 +160,7 @@ class Run:
         af = agents.agent_folder(self.sb, self.agent)
         if not self.job.inputs and af.is_dir():
             out += [str(p.relative_to(self.sb.root)).replace("\\", "/") for p in sorted(af.iterdir())
-                    if p.is_file() and _plain_name(p.name)][:50]
+                    if p.is_file() and _plain_name(p.name) and not p.name.startswith("_")][:50]   # _UNDO lists are Joe's
         return out
 
     # -- model calls -------------------------------------------------------
@@ -308,7 +318,8 @@ class Run:
         if sst.status == "stopped":
             raise Stopped()
         self.made += new
-        self.allowed += ["Output/" + f for f in new if "Output/" + f not in self.allowed]
+        self.allowed += ["Output/" + f for f in new if "Output/" + f not in self.allowed
+                         and all(_plain_name(part) for part in f.split("/"))]   # INPUT: splits on commas
         ex = agents._excerpt(self.sb, new)
         return {"status": sst.status, "note": (sst.note or "")[:200], "what": what, "made": new,
                 "ctx": f"Step {n}: {what}: {sst.status}" + (f"; made {', '.join(Path(m).name for m in new[:5])}" if new else "")
@@ -420,6 +431,11 @@ class Run:
             return {"status": "failed", "note": "not sent: this run read your files", "what": "reminder", "ctx": ""}
         from . import reminders
         text = re.sub(r"^\s*remind me\s+", "", " ".join(str(step.get("text", "")).split()))[:200]
+        if text.lower() in self.reminded:
+            return {"status": "failed", "note": "that reminder was already made in this run", "what": "reminder", "ctx": ""}
+        if len(self.reminded) >= MAX_REMINDERS:
+            return {"status": "failed", "note": f"a run makes {MAX_REMINDERS} reminders at most", "what": "reminder", "ctx": ""}
+        self.reminded.add(text.lower())
         r = reminders.add(self.sb, self.engine.s, text)
         return {"status": "done" if r.get("ok") else "failed", "note": (r.get("say") or r.get("error") or "")[:200],
                 "what": "reminder", "ctx": f"Step {n}: reminder: {(r.get('say') or r.get('error') or '')[:200]}"}
@@ -436,9 +452,16 @@ class Run:
             return {"status": "failed", "note": "no other agent by that name", "what": "start an agent", "ctx": ""}
         if other.get("paused"):
             return {"status": "failed", "note": f"the {other['name']} agent is paused", "what": "start an agent", "ctx": ""}
+        if other["id"] in self.started:
+            return {"status": "failed", "note": f"the {other['name']} agent was already started in this run",
+                    "what": "start an agent", "ctx": ""}
+        self.started.add(other["id"])
         q = self.sb.missions / "Queue"
         q.mkdir(parents=True, exist_ok=True)
-        req = "" if self.web.tainted else str(step.get("request") or "")
+        # The other agent takes its request for its owner's words (they may go into its searches), so
+        # only words the owner typed here are passed on: never the model's own, which may come from a page.
+        from .agentweb import owner_words
+        req = "" if self.web.tainted else owner_words(str(step.get("request") or ""), self.request)
         name = f"agent-{other['id']}-{datetime.now():%Y%m%d-%H%M%S}.txt"
         atomic_write_text(q / name, agents.mission_text(other, None, req) + "\n")
         return {"status": "done", "note": f"queued the {other['name']} agent", "what": f"start {other['name']}",
@@ -462,14 +485,25 @@ class Run:
                          (", ".join(Path(m).name for m in self.made) or "(none)") + (f"\n\nExcerpts:\n{ex}" if ex else ""), 120)
         except Exception:                              # noqa: BLE001 (no tick this time)
             return
-        for k in (d or {}).get("done") or []:
+        ticked = []
+        for k in ((d or {}).get("done") if isinstance((d or {}).get("done"), list) else None) or []:
             try:
                 i = int(k)
             except (TypeError, ValueError):
                 continue
             if 1 <= i <= len(self.plan) and not self.plan[i - 1]["done"]:
                 self.plan[i - 1]["done"] = True
-                self.log(f"  Done: point {i} ({self.plan[i - 1]['point'][:80]})")
+                ticked.append(i)
+        # Looking things up is never the whole job: with nothing made and nothing done (no reminder,
+        # list entry, suggestion...), the last point stays open however sure the model is.
+        acted = any(x["status"] != "failed" and x["action"] in ("send", "remind", "list", "start", "propose", "calendar")
+                    for x in self.steps)
+        if ticked and self.all_done() and not self.made and not acted:
+            self.plan[ticked[-1] - 1]["done"] = False
+            self.log(f"  Point {ticked[-1]} stays open: so far I have only looked things up, nothing is made or done yet.")
+            ticked = ticked[:-1]
+        for i in ticked:
+            self.log(f"  Done: point {i} ({self.plan[i - 1]['point'][:80]})")
 
     def all_done(self) -> bool:
         return bool(self.plan) and all(p["done"] for p in self.plan)
@@ -574,7 +608,8 @@ class Run:
             raise Stuck("the writing model isn't running, and I need it to plan and pick my steps.")
         self.live("making a plan")
         self.make_plan()
-        n, since_reset, fails_in_row, bad_answers, last_key = 0, 0, 0, 0, ""
+        n, since_reset, fails_in_row, bad_answers = 0, 0, 0, 0
+        idle, done_keys, repeat_sent, fix_repeat = 0, set(), False, False
         fix_note, pushed_done, finish_asked, quality_left = "", False, False, 1
         while True:
             if self.engine.stop.is_set():
@@ -598,6 +633,17 @@ class Run:
                 left = [p["point"] for p in self.plan if not p["done"]]
                 raise Stuck(f"I used all {self.agent['steps']} steps before the job was done" +
                             (f" (still to do: {'; '.join(left)[:300]})." if left else "."))
+            limit = max(1, min(agents.MAX_FAILS, int(self.agent.get("max_fails") or agents.DEFAULT_FAILS)))
+            if self.troubles >= limit:                 # the fail-safe: never cycle through fails and errors
+                self.limit_hit = True
+                last = next((x for x in reversed(self.steps) if x["status"] == "failed"), {})
+                raise Stuck(f"{self.troubles} failures, errors or retries in this run (this agent's limit is {limit}), so "
+                            "I stopped instead of trying again and again" +
+                            (f" (the last failed step: {last['what']}: {str(last['note'])[:160]})." if last else "."))
+            if idle >= NO_PROGRESS_STEPS:
+                left = [p["point"] for p in self.plan if not p["done"]]
+                raise Stuck(f"{NO_PROGRESS_STEPS} steps went by without getting any point of the plan done, so I "
+                            f"stopped instead of going round in circles (still to do: {'; '.join(left)[:300]}).")
             if n and (since_reset >= RESET_EVERY or fails_in_row >= 2):
                 self.do_checkpoint(n, "a step failed twice" if fails_in_row >= 2 else f"every {RESET_EVERY} steps")
                 since_reset, fails_in_row = 0, 0
@@ -608,6 +654,7 @@ class Run:
                 raise Stuck(f"I couldn't reach the writing model to pick my next step ({e}).") from None
             if step is None:
                 bad_answers += 1
+                self.troubles += 1
                 if bad_answers >= 2:
                     raise Stuck("twice I couldn't work out a next step I'm allowed to take.")
                 continue
@@ -615,6 +662,7 @@ class Run:
                 left = [p["point"] for p in self.plan if not p["done"]]
                 if left and not pushed_done:
                     pushed_done = True
+                    self.troubles += 1
                     fix_note = "these points of the plan aren't done yet: " + "; ".join(left)[:400]
                     self.log("  The model said done, but not every point is: sent back once.")
                     continue
@@ -623,10 +671,20 @@ class Run:
                 finish_asked = True
                 continue
             fix_used, fix_note = fix_note, ""
+            was_repeat, fix_repeat = fix_repeat, False
+            bad_answers = 0                            # (two unusable answers IN A ROW end the run)
             key = json.dumps({k: v for k, v in step.items() if k not in ("title",)}, sort_keys=True, default=str)[:600]
-            if key == last_key and not fix_used:
-                raise Stuck(f"I was about to do the same step again ({step['action']}).")
-            last_key = key
+            if key in done_keys and (not fix_used or was_repeat):   # this exact step already worked in this run
+                if repeat_sent:
+                    raise Stuck(f"I was about to do the same step again ({step['action']}).")
+                repeat_sent = fix_repeat = True
+                self.troubles += 1
+                left = [p["point"] for p in self.plan if not p["done"]]
+                fix_note = (f"you already did that exact step ({step['action']}) and it worked; don't repeat it. "
+                            "Pick a different step for a point that is still open"
+                            + (": " + "; ".join(left)[:300] if left else "") + '. If everything is done, answer {"done": true}.')
+                self.log("  The model picked a step it already did: sent back once.")
+                continue
             n += 1
             since_reset += 1
             self.live(ACTIONS[step["action"]][0].split(" (")[0], n)
@@ -638,10 +696,13 @@ class Run:
                 self.context.append(r["ctx"])
             if r["status"] == "failed":
                 fails_in_row += 1
-                last_key = ""                          # a failed step may be tried once more
-                continue
+                self.troubles += 1
+                continue                               # (a failed step may be tried again: it isn't in done_keys)
             fails_in_row = 0
+            done_keys.add(key)
+            open_before = sum(not p["done"] for p in self.plan)
             self.tick_off()                            # Joe's own check BEFORE asking for another step
+            idle = 0 if sum(not p["done"] for p in self.plan) < open_before else idle + 1
 
     def report(self, stuck: str) -> Path:
         mins = (time.monotonic() - self.t0) / 60
@@ -654,6 +715,9 @@ class Run:
             low = stuck.lower()
             if "time" in low:
                 L.append("- Give me more minutes (Tools > AGENTS > EDIT), or a smaller job.")
+            if "failures, errors or retries" in low:
+                L.append("- Look at the step that failed (below, and in AGENT LOG.txt): a tool that isn't ticked or "
+                         "set up, or a file it needs that isn't there, is the usual reason.")
             if "steps" in low or "same step" in low or "work out" in low:
                 L.append("- Say the job more exactly, or split it in two. A higher step limit helps a long job.")
             if "can't run on this pc" in low or "model isn't running" in low:
@@ -674,6 +738,10 @@ class Run:
             L.append(f"- Nothing: looking things up online is off ({why}). No search or page went out.")
         else:
             L += [f"- '{s['query']}': {len(s['results'])} result(s)" for s in self.web.searches] or ["- No searches were needed."]
+            L += [f"- Read the page {u}" for u in self.web.pages]
+            if not self.web.key:
+                L.append("- No web search key is saved (Setup > Voice & Talk), so only Wikipedia was searched. "
+                         "News, prices and most websites are not in it.")
             if self.web.tainted:
                 L.append("- This run read your files, so every search used only words from the job you typed.")
         if self.sources:
@@ -690,6 +758,13 @@ class Run:
             for f in self.facts:
                 L.append(f"- {mark[f['verdict']]}: {f['claim']}" + (f" — sources say: {f['correct']}" if f["correct"] else "")
                          + (f" ({f['source']})" if f["source"] else ""))
+            if not any(f["verdict"] == "confirmed" for f in self.facts):
+                L.append("")
+                L.append("None of these could be confirmed. Treat them as unchecked.")
+            if not self.web.key:
+                L.append("")
+                L.append("Only Wikipedia was searched (no web search key is saved), so 'not found' often just means "
+                         "Wikipedia doesn't cover it.")
         if self.proposed:
             L += ["", "## Waiting for your OK", "", f"{len(self.proposed)} suggested name(s) or folder(s): see PROPOSED "
                   "CHANGES.md. Nothing has changed yet. Tools > AGENTS > APPLY does them (it asks first; UNDO puts them back)."]
@@ -715,6 +790,22 @@ def clean_target(to: str, ext: str) -> str:
     if not stem or (len(parts) == 2 and not folder) or stem.startswith(("_", ".")):
         return ""
     return (f"{folder}/" if folder else "") + stem + ext
+
+
+def _ping(engine, agent: dict, log) -> None:
+    """Tell the owner's phone that Joe paused an agent (only if phone pings are set up). Joe's own
+    fixed words and the agent's name: nothing from a file, a page or the model."""
+    c = engine.s.comfort
+    topic = (c.ntfy_topic or "").strip()
+    if not topic:
+        return
+    try:
+        from . import notify
+        err = notify.send_ntfy(c.ntfy_server, topic, f"Joe paused the {agent['name']} agent: it kept failing. "
+                               "Its report says why (Tools > AGENTS).", title="Joe: agent paused")
+        log("  Phone ping sent: the agent is paused." if not err else f"  The phone ping didn't go out ({err}).")
+    except Exception as e:                              # noqa: BLE001 (a ping never breaks a run)
+        log(f"  The phone ping didn't go out ({e}).")
 
 
 def run(engine, mission, job, st):
@@ -766,5 +857,18 @@ def run(engine, mission, job, st):
     agents._note_run(agent["id"], {"when": st.finished, "status": st.status, "folder": r.run_rel, "note": st.note[:200],
                                     "plan": [p["point"] for p in r.plan], "done": sum(p["done"] for p in r.plan)})
     r.log(f"Agent '{agent['name']}' {st.status}: {st.note}")
+    if r.limit_hit:                                     # the fail-safe: this run hit the agent's own limit
+        why = agents.pause_by_joe(agent["id"], f"A run reached its limit of failures, errors or retries "
+                                               f"({r.troubles}), so Joe stopped it and paused the agent.")
+    else:                                               # ...and across runs: three bad ones in a row
+        why = agents.note_outcome(agent["id"], bool(stuck) or st.status == "failed")
+    if why:
+        r.log(f"Agent '{agent['name']}' is PAUSED: {why}")
+        _ping(engine, agent, r.log)
+        try:
+            with open(report, "a", encoding="utf-8") as f:
+                f.write(f"\n## This agent is now paused\n\n{why}\n")
+        except OSError:
+            pass
     agents.live_clear()
     return st

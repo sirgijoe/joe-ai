@@ -177,6 +177,27 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         `joe_start_agent` respect `start.remote` and `paused`.
       - Not built, on purpose (Joseph): anything that clicks through websites, anything that connects to
         an inbox. Nothing an agent does sends to other people.
+- [ ] Agents, review fixes (2.3.0.dev15; `tests/test_dev23_review15.py`, one test each):
+      - **Pages: the connection itself is checked** (`agentweb._checked_connect`): the address the socket
+        really reached must be a public one, so a name that passes `_resolves_public` and then points at
+        this PC or the home network (DNS rebinding) is refused before anything is sent. IPv4 written
+        inside IPv6 (`::ffff:`, `64:ff9b::`, 6to4) counts as the IPv4 address (`_global_ip`). Page
+        downloads don't use a proxy (the check needs the real connection).
+      - **One agent starting another** (`do_start`): once per agent per run, and the request passed on
+        keeps only words the owner typed (`agentweb.owner_words`), because the other agent takes its
+        request for its owner's words (they may go into its searches).
+      - **Phone**: the same reminder is never made twice and a run makes 3 at most (`do_remind`). The
+        "agent paused" ping is Joe's fixed words plus the agent's name, nothing from a file or the model.
+      - **The clerk's folder**: Joe's own `_UNDO *.json` is never offered to an agent or taken for new
+        work, and files renamed by APPLY don't start another run (`_mark_seen`). APPLY's "are you sure?"
+        lists the changes themselves.
+      - **Fail-safes** (Joseph): `max_fails` per agent (1-100, default 10; `save()` never stores "no
+        limit"), repeats of any earlier step, 6 steps without progress, 3 bad runs in a row = paused.
+      - **Abilities**: an ack that isn't the screen's version (a word, a list) never counts (`save`,
+        `ability_on`). Lookups alone can't tick the last point of a plan (`tick_off`).
+      - Known and left as is: in a run that has read files, the choice and order of the owner's own job
+        words in a search could carry a few bits; a mission the Talk model writes and the owner starts
+        counts as the owner's words.
 - [ ] Daily restart (`dailyrestart.py`): starts a new Joe the same way as RESTART JOE (`app.restart`,
       `joe_command("restart")`, no shell); never while a run, the queue, a plan being written, a
       download or an install is going (`busy`); a failed start leaves this Joe running. Tests:

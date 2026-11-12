@@ -289,7 +289,8 @@ FORMAT: ...
           <div class="dim small">START NOW below always works, and so does asking in Talk ("ask my assistant to ...", "have the &lt;name&gt; agent ...").</div></fieldset>
         <fieldset><legend>LIMITS</legend>
           <label title="The most steps it may take (1-30).">Step limit <input type="number" id="ag-steps" min="1" max="30" value="10"></label>
-          <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label></fieldset>
+          <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label>
+          <label title="A fail-safe, so an agent never goes round and round. After this many failures, errors or retries in one run (1-100), Joe stops the run, keeps what was made, pauses the agent and pings your phone if phone pings are set up.">Stop after this many failures, errors or retries <input type="number" id="ag-fails" min="1" max="100" value="10"></label></fieldset>
         <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button><span id="ag-form-msg" role="alert"></span></div>
       </form>
     </section>

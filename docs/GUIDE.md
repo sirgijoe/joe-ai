@@ -347,13 +347,34 @@ screen (what it can do, what could go wrong, the worst case) with a yes or no:
   Only files in its own folder, never over another file, nothing is ever deleted, and **UNDO THE LAST
   CHANGES** puts every file back.
 - *Send to your phone* (Daily briefing, Personal assistant): through ntfy, the same free phone ping as
-  "Joe is done", only to your own topic, once per run, and never anything read from your files.
+  "Joe is done", only to your own topic, and never anything read from your files. The digest goes
+  once per run; a run makes three reminders at most and never the same one twice.
 
 Agents never delete anything, never run add-ons or code, never send to other people, and treat words
 in files and web pages as information, never as orders. Only Joe's own window can make or change one;
 the phone and connected apps can only start one that allows it. Not planned: an agent that clicks
 through websites, or one that connects to your e-mail inbox (give Joe an e-mail as a file or pasted
 text instead).
+
+**Fail-safes: an agent never goes round and round.** Besides its step limit and time limit:
+
+- *Stop after this many failures, errors or retries* (on the agent's form, 1 to 100, 10 unless you
+  change it). When one run reaches that number, Joe stops the run, keeps what was made, **pauses the
+  agent** and pings your phone if phone pings are set up. Its report says what kept failing.
+- A step the agent already did is never done twice: it is told so once, and if it picks the same
+  step again the run stops. Six steps in a row that get no point of the plan done also stop it.
+- Three runs in a row that fail or get stuck pause the agent too, so a schedule or a watch folder
+  can't start it again and again. A paused agent says why on Tools > AGENTS; **START AGAIN** clears it.
+- A run that was stopped is not picked up half-way: the next start begins the job again (what the
+  stopped run made stays in its folder).
+
+**What agents can't do yet, plainly.** The model on your PC is the brain, and a small one can still
+get stuck, pick an odd step or tick a point too early; the fail-safes and the quality check catch
+most of it, the report always says what happened, and a bigger writing model does better. Without a
+web search key (Setup > Voice & Talk) lookups use **Wikipedia only**, so news, prices and most
+websites are not found, and the report says so. The fact check looks up at most six claims; "not
+found" means it couldn't confirm it, not that it is wrong, and a claim nobody checked is not marked
+at all. Check anything important yourself against the sources listed.
 
 ### Memory (Setup > Memory)
 

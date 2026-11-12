@@ -176,10 +176,6 @@ def test_job_reports_progress(tmp_path, monkeypatch):
     job = portable.Job()
     r = job.start(s, str(usb), {"settings": True}, lambda m: None)
     assert r["ok"]
-    import time
-    for _ in range(200):
-        if not job.status()["running"]:
-            break
-        time.sleep(0.05)
+    job.thread.join(600)                 # wait for the copy itself, however slow the machine is
     st = job.status()
     assert st["finished"] and not st["error"] and st["done"] > 0
