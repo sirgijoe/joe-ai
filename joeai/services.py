@@ -109,7 +109,7 @@ class ServiceManager:
     # -- ComfyUI ------------------------------------------------------------
     def _probe(self, base: str) -> bool:
         try:
-            request_json("GET", f"{base}/system_stats", timeout=3)
+            request_json("GET", f"{base}/system_stats", timeout=8)
             return True
         except HttpError:
             return False
@@ -178,10 +178,23 @@ class ServiceManager:
                 self.attention = ""
             self.ease("comfy")
             return True
-        ok = self.start_comfy()
+        if self._comfy_running():
+            # Already open but slow to answer (busy, or still loading): starting a second
+            # Comfy Desktop crashes the first one, so wait for it instead.
+            self.log("ComfyUI is open but not answering yet; waiting for it instead of starting it again.")
+            ok = self._wait(self.comfy_up, COMFY_START_WAIT_S, "ComfyUI to answer")
+            if ok:
+                self.log(f"ComfyUI is ready at {self.comfy_base}.")
+        else:
+            ok = self.start_comfy()
         if ok:
             self.ease("comfy")
         return ok
+
+    def _comfy_running(self) -> bool:
+        """Is the ComfyUI Desktop program already running? (Not the portable one: that is a python.exe.)"""
+        from . import system
+        return any(system.pids_named(n) for n in ("Comfy Desktop", "ComfyUI.exe"))
 
     # -- Keep my PC usable --------------------------------------------------
     def ease(self, which: str) -> list[int]:
