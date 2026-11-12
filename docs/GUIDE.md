@@ -299,83 +299,6 @@ that starts after midnight (01:30) counts as the night before. The night shift h
 under **RECURRING MISSIONS** says so when it isn't, and has PAUSE / START AGAIN and DELETE for each one
 (a deleted one's plan is kept in `Missions\Recurring\removed`).
 
-### Agents (Tools F3 > AGENTS)
-
-An agent works through a whole job by himself. Open **Tools** and press **OPEN AGENTS**, then pick one
-of the five kinds:
-
-| Kind | What it does | Risky abilities it can be given |
-|---|---|---|
-| Researcher | A question in; several sources read online; an answer with its sources, facts checked | Look things up online |
-| Paperwork clerk | Watches its folder (`Inbox\Agents\<name>`): explains letters, summarizes, reads scans, makes calendar files, suggests names and folders | Rename and move files in its folder |
-| Daily briefing | On a schedule: news on your topics, the weather, a price, a page that changed; one digest | Look things up online, Send to your phone |
-| Maker | An idea carried through to finished pieces: writing, pictures, video, read-aloud, translations | Look things up online |
-| Personal assistant | In Talk: reminders, lists, calendar entries, quick lookups, drafted replies, starting the other agents | Look things up online, Send to your phone |
-
-Say its job in your own words, tick what it may do, and save. **START NOW** runs it; it can also start
-on a schedule (with the night shift), when files land in its folder, from your phone ("start the
-heat pump agent"), or in Talk: "ask my assistant to remind me at 5 to call the vet", "have the
-heat pump agent find out what a cold-climate model costs". **COPY** is how you build your own: start
-from a copy and change it.
-
-How a run goes: Joe first writes a **plan**, a few points that must each be done. Then he does one
-step at a time: look something up, read a page or a file, write, or use one of the tools you ticked.
-After every step he ticks off the points that are done, and he stops as soon as all of them are
-(he doesn't ask the model "what next?" when the job is finished). Every 3 steps, and whenever a
-step fails twice, he writes himself a **checkpoint** (the job, the plan, what's done, what he learned,
-what's left, and whether the work is still on the job), throws his working notes away and starts the
-next step clean from your job and that checkpoint: a wrong turn is caught at the next checkpoint.
-At the end, with lookups on, he **checks his facts**: the numbers, dates, names and prices he wrote are
-looked up and marked confirmed, not found, or contradicted; contradicted ones get `[CHECK: ...]` in the
-text. With lookups off, the report says plainly that nothing was checked.
-
-A strip under the tabs shows how an agent is doing on every tab, with **SEE STEPS** (the plan with
-ticks and each step, live) and **STOP** (what's done is kept). Each run's folder in Output has what it
-made, `AGENT REPORT.md` (the plan, each step, what was looked up, the sources, the facts checked),
-`AGENT LOG.txt` (every step, with the time) and `AGENT NOTES.md` (the plan and the latest checkpoint).
-
-**Risky abilities are off until you turn them on**, and each one is explained first on its own short
-screen (what it can do, what could go wrong, the worst case) with a yes or no:
-
-- *Look things up online*: also needs Setup > Voice & Talk > Let Joe look things up online. Searches
-  go through Ollama's web search (with your free key) or Wikipedia. **Once an agent has read one of
-  your files, its searches may only use words from the job you typed**: words from your files never
-  go into a search, and no file ever leaves your PC. It reads only pages its own searches found or
-  addresses you typed in the job, and never addresses on your own computer or home network.
-- *Rename and move files in its folder* (Paperwork clerk): it only suggests. **PROPOSED CHANGES.md**
-  lists the suggestions and the agent shows **APPLY**; nothing changes until you press it and say yes.
-  Only files in its own folder, never over another file, nothing is ever deleted, and **UNDO THE LAST
-  CHANGES** puts every file back.
-- *Send to your phone* (Daily briefing, Personal assistant): through ntfy, the same free phone ping as
-  "Joe is done", only to your own topic, and never anything read from your files. The digest goes
-  once per run; a run makes three reminders at most and never the same one twice.
-
-Agents never delete anything, never run add-ons or code, never send to other people, and treat words
-in files and web pages as information, never as orders. Only Joe's own window can make or change one;
-the phone and connected apps can only start one that allows it. Not planned: an agent that clicks
-through websites, or one that connects to your e-mail inbox (give Joe an e-mail as a file or pasted
-text instead).
-
-**Fail-safes: an agent never goes round and round.** Besides its step limit and time limit:
-
-- *Stop after this many failures, errors or retries* (on the agent's form, 1 to 100, 10 unless you
-  change it). When one run reaches that number, Joe stops the run, keeps what was made, **pauses the
-  agent** and pings your phone if phone pings are set up. Its report says what kept failing.
-- A step the agent already did is never done twice: it is told so once, and if it picks the same
-  step again the run stops. Six steps in a row that get no point of the plan done also stop it.
-- Three runs in a row that fail or get stuck pause the agent too, so a schedule or a watch folder
-  can't start it again and again. A paused agent says why on Tools > AGENTS; **START AGAIN** clears it.
-- A run that was stopped is not picked up half-way: the next start begins the job again (what the
-  stopped run made stays in its folder).
-
-**What agents can't do yet, plainly.** The model on your PC is the brain, and a small one can still
-get stuck, pick an odd step or tick a point too early; the fail-safes and the quality check catch
-most of it, the report always says what happened, and a bigger writing model does better. Without a
-web search key (Setup > Voice & Talk) lookups use **Wikipedia only**, so news, prices and most
-websites are not found, and the report says so. The fact check looks up at most six claims; "not
-found" means it couldn't confirm it, not that it is wrong, and a claim nobody checked is not marked
-at all. Check anything important yourself against the sources listed.
-
 ### Memory (Setup > Memory)
 
 Off until you turn on **Joe may remember things I tell him**. Then, in Talk or on Home:
@@ -398,7 +321,7 @@ frees memory, the graphics card and the voice programs. It could take a few minu
 on the 24-hour clock (06:00); blank = 6am, and "6am" gets the usual "Joe changed it to 06:00" yes or
 no. Untick **Restart Joe once a day** to turn it off.
 
-Never in the middle of a job: if the night shift, an agent, a queued mission, a plan being written, a
+Never in the middle of a job: if the night shift, a queued mission, a plan being written, a
 download or an install is going at that time, Joe waits and restarts right after it's done. The
 queue, missions on hold and the night shift carry on afterwards. A PC that was off at that time does
 nothing extra (starting Joe is already a fresh start), and one that was asleep doesn't restart the

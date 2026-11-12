@@ -32,6 +32,7 @@ BUILTIN = [
      "kind": "model", "base": "sdxl", "size_gb": 7, "note": "clean realistic product and studio shots"},
     {"style": "illustration", "name": "DreamShaper XL", "page": "https://civitai.com/models/112902/dreamshaper-xl",
      "kind": "model", "base": "sdxl", "size_gb": 7,
+     "pick": "On its page choose the version called alpha2, not Turbo or Lightning (those need other settings).",
      "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more"},
     {"style": "anime", "name": "Animagine XL 4.0", "page": "https://huggingface.co/cagliostrolab/animagine-xl-4.0",
      "file": "animagine-xl-4.0.safetensors", "kind": "model", "base": "sdxl", "size_gb": 7, "note": "anime and manga"},
@@ -109,7 +110,10 @@ def offers(models: list, picks: dict | None = None, loras: list[str] | None = No
                             + f", {r.get('note') or 'free community model'}) "
                             + ("gives that look on top of your model. " if r.get("kind") == "lora"
                                else "draws them better than the model you have. ")
-                            + "Its page has the license terms; you download it there and Joe moves it into ComfyUI.",
+                            + "It is a free model made by other people, with its own license, so Joe can't "
+                              "download it for you: GET IT opens its page and you download the file there. "
+                            + (str(r["pick"]).strip()[:200] + " " if str(r.get("pick") or "").strip() else "")
+                            + "When the download has finished Joe asks to move it into ComfyUI (or press GET IT again).",
                     "what": f"{r['name']} (about {gb:g} GB)"})
     return out
 
@@ -163,6 +167,10 @@ def hf_pick_file(siblings: list[dict]) -> str:
     top folder (sub-folders hold the split 'diffusers' copy ComfyUI doesn't use)."""
     files = [s for s in siblings or [] if isinstance(s, dict)
              and str(s.get("rfilename", "")).lower().endswith(".safetensors") and "/" not in s["rfilename"]]
+    # A half-size copy (fp16) draws the same pictures as the full-size one and is half the download
+    # (Joseph's PC got the 13.9 GB RealVisXL file where a 7 GB one would do): take it when there is one.
+    half = [s for s in files if "fp16" in str(s["rfilename"]).lower()]
+    files = half or files
     files.sort(key=lambda s: s.get("size") or 0, reverse=True)
     return files[0]["rfilename"] if files else ""
 

@@ -1,18 +1,5 @@
 ## What's new in 2.3 (in development)
 
-- **Agents** (Tools > OPEN AGENTS): give Joe a whole job and he works through it by himself. Five kinds:
-  Researcher, Paperwork clerk, Daily briefing, Maker and Personal assistant (in Talk: "ask my assistant
-  to ..."). Each run makes a plan first, ticks each point off as it gets done and stops when they all
-  are, writes itself a checkpoint and starts clean every few steps so it stays on the job, and checks
-  its own facts online, marking the ones the sources disagree with [CHECK]. A strip under the tabs
-  shows how it's going on every tab. Risky abilities (looking things up online, renaming and moving
-  files, sending to your phone) are off until you turn them on, each explained on its own screen first.
-  Once an agent has read one of your files, its searches only use words from the job you typed.
-  Fail-safes so an agent never goes round and round: each agent has "Stop after this many failures,
-  errors or retries" (1-100, 10 unless you change it); at that number Joe stops the run, pauses the
-  agent and pings your phone (if phone pings are set up). Three bad runs in a row pause it too.
-  Honest limits: the model on your PC is the brain, so a small one can still get stuck (the report
-  says where); without a web search key, lookups use Wikipedia only.
 - **Daily restart** (Setup > General): a Joe left running closes and opens again once a day (6am unless
   you pick another time), to free memory, the graphics card and the voice programs. Never in the
   middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.

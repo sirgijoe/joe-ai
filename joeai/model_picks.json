@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-09",
+  "updated": "2026-11-12",
   "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"writing\": \"role\" recommended (Joe's pick), alternative (the other good choice) or free (little to no filtering); Joe's pick for each card size (name) plus \"others\": two more choices the person can pick instead, each with who made it and a plain note. At least one choice per size is lightly filtered or unfiltered (\"role\": \"free\"), so people can pick freedom over a company's filters. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
   "writing": [
     {
@@ -169,8 +169,8 @@
       "photo"
     ],
     "product": [
-      "juggernaut",
       "realvis",
+      "juggernaut",
       "realism",
       "realistic",
       "epicrealism",
@@ -181,6 +181,7 @@
       "photo"
     ],
     "illustration": [
+      "dreamshaper",
       "illustr",
       "anime",
       "animagine",
@@ -190,12 +191,12 @@
       "vector",
       "pony",
       "counterfeit",
-      "dreamshaper",
       "meina",
       "aam",
       "comic"
     ],
     "character": [
+      "dreamshaper",
       "illustr",
       "anime",
       "animagine",
@@ -205,12 +206,12 @@
       "vector",
       "pony",
       "counterfeit",
-      "dreamshaper",
       "meina",
       "aam",
       "comic"
     ],
     "coloring": [
+      "dreamshaper",
       "illustr",
       "anime",
       "animagine",
@@ -220,7 +221,6 @@
       "vector",
       "pony",
       "counterfeit",
-      "dreamshaper",
       "meina",
       "aam",
       "comic"
@@ -362,7 +362,8 @@
       "kind": "model",
       "base": "sdxl",
       "size_gb": 7,
-      "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more"
+      "note": "one model for illustration, painting, concept art, fantasy, cartoon, 3D and more",
+      "pick": "On its page choose the version called alpha2, not Turbo or Lightning (those need other settings)."
     },
     {
       "style": "anime",

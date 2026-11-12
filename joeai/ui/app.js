@@ -204,6 +204,7 @@ async function poll() {
     if (state.attention) toast(state.attention, 15000);
   }
   restartBar();
+  modelsBar();
   dlAllBar();
   const rb = $("#runbtn");
   if (rb) { rb.firstChild.textContent = state.running ? "STOP" : "RUN"; rb.classList.toggle("going", !!state.running); }
@@ -291,7 +292,10 @@ async function poll() {
       confirmBox(`The update didn't finish.\n\n${fr.error || "The log on the main screen says why."}\n\nYou can always download the installer yourself from the release page and run it; your files and settings are kept.\n\nOpen the release page?`,
         () => window.open(fr.url || "https://github.com/sirgijoe/joe-ai/releases/latest", "_blank", "noopener"));
     } else if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > System check > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
-    else if (lastFix !== -1 && fr.ok) toast("Setup finished");
+    else if (lastFix !== -1 && fr.ok) {
+      toast(fr.say || "Setup finished", fr.say ? 15000 : 2600);
+      if (fr.say && $("#setup-msg")) $("#setup-msg").textContent = fr.say;      // stays on Setup after the toast goes
+    }
     lastFix = fr.n;
   } else if (lastFix === -1) lastFix = fr.n || 0;
   $("#busy") && ($("#busy").textContent = state.busy ? state.busy + (state.busy_pct != null ? ` ${Math.round(state.busy_pct)}%` : "") + "…" : "");
@@ -1080,7 +1084,7 @@ function askFix(it) {
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Your system may ask for permission.",
     "install-pandoc": viaPkg,
-    "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. Then press GET IT again: Joe moves it into ComfyUI."
+    "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. When the download has finished, Joe asks to move it into ComfyUI (pressing GET IT again does the same)."
       : "Move it into ComfyUI's models folder now?",
     "mcp-fix": "Reconnect Joe? Close that AI app completely first (Joe checks).",
     "get-engine": "Open its download page in your browser? It's a free program made by other people; Joe doesn't install it for you.",
@@ -1323,6 +1327,15 @@ async function tplDefaults() {
 }
 
 /* RESTART JOE: shown only when Joe must restart (a newer Joe copied into his folder). */
+let modelsHidden = "", modelsShown = "";
+function modelsBar() {              // a picture model you downloaded after GET IT: Joe offers to move it in
+  const bar = $("#modelsbar"); if (!bar) return;
+  const names = state.models_waiting || [], key = names.join("|");
+  bar.hidden = !names.length || key === modelsHidden || !!state.busy;
+  if (bar.hidden) { if (!names.length) modelsShown = ""; return; }
+  $("#modelsbar-text").textContent = `${names.length === 1 ? "A picture model has" : names.length + " picture models have"} finished downloading (${names.slice(0, 3).join(", ")}${names.length > 3 ? "…" : ""}). Move ${names.length === 1 ? "it" : "them"} into ComfyUI?`;
+  if (key !== modelsShown) { modelsShown = key; if (current === "setup") loadDoctor(); }
+}
 let restartHidden = "";
 function restartBar() {
   const bar = $("#restartbar"); if (!bar) return;
@@ -1724,6 +1737,11 @@ document.addEventListener("click", async (ev) => {
     if (act === "tpl-delete") { tplDelete(b); return; }
     if (act === "tpl-defaults") await tplDefaults();
     if (act === "restart-later") { restartHidden = state.restart_hint || ""; restartBar(); }
+    if (act === "models-later") { modelsHidden = (state.models_waiting || []).join("|"); modelsBar(); }
+    if (act === "models-move") {
+      const r = await api("/api/doctor/fix", { action: "import-models", approved: true });
+      if (!r.ok) toast(r.error); else toast("Moving…");
+    }
     if (act === "download-all") await downloadAll();
     if (act === "download-all-stop") { await api("/api/models/download-all", { stop: true }); toast("Stopping after the current download…"); }
     if (act === "wf-joes") wfJoes(b);
@@ -3514,18 +3532,21 @@ async function loadTools() {
     api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); else renderToolGrid(); }).catch(() => {});
   }
   if (!toolOpen) renderToolGrid();
-  api("/api/agents").then((r) => { agCount = r.agents.length; const c = $("#ag-count"); if (c) c.textContent = agCountText(); }).catch(() => {});
+  api("/api/agents").then((r) => { agCount = r.agents.length; const c = $("#ag-count"); if (c) c.textContent = agCountText(); else if (agCount > 0 && $("#toolgrid")) $("#toolgrid").insertAdjacentHTML("afterbegin", agRow()); }).catch(() => {});
 }
 let agCount = null;
 const agCountText = () => agCount === null ? "" : agCount ? `${agCount} set up` : "none set up yet";
+const agRow = () => `<div class="tgroup agentsrow"><h3 class="tgname">Agents</h3><div class="row">
+      <span>Give Joe a whole job: he plans it, looks things up, checks his own answers and works until each point is done.</span>
+      <button type="button" data-act="agents-open" class="primary">[ OPEN AGENTS ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>`;
 function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting for a pick)
   const by = {};
   toolCat.tools.forEach((t) => (by[t.group] = by[t.group] || []).push(t));
   Object.values(by).forEach((list) => list.sort((x, y) => y.ready - x.ready));     // ready tools first
   const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
-  $("#toolgrid").innerHTML = `<div class="tgroup agentsrow"><h3 class="tgname">Agents</h3><div class="row">
-      <span>Give Joe a whole job: he plans it, looks things up, checks his own answers and works until each point is done.</span>
-      <button type="button" data-act="agents-open" class="primary">[ OPEN AGENTS ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>` + groups.map((g) =>
+  // Agents are NOT offered in 2.3 (Joseph, 2026-11-12: they are being rebuilt as one agent, Joe-AlIve, with
+  // helpers; five kinds now would only confuse people). The row shows only where an agent already exists.
+  $("#toolgrid").innerHTML = (agCount > 0 ? agRow() : "") + groups.map((g) =>
     `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
     by[g].map((t) => { const st = toolStat[t.id], miss = t.ready && st && !st.ok;
       return `<button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +

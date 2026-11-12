@@ -25,8 +25,12 @@ ART_HINTS = ["illustr", "anime", "animagine", "toon", "cartoon", "flat", "vector
 ANIME_HINTS = ["animagine", "anime", "pony", "meina", "counterfeit", "aam", "illustr"]
 TOON_HINTS = ["toon", "cartoon", "comic", "flat", "vector", "dreamshaper", "illustr"]
 PAINT_HINTS = ["dreamshaper", "paint", "art", "illustr", "sdxl_base", "sd_xl_base"]
-DEFAULT_HINTS = {"photo": PHOTO_HINTS, "bw": PHOTO_HINTS, "product": PHOTO_HINTS, "illustration": ART_HINTS,
-                 "character": ART_HINTS, "coloring": ART_HINTS, "anime": ANIME_HINTS, "cartoon": TOON_HINTS,
+# Product shots: RealVisXL first (it is the model recommended for them; with Juggernaut first it was never used).
+PRODUCT_HINTS = ["realvis"] + [h for h in PHOTO_HINTS if h != "realvis"]
+# Illustration, mascot, coloring page: DreamShaper first (an anime model came first and won when both were there).
+DRAW_HINTS = ["dreamshaper"] + [h for h in ART_HINTS if h != "dreamshaper"]
+DEFAULT_HINTS = {"photo": PHOTO_HINTS, "bw": PHOTO_HINTS, "product": PRODUCT_HINTS, "illustration": DRAW_HINTS,
+                 "character": DRAW_HINTS, "coloring": DRAW_HINTS, "anime": ANIME_HINTS, "cartoon": TOON_HINTS,
                  "painting": PAINT_HINTS, "concept": PAINT_HINTS, "surreal": PAINT_HINTS,
                  "pixel": ["pixel"] + TOON_HINTS, "render3d": ["3d", "render", "dreamshaper", "juggernaut"],
                  "scifi": ["dreamshaper", "juggernaut", "realvis"], "cyberpunk": ["dreamshaper", "juggernaut", "realvis"],

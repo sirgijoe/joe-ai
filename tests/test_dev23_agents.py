@@ -256,13 +256,21 @@ def test_a_watch_folder_starts_a_run_with_the_new_files(env, monkeypatch):
     assert agents.watch_tick(app, now=time.time() + 60) == []
 
 
-def test_agents_are_offered_in_their_own_section_with_the_strip():
-    html = (Path(__file__).parent.parent / "joeai" / "ui" / "index.html").read_text(encoding="utf-8")
-    js = (Path(__file__).parent.parent / "joeai" / "ui" / "app.js").read_text(encoding="utf-8")
-    assert 'id="s-agents"' in html and 'id="ag-steps"' in html and 'id="ag-mins"' in html and 'id="ag-remote"' in html
-    assert 'id="agentstrip"' in html and html.index('id="agentstrip"') < html.index('id="workarea"')   # on every tab
-    assert 'class="tgroup agentsrow"' in js and 'data-act="agents-open"' in js
-    assert "agRiskScreen" in js and "[ YES, TURN IT ON ]" in js
+def test_agents_are_not_offered_in_2_3_but_the_build_is_kept():
+    """Joseph, 2026-11-12: agents are being rebuilt as ONE agent (Joe-AlIve) with helpers; offering five
+    kinds now would only confuse people. So 2.3 shows no Agents row unless an agent already exists, says
+    nothing about them in the guide, the notes or "what can you do?", and keeps the engine and its tests."""
+    root = Path(__file__).parent.parent
+    html = (root / "joeai" / "ui" / "index.html").read_text(encoding="utf-8")
+    js = (root / "joeai" / "ui" / "app.js").read_text(encoding="utf-8")
+    assert 'id="s-agents"' in html and 'id="ag-steps"' in html and 'id="ag-fails"' in html      # the page is kept
+    assert 'id="agentstrip"' in html and html.index('id="agentstrip"') < html.index('id="workarea"')
+    assert "(agCount > 0 ? agRow() : \"\")" in js and "agRiskScreen" in js                       # shown only when one exists
+    for doc in ("docs/GUIDE.md", "README.md", "installer/RELEASE_NOTES.md"):
+        text = (root / doc).read_text(encoding="utf-8")
+        assert "OPEN AGENTS" not in text and "Paperwork clerk" not in text, doc
+    from joeai import abilities
+    assert not abilities.answer("what are agents?") or "Paperwork clerk" not in abilities.answer("what are agents?")["text"]
 
 
 def test_an_option_from_the_model_cant_add_a_line_to_the_step(env):

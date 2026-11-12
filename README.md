@@ -463,10 +463,6 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 
 - **Memory, only if you want it.** Turn it on in Setup > Memory and say "remember that I like short
   captions": Joe keeps a note you can see, edit and delete, on this computer only.
-- **Agents.** Give Joe a whole job (Tools > OPEN AGENTS): a Researcher, Paperwork clerk, Daily
-  briefing, Maker or Personal assistant plans it, looks things up, checks its own facts and works until
-  each point is done. Risky abilities stay off until you turn them on, each explained first; once an
-  agent has read your files, its searches only use words from the job you typed.
 - **Recurring missions.** "Every Sunday night, make next week's meal plan", then REPEAT under the plan:
   it runs with the night shift on those nights (Setup > General lists them to pause or delete).
 - **Your keys stay locked away.** Keys and passwords you give Joe (web-search key, connector password)

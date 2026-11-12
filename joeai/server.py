@@ -91,6 +91,8 @@ class App:
         self.services_status = {"ollama": False, "comfyui": False, "loaded": []}
         self.dl_all: dict = {}            # Setup > Models > DOWNLOAD ALL progress
         self.restart_hint = ""            # "restart Joe" advice shown in the window (with a button)
+        self.models_pending_until = 0.0   # GET IT opened a model's page: watch Downloads for the file until then
+        self.models_waiting: list[str] = []   # finished picture-model downloads Joe can move into ComfyUI
         self.services = ServiceManager(self.settings, log=self.log)
         self.fix_result: dict = {}           # how the last System-check fix went (for the UI)
         self.busy = ""                       # a system-check fix running in the background
@@ -152,6 +154,19 @@ class App:
 
     def daily_restart_tick(self) -> str:
         return self.daily.tick(self)
+
+    def models_waiting_tick(self) -> list[str]:
+        """After GET IT opened a model's page: has the download finished? Then the window offers to move
+        it into ComfyUI (nobody should have to know to press GET IT a second time). Looks only at file
+        names in the Downloads folder, only for 6 hours after the page was opened, and moves nothing."""
+        if time.time() > self.models_pending_until:
+            self.models_waiting = []
+            return []
+        if self.busy:
+            return self.models_waiting
+        from . import stylemodels
+        self.models_waiting = [p.name for p in stylemodels.found(doctor.comfy_models_dir(self.settings))][:8]
+        return self.models_waiting
 
     def background_work(self) -> bool:
         """A download, install or portable copy is still going (closing the window mustn't kill it)."""
@@ -970,6 +985,7 @@ class App:
                 "theme": self.theme_vars(), "hw": hardware.gpu(), "cpu_pct": hardware.cpu_pct(), "pause_c": s.engine.gpu_temp_pause_c,
                 "busy": self.busy, "busy_pct": self.busy_pct, "fix_result": self.fix_result,
                 "dl_all": {k: v for k, v in self.dl_all.items() if k != "stop"}, "restart_hint": self.restart_advice(),
+                "models_waiting": list(self.models_waiting),
                 "attention": self.services.attention, "portable": portable_mod.active(),
                 "queued": [e["label"] for _, _, e in self.queue],
                 "on_hold": [h["label"] for h in self.held_missions()],
@@ -1150,8 +1166,18 @@ class App:
                 elif action == "import-models":
                     from . import stylemodels
                     mdir = doctor.comfy_models_dir(self.settings)
-                    if stylemodels.found(mdir):
-                        ok = stylemodels.import_downloads(mdir, self.log) > 0
+                    waiting = [p.name for p in stylemodels.found(mdir)]
+                    if waiting:
+                        moved = stylemodels.import_downloads(mdir, self.log)
+                        ok = moved > 0
+                        self.models_waiting = []
+                        if ok:
+                            said.append(f"Moved {moved} model file(s) into ComfyUI: {', '.join(waiting[:4])}. "
+                                        + ("Close ComfyUI and open it again so it sees " + ("it." if moved == 1 else "them.")
+                                           if self.services.comfy_up() else "Joe uses " + ("it" if moved == 1 else "them")
+                                           + " from the next picture on."))
+                        else:
+                            said.append("Joe couldn't move the model file(s); the log on the main screen says why.")
                         if ok and self.services.comfy_up():
                             self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
                     elif b.get("page", "").startswith(stylemodels.PAGE_HOSTS):
@@ -1160,6 +1186,9 @@ class App:
                         if link != b["page"]:
                             webbrowser.open(b["page"])          # the license and model card
                         webbrowser.open(link)
+                        self.models_pending_until = time.time() + 6 * 3600     # Joe watches for the finished file
+                        said.append("Joe opened the model's page in your browser. Download the file there. When it "
+                                    "has finished, Joe asks to move it into ComfyUI (or press GET IT again).")
                         if "/resolve/" in link:
                             self.log("Opened the model's page (license) and started the download in your "
                                      "browser. When it's finished, press GET IT again and Joe moves it "
@@ -1170,6 +1199,7 @@ class App:
                                      "moves it into ComfyUI.")
                     else:
                         self.log("No picture model files found in your Downloads folder.")
+                        said.append("Joe found no picture model file in your Downloads folder.")
                         ok = False
                 elif action == "update-joe":
                     from . import update as update_mod
@@ -1193,6 +1223,8 @@ class App:
                 addons_mod.install_log(self.log)(f"!! {action} failed: {e!r}")
             finally:
                 self.fix_result = {"action": action, "ok": bool(ok), "n": self.fix_result.get("n", 0) + 1}
+                if action == "import-models" and said:    # said in the window, in words (not only in the log)
+                    self.fix_result["say"] = said[-1]
                 if action == "update-joe" and not ok:     # the window says so, in words (not just the log)
                     from . import REPO
                     self.fix_result.update(error=(said[-1] if said else "The update stopped (the log says why)."),
@@ -2832,6 +2864,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             step("Agents", app.agent_watch_tick)       # files dropped in Inbox/Agents/<agent>
             step("Voice", app.clone.idle_check)
             step("Mission queue", app.watch_queue_folder)   # mission files dropped in Missions/Queue
+            step("Model downloads", app.models_waiting_tick)   # a picture model downloaded after GET IT
             if not app.quit_now:
                 step("Daily restart", app.daily_restart_tick)
             for _ in range(10):
