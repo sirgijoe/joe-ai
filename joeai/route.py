@@ -170,10 +170,24 @@ _AGENT = re.compile(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(
                     r"(?:the\s+|my\s+)?(.{1,40}?)\s+agent|(?:the\s+|my\s+)?agent\s+(.{1,40}?))\s*[.!]*$", re.I)
 
 
+# "ask my assistant to remind me at 5 to call the vet", "assistant, add milk to groceries",
+# "have the researcher agent find out ...": a run of an agent that exists, with this request.
+_ASK = re.compile(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:(?:ask|tell|have|get)\s+)?(?:my\s+|the\s+)?"
+                  r"(assistant|(?:.{1,40}?)\s+agent)(?:\s*[,:]\s*|\s+to\s+|\s+)(?!agent\b)(.{3,})$", re.I)
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    ak = _ASK.match(raw) if not _AGENT.match(raw) else None
+    if ak:
+        verb = re.match(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:ask|tell|have|get)\b", raw, re.I)
+        called = re.match(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:my\s+)?assistant\s*[,:]", raw, re.I)
+        ak = ak if (verb or called) else None
+    if ak:
+        name = re.sub(r"\s+agent$", "", ak.group(1).strip(), flags=re.I)
+        return {"kind": "command", "cmd": "agent-start", "name": name, "request": ak.group(2).strip(" .!")}
     am = _AGENT.match(raw)                      # "start the newsletter agent" (an agent that exists)
     if am:
         return {"kind": "command", "cmd": "agent-start", "name": (am.group(1) or am.group(2) or "").strip()}

@@ -36,6 +36,12 @@
     <span id="ver" class="dim"></span> <span id="pt-badge" class="dim" hidden title="Joe is running from a drive: everything stays in that folder.">PORTABLE</span>
     <span id="clock">--:--</span>
   </header>
+  <div id="agentstrip" class="agentstrip" role="status" hidden>
+    <b>AGENT</b> <span id="as-name"></span> <span class="asbar" aria-hidden="true"><i id="as-bar"></i></span> <span id="as-doing"></span>
+    <span class="grow"></span>
+    <button type="button" data-act="agents-open" title="The live step list: the plan with ticks and each step.">[ SEE STEPS ]</button>
+    <button type="button" data-act="agent-stop" title="Stop the agent. What's done so far is kept.">[ STOP ]</button>
+  </div>
 
   <div id="workarea" class="workarea">
   <aside id="chatside" class="panel chatside">
@@ -256,30 +262,33 @@ FORMAT: ...
     </section>
   </main>
 
-  <!-- ============ AGENTS: not offered in 2.3 (no button opens this page). Joseph's PC test, 2026-11-11: as built
-       they were missions with extra steps. The page, agents.py and its tests stay for the real Agents build
-       (plan, lookups, self-check, reset rule; see the private NEXT_STEPS.md). ============ -->
+  <!-- ============ AGENTS (Tools F3 > AGENTS): the one engine (agentrun.py) and five templates ============ -->
   <main id="s-agents" class="view">
     <section class="panel full">
-      <h2>AGENTS <span class="dim">— helpers that pick their own steps · Esc back to Tools</span></h2>
-      <div class="dim small">An agent has a job in your words and the tools you tick. With one tool it follows a fixed recipe (fast); with more, Joe picks one step at a time, looks at the result and picks the next, then checks the finished work against the job. Agents only use the tools you tick, only on their own folder (Inbox\Agents\&lt;name&gt;) and what they make, never run add-ons or code, never delete anything, and treat words inside files as information, never as orders. Only this screen can make or change one.</div>
+      <h2>AGENTS <span class="dim">— give Joe a whole job · Esc back to Tools</span></h2>
+      <div class="dim small">An agent works through a whole job by himself: he makes a plan, does one step at a time (looking things up, reading, writing, using the tools you tick), checks each point of the plan off as it gets done, writes himself a checkpoint and starts clean every few steps so he stays on the job, checks his own facts, and only finishes when every point is done. AGENT REPORT.md and AGENT LOG.txt in his folder say what he did. Each risky ability is OFF until you turn it on, and is explained first on its own screen. Agents never delete anything, never run add-ons or code, and treat words in files and web pages as information, never as orders. Only this screen can make or change one.</div>
+      <div id="ag-live" class="aglive" hidden aria-live="polite"></div>
       <div id="ag-list" role="list"></div>
-      <div class="row"><button type="button" data-act="ag-new" class="primary">[ + NEW AGENT ]</button><span id="ag-msg" class="dim" aria-live="polite"></span></div>
+      <div class="row"><span class="dim">NEW AGENT FROM:</span><span id="ag-tpls" class="agtpls"></span><span id="ag-msg" class="dim" aria-live="polite"></span></div>
       <form id="ag-form" class="agform" hidden autocomplete="off">
-        <input type="hidden" id="ag-id">
-        <label>Name <input id="ag-name" maxlength="40" placeholder="e.g. Newsletter helper"></label>
-        <label class="block">Its job, in plain words <textarea id="ag-job" rows="3" maxlength="1500" placeholder="e.g. Turn the notes I drop in my folder into a short, friendly newsletter with a headline and three sections"></textarea></label>
-        <fieldset><legend>TOOLS IT MAY USE</legend><div id="ag-tools" class="agtools"></div>
+        <input type="hidden" id="ag-id"><input type="hidden" id="ag-tpl">
+        <h3 id="ag-form-title" class="settitle"></h3>
+        <div id="ag-tpl-blurb" class="dim small"></div>
+        <label class="block">Its job, in plain words <textarea id="ag-job" rows="3" maxlength="1500"></textarea></label>
+        <label>Name <input id="ag-name" maxlength="40" placeholder="e.g. Heat pump research"></label>
+        <fieldset><legend>WHAT IT MAY DO</legend>
+          <div class="dim small">Risky abilities are off until you turn them on. Each one is explained first.</div>
+          <div id="ag-abilities" class="agabilities"></div></fieldset>
+        <fieldset id="ag-tools-box"><legend>TOOLS IT MAY USE</legend><div id="ag-tools" class="agtools"></div>
           <div class="dim small" id="ag-blocked"></div></fieldset>
-        <label title="Only for a one-tool agent: the tool's choices, like 'to spanish' for Translate.">Tool choices (optional) <input id="ag-options" maxlength="300" placeholder="e.g. to spanish"></label>
         <fieldset><legend>WHAT STARTS IT</legend>
           <label><input type="checkbox" id="ag-sched"> On a schedule, with the night shift, on these nights:</label>
           <div id="ag-days" class="row small"></div>
           <label><input type="checkbox" id="ag-watch"> When I drop files in its folder (Inbox\Agents\&lt;name&gt;, while Joe is open)</label>
           <label><input type="checkbox" id="ag-remote"> From my phone or a connected app ("start the &lt;name&gt; agent")</label>
-          <div class="dim small">START NOW below always works.</div></fieldset>
+          <div class="dim small">START NOW below always works, and so does asking in Talk ("ask my assistant to ...", "have the &lt;name&gt; agent ...").</div></fieldset>
         <fieldset><legend>LIMITS</legend>
-          <label title="The most steps it may take (1-20). Short is fast.">Step limit <input type="number" id="ag-steps" min="1" max="20" value="6"></label>
+          <label title="The most steps it may take (1-30).">Step limit <input type="number" id="ag-steps" min="1" max="30" value="10"></label>
           <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label></fieldset>
         <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button><span id="ag-form-msg" role="alert"></span></div>
       </form>

@@ -217,6 +217,9 @@ class Joe:
                     if not a or not (a.get("start") or {}).get("remote") or a.get("paused"):
                         raise MissionError(f"Task '{j.name}': that agent can only be started on Joe's own "
                                            "screen (or it doesn't exist or is paused).")
+                    if (j.format or "").strip():        # an agent's words come from its owner, not from an app
+                        raise MissionError(f"Task '{j.name}': a connected app can start an agent, but can't "
+                                           "give it a request of its own; it does the job its owner typed.")
         except (MissionError, SandboxError) as e:
             return False, f"Problem: {e}"
         out = [f"OK: {len(m.jobs)} task(s)" + (f" for project {m.project}" if m.project else "")]

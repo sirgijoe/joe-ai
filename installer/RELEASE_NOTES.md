@@ -1,5 +1,13 @@
 ## What's new in 2.3 (in development)
 
+- **Agents** (Tools > OPEN AGENTS): give Joe a whole job and he works through it by himself. Five kinds:
+  Researcher, Paperwork clerk, Daily briefing, Maker and Personal assistant (in Talk: "ask my assistant
+  to ..."). Each run makes a plan first, ticks each point off as it gets done and stops when they all
+  are, writes itself a checkpoint and starts clean every few steps so it stays on the job, and checks
+  its own facts online, marking the ones the sources disagree with [CHECK]. A strip under the tabs
+  shows how it's going on every tab. Risky abilities (looking things up online, renaming and moving
+  files, sending to your phone) are off until you turn them on, each explained on its own screen first.
+  Once an agent has read one of your files, its searches only use words from the job you typed.
 - **Tidier Output: one folder per mission.** New work goes into a folder with the date in front
   ("2026-11-10 Showcase video") with every task of that mission inside. A piece of writing gets its
   own folder with its Word, PDF and other copies. Running a task again puts the new one beside the

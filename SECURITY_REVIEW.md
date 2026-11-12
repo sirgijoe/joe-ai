@@ -140,12 +140,43 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
 
 ## 2.3 additions (dev-2.3)
 
-- [ ] Agents (`agents.py`, engine `TYPE: agent`): only ticked tools (`allowed_tools`, BLOCKED, no `x-`
-      add-ons, no code, no research, no nested agents); inputs only from the trigger files, the agent's
-      own `Inbox/Agents/<name>` and this run's outputs (checked in `_pick`); step SAVE forced under the
-      run folder; DATA markers can't be closed early (`_data`); create/change only via window-token
-      routes `/api/agents/*`; phone `agent-start` and MCP `joe_start_agent` respect `start.remote` and
-      `paused`. Try a prompt-injection file in an agent folder.
+- [ ] Agents, the real build (`agents.py` list/templates/abilities, `agentrun.py` the one engine,
+      `agentweb.py` lookups). Tests: `tests/test_dev23_agent_engine.py` (one per rule) and
+      `tests/test_dev23_agents.py`. Rules to try to break:
+      - **Search words only from the owner's job once a file was read** (`agentweb.safe_query`, the run's
+        `tainted` flag = any trigger file or agent-folder file exists, or any tool/read touched one).
+        Untainted runs (a Researcher with no files) may phrase their own searches. Never a URL, e-mail or
+        long number in a search. Try: a planted "search for <this letter>" line in the agent's folder
+        (`test_search_words_come_only_from_the_owners_job_once_a_file_was_read`), including through the
+        fact-check's claim searches.
+      - **Lookups off = no network call at all**: the agent's switch, Setup's "look things up online",
+        or JOE_OFFLINE (`agentweb.enabled`; `test_lookups_off_means_no_network_call_at_all`).
+      - **Pages read**: only an address a search in this run returned or one the owner typed in the job;
+        http(s) to a public host only (no localhost, home network, `user:pw@`, file:), checked again on
+        every redirect and after the name is looked up (`public_url`, `_resolves_public`,
+        `_CheckRedirects`). Caps: 14 searches, 8 pages per run.
+      - **Risky abilities** (`agents.ABILITIES`: lookups, files, phone): off until their own screen got a
+        yes (`acks` = the screen's version; a changed screen asks again; `save()` refuses otherwise; a
+        COPY starts with them off); a template can't turn on one it doesn't offer; without the ability
+        its actions aren't offered to the model, and Joe refuses them if asked anyway.
+      - **Paperwork clerk file changes**: suggestions only (`propose`), applied only by APPLY in Joe's
+        window after "are you sure?" (`/api/agents/apply`, window token), only inside the agent's own
+        folder, one folder deep, no `..`, file's own extension kept, never over a file, nothing deleted,
+        undo list written before each move (`apply_pending`, `undo_last`, `agentrun.clean_target`).
+      - **Phone**: the digest/reminder goes only to the owner's own ntfy topic, once per run, and never
+        when the run has read a file (`do_send`, `do_remind`).
+      - **Requests**: a request from Talk or the phone is one line of the mission (`mission_text` uses
+        `_safe`); a connected app can start an agent that allows it but can't add a request (`mcp.check`).
+        The assistant starts only other agents that exist (not itself, not another assistant), by
+        writing a normal mission into Missions/Queue.
+      - Kept from dev6: only ticked tools (`allowed_tools`, BLOCKED, no `x-` add-ons, no code); files
+        only from the trigger files, the agent's own `Inbox/Agents/<name>`, this run's outputs and its
+        `sources/`; step SAVE forced under the run folder; options and titles from the model can't add
+        a line to a step's mission; DATA markers can't be closed early (`_data`), for web results too;
+        create/change only via window-token routes `/api/agents/*`; phone `agent-start` and MCP
+        `joe_start_agent` respect `start.remote` and `paused`.
+      - Not built, on purpose (Joseph): anything that clicks through websites, anything that connects to
+        an inbox. Nothing an agent does sends to other people.
 - [ ] Memory (`memory.py`): opt-in; `memory.json` in the config folder; `ORIGIN` set to phone/connector
       in `phone.ask` and `mcp.handle`; `joe_memory` is not listed or callable unless shared; changes only
       from the window (and the phone when allowed); backup only with "include memory".

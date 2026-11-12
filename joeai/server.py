@@ -41,6 +41,7 @@ from . import chat as chat_mod
 from .chats import Chats
 from . import notify as notify_mod
 from . import portable as portable_mod
+from . import agents as agents_mod
 
 UI_DIR = Path(__file__).parent / "ui"
 
@@ -973,6 +974,7 @@ class App:
                 "held_plan": {k: v for k, v in self.held_plan.items() if k != "thread"},
                 "quiet": self.quiet(), "finished": self.finished,
                 "night": self.running and self.night_run(),
+                "agent": agents_mod.live_status(),
                 "comfort": {"screensaver_min": s.comfort.screensaver_min, "screensaver": s.comfort.screensaver}}
 
     def list_dir(self, rel: str) -> dict:
@@ -1736,7 +1738,11 @@ def make_handler(app: App):
                 if u.path == "/api/agents":              # Tools F3 > AGENTS (Joe's own window only)
                     from . import agents
                     return self._json({"ok": True, "agents": agents.load(), "tools": agents.allowed_tools(),
-                                       "blocked": agents.BLOCKED})
+                                       "blocked": agents.BLOCKED, "templates": agents.TEMPLATES,
+                                       "tool_groups": {k: v.group for k, v in __import__("joeai.tools", fromlist=["TOOLS"]).TOOLS.items()},
+                                       "abilities": agents.ABILITIES, "live": agents.live_status(),
+                                       "lookups_setting": bool(app.settings.web.enabled),
+                                       "phone_setting": bool((app.settings.comfort.ntfy_topic or "").strip())})
                 if u.path == "/api/memory":              # Setup > Memory (Joe's own window only)
                     from . import memory
                     return self._json({"ok": True, "notes": memory.load(), "on": memory.enabled(app.settings)})
@@ -2549,7 +2555,15 @@ def make_handler(app: App):
                         a = agents.get(str(b.get("id", "") or b.get("name", "")))
                         if not a:
                             return self._json({"ok": False, "error": "There's no agent by that name."})
-                        return self._json(app.enqueue(agents.mission_text(a)))
+                        r = app.enqueue(agents.mission_text(a, None, str(b.get("request", ""))))
+                        return self._json({**r, "name": a["name"]} if isinstance(r, dict) else r)
+                    if act == "copy":
+                        return self._json(agents.copy(str(b.get("id", ""))))
+                    if act in ("apply", "undo"):                # the clerk's changes: the window asks "are you sure?" first
+                        if app.running and (agents.live_status() or {}).get("name"):
+                            return self._json({"ok": False, "error": "An agent is working. Try again when it's done."})
+                        fn = agents.apply_pending if act == "apply" else agents.undo_last
+                        return self._json(fn(app.sb, str(b.get("id", ""))))
                     return self._json({"ok": False, "error": "unknown agent action"}, 400)
                 if u.path.startswith("/api/memory/"):    # Setup > Memory / "remember that ..." (window only)
                     from . import memory

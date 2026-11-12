@@ -198,6 +198,7 @@ async function poll() {
     return;
   }
   heldPlanTick();
+  agStrip(state.agent);
   if ((state.attention || "") !== (window._lastAttention || "")) {      // ComfyUI needs the person
     window._lastAttention = state.attention || "";
     if (state.attention) toast(state.attention, 15000);
@@ -386,8 +387,8 @@ async function doCommand(cmd, rt) {
   }
   if (cmd === "quick") return rt.say;                    // the time, today's date, plain arithmetic (no AI)
   if (cmd === "agent-start") {
-    const r = await api("/api/agents/start", { name: rt.name || "" });
-    return r.ok ? `Started the ${rt.name} agent.` : r.error;
+    const r = await api("/api/agents/start", { name: rt.name || "", request: rt.request || "" });
+    return r.ok ? `Started the ${r.name || rt.name} agent. The strip under the tabs shows how it's going.` : r.error;
   }
   if (cmd === "memory") {                                // "remember that ...", "forget that ...", "what do you remember?"
     const r = await api("/api/memory/cmd", { text: rt.memory === "show" ? "what do you remember about me" : (rt.memory === "forget" ? "forget that " : "remember that ") + (rt.text || "") });
@@ -3513,13 +3514,18 @@ async function loadTools() {
     api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); else renderToolGrid(); }).catch(() => {});
   }
   if (!toolOpen) renderToolGrid();
+  api("/api/agents").then((r) => { agCount = r.agents.length; const c = $("#ag-count"); if (c) c.textContent = agCountText(); }).catch(() => {});
 }
+let agCount = null;
+const agCountText = () => agCount === null ? "" : agCount ? `${agCount} set up` : "none set up yet";
 function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting for a pick)
   const by = {};
   toolCat.tools.forEach((t) => (by[t.group] = by[t.group] || []).push(t));
   Object.values(by).forEach((list) => list.sort((x, y) => y.ready - x.ready));     // ready tools first
   const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
-  $("#toolgrid").innerHTML = groups.map((g) =>
+  $("#toolgrid").innerHTML = `<div class="tgroup agentsrow"><h3 class="tgname">Agents</h3><div class="row">
+      <span>Give Joe a whole job: he plans it, looks things up, checks his own answers and works until each point is done.</span>
+      <button type="button" data-act="agents-open" class="primary">[ OPEN AGENTS ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>` + groups.map((g) =>
     `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
     by[g].map((t) => { const st = toolStat[t.id], miss = t.ready && st && !st.ok;
       return `<button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
@@ -4177,58 +4183,144 @@ document.addEventListener("click", async (ev) => {
 });
 
 
-/* ---------------- 2.3: agents (Tools F3 > AGENTS) ---------------- */
+/* ---------------- 2.3: agents (Tools F3 > AGENTS; agents.py + agentrun.py) ---------------- */
 const DAYNAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-let agData = { agents: [], tools: {} };
+let agData = { agents: [], tools: {}, templates: {}, abilities: {} };
+let agAcks = {};                       // abilities said yes to on their screen, while this form is open
 async function loadAgents() {
   agData = await api("/api/agents");
+  const T = agData.templates || {};
+  $("#ag-tpls").innerHTML = Object.entries(T).map(([id, t]) =>
+    `<button type="button" data-ag-tpl="${id}" title="${esc(t.blurb)}">[ ${esc(t.name.toUpperCase())} ]</button>`).join("");
   $("#ag-list").innerHTML = agData.agents.length ? agData.agents.map((a) => {
-    const lr = a.last_run || {};
-    const starts = [a.start.schedule ? "nights: " + a.start.days.map((d) => DAYNAMES[d]).join(" ") : "", a.start.watch ? "its folder" : "", a.start.remote ? "phone / apps" : ""].filter(Boolean).join(", ") || "START NOW only";
-    return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
-      <span class="dim small">Tools: ${a.tools.map((t) => esc(agData.tools[t] || t)).join(", ")} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}: ${esc(lr.note || "")}` : ""}</span></span>
+    const lr = a.last_run || {}, t = T[a.template] || { name: a.template };
+    const starts = [a.start.schedule ? "nights: " + a.start.days.map((d) => DAYNAMES[d]).join(" ") : "", a.start.watch ? "its folder" : "", a.start.remote ? "phone / apps" : ""].filter(Boolean).join(", ") || "START NOW or Talk";
+    const ab = Object.keys(a.abilities || {}).filter((k) => a.abilities[k]).map((k) => (agData.abilities[k] || {}).title || k);
+    const pend = (a.pending || {}).changes || [];
+    return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b> <span class="dim">· ${esc(t.name)}</span>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
+      <span class="dim small">May: ${ab.length ? esc(ab.join(", ")) : "nothing risky"} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}${lr.plan ? ` (${lr.done || 0} of ${lr.plan.length} points done)` : ""}: ${esc(lr.note || "")}` : ""}</span>
+      ${pend.length ? `<br><span class="warn small">${pend.length} suggested name(s) or folder(s) wait for your OK.</span> <button type="button" data-ag-apply="${esc(a.id)}" data-n="${pend.length}">[ APPLY ]</button>` : ""}
+      ${a.undo ? `<button type="button" data-ag-undo="${esc(a.id)}">[ UNDO THE LAST CHANGES ]</button>` : ""}</span>
       <button type="button" data-ag-start="${esc(a.id)}">[ START NOW ]</button><button type="button" data-ag-edit="${esc(a.id)}">[ EDIT ]</button>
+      <button type="button" data-ag-copy="${esc(a.id)}" title="Build your own: start from a copy of this one.">[ COPY ]</button>
       <button type="button" data-ag-pause="${esc(a.id)}" data-paused="${a.paused ? 1 : ""}">[ ${a.paused ? "START AGAIN" : "PAUSE"} ]</button>
       <button type="button" data-ag-del="${esc(a.id)}" data-name="${esc(a.name)}">[ DELETE ]</button>${lr.folder ? `<button type="button" data-ag-open="${esc("Output/" + lr.folder)}">[ ITS LAST RUN ]</button>` : ""}</div>`;
-  }).join("") : `<div class="dim small">No agents yet.</div>`;
+  }).join("") : `<div class="dim small">No agents yet. Start from one of the five below.</div>`;
   $("#ag-blocked").textContent = "Never offered to agents: " + Object.entries(agData.blocked || {}).map(([k, v]) => `${k} (${v})`).join("; ") + "; add-on tools; code.";
+  agLive(agData.live);
 }
-function agForm(a) {
+function agLive(lv) {
+  const box = $("#ag-live");
+  if (!box) return;
+  box.hidden = !(lv && lv.name);
+  if (box.hidden) return;
+  box.innerHTML = `<b>WORKING NOW: ${esc(lv.name)}</b> <span class="dim">· ${esc(lv.template || "")} · ${esc(lv.doing || "")} · ${lv.minutes} min</span>
+    <div class="small">THE PLAN</div><ul class="small">${(lv.plan || []).map((p) => `<li>${p.done ? "[x]" : "[ ]"} ${esc(p.point)}</li>`).join("")}</ul>
+    <div class="small">STEPS</div><ul class="small">${(lv.steps || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>(none yet)</li>"}</ul>`;
+}
+function agStrip(lv) {            // the strip under the tabs, on every tab, while an agent works
+  const s = $("#agentstrip");
+  if (!s) return;
+  const on = !!(lv && lv.name);
+  if (s.hidden === on) s.hidden = !on;
+  if (!on) return;
+  $("#as-name").textContent = `${lv.name} (${lv.template || ""})`;
+  $("#as-doing").textContent = (lv.step ? `step ${lv.step} of ${lv.of} · ` : "") + (lv.doing || "") + ` · ${lv.minutes} min`;
+  const pts = lv.plan || [], done = pts.filter((p) => p.done).length;
+  $("#as-bar").style.width = (pts.length ? Math.round(100 * done / pts.length) : 0) + "%";
+  if (current === "agents") agLive(lv);
+}
+function agAbilities(tpl, a) {
+  const on = (a && a.abilities) || {};
+  $("#ag-abilities").innerHTML = (tpl.abilities || []).map((k) => {
+    const ab = agData.abilities[k];
+    return `<label><input type="checkbox" data-agab="${k}"${on[k] ? " checked" : ""}> ${esc(ab.title)} <span class="dim small">· ${esc(ab.can)}</span></label>`;
+  }).join("") || `<div class="dim small">Nothing risky: this kind of agent only reads, writes and uses the tools you tick.</div>`;
+  const warn = [];
+  if ((tpl.abilities || []).includes("lookups") && !agData.lookups_setting) warn.push("Looking things up also needs Setup > Voice & Talk > Let Joe look things up online.");
+  if ((tpl.abilities || []).includes("phone") && !agData.phone_setting) warn.push("Sending to your phone needs phone pings (Setup > Display & sound).");
+  if (warn.length) $("#ag-abilities").insertAdjacentHTML("beforeend", `<div class="warn small">${esc(warn.join(" "))}</div>`);
+}
+function agRiskScreen(k, yes, no) {    // THE DESIGN RULE: one short screen per risky ability, a real yes/no
+  const ab = agData.abilities[k];
+  confirmBox(`${ab.title.toUpperCase()}\n\nWHAT IT CAN DO\n${ab.can}\n\nWHAT COULD GO WRONG\n${ab.wrong}\n\nTHE WORST CASE\n${ab.worst}\n\nWHAT IT NEVER DOES\n${ab.never}` +
+    (ab.needs ? `\n\n${ab.needs}` : "") + "\n\nTurn it on for this agent?", () => { agAcks[k] = ab.version; yes(); }, no, "[ YES, TURN IT ON ]");
+}
+function agForm(a, tplId) {
+  tplId = a ? a.template : tplId;
+  const tpl = agData.templates[tplId];
+  agAcks = Object.assign({}, (a && a.acks) || {});
   $("#ag-form").hidden = false; $("#ag-form-msg").textContent = "";
-  $("#ag-id").value = a ? a.id : ""; $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : "";
-  $("#ag-options").value = a ? (a.options || "") : "";
-  $("#ag-steps").value = a ? a.steps : 6; $("#ag-mins").value = a ? a.minutes : 30;
-  const st = a ? a.start : { schedule: false, days: [], watch: false, remote: false };
+  $("#ag-id").value = a ? a.id : ""; $("#ag-tpl").value = tplId;
+  $("#ag-form-title").textContent = (a ? "CHANGE: " + a.name : "NEW " + tpl.name.toUpperCase());
+  $("#ag-tpl-blurb").textContent = tpl.blurb;
+  $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : ""; $("#ag-job").placeholder = tpl.hint;
+  $("#ag-steps").value = a ? a.steps : tpl.steps; $("#ag-mins").value = a ? a.minutes : tpl.minutes;
+  const st = a ? a.start : { schedule: false, days: [], watch: !!tpl.watch, remote: false };
   $("#ag-sched").checked = st.schedule; $("#ag-watch").checked = st.watch; $("#ag-remote").checked = st.remote;
   $("#ag-days").innerHTML = DAYNAMES.map((d, i) => `<label><input type="checkbox" data-agday="${i}"${st.days.includes(i) ? " checked" : ""}> ${d}</label>`).join(" ");
-  const have = new Set(a ? a.tools : []);
-  $("#ag-tools").innerHTML = Object.entries(agData.tools).map(([id, n]) => `<label><input type="checkbox" data-agtool="${esc(id)}"${have.has(id) ? " checked" : ""}> ${esc(n)}</label>`).join("");
-  $("#ag-name").focus();
+  agAbilities(tpl, a);
+  const have = new Set(a ? a.tools : tpl.tools), groups = {};
+  Object.entries(agData.tools).forEach(([id, n]) => { const g = (agData.tool_groups || {})[id] || "Basics"; (groups[g] = groups[g] || []).push([id, n]); });
+  const order = ["Basics", "Writing", "Pictures", "Video", "Audio", "Files"];
+  const usesTools = tpl.actions.includes("tool");
+  $("#ag-tools-box").hidden = !usesTools;
+  $("#ag-tools").innerHTML = order.filter((g) => groups[g]).map((g) => `<details class="more"${g === "Basics" || [...groups[g]].some(([id]) => have.has(id)) ? " open" : ""}><summary>${esc(g.toUpperCase())}</summary>` +
+    groups[g].sort((x, y) => x[1].localeCompare(y[1])).map(([id, n]) => `<label><input type="checkbox" data-agtool="${esc(id)}"${have.has(id) ? " checked" : ""}> ${esc(n)}</label>`).join("") + `</details>`).join("");
+  $("#ag-job").focus();
 }
+document.addEventListener("change", (ev) => {
+  const c = ev.target.closest("[data-agab]");
+  if (!c || !c.checked) return;
+  const k = c.dataset.agab, ab = agData.abilities[k];
+  if (agAcks[k] === ab.version) return;
+  c.checked = false;
+  agRiskScreen(k, () => { c.checked = true; }, () => { c.checked = false; });
+});
 document.addEventListener("click", async (ev) => {
   const b = ev.target.closest("button");
   if (!b) return;
   const act = b.dataset.act;
   try {
     if (act === "agents-open") { show("agents"); return; }
-    if (act === "ag-new") { agForm(null); return; }
+    if (act === "agent-stop") {
+      confirmBox("Stop the agent?\n\nWhat it has done so far is kept, with its report.", async () => { await api("/api/stop", {}); toast("Stopping…"); });
+      return;
+    }
+    if (b.dataset.agTpl) { agForm(null, b.dataset.agTpl); return; }
     if (act === "ag-cancel") { $("#ag-form").hidden = true; return; }
     if (act === "ag-save") {
-      const body = { id: $("#ag-id").value, name: $("#ag-name").value, job: $("#ag-job").value, options: $("#ag-options").value,
-        tools: [...document.querySelectorAll("[data-agtool]:checked")].map((x) => x.dataset.agtool),
+      const abilities = {};
+      document.querySelectorAll("[data-agab]").forEach((x) => (abilities[x.dataset.agab] = x.checked));
+      const tools = [...document.querySelectorAll("[data-agtool]:checked")].map((x) => x.dataset.agtool);
+      const body = { id: $("#ag-id").value, template: $("#ag-tpl").value, name: $("#ag-name").value, job: $("#ag-job").value,
+        tools: $("#ag-tools-box").hidden ? [] : tools, abilities, acks: agAcks,
         days: [...document.querySelectorAll("[data-agday]:checked")].map((x) => +x.dataset.agday),
         schedule: $("#ag-sched").checked, watch: $("#ag-watch").checked, remote: $("#ag-remote").checked,
         steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value };
       const r = await api("/api/agents/save", body);
       $("#ag-msg").textContent = r.ok ? "Saved." + (r.note ? " " + r.note : "") : r.error;
-      $("#ag-form-msg").textContent = r.ok ? "" : "Not saved: " + (r.error || "something went wrong.");   // beside the button: the list's message is far up the page
+      $("#ag-form-msg").textContent = r.ok ? "" : "Not saved: " + (r.error || "something went wrong.");   // beside the button
       if (r.ok) { $("#ag-form").hidden = true; await loadAgents(); $("#ag-list").scrollIntoView({ block: "nearest" }); }
       return;
     }
     if (b.dataset.agEdit) { agForm(agData.agents.find((a) => a.id === b.dataset.agEdit)); return; }
-    if (b.dataset.agStart) { const r = await api("/api/agents/start", { id: b.dataset.agStart }); $("#ag-msg").textContent = r.ok ? "Started: it's in the queue (Home shows it)." : r.error; return; }
+    if (b.dataset.agCopy) { const r = await api("/api/agents/copy", { id: b.dataset.agCopy }); $("#ag-msg").textContent = r.ok ? "Copied. Risky abilities start off on the copy; EDIT it to make it yours." : r.error; loadAgents(); return; }
+    if (b.dataset.agStart) { const r = await api("/api/agents/start", { id: b.dataset.agStart }); $("#ag-msg").textContent = r.ok ? "Started: the strip under the tabs shows how it's going." : r.error; return; }
     if (b.dataset.agPause) { await api("/api/agents/pause", { id: b.dataset.agPause, paused: !b.dataset.paused }); loadAgents(); return; }
     if (b.dataset.agOpen) { dirPath = b.dataset.agOpen; show("files"); return; }
+    if (b.dataset.agApply) {
+      confirmBox(`Rename or move ${b.dataset.n} file(s) in this agent's folder, as suggested in PROPOSED CHANGES.md?\n\nOnly files in its own folder, never over another file, nothing is deleted, and UNDO puts them all back.`, async () => {
+        const r = await api("/api/agents/apply", { id: b.dataset.agApply }); $("#ag-msg").textContent = r.note || r.error; loadAgents();
+      });
+      return;
+    }
+    if (b.dataset.agUndo) {
+      confirmBox("Put the files back where they were before the last APPLY?", async () => {
+        const r = await api("/api/agents/undo", { id: b.dataset.agUndo }); $("#ag-msg").textContent = r.note || r.error; loadAgents();
+      });
+      return;
+    }
     if (b.dataset.agDel) {
       confirmBox(`Delete the agent "${b.dataset.name}"?\n\nIt won't run again. What it made stays in Output.`, async () => {
         const r = await api("/api/agents/delete", { id: b.dataset.agDel }); $("#ag-msg").textContent = r.note || r.error; loadAgents();
