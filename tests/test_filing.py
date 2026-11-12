@@ -367,3 +367,22 @@ def test_a_bare_input_name_stays_an_inbox_file(tmp_path, fake):
     assert filing.translate_input(e, "notes/a.md") == "notes/a.md"
     assert filing.translate_input(e, "Output/notes/a.md").startswith("Output/") and \
         filing.translate_input(e, "Output/notes/a.md") != "Output/notes/a.md"
+
+
+def test_a_rerun_without_its_original_is_not_a_lone_v2(tmp_path):
+    """Fable review (Joseph's PC test): "neon-city-redo" with no "neon-city" ended up as Neon city/v2."""
+    sb = Sandbox(tmp_path / "ws").ensure()
+    out = sb.output
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "neon-city-redo").mkdir()
+    (out / "neon-city-redo" / "a.png").write_bytes(b"png")
+    (out / "hidden-word-retry").mkdir()
+    (out / "hidden-word-retry" / "a.png").write_bytes(b"png")
+    (out / "hidden-word-retry2").mkdir()
+    (out / "hidden-word-retry2" / "a.png").write_bytes(b"png")
+    tos = {p["from"]: p["to"] for p in filing.tidy_plan(sb)}
+    assert tos["neon-city-redo"].endswith(" Neon city") and "/" not in tos["neon-city-redo"]
+    assert "/" not in tos["hidden-word-retry"] and tos["hidden-word-retry2"].endswith(" Hidden word/v4")
+    before = _tree(out)
+    r = filing.tidy(sb)
+    assert r["moved"] == 3 and sorted(_tree(out).values()) == sorted(before.values())

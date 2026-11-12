@@ -297,6 +297,8 @@ def tidy_plan(sb) -> list[dict]:
         # explicit numbers (x_v3) keep theirs; -redo / -retry / x2 take the next free one
         members.sort(key=lambda t: (t[1], 0 if _EXPLICIT_V.search(t[0].stem if t[0].is_file() else t[0].name) else 1,
                                     t[0].name.lower()))
+        if all(v > 1 for _, v in members):             # only reruns here ("neon-city-redo", no "neon-city"):
+            members[0] = (members[0][0], 1)             # the first one is the original, not a lone v2
         first = members[0][0]
         base = _base_name(first.stem if first.is_file() else first.name)[0]
         when = dates.get(first.name) or next((dates[m.name] for m, _ in members if m.name in dates), "")
