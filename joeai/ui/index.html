@@ -279,7 +279,7 @@ FORMAT: ...
         <fieldset><legend>LIMITS</legend>
           <label title="The most steps it may take (1-20). Short is fast.">Step limit <input type="number" id="ag-steps" min="1" max="20" value="6"></label>
           <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label></fieldset>
-        <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button></div>
+        <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button><span id="ag-form-msg" role="alert"></span></div>
       </form>
     </section>
   </main>

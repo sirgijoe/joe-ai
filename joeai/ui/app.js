@@ -4194,7 +4194,7 @@ async function loadAgents() {
   $("#ag-blocked").textContent = "Never offered to agents: " + Object.entries(agData.blocked || {}).map(([k, v]) => `${k} (${v})`).join("; ") + "; add-on tools; code.";
 }
 function agForm(a) {
-  $("#ag-form").hidden = false;
+  $("#ag-form").hidden = false; $("#ag-form-msg").textContent = "";
   $("#ag-id").value = a ? a.id : ""; $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : "";
   $("#ag-options").value = a ? (a.options || "") : "";
   $("#ag-steps").value = a ? a.steps : 6; $("#ag-mins").value = a ? a.minutes : 30;
@@ -4221,7 +4221,8 @@ document.addEventListener("click", async (ev) => {
         steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value };
       const r = await api("/api/agents/save", body);
       $("#ag-msg").textContent = r.ok ? "Saved." + (r.note ? " " + r.note : "") : r.error;
-      if (r.ok) { $("#ag-form").hidden = true; loadAgents(); }
+      $("#ag-form-msg").textContent = r.ok ? "" : "Not saved: " + (r.error || "something went wrong.");   // beside the button: the list's message is far up the page
+      if (r.ok) { $("#ag-form").hidden = true; await loadAgents(); $("#ag-list").scrollIntoView({ block: "nearest" }); }
       return;
     }
     if (b.dataset.agEdit) { agForm(agData.agents.find((a) => a.id === b.dataset.agEdit)); return; }
