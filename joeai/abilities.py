@@ -58,7 +58,7 @@ OTHER: tuple[Ability, ...] = (
             "What it does: Joe makes 5-second clips with the Wan 2.2 video model in ComfyUI.\n"
             "How Joe does it: the writing model writes one clear shot per clip (one subject, one whole-body motion, one camera move, keeping every subject and setting you named). Wan draws it; FFmpeg turns the frames into an MP4. Black-and-white films are made in color and then graded with FFmpeg (keeps hands and faces right), with the color copy kept. Ask for a GIF and a looping GIF is saved too.\n"
             "What to give it: describe the scene and what moves: \"a cat jumping onto a windowsill at sunset, slow camera push in\".\n"
-            "Options: quality (High = 1280x704, 30 steps), the Turbo add-on (much faster), Keep my PC usable (smaller 960x544 videos while you use the PC), EXPORT: gif.\n"
+            "Options: quality (High = 1280x704, 40 steps), the Turbo add-on (much faster), Keep my PC usable (smaller 960x544 videos while you use the PC), EXPORT: gif.\n"
             "Time: about 2 minutes a clip with Turbo on a 12 GB card, much longer without.\n"
             "Needs: ComfyUI, the Wan 2.2 video model (about 10 GB) and FFmpeg. Best with an 8 GB+ NVIDIA, AMD or Apple graphics chip.\n"
             "Limits: clips are short; fast or complex motion can wobble. Make a few and keep the best.\n"

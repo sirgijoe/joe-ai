@@ -60,7 +60,7 @@ def tune_defaults(wid: str) -> dict:
         return {}
     shift = st.cfg if st else 0.0
     out = {"cfg": round(max(2.0, 6.0 + shift), 1), "hires": "auto" if (st is None or st.hires) else "off",
-           "denoise": 0.4, "sampler": (st.sampler if st and st.sampler else ""), "versions": 1}
+           "denoise": st.denoise if st else 0.4, "sampler": (st.sampler if st and st.sampler else ""), "versions": 1}
     if st is not None and st.lora:
         out["lora"] = st.lora_strength
     _ = styles

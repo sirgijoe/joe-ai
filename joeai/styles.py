@@ -62,20 +62,24 @@ class Style:
     sampler: str = ""       # "" = Setup's sampler
     hires: bool = True      # the High-quality 1.5x detail pass (it smears crisp pixel art)
     pixelate: int = 0       # >1 = finish with real square pixels this many screen pixels wide
+    steps: int = 0          # at least this many steps on Medium and High (what the style's model asks for)
+    denoise: float = 0.4    # how much the detail pass repaints
 
 
 STYLES = {
     "general": Style("general", "Joe decides"),
-    "photo": Style("photo", "Photo", PHOTO_NOTE, "", NEG_PHOTO, cfg=-1.5),
+    "photo": Style("photo", "Photo", PHOTO_NOTE, "", NEG_PHOTO, cfg=-1.5, sampler="dpmpp_2m_sde", steps=30, denoise=0.3),
     "bw": Style("bw", "Black and white photo",
                 "STYLE: black-and-white photograph. Rich blacks, bright highlights and a full range of grays; "
                 "describe light and shadow, contrast and texture instead of colors. Name the lens and the light.",
                 "black and white photograph, monochrome, high contrast, fine film grain",
-                NEG_PHOTO + ", color, colored, sepia, tinted", cfg=-1.5),
+                NEG_PHOTO + ", color, colored, sepia, tinted", cfg=-1.5, sampler="dpmpp_2m_sde", steps=30,
+                denoise=0.3),
     "anime": Style("anime", "Anime / manga",
                    "STYLE: anime illustration. Cel shading, clean dynamic line work, expressive eyes and "
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
-                   "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon", cfg=1.0, sampler="euler_ancestral"),
+                   "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon, low score, bad score, average score", cfg=1.0,
+                   sampler="euler_ancestral"),
     "painting": Style("painting", "Painting (oil, watercolor...)",
                       "STYLE: traditional painting. Name the medium (oil on canvas, watercolor on paper, ink "
                       "wash, gouache) and describe brush strokes, paper or canvas texture and the color mixing. "
@@ -112,7 +116,8 @@ STYLES = {
                    "STYLE: black-and-white manga panel art. Crisp ink lines, screentone dot shading, speed lines "
                    "for motion, expressive faces, strong blacks. No color. No camera or lens words.",
                    "manga style, black and white, ink lines, screentone",
-                   NEG_ART + ", color, colored, western cartoon", sampler="euler_ancestral", cfg=1.0),
+                   NEG_ART + ", color, colored, western cartoon, low score, bad score, average score",
+                   sampler="euler_ancestral", cfg=1.0),
     "watercolor": Style("watercolor", "Watercolor",
                         "STYLE: watercolor painting on textured paper. Soft wet edges, colors bleeding into each "
                         "other, light washes, white paper showing through, a few fine pencil lines. No camera words.",
@@ -158,7 +163,8 @@ STYLES = {
                      "STYLE: studio product photo. The item alone, centered, on a clean seamless background, "
                      "softbox lighting with a gentle shadow, sharp focus, 70-100mm lens, true colors.",
                      "studio product photo, seamless background, generic unbranded",
-                     NEG_PHOTO + ", clutter, hands, people, brand name, trademark", cfg=-1.0),
+                     NEG_PHOTO + ", clutter, hands, people, brand name, trademark", cfg=-1.0, sampler="dpmpp_sde",
+                     steps=30, denoise=0.3),
     "coloring": Style("coloring", "Coloring page",
                       "STYLE: coloring-book page. Black outlines on white only: thick clean lines, large "
                       "simple areas to color, no shading, no gray, no color, no texture.",

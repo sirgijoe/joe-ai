@@ -511,7 +511,7 @@
           "id": "modern",
           "label": "Modern anime",
           "match": "",
-          "words": "masterpiece, best quality, absurdres, anime style, cel shading, sharp line-art, vibrant colors",
+          "words": "anime style, cel shading, sharp line-art, vibrant colors, masterpiece, high score, great score, absurdres",
           "example": "(masterpiece, best quality), 1girl, short pink hair, school uniform, cherry blossoms background, cel shading, sharp line-art, bold contour, vibrant colors, anime style",
           "negative": "worst quality, low quality, realistic, photo, 3d render, western cartoon"
         },
@@ -519,7 +519,7 @@
           "id": "retro",
           "label": "80s-90s anime",
           "match": "retro|80s|90s|vintage|classic anime",
-          "words": "1990s anime, cel animation, film grain, muted colors",
+          "words": "1990s anime, cel animation, film grain, muted colors, masterpiece, high score, great score, absurdres",
           "example": "1990s retro anime still, cel animation, hand-painted background, film grain, muted colors.",
           "negative": "modern digital look, 3d, photo"
         }
@@ -532,7 +532,7 @@
           "id": "action",
           "label": "Action panel",
           "match": "action|fight|run|toss|jump|clash|motion",
-          "words": "manga panel, high-contrast black ink, screentone shading, speed lines, impact lines",
+          "words": "manga panel, high-contrast black ink, screentone shading, speed lines, impact lines, masterpiece, high score, great score, absurdres",
           "example": "manga panel, two fighters clashing fists mid-air, explosive impact lines radiating outward, cracked ground, screentone shading, high-contrast ink.",
           "negative": "color, photorealistic, 3d render, soft gradients, watercolor, gray wash"
         },
@@ -540,7 +540,7 @@
           "id": "closeup",
           "label": "Close-up",
           "match": "close.?up|eyes|face|portrait|emotion",
-          "words": "manga panel, extreme close-up, thick ink lines, screentone under the brow",
+          "words": "manga panel, extreme close-up, thick ink lines, screentone under the brow, masterpiece, high score, great score, absurdres",
           "example": "manga panel, extreme close-up of eyes, intense focused gaze, thick ink eyelashes, screentone shading under the brow.",
           "negative": "color, photorealistic, 3d render, soft gradients"
         },
@@ -548,7 +548,7 @@
           "id": "quiet",
           "label": "Quiet scene",
           "match": "",
-          "words": "manga panel, black and white, clean ink lines, classic dot screentone",
+          "words": "manga panel, black and white, clean ink lines, classic dot screentone, masterpiece, high score, great score, absurdres",
           "example": "manga panel, a man standing in the rain, classic circular dot-pattern screentone on background and clothing shadows, clean ink lines.",
           "negative": "color, photorealistic, 3d render, soft gradients, watercolor"
         }
@@ -600,7 +600,8 @@
           "example": "botanical watercolor study of wildflowers, fine pencil underdrawing, delicate transparent washes, white paper background.",
           "negative": "photo, dark background, heavy saturation"
         }
-      ]
+      ],
+      "trigger": "Watercolor, Watercolor on textured paper"
     },
     "concept": {
       "looks": [

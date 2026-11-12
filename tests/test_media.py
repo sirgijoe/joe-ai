@@ -302,7 +302,7 @@ def test_builtin_video_wan(env, tmp_path):
     s.quality.video = "high"
     Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Kiln clip 4  SAVE: clips/k4.mp4  CHUNKS: 1 x 1"))
     g = fc.graphs[-1]
-    assert "60" not in g and g["3"]["inputs"]["steps"] == 30 and g["55"]["inputs"]["width"] == 1280
+    assert "60" not in g and g["3"]["inputs"]["steps"] == 40 and g["55"]["inputs"]["width"] == 1280
 
 
 def test_picture_quality_low_and_high(env):

@@ -1364,10 +1364,13 @@ class Engine:
                                           "or give the task a WORKFLOW.")
         pp = quality_mod.pictures(self.s)
         lv = quality_mod.level(self.s, "pictures")
+        steps = pp.steps(m.family)
+        if lv != "low" and m.family == "sdxl":
+            steps = max(steps, style.steps)
         if lv != "medium":
-            self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({pp.steps(m.family)} steps)")
+            self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({steps} steps)")
         self._lora_used = False
-        g = comfy_mod.basic_graph(m.family, pp.steps(m.family), style.sampler or pp.sampler, style.cfg)
+        g = comfy_mod.basic_graph(m.family, steps, style.sampler or pp.sampler, style.cfg)
         label = "built-in text-to-image"
         if style.lora and m.family == "sdxl":
             from .doctor import comfy_models_dir
@@ -1407,7 +1410,7 @@ class Engine:
         if tuned:
             self.log("  Your fine-tuning: " + ", ".join(tuned))
         if hires and job.type == "image":
-            g = comfy_mod.with_hires(g, denoise=float(wpref.get("denoise") or 0.4))
+            g = comfy_mod.with_hires(g, denoise=float(wpref.get("denoise") or style.denoise))
             label += " + hi-res second pass"
             if not getattr(self, "_hires_said", False):
                 self.log("  High quality: each picture gets a second, 1.5x bigger detail pass.")

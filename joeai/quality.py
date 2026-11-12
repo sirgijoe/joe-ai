@@ -90,7 +90,7 @@ def video(settings, turbo_installed: bool) -> VideoPlan:
 def _video(settings, turbo_installed: bool) -> VideoPlan:
     lv = level(settings, "video")
     if lv == "high":
-        return VideoPlan((1280, 704), 121, 30, 5.0, False)
+        return VideoPlan((1280, 704), 121, 40, 5.0, False)
     if lv == "medium":
         if turbo_installed:
             return VideoPlan((1280, 704), 121, 4, 1.0, True)

@@ -20,7 +20,7 @@ def test_video_plans_use_turbo_only_below_high():
     assert not quality.video(s, turbo_installed=False).turbo and quality.video(s, False).steps == 20
     s.quality.video = "high"
     hi = quality.video(s, turbo_installed=True)
-    assert not hi.turbo and hi.steps == 30
+    assert not hi.turbo and hi.steps == 40
     s.quality.video = "low"
     lo = quality.video(s, turbo_installed=True)
     assert lo.turbo and lo.frames == 73 and lo.size == (960, 544)
