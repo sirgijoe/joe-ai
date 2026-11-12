@@ -42,7 +42,8 @@ How to work with Joe:
    joe_queue_mission hands it over (tonight=true waits for the night shift). For pictures,
    joe_make_pictures; for tools on the person's files, joe_list_inbox + joe_run_tool.
 3. Check in with joe_status and joe_report. When it's done, read the results with
-   joe_list_files, joe_read_file and joe_show_picture.
+   joe_list_files, joe_read_file and joe_show_picture. For big files, joe_shrink first
+   (joe_summarize if it's still too long).
 4. Polish: fix facts, tighten wording, pick the best pictures, and fill in anything marked
    [CHECK] with the person. Tell them what Joe made and what you changed.
 Never invent results Joe didn't produce. If his window is closed, queued work waits until it
@@ -128,7 +129,25 @@ TOOLS = [
      "description": "Read a text file Joe made (inside his Output folder).",
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}},
                      "required": ["path"]}},
+    {"name": "joe_shrink",
+     "description": "Read a big text file in Joe's folders cheaply (no model): logs keep errors with context, "
+                    "first/last 20 lines and fold repeats; JSON becomes its shape; HTML its visible text; "
+                    "other text head + tail + grep hits. Lines are 'L12| ...'. Reports original vs shrunk size.",
+     "inputSchema": {"type": "object", "properties": {
+         "path": {"type": "string", "description": "e.g. Output/run.log or Inbox/data.json"},
+         "kind": {"type": "string", "enum": ["auto", "log", "json", "html", "text"]},
+         "max_chars": {"type": "integer"},
+         "grep": {"type": "string", "description": "words to keep lines for (text files)"}},
+         "required": ["path"]}},
+    {"name": "joe_summarize",
+     "description": "Shrink a file, then summarize it with Joe's local text model (never leaves the PC). "
+                    "Returns the answer and the lines it came from.",
+     "inputSchema": {"type": "object", "properties": {
+         "path": {"type": "string"}, "question": {"type": "string"},
+         "max_words": {"type": "integer"}}, "required": ["path"]}},
 ]
+SHRINK_EXT = {".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".html", ".htm", ".xml", ".py",
+              ".js", ".css", ".srt", ".vtt", ".log", ".out", ".err", ".yaml", ".yml", ".toml", ".ini"}
 TEXT_EXT = {".md", ".txt", ".csv", ".json", ".html", ".py", ".js", ".css", ".srt", ".vtt", ".log"}
 
 
@@ -290,6 +309,44 @@ class Joe:
                 break
         return "\n".join(rows) or "(empty)"
 
+    def _shrink_source(self, rel: str) -> tuple[str, str]:
+        """(label, text) of a text file in one of Joe's folders (Output by default), never a private one."""
+        from .sandbox import SandboxError
+        from .shrink import MAX_FILE
+        rel = (rel or "").strip()
+        p = self.sb.resolve(rel, base="Output")
+        self.sb.check_not_private(p)
+        if not p.is_file():
+            raise SandboxError("No such file in Joe's folders.")
+        if p.suffix.lower() not in SHRINK_EXT:
+            raise SandboxError(f"{p.name} isn't a text file.")
+        with open(p, encoding="utf-8", errors="replace") as f:
+            return str(p.relative_to(self.sb.root)).replace("\\", "/"), f.read(MAX_FILE)
+
+    def shrink(self, rel: str, kind: str = "auto", max_chars: int = 8000, grep: str = "") -> str:
+        from . import shrink as sh
+        label, text = self._shrink_source(rel)
+        r = sh.shrink(text, label, kind, max_chars, grep)
+        return sh.header(r, label) + "\n" + r["text"]
+
+    def summarize(self, rel: str, question: str = "", max_words: int = 200) -> str:
+        from . import shrink as sh
+        from .doctor import resolve_text_model
+        from .services import ServiceManager
+        if not sh.is_local(self.s.ollama.url):
+            return "Joe's model server isn't on this PC, so nothing was sent. Use joe_shrink instead."
+        label, text = self._shrink_source(rel)
+        sm = ServiceManager(self.s, log=lambda *_: None)
+        model = resolve_text_model(self.s, sm, lambda *_: None)
+
+        def chat(system: str, user: str) -> str:
+            return sm.ollama.chat([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                                  model=model, max_tokens=max(200, int(max_words or 200) * 2), think=False).text
+
+        r = sh.summarize(text, label, chat, question, max_words)
+        lines = ", ".join(r["lines"]) or "none"
+        return f"{r['answer']}\n\nFrom: {lines}\n{sh.header(r['shrink'], label)}"
+
     def read_file(self, rel: str) -> str:
         p = self._inside_output(rel)
         if not p.is_file():
@@ -422,6 +479,12 @@ class Joe:
             return self.list_files(str(args.get("folder", "")))
         if name == "joe_read_file":
             return self.read_file(str(args.get("path", "")))
+        if name == "joe_shrink":
+            return self.shrink(str(args.get("path", "")), str(args.get("kind") or "auto"),
+                               int(args.get("max_chars") or 8000), str(args.get("grep", "")))
+        if name == "joe_summarize":
+            return self.summarize(str(args.get("path", "")), str(args.get("question", "")),
+                                  int(args.get("max_words") or 200))
         if name == "joe_make_pictures":
             return self.make_pictures(str(args.get("description", "")), args.get("count") or 4,
                                       str(args.get("style", "")), str(args.get("folder", "")))

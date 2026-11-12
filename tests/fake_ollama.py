@@ -297,6 +297,12 @@ class FakeOllama:
                     out.append({"row": r["row"], "category": "mugs" if "mug" in text else
                                 "Bowls" if "bowl" in text else "Plates"})
                 return 200, self._reply("```json\n" + json.dumps(out) + "\n```")
+            if sysmsg.startswith("You summarize part of a shrunk file"):
+                self.prompts.append(user)
+                hit = re.search(r"^(L\d+\| .*(?:ERROR|disk full).*)$", user, re.M)
+                return 200, self._reply(f"Found: {hit.group(1)}" if hit else "NOTHING")
+            if sysmsg.startswith("You combine notes about one file"):
+                return 200, self._reply("Combined: " + str(user.count("Found:")) + " notes.")
             if sysmsg.startswith("You split one spreadsheet column"):
                 rows = json.loads(re.search(r"Rows as JSON:\n(\[.*\])", user, re.S).group(1))
                 out = []
