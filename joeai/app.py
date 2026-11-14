@@ -32,6 +32,16 @@ def _serve_stable(app):
 
 
 def _lock_path() -> Path:
+    """Where a running Joe leaves its port and key, so the next start reuses that window. A copy started
+    with its own settings file (JOE_CONFIG, like a test copy) gets its own lock file: it never opens, or
+    shuts down as "an older version", the everyday Joe that shares this settings folder."""
+    own = os.environ.get("JOE_CONFIG")
+    if own:
+        import hashlib
+        mine = os.path.normcase(os.path.abspath(own))
+        usual = os.path.normcase(os.path.abspath(config_dir() / "settings.json"))
+        if mine != usual:
+            return config_dir() / f"app-{hashlib.sha1(mine.encode('utf-8')).hexdigest()[:10]}.json"
     return config_dir() / "app.json"
 
 
