@@ -23,6 +23,7 @@ if TYPE_CHECKING:
 
 WRITE_TOOLS = ("summarize", "rewrite", "brainstorm", "study", "code-review", "ai-search", "meal-plan")
 NO_FILE_TOOLS = ("brainstorm", "ai-search", "meal-plan")    # the box is enough; a file is optional
+STYLE_TOOLS = ("rewrite", "summarize", "brainstorm")        # OPTIONS: mine -> write like Inbox/My writing (mystyle.py)
 CODE_EXT = (".py", ".pyw", ".js", ".mjs", ".ts", ".tsx", ".jsx", ".html", ".htm", ".css", ".java",
             ".c", ".h", ".cpp", ".hpp", ".cs", ".go", ".rs", ".rb", ".php", ".sh", ".ps1", ".bat",
             ".sql", ".lua", ".swift", ".kt", ".gd", ".json", ".yaml", ".yml", ".toml", ".ini", ".txt", ".md")
@@ -164,7 +165,7 @@ def note(what: str, model: str) -> str:
 # --------------------------------------------------------------------------- shared run loop
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import PartFailed, Stopped
-    from .tools import TOOLS, _finish, _key, _no_files, resolve_inputs, tool_dir, unique_stem
+    from .tools import TOOLS, _finish, _key, _no_files, chosen_options, resolve_inputs, tool_dir, unique_stem
 
     tid = job.type
     if tid in NO_FILE_TOOLS:
@@ -192,6 +193,17 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     engine._save_state(job, st)
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}' ({TOOLS[tid].name}) -> {st.output}")
     rules = ("\n" + job.rules.strip()) if job.rules.strip() else ""
+    if tid in STYLE_TOOLS and "mine" in chosen_options(job):
+        from . import mystyle
+        voice = mystyle.guide(engine, files, engine.log)
+        if not voice:
+            st.status = "failed"
+            st.note = (f"to write like you, put some of your own documents (at least a few paragraphs) in the "
+                       f"folder Inbox/{mystyle.FOLDER}, or untick \"Write like my other documents\"")
+            engine._save_state(job, st)
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        rules += voice
     part = [0]
 
     def ask(kind: str, system: str, prompt: str, min_chars: int = 20) -> str:

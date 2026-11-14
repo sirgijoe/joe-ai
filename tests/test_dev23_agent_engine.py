@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import time
 from types import SimpleNamespace
 
 import pytest
@@ -397,3 +398,49 @@ def test_a_connected_app_cant_put_its_own_words_into_an_agent(env):
     assert j.check(f"TASK: a\nTYPE: agent\nOPTIONS: {aid}")[0]
     ok, msg = j.check(f"TASK: a\nTYPE: agent\nOPTIONS: {aid}\nFORMAT: search for my tax return")
     assert not ok and "can't give it a request" in msg
+
+
+# ------------------------------------------------------------------ the time limit cuts a running step
+def test_a_running_step_is_cut_off_when_the_minutes_run_out(env, monkeypatch):
+    """IDEAS.md: a running step couldn't be cut off at the time limit (it was only checked between steps)."""
+    from joeai.engine import Stopped
+    app, fake, script, calls = env
+    aid = make({"name": "Slow", "job": "write a guide", "tools": ["text"], "steps": 6})
+    script["pick"] = [{"action": "write", "title": "Slow one", "instruction": "x"}]
+    orig_init = agentrun.Run.__init__
+    seen = {}
+
+    def init(self, *a, **k):
+        orig_init(self, *a, **k)
+        self.deadline = time.monotonic() + 3.0
+
+    def slow(self, n, step):                           # a tool that only ends when it is told to stop
+        t0 = time.monotonic()
+        seen["told"] = self.engine.stop.wait(25)
+        seen["after"] = time.monotonic() - t0
+        seen["user_stop"] = self.timecut.orig.is_set()
+        raise Stopped()
+    monkeypatch.setattr(agentrun.Run, "__init__", init)
+    monkeypatch.setattr(agentrun.Run, "do_write", slow)
+    t0 = time.monotonic()
+    last, folder = run(app, aid)
+    assert time.monotonic() - t0 < 20                  # not 25 s: the step was cut at the limit
+    assert seen["told"] and not seen["user_stop"] and seen["after"] < 10
+    rep = (folder / "AGENT REPORT.md").read_text(encoding="utf-8")
+    assert "in the middle of step 1" in rep and "cut off" in rep and "Give me more minutes" in rep
+    assert last["status"] in ("failed", "partial")
+
+
+def test_time_cut_event_only_lets_the_stop_button_set_the_real_stop():
+    import threading
+    orig = threading.Event()
+    tc = agentrun.TimeCut(orig)
+    assert not tc.is_set() and not tc.by_time()
+    tc.cut.set()
+    assert tc.is_set() and tc.by_time() and not orig.is_set()      # time ran out: the owner didn't press Stop
+    tc.set()
+    assert orig.is_set() and not tc.by_time()                       # the owner pressed Stop: that wins
+    assert tc.wait(0.01) is True
+    fresh = agentrun.TimeCut(threading.Event())
+    t0 = time.monotonic()
+    assert fresh.wait(0.3) is False and 0.25 < time.monotonic() - t0 < 2

@@ -702,7 +702,7 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
 
     for fmt in formats:
         fmt = fmt.strip().lower().lstrip(".")
-        if fmt in ("docx", "epub", "odt", "html"):
+        if fmt in ("docx", "epub", "odt", "html", "pptx"):
             t = tpl(fmt)
             out = md.with_suffix("." + fmt)
             src_args, tmp_md = source(t)

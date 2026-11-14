@@ -39,8 +39,8 @@ def pretty_name() -> str:
 
 
 # --------------------------------------------------------------------------- folders
-def config_dir() -> Path:
-    """Settings, chats index, window profile. Small files. (Portable Joe: on the drive.)"""
+def base_config_dir() -> Path:
+    """The settings folder Joe uses when nobody picked a profile (profiles.py)."""
     from . import portable
     if portable.active():
         return portable.config_dir()
@@ -51,6 +51,14 @@ def config_dir() -> Path:
     else:
         base = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
     return base / "joe-ai"
+
+
+def config_dir() -> Path:
+    """Settings, chats index, window profile. Small files. (Portable Joe: on the drive.) With a household
+    profile (profiles.py) its own folder inside the settings folder, so two people never share them."""
+    from . import profiles
+    pid = profiles.current()
+    return profiles.profile_dir(pid) if pid else base_config_dir()
 
 
 def data_dir() -> Path:
@@ -84,7 +92,9 @@ def default_workspace() -> Path:
     from . import portable
     if portable.active():
         return portable.workspace()
-    return documents_dir() / "Joe-ai"
+    from . import profiles
+    pid = profiles.current()
+    return profiles.workspace_for(pid) if pid else documents_dir() / "Joe-ai"
 
 
 # --------------------------------------------------------------------------- opening things
@@ -460,13 +470,16 @@ def lower_priority(pid: int) -> bool:
         return False
 
 
-def joe_command(sub: str, console: bool = True) -> list[str]:
+def joe_command(sub: str, console: bool = True, who: list[str] | None = None) -> list[str]:
     """How another program starts Joe with a command (mcp, tonight): the AppImage itself on
     Linux (its inside path changes every start), else this Python with Joe.pyw. console=False
     picks pythonw on Windows, so nothing flashes up at night."""
+    from . import profiles
+    who = profiles.command_args() if who is None else who      # the same person's Joe starts again (night shift, restart)
+    tail = [sub] if sub else []
     appimage = os.environ.get("APPIMAGE")
     if appimage and Path(appimage).is_file():
-        return [appimage, sub]
+        return [appimage, *who, *tail]
     exe = Path(sys.executable)
     if WINDOWS:
         want = "python.exe" if console else "pythonw.exe"
@@ -474,8 +487,8 @@ def joe_command(sub: str, console: bool = True) -> list[str]:
             exe = exe.parent / want
     pyw = Path(__file__).resolve().parent.parent / "Joe.pyw"
     if pyw.exists():
-        return [str(exe), str(pyw), sub]
-    return [str(exe), "-m", "joeai", sub]
+        return [str(exe), str(pyw), *who, *tail]
+    return [str(exe), "-m", "joeai", *who, *tail]
 
 
 # --------------------------------------------------------------------------- disk space

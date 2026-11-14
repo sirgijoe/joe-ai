@@ -88,5 +88,14 @@ def _no_real_programs(tmp_path_factory):
     from joeai import connect
     real_running = connect.app_running
     mp.setattr(connect, "app_running", lambda app_id, run=None: real_running(app_id, run) if run else False)
+    # Tests never start, or wait for, the real ComfyUI on this computer: a mission test with a picture
+    # job found ComfyUI Desktop on a user's PC, opened it and waited 5 minutes for it to answer.
+    # Tests that check starting ComfyUI put in their own _popen (test_finder) or fake services.
+    from joeai import services
+
+    def _no_launch(cmd, cwd=None):
+        raise OSError("tests don't start real programs")
+    mp.setattr(services, "_popen", _no_launch)
+    mp.setattr(services.ServiceManager, "_comfy_running", lambda self: False)
     yield
     mp.undo()

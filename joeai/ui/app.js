@@ -1169,7 +1169,7 @@ async function ptPoll() {
 async function loadSetup() {
   loadDoctor(); showPerms(); ptInfo().catch(() => {});
   api("/api/vault").then((v) => { $("#vault-text").textContent = v.text; }).catch(() => {});
-  loadMemory().catch(() => {}); loadRecurring().catch(() => {});
+  loadMemory().catch(() => {}); loadRecurring().catch(() => {}); loadProfiles().catch(() => {});
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
@@ -4158,6 +4158,15 @@ async function loadMemory() {
       <button type="button" data-mm-save="${esc(n.id)}">[ SAVE ]</button><button type="button" data-mm-del="${esc(n.id)}" title="Delete this note.">[ DELETE ]</button></div>`).join("")
     : `<div class="dim small">${r.on ? "No notes yet." : "Memory is off: Joe keeps nothing."}</div>`;
 }
+async function loadProfiles() {
+  const r = await api("/api/profiles");
+  if (!r.enabled) { $("#prof-now").textContent = "Portable Joe is one person's Joe, so profiles are off."; $("#prof-list").innerHTML = ""; return; }
+  $("#prof-now").textContent = `This is ${r.name}'s Joe.`;
+  $("#prof-list").innerHTML = r.people.map((p) =>
+    `<div role="listitem" class="issue"><span class="t"><b>${esc(p.name)}</b>${p.me ? " (this window)" : ""} <span class="dim small">${esc(p.workspace)}</span></span>
+      ${p.me ? "" : `<button type="button" data-prof-open="${esc(p.id)}" title="Open this person's Joe in a new window.">[ OPEN ]</button>`}
+      ${p.main ? "" : `<button type="button" data-prof-del="${esc(p.id)}" data-label="${esc(p.name)}" title="Take this person off the list. Their files stay.">[ REMOVE ]</button>`}</div>`).join("");
+}
 async function loadRecurring() {
   const r = await api("/api/recurring");
   $("#rec-warn").hidden = r.night || !r.items.length;
@@ -4174,6 +4183,19 @@ document.addEventListener("click", async (ev) => {
     if (b.dataset.act === "repeat-add" && planRepeat) {
       const r = await api("/api/recurring/add", { mission: $("#mission").value, days: planRepeat.days });
       toast(r.ok ? r.say + " Setup > General lists it." : r.error, 4000);
+      return;
+    }
+    if (b.dataset.act === "prof-add") {
+      const r = await api("/api/profiles/add", { name: $("#prof-new").value });
+      $("#prof-msg").textContent = r.ok ? `Added ${r.name}. Their files will be in ${r.workspace}` : r.error;
+      if (r.ok) { $("#prof-new").value = ""; loadProfiles(); }
+      return;
+    }
+    if (b.dataset.profOpen) { const r = await api("/api/profiles/open", { id: b.dataset.profOpen }); $("#prof-msg").textContent = r.ok ? r.say : r.error; return; }
+    if (b.dataset.profDel) {
+      confirmBox(`Take ${b.dataset.label} off the list?\n\nTheir settings and files are NOT deleted. Adding the same name again brings them back.`, async () => {
+        const r = await api("/api/profiles/remove", { id: b.dataset.profDel }); $("#prof-msg").textContent = r.ok ? "Taken off the list." : r.error; loadProfiles();
+      });
       return;
     }
     if (b.dataset.act === "mm-add") {

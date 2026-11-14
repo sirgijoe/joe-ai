@@ -310,7 +310,7 @@ def test_hide_patterns_addresses_in_capitals_and_town_lines():
          "123 Broadway, New York, NY 10001\nTotal $1,234.56 on 2026-11-11. I paid 20 in May.\n")
     found = [t[a:b] for a, b, k in paperwork.hide_spans(t, paperwork.pattern_hits(t), []) if k == "address"]
     assert found == ["1234 MAPLE STREET APT 4", "BATTLE CREEK MI 49017-1234", "PO Box 77", "Springfield, IL 62701",
-                     "New York, NY 10001"]
+                     "123 Broadway", "New York, NY 10001"]
     hits = [t[a:b] for a, b, k in paperwork.hide_spans(t, paperwork.pattern_hits(t), [])]
     assert not any("\n" in h for h in hits)                    # a find never runs across a line break
     assert "$1,234.56" not in hits and "2026-11-11" not in hits and "20 in May" not in " ".join(hits)
@@ -666,3 +666,79 @@ def test_folder_links_pointing_outside_the_workspace_are_skipped(app, tmp_path):
     st = _run(app, "TASK: H  TYPE: hide-details\nINPUT: docs\nOPTIONS: style labels")
     assert st.status == "done" and st.items == 1
     assert not (_out(app, st) / "link-cleaned.txt").exists()
+
+
+# --------------------------------------------------------------------------- compare two documents
+def test_compare_texts_finds_changed_added_removed():
+    from joeai import compare
+    old = "Intro paragraph.\n\nThe tenant shall pay $1,000 per month on the first day.\n\nOld clause to remove now.\n\nSigned."
+    new = "Intro paragraph.\n\nThe tenant shall pay $1,200 per month on the fifth day.\n\nSigned.\n\nA brand new closing clause."
+    res = compare.compare(old, new)
+    kinds = [c["kind"] for c in res["changes"]]
+    assert kinds.count("changed") == 1 and kinds.count("added") == 1 and kinds.count("removed") == 1
+    changed = next(c for c in res["changes"] if c["kind"] == "changed")
+    assert "~~$1,000~~" in changed["diff"] and "**$1,200**" in changed["diff"] and "~~first~~" in changed["diff"]
+    assert not res["same"]
+    page = compare.report(res, "v1.docx", "v2.docx")
+    assert "1 paragraph(s) changed" in page and "A brand new closing clause." in page
+    whole = compare.report(res, "v1.docx", "v2.docx", words=False)
+    assert "Older:" in whole and "$1,000 per month on the first day" in whole
+
+
+def test_compare_ignores_spacing_and_handles_plain_lines():
+    from joeai import compare
+    assert compare.compare("a  b\n\nc", "a b\n\n\n\nc")["same"]
+    assert "No differences" in compare.report(compare.compare("x y", "x  y"), "a", "b")
+    res = compare.compare("one\ntwo\nthree", "one\n2\nthree")      # no blank lines: one line = one paragraph
+    assert [c["kind"] for c in res["changes"]] == ["removed", "added"] or [c["kind"] for c in res["changes"]] == ["changed"]
+    assert res["old_paragraphs"] == 3
+
+
+def test_compare_docs_tool_end_to_end(app):  # noqa: F811
+    (app.sb.inbox / "v1.md").write_text("# Plan\n\nWe open in May.\n\nBudget is 5,000.\n", encoding="utf-8")
+    (app.sb.inbox / "v2.md").write_text("# Plan\n\nWe open in June.\n\nBudget is 5,000.\n\nNew: hire a clerk.\n", encoding="utf-8")
+    st = _run(app, "TASK: Diff  TYPE: compare-docs\nINPUT: v1.md, v2.md\nOPTIONS: words")
+    assert st.status == "done", st.note
+    rep = (_out(app, st) / "compare-report.md").read_text(encoding="utf-8")
+    assert "~~May.~~ **June.**" in rep and "New: hire a clerk." in rep
+    assert (app.sb.inbox / "v1.md").read_text(encoding="utf-8").startswith("# Plan")     # originals untouched
+    st = _run(app, "TASK: Diff2  TYPE: compare-docs\nINPUT: v1.md\nOPTIONS: none")
+    assert st.status == "failed" and "exactly two" in st.note
+
+
+def test_compare_docs_reads_word_files(app):  # noqa: F811
+    make_docx(app.sb.inbox / "old.docx", ["Dear Sam,", "Pay by Friday."])
+    make_docx(app.sb.inbox / "new.docx", ["Dear Sam,", "Pay by Monday.", "Thank you."])
+    st = _run(app, "TASK: Letters  TYPE: compare-docs\nINPUT: old.docx, new.docx\nOPTIONS: words")
+    assert st.status == "done", st.note
+    rep = (_out(app, st) / "compare-report.md").read_text(encoding="utf-8")
+    assert "~~Friday.~~ **Monday.**" in rep and "Thank you." in rep
+
+
+def test_pptx_is_an_export_format():
+    from joeai import doctemplates, mission
+    assert "pptx" in mission.EXPORT_FORMATS and doctemplates.DEFAULTS["pptx"] == "standard"
+    job = parse("TASK: Deck  TYPE: text\nSAVE: deck.md\nEXPORT: pptx").jobs[0]
+    assert job.export == ["pptx"]
+
+
+@pytest.mark.skipif(not shutil.which("pandoc"), reason="needs pandoc")
+def test_pptx_export_makes_a_slide_per_heading(tmp_path):
+    from joeai import addons
+    md = tmp_path / "deck.md"
+    md.write_text("# Garden club\n\n## Why we meet\n\n- Share seeds\n- Swap tips\n\n## Spring\n\n1. March\n2. April\n", encoding="utf-8")
+    made = addons.export_document(md, ["pptx"], shutil.which("pandoc"), lambda x: None)
+    assert [p.name for p in made] == ["deck.pptx"]
+    with zipfile.ZipFile(made[0]) as z:
+        slides = [n for n in z.namelist() if n.startswith("ppt/slides/slide") and n.endswith(".xml")]
+        text = " ".join(z.read(n).decode("utf-8") for n in slides)
+    assert len(slides) == 3 and "Why we meet" in text and "Swap tips" in text      # title slide + two
+
+
+def test_hide_finds_a_street_with_no_street_word_only_next_to_a_town_line():
+    def addr(t):
+        return [t[a:b] for a, b, k in paperwork.hide_spans(t, paperwork.pattern_hits(t), []) if k == "address"]
+    assert "42 Elm Grove" in addr("Send it to 42 Elm Grove\nSpringfield, IL 62701 please.")
+    assert "7B Castle" in addr("Flat at 7B Castle, London SW1A 1AA")
+    assert addr("I bought 5 Apples and 20 Dollars of milk. Then went to Springfield, IL 62701.") == ["Springfield, IL 62701"]
+    assert addr("We sold 300 Units in March. Total 1,200 Dollars.") == []

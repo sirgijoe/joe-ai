@@ -45,7 +45,7 @@ KEYS = ("PROJECT", "RULES", "TASK", "SAVE", "CHUNKS", "MIN WORDS PER ITEM",
         "FORMAT", "MODEL", "TYPE", "INPUT", "NOTES", "PART", "HEADER",
         "WORKFLOW", "NEGATIVE", "SIZE", "VARIANTS", "SEED", "FPS", "PROMPTS", "EXPORT",
         "OPTIONS", "WATERMARK", "STYLE", "FROM", "RESEARCH", "TEMPLATE")
-EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html", "social", "xlsx")   # social: posts for a scheduler (social.py)
+EXPORT_FORMATS = ("docx", "pdf", "epub", "odt", "html", "pptx", "social", "xlsx")   # social: posts for a scheduler (social.py)
 _KEY_RE = re.compile(
     r"(?m)(?:^[ \t]*|(?<=  )|(?<=\t))(" + "|".join(re.escape(k) for k in KEYS) + r")[ \t]*:")
 _BLOCK_RE = re.compile(r"===\s*JOE\s+MISSION\s*===(.*?)(?:===\s*END\s*===|\Z)", re.S | re.I)

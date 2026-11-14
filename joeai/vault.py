@@ -11,7 +11,10 @@ Where, standard library only:
   Mac      the login Keychain, through the `security` command that comes with every Mac.
   Linux    the Secret Service keyring (GNOME Keyring, KWallet) through `secret-tool`, when it's
            installed and a keyring is running. Without one, the keys stay in the settings file, which
-           is made readable by your account only (owner-only permissions), and Setup says so.
+           is made readable by your account only (owner-only permissions), and Setup says so. A night
+           shift started by cron has no desktop session of its own: Joe points `secret-tool` at your
+           signed-in session (/run/user/<id>/bus) so the keys still read. If nobody is signed in the
+           keyring is locked, the keys read as blank that run, and Setup says so.
   Portable Joe keeps them in its own settings file on the drive: a computer's vault stays with that
            computer, and a portable Joe has to work on any of them.
 
@@ -162,12 +165,33 @@ class _DPAPI(Backend):
                 pass
 
 
-def _run(cmd: list, stdin: str | None = None, timeout: int = 20) -> subprocess.CompletedProcess | None:
+def _run(cmd: list, stdin: str | None = None, timeout: int = 20, env: dict | None = None) -> subprocess.CompletedProcess | None:
     try:
         return subprocess.run(cmd, input=stdin, capture_output=True, text=True, encoding="utf-8",
-                              errors="replace", timeout=timeout)
+                              errors="replace", timeout=timeout, env=env)
     except (OSError, subprocess.SubprocessError):
         return None
+
+
+def session_env(environ: dict | None = None, uid: int | None = None, runtime_root: str = "/run/user") -> dict | None:
+    """Linux night shift: a job started by cron or a timer has no desktop session in its environment, so
+    `secret-tool` can't find the keyring even though you're signed in and it's unlocked (the keys then read
+    as blank for that run). If the environment has no session bus, point at the signed-in user's own bus
+    (/run/user/<uid>/bus). Returns the environment to run `secret-tool` with, or None to change nothing
+    (a session is already there, there is no bus to point at, or this isn't Linux)."""
+    env = dict(os.environ if environ is None else environ)
+    if env.get("DBUS_SESSION_BUS_ADDRESS"):
+        return None
+    if uid is None:
+        if not hasattr(os, "getuid"):
+            return None
+        uid = os.getuid()
+    run_dir = Path(runtime_root) / str(uid)
+    if not (run_dir / "bus").exists():
+        return None
+    env["DBUS_SESSION_BUS_ADDRESS"] = f"unix:path={run_dir / 'bus'}"
+    env.setdefault("XDG_RUNTIME_DIR", str(run_dir))
+    return env
 
 
 def _q(s: str) -> str:
@@ -206,19 +230,25 @@ class _SecretTool(Backend):
     def __init__(self, exe: str):
         self.exe = exe
 
+    @staticmethod
+    def _session() -> dict:
+        """Extra arguments for _run: the signed-in user's session when this process (cron) has none."""
+        env = session_env()
+        return {"env": env} if env else {}
+
     def put(self, acct, value):
         r = _run([self.exe, "store", f"--label=Joe (joe-ai) {acct.split('@')[0]}", "service", SERVICE,
-                  "account", acct], stdin=value)
+                  "account", acct], stdin=value, **self._session())
         return bool(r and r.returncode == 0)
 
     def get(self, acct):
-        r = _run([self.exe, "lookup", "service", SERVICE, "account", acct])
+        r = _run([self.exe, "lookup", "service", SERVICE, "account", acct], **self._session())
         if not r or r.returncode != 0:
             return None
         return r.stdout[:-1] if r.stdout.endswith("\n") else r.stdout
 
     def delete(self, acct):
-        _run([self.exe, "clear", "service", SERVICE, "account", acct])
+        _run([self.exe, "clear", "service", SERVICE, "account", acct], **self._session())
 
 
 def backend(settings_path: Path) -> Backend:

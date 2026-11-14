@@ -7,6 +7,8 @@
     python -m joeai run    MISSION      (MISSION = file in Missions/, or '-' to paste)
     python -m joeai mcp                 (Joe as a connector for Claude Desktop and other MCP apps)
     python -m joeai tonight             (the night shift: what the computer's scheduler runs)
+    python -m joeai profile list|add NAME|remove NAME   (household profiles: one Joe per person)
+    python -m joeai --profile NAME ...  (any command, for that person's Joe)
 """
 from __future__ import annotations
 
@@ -37,6 +39,27 @@ def _read_mission(sb: Sandbox, arg: str) -> str:
     return p.read_text(encoding="utf-8")
 
 
+def _profile_command(action: str, name: str) -> int:
+    from . import profiles
+    if action == "list":
+        print("Main                (the original Joe on this PC)")
+        for p in profiles.people():
+            print(f"{p['name']:<20}profile: {profiles.profile_dir(p['id'])}\n{'':<20}workspace: {profiles.workspace_for(p['id'])}")
+        if not profiles.people():
+            print("No household profiles yet. Add one with: python -m joeai profile add NAME")
+        return 0
+    r = profiles.add(name) if action == "add" else profiles.remove(name)
+    if not r["ok"]:
+        print(r["error"])
+        return 2
+    if action == "add":
+        print(f"Made the profile {r['name']}.\nSettings:  {r['folder']}\nWorkspace: {r['workspace']}\n"
+              f"Start it with: python -m joeai --profile {r['id']}  (or pick it when Joe asks who is using him).")
+    else:
+        print(f"Took {name} off the list. Their settings and files were not deleted: {r['kept']}")
+    return 0
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="joe-ai", description=f"Joe {__version__}")
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -50,8 +73,12 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("mcp", help="talk MCP on stdin/stdout (for Claude Desktop and other AI apps)")
     sub.add_parser("tonight", help="start the plans saved for tonight (run by the night shift)")
     sub.add_parser("restart", help="start Joe's window after the old Joe has closed (RESTART JOE)")
+    p_prof = sub.add_parser("profile", help="household profiles: one Joe per person on a shared PC")
+    p_prof.add_argument("action", choices=("list", "add", "remove"))
+    p_prof.add_argument("name", nargs="?", default="")
     sub.add_parser("disconnect-all", help="remove Joe from every AI app's settings (run when uninstalling)")
-    a = ap.parse_args(argv)
+    from . import profiles
+    a = ap.parse_args(profiles.take_arg(list(sys.argv[1:] if argv is None else argv)))
     for stream in (sys.stdout, sys.stderr):        # Windows consoles: an emoji in a title mustn't crash
         try:
             stream.reconfigure(errors="replace")
@@ -59,6 +86,8 @@ def main(argv: list[str] | None = None) -> int:
             pass
     from . import portable
     portable.start()
+    if a.cmd == "profile":
+        return _profile_command(a.action, a.name)
     if a.cmd == "mcp":
         from .mcp import serve
         return serve()

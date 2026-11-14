@@ -510,6 +510,14 @@ FORMAT: ...
                 <div id="rec-warn" class="warn small" hidden>The night shift is off, so these won't run. Turn it on under NIGHT SHIFT above.</div>
                 <div id="rec-list" role="list"></div>
               </fieldset>
+              <fieldset><legend>PEOPLE ON THIS PC</legend>
+                <div class="dim small">Share this PC? Each person can have their own Joe: separate settings, keys, chats, helpers, night shift and files (their own folder in Documents). The program and the AI models stay shared. A name you add shows up when Joe opens, under "Who's using Joe?". Taking someone off the list never deletes their files.</div>
+                <div id="prof-now" class="small" aria-live="polite"></div>
+                <div id="prof-list" role="list"></div>
+                <div class="row"><label>New person <input id="prof-new" maxlength="30" size="18" placeholder="Name"></label>
+                  <button type="button" data-act="prof-add">[ ADD PERSON ]</button>
+                  <span id="prof-msg" class="dim small" aria-live="polite"></span></div>
+              </fieldset>
               <fieldset><legend>DIRECTIONS AND SHOPPING</legend>
                 <div class="dim small">"Directions to the feed store" or "where can I buy a cheap air fryer?" opens the site you pick here in your browser. Joe doesn't pick stores, track where you go, or get paid by anyone.</div>
                 <label title="Which map site opens for directions.">Maps <select data-path="comfort.maps"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option><option value="apple">Apple Maps</option><option value="bing">Bing Maps</option></select></label>

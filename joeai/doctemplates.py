@@ -191,7 +191,7 @@ TEMPLATES: dict[str, dict] = {
                         size=11, header_bold=True, header_fill="E2EFDA", freeze_header=True, filters=True,
                         banded=True, col_width="auto", money="auto", currency="$", totals=True),
 }
-DEFAULTS = {"docx": "standard", "pdf": "standard", "html": "standard", "odt": "standard", "epub": "ebook",
+DEFAULTS = {"docx": "standard", "pdf": "standard", "html": "standard", "odt": "standard", "pptx": "standard", "epub": "ebook",
             "xlsx": "sheet"}
 ALIASES = {"novel": "book", "children": "kids", "childrens-book": "kids", "picture-book": "kids", "epub": "ebook",
            "e-book": "ebook", "business": "report", "default": "standard", "spreadsheet": "sheet", "excel": "sheet",

@@ -247,3 +247,31 @@ def test_a_backup_without_keys_leaves_out_the_ai_server_key(tmp_path):
         assert "engine-secret-321" not in z.read("settings.json").decode("utf-8")
     with zipfile.ZipFile(backup.make(s, sb, keys=True)) as z:
         assert "engine-secret-321" in z.read("settings.json").decode("utf-8")
+
+
+# ------------------------------------------------------------------ Linux night shift (cron has no session)
+def test_session_env_points_secret_tool_at_the_signed_in_users_bus(tmp_path):
+    root = tmp_path / "run"
+    (root / "1000").mkdir(parents=True)
+    (root / "1000" / "bus").write_text("")
+    env = vault.session_env({"PATH": "/usr/bin"}, uid=1000, runtime_root=str(root))
+    assert env["DBUS_SESSION_BUS_ADDRESS"] == f"unix:path={root / '1000' / 'bus'}"
+    assert env["XDG_RUNTIME_DIR"] == str(root / "1000") and env["PATH"] == "/usr/bin"
+    # a session is already there (the desktop): nothing to change
+    assert vault.session_env({"DBUS_SESSION_BUS_ADDRESS": "unix:path=/x"}, uid=1000, runtime_root=str(root)) is None
+    # nobody is signed in (no bus): nothing to point at
+    assert vault.session_env({}, uid=1001, runtime_root=str(root)) is None
+
+
+def test_secret_tool_runs_with_that_session_when_cron_has_none(monkeypatch):
+    seen = []
+
+    def fake_run(cmd, stdin=None, timeout=20, env=None):
+        seen.append(env)
+        return None
+    monkeypatch.setattr(vault, "_run", fake_run)
+    monkeypatch.setattr(vault, "session_env", lambda *a, **k: {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"})
+    tool = vault._SecretTool("/usr/bin/secret-tool")
+    assert tool.get("web.ollama_key@abc") is None and tool.put("web.ollama_key@abc", "k") is False
+    tool.delete("web.ollama_key@abc")
+    assert len(seen) == 3 and all(e == {"DBUS_SESSION_BUS_ADDRESS": "unix:path=/run/user/1000/bus"} for e in seen)

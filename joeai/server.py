@@ -1788,6 +1788,9 @@ def make_handler(app: App):
                     from . import recurring
                     return self._json({"ok": True, "items": recurring.load(app.sb),
                                        "night": app.settings.schedule.enabled, "time": app.settings.schedule.time})
+                if u.path == "/api/profiles":            # Setup > General > PEOPLE ON THIS PC
+                    from . import profiles
+                    return self._json(profiles.summary())
                 if u.path == "/api/vault":               # Setup > Privacy: where the keys are kept
                     from . import vault
                     from .config import config_path
@@ -2618,6 +2621,16 @@ def make_handler(app: App):
                         mc = memory.command(str(b.get("text", "")))
                         return self._json(memory.handle(app.settings, mc) if mc else {"ok": False, "error": "?"})
                     return self._json({"ok": False, "error": "unknown memory action"}, 400)
+                if u.path.startswith("/api/profiles/"):   # Setup > General > PEOPLE ON THIS PC
+                    from . import profiles
+                    act = u.path.rsplit("/", 1)[1]
+                    if act == "add":
+                        return self._json(profiles.add(str(b.get("name", ""))))
+                    if act == "remove":
+                        return self._json(profiles.remove(str(b.get("id", ""))))
+                    if act == "open":                     # that person's Joe, in a window of its own
+                        return self._json(profiles.open_window_for(str(b.get("id", ""))))
+                    return self._json({"ok": False, "error": "unknown action"}, 400)
                 if u.path.startswith("/api/recurring/"):  # REPEAT under a plan; pause / delete in Setup
                     from . import recurring
                     act = u.path.rsplit("/", 1)[1]

@@ -129,3 +129,77 @@ def test_meal_plan_adds_up_and_flags_budget(app):  # noqa: F811
     st = _run(app, "TASK: Food2  TYPE: meal-plan\nINPUT: prices.csv\nFORMAT: $200 for 4 people")
     plan = (app.sb.output / st.output / "meal-plan.md").read_text(encoding="utf-8")
     assert "under budget" in plan and "2 of 3 prices" in plan and "211" not in plan
+
+
+# --------------------------------------------------------------------------- write like my own documents
+MINE_SAMPLE = ("Hey folks, I'm so glad you stopped by! We've been busy at the studio this month, and I can't wait "
+               "to show you what's new on the shelves.\n\n"
+               "Honestly, I think the new glaze is my favorite yet. It's warm, it's a little bit wild, and it "
+               "doesn't behave the way I expect, which is half the fun. We'll have a full batch by Friday!\n\n"
+               "If you're nearby, come say hi. I'd love to hear what you think, and we've always got coffee on.")
+
+
+def test_voice_facts_count_how_someone_writes():
+    from joeai import mystyle
+    facts = mystyle.voice_facts(MINE_SAMPLE)
+    assert "uses contractions (don't, it's)" in facts and "writes in the first person (I, we, my)" in facts
+    assert "uses exclamation marks" in facts
+    formal = ("The committee does not consider the proposal to be adequate. It is the view of the board that "
+              "the following requirements must be satisfied before any further action is taken by the department. "
+              "Payment shall be made in accordance with the schedule attached to this agreement as an appendix.")
+    f2 = mystyle.voice_facts(formal + " " + formal)
+    assert "rarely uses contractions (writes 'do not', 'it is')" in f2 and "no exclamation marks" in f2
+    assert mystyle.voice_facts("Too short to learn from.") == []
+
+
+def _spy_system_prompts(monkeypatch):
+    seen = []
+    orig = Engine._chat
+
+    def chat(self, job, part, kind, system, prompt, st, *a, **k):
+        seen.append(system)
+        return orig(self, job, part, kind, system, prompt, st, *a, **k)
+    monkeypatch.setattr(Engine, "_chat", chat)
+    return seen
+
+
+def test_rewrite_in_my_own_voice(app, monkeypatch):  # noqa: F811
+    seen = _spy_system_prompts(monkeypatch)
+    mine = app.sb.inbox / "My writing"
+    mine.mkdir()
+    (mine / "newsletter.md").write_text("# March news\n\n" + MINE_SAMPLE, encoding="utf-8")
+    (app.sb.inbox / "note.txt").write_text("Please send the files.\n\nThank you.", encoding="utf-8")
+    st = _run(app, "TASK: Mine  TYPE: rewrite\nINPUT: note.txt\nOPTIONS: style friendly, mine")
+    assert st.status == "done", st.note
+    guide = [s for s in seen if "VOICE GUIDE" in s]
+    assert guide and "come say hi" in guide[0] and "uses contractions" in guide[0]
+    assert "Never copy their sentences" in guide[0]
+    assert "March news" not in guide[0]                      # headings aren't passages
+    assert (mine / "newsletter.md").read_text(encoding="utf-8").startswith("# March news")   # samples untouched
+
+
+def test_mine_is_off_by_default_and_the_file_being_rewritten_is_never_a_sample(app, monkeypatch):  # noqa: F811
+    seen = _spy_system_prompts(monkeypatch)
+    mine = app.sb.inbox / "My writing"
+    mine.mkdir()
+    (mine / "draft.md").write_text(MINE_SAMPLE, encoding="utf-8")
+    st = _run(app, "TASK: Plain  TYPE: rewrite\nINPUT: My writing/draft.md\nOPTIONS: style friendly")
+    assert st.status == "done" and not any("VOICE GUIDE" in s for s in seen)
+    st = _run(app, "TASK: Self  TYPE: rewrite\nINPUT: My writing/draft.md\nOPTIONS: style formal, mine")
+    assert st.status == "failed" and "Inbox/My writing" in st.note        # its only sample IS the input
+
+
+def test_mine_without_samples_explains_what_to_do(app):  # noqa: F811
+    (app.sb.inbox / "a.md").write_text("Some words to summarize here, enough of them.", encoding="utf-8")
+    st = _run(app, "TASK: S  TYPE: summarize\nINPUT: a.md\nOPTIONS: mine")
+    assert st.status == "failed" and "put some of your own documents" in st.note
+
+
+def test_brainstorm_can_use_my_voice_too(app, monkeypatch):  # noqa: F811
+    seen = _spy_system_prompts(monkeypatch)
+    mine = app.sb.inbox / "My writing"
+    mine.mkdir()
+    (mine / "post.txt").write_text(MINE_SAMPLE, encoding="utf-8")
+    st = _run(app, "TASK: Names  TYPE: brainstorm\nFORMAT: names for a mug line\nOPTIONS: kind names, count 10, mine")
+    assert st.status == "done", st.note
+    assert any("VOICE GUIDE" in s for s in seen)

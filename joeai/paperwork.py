@@ -38,7 +38,7 @@ if TYPE_CHECKING:                                    # pragma: no cover
     from .mission import Job, Mission
 
 PAPER_TOOLS = ("pdf-tools", "explain-letter", "hide-details", "meeting-minutes", "bank-budget",
-               "resume-tailor", "mail-merge", "alt-text", "duplicate-photos")
+               "resume-tailor", "mail-merge", "compare-docs", "alt-text", "duplicate-photos")
 TEXT_DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 LETTER_EXT = (".txt", ".md", ".markdown", ".docx", ".html", ".htm")
 MERGE_SHEET_EXT = (".csv", ".tsv", ".xlsx")
@@ -1064,6 +1064,11 @@ _US_STATES = ("AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA
 # the town line of a US address: "Battle Creek, MI 49017" / "BATTLE CREEK MI 49017-1234"
 _CITYZIP = re.compile(r"\b[A-Z][A-Za-z.'-]+(?:[ \t]+[A-Z][A-Za-z.'-]+){0,3},?[ \t]+(?:" + _US_STATES + r")[ \t]+\d{5}(?:-\d{4})?\b")
 _UK_POST = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?[ \t]?\d[A-Z]{2}\b")
+# A street with no "Street/Ave" word ("123 Broadway"): a house number and a capitalised name count only when a town
+# line (US: town, state, ZIP; UK: postcode) follows right after, so "5 Apples" or "20 in May" are left alone.
+_TOWN_AHEAD = (r"(?=,?[ \t]*\n?[ \t]*(?:(?:[A-Z][A-Za-z.'-]+(?:[ \t]+[A-Z][A-Za-z.'-]+){0,3},?[ \t]+(?:" + _US_STATES +
+               r")[ \t]+\d{5}\b)|(?:(?:[A-Z][a-z.'-]+,?[ \t]+){0,3}[A-Z]{1,2}\d[A-Z\d]?[ \t]?\d[A-Z]{2}\b)))")
+_STREET_BARE = re.compile(r"\b\d{1,6}[A-Za-z]?[ \t]+(?:[A-Z][\w'.-]*[ \t]+){0,3}[A-Z][\w'.-]*" + _TOWN_AHEAD)
 _BIRTH = re.compile(r"(?i)\b(?:d\.?o\.?b\.?|date of birth|birth ?date|born(?: on)?)\s*[:\-]?\s*"
                     r"(\d{1,4}[/.-]\d{1,2}[/.-]\d{1,4}|\w+ \d{1,2},? \d{4}|\d{1,2} \w+ \d{4})")
 _DATEISH = re.compile(r"\d{4}-\d{1,2}-\d{1,2}|\d{1,2}-\d{1,2}-\d{2,4}|(?:19|20)\d{6}")
@@ -1102,7 +1107,7 @@ def pattern_hits(text: str) -> list[tuple[int, int, str]]:
     hits += [(m.start(), m.end(), "card") for m in _CARD.finditer(text) if luhn_ok(m.group())]
     hits += [(m.start(), m.end(), "iban") for m in _IBAN.finditer(text)]
     hits += [(m.start(1), m.end(1), "birth") for m in _BIRTH.finditer(text)]
-    for rx in (_STREET, _STREET_CAPS, _POBOX, _CITYZIP, _UK_POST):
+    for rx in (_STREET, _STREET_CAPS, _STREET_BARE, _POBOX, _CITYZIP, _UK_POST):
         hits += [(m.start(), m.end(), "address") for m in rx.finditer(text)]
     hits += [(m.start(1), m.end(1), "number") for m in _KEYNUM.finditer(text)
              if sum(c.isdigit() for c in m.group(1)) >= 4]
@@ -2321,6 +2326,35 @@ def run_mail_merge(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     return _finish(engine, job, st, 1, [])
 
 
+# =========================================================================== 7b. Compare two documents
+def run_compare_docs(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
+    from . import compare
+    from .tools import _finish, chosen_options, document_text
+    got = _begin(engine, job, st, "two versions of a document")
+    if not isinstance(got, tuple):
+        return got
+    files, folder = got
+    docs = [f for f in files if f.suffix.lower() in TEXT_DOC_EXT]
+    if len(docs) != 2:
+        return _fail(engine, job, st, "give exactly two documents, the older version first and the newer one "
+                     f"second (got {len(docs)})")
+    old, new = docs
+    try:
+        a = document_text(old, engine.log)
+        b = document_text(new, engine.log)
+    except (ValueError, OSError, zipfile.BadZipFile, KeyError) as e:
+        return _fail(engine, job, st, str(e))
+    if not a.strip() and not b.strip():
+        return _fail(engine, job, st, "neither document has any words in it")
+    res = compare.compare(a, b)
+    body = compare.report(res, old.name, new.name, words="words" in chosen_options(job))
+    _save(folder, st, "compare-report.md", body, "compare")
+    st.titles.append("compare")
+    st.items = len(res["changes"])
+    engine.log(f"  {len(res['changes'])} difference(s) -> compare-report.md")
+    return _finish(engine, job, st, 1, [])
+
+
 # =========================================================================== 8. Picture descriptions (alt text)
 ALT_SYSTEM = ("You write alt text: short descriptions of pictures for people who can't see them (screen readers) "
               "and for shop listings. Describe only what you can see. Never name or guess who a person is, or their "
@@ -2632,7 +2666,7 @@ def run_duplicate_photos(engine: "Engine", mission: "Mission", job: "Job", st: "
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     fn = {"pdf-tools": run_pdf_tools, "explain-letter": run_explain_letter, "hide-details": run_hide_details,
           "meeting-minutes": run_meeting_minutes, "bank-budget": run_bank_budget, "resume-tailor": run_resume_tailor,
-          "mail-merge": run_mail_merge, "alt-text": run_alt_text, "duplicate-photos": run_duplicate_photos}[job.type]
+          "mail-merge": run_mail_merge, "compare-docs": run_compare_docs, "alt-text": run_alt_text, "duplicate-photos": run_duplicate_photos}[job.type]
     return fn(engine, mission, job, st)
 
 
@@ -2667,6 +2701,8 @@ def guess_seconds(job: "Job", files: list[Path], speeds: dict) -> float:
         return part * (5 if "letter" in chosen_options(job) else 4)
     if t == "mail-merge":
         return 5.0
+    if t == "compare-docs":
+        return 3.0 + len(files) * 1.0
     if t == "alt-text":
         return len(files) * speeds.get("vision", 20.0)
     if t == "duplicate-photos":

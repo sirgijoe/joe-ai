@@ -252,13 +252,16 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          accepts=DOC_EXT,
          options=(Option("length", "How", choices=(("short", "Short: one paragraph"),
                                                    ("points", "Key points, names, numbers and to-dos"),
-                                                   ("chapters", "Chapter by chapter")), value="points"),),
+                                                   ("chapters", "Chapter by chapter")), value="points"),
+                  Option("mine", "Write like my other documents", False,
+                         "Joe copies the voice (not the sentences) of your own writing kept in Inbox/My writing.")),
          needs=("ollama",), ready=True,
          help="Long documents are read in parts and the notes joined into one summary, so even a whole "
               "book works (it just takes longer). Names, numbers and dates are copied as written; "
               "anything unclear is marked [CHECK]. Your file is never changed.",
          plan_hint="Summarize documents: TYPE: summarize, INPUT: the document file(s) from the list below, "
-                   "OPTIONS: length short|points|chapters (points if they don't say). No CHUNKS.",
+                   "OPTIONS: length short|points|chapters (points if they don't say), mine (only if they want their own writing "
+                   "voice). No CHUNKS.",
          examples=("Summarize this article", "Give me the key points of my lease", "Summarize this book chapter by chapter"),
          extra_hint="optional, e.g. focus on money and dates"),
     Tool("rewrite", "Rewrite or change the tone", "Writing",
@@ -269,13 +272,18 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                                                       ("email", "Into an email"),
                                                       ("resume", "A resume tailored to a job post"),
                                                       ("custom", "My own way (say how below)")),
-                         value="friendly"),),
+                         value="friendly"),
+                  Option("mine", "Write like my other documents", False,
+                         "Joe copies the voice (not the sentences) of your own writing kept in Inbox/My writing.")),
          needs=("ollama",), ready=True,
          help="Makes a new copy plus a short 'what changed' list; your original is never touched. Joe "
               "keeps every fact and never adds new ones: for a resume he never invents jobs, skills or "
-              "results (missing things are marked [CHECK]). For a resume, paste the job post in the box.",
+              "results (missing things are marked [CHECK]). For a resume, paste the job post in the box. Tick "
+              "Write like my other documents to copy your own voice from the files you keep in Inbox/My writing "
+              "(Joe copies how you write, never your sentences or facts).",
          plan_hint="Rewrite / change tone / notes into an email / tailor a resume: TYPE: rewrite, INPUT: the "
-                   "document file(s), OPTIONS: style friendly|formal|shorter|simpler|email|resume|custom, "
+                   "document file(s), OPTIONS: style friendly|formal|shorter|simpler|email|resume|custom, mine (only if they want "
+                   "it in their own writing voice), "
                    "FORMAT: anything they asked for (for a resume: the job post, word for word). No CHUNKS.",
          examples=("Make my email sound friendlier", "Turn my notes into an email", "Tailor my resume to this job post"),
          extra_hint="optional, e.g. paste the job post here, or: sound confident but not pushy",
@@ -287,13 +295,15 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                                                           for k in ("ideas", "names", "gifts", "angles",
                                                                     "outline", "solutions")), value="ideas"),
                   Option("count", "How many", choices=(("10", "10"), ("25", "25"), ("50", "50")), value="25"),
-                  Option("park", "Note it in Ideas.md", False, "Adds one line to Ideas.md pointing at the list.")),
+                  Option("park", "Note it in Ideas.md", False, "Adds one line to Ideas.md pointing at the list."),
+                  Option("mine", "Write like my other documents", False,
+                         "Joe copies the voice (not the sentences) of your own writing kept in Inbox/My writing.")),
          needs=("ollama",), ready=True,
          help="Say what you need ideas for in the box. A file is optional: add notes or a draft and the "
               "ideas build on it. Like one? Type \"park this: ...\" in Joe's box to keep it.",
          plan_hint="Brainstorm ideas / names / gift ideas / angles / an outline: TYPE: brainstorm, FORMAT: what "
                    "they need ideas for, word for word, OPTIONS: kind ideas|names|gifts|angles|outline|solutions, "
-                   "count 10|25|50. INPUT only if they point at a file. No CHUNKS.",
+                   "count 10|25|50, mine (only if they want their own writing voice). INPUT only if they point at a file. No CHUNKS.",
          examples=("Give me 25 names for my bakery", "Gift ideas for my dad who loves fishing",
                    "Outline a blog post about raised garden beds"),
          extra_hint="e.g. names for a pottery shop that sounds warm and handmade",
@@ -1064,6 +1074,23 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                    "spreadsheet (both), OPTIONS: one (unless they want separate files only), blank (only if they "
                    "want empty cells left blank). No CHUNKS.",
          examples=("Make a letter for everyone on this list", "Merge my thank-you note with the customer spreadsheet")),
+    Tool("compare-docs", "Compare two versions of a document", "Files",
+         "Two versions of a contract, letter or manuscript in: what was added, removed and changed out.",
+         accepts=TEXT_DOC_EXT,
+         options=(Option("words", "Mark the changed words inside a paragraph", True,
+                         "Off: an edited paragraph is shown whole, old then new."),),
+         needs=(), ready=True,
+         help="No AI, nothing invented. Give the OLDER version first and the NEWER one second (Word, PDF, .txt, "
+              ".md or a web page; they can be different kinds). Joe lines the two up paragraph by paragraph and "
+              "saves compare-report.md: a summary, then every paragraph that changed (the words that went are "
+              "struck through, the words that came in are bold), every paragraph that was added and every one "
+              "that was removed. Extra spaces and line breaks are ignored. A PDF is compared by its text, so "
+              "check the pages themselves for tables and pictures. Both files stay exactly as they were.",
+         plan_hint="Compare two versions of a document / what changed: TYPE: compare-docs, INPUT: the OLDER "
+                   "file first, then the NEWER file (exactly two), OPTIONS: words (leave it out only if they "
+                   "want whole paragraphs shown). No CHUNKS.",
+         examples=("What changed between these two versions of my contract?",
+                   "Compare my first draft with the edited manuscript")),
     Tool("alt-text", "Picture descriptions (alt text)", "Pictures",
          "A short description of each picture, for screen readers, websites and shop listings.",
          accepts=PHOTO_EXT,
@@ -3907,7 +3934,7 @@ def plan_info(engine_sb, job: "Job", speeds: dict) -> dict:
 
 
 PAPER_GUESS = ("pdf-tools", "explain-letter", "hide-details", "meeting-minutes", "bank-budget", "resume-tailor",
-               "mail-merge", "alt-text", "duplicate-photos")             # paperwork.PAPER_TOOLS
+               "mail-merge", "compare-docs", "alt-text", "duplicate-photos")   # paperwork.PAPER_TOOLS
 # Picture editor: about 4.5 min a picture on a 12 GB card (its request is read on the processor),
 # measured in the showcase test 2026-11-09; a turnaround is per view. Learned speeds replace these.
 COMFY_GUESS_S = {"remove-bg": 8.0, "edit-picture": 270.0, "restore-photo": 150.0,

@@ -154,12 +154,12 @@ OTHER: tuple[Ability, ...] = (
             "Limits: a search can miss things or find wrong pages: check the sources.",
             ("research", "lookup", "look up", "web search", "internet", "sources", "online")),
     Ability("exports", "Working for you", "Finished copies and templates",
-            "Word, PDF, EPUB and Excel copies that follow a template (book, kids, screenplay, resume, price list...).",
-            "What it does: EXPORT: docx, pdf, epub (or xlsx for spreadsheets, social for post schedulers) makes finished copies next to the text Joe wrote.\n"
+            "Word, PDF, EPUB, PowerPoint and Excel copies that follow a template (book, kids, screenplay, resume, price list...).",
+            "What it does: EXPORT: docx, pdf, epub, pptx (a slide for every ## heading; or xlsx for spreadsheets, social for post schedulers) makes finished copies next to the text Joe wrote.\n"
             "How Joe does it: Pandoc builds the Word and EPUB files and a styled page for the PDF (printed by Edge or Chrome without a window). The template sets page size, margins, fonts, spacing, page numbers, chapter breaks and more. Spreadsheets get money columns and totals.\n"
             "Options: Setup > Writing > Templates: 17 ready-made ones (standard, book, manuscript, kids, ebook, report, large print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring, school, price list...), EDIT any of them, set a default per file kind, or ADD YOUR OWN. A task picks one with TEMPLATE: and its name.\n"
-            "Needs: Pandoc for Word, PDF and EPUB (System check installs it).",
-            ("export", "word", "pdf", "epub", "excel", "docx", "xlsx", "templates", "template", "formatting", "book layout")),
+            "Needs: Pandoc for Word, PDF, EPUB and PowerPoint (System check installs it).",
+            ("export", "word", "pdf", "epub", "powerpoint", "pptx", "slides", "excel", "docx", "xlsx", "templates", "template", "formatting", "book layout")),
     Ability("bigger-ai", "Working for you", "Ask a bigger AI",
             "A paste-ready message for any big chatbot (ChatGPT, Claude, Gemini...); paste its answer back and Joe runs it.",
             "What it does: Joe's own model is small. ASK A BIGGER AI writes one message with what Joe is, the exact plan format, what your PC can do, your request and (if you like) the last report's problems.\n"
@@ -384,6 +384,9 @@ STEPS: dict[str, tuple[str, ...]] = {
     "mail-merge": ("Joe finds the {Name}-style spots in your letter and matches them to the spreadsheet's columns.",
                    "For every row he makes a copy of the letter with that row's details (Word formatting kept).",
                    "He saves one letter per row, one file with them all, and a list of empty cells or unmatched spots."),
+    "compare-docs": ("Joe reads the text of both versions (Word, PDF, text or web page) and splits it into paragraphs.",
+                     "He lines the paragraphs up, pairs each edited paragraph with its new version and marks the words that went and came in.",
+                     "He saves one report: a summary, then the changed, added and removed paragraphs. Nothing is guessed and neither file is touched."),
     "alt-text": ("Big pictures are shrunk first so the vision model can look at them.",
                  "The vision model describes what it sees, without naming people.",
                  "Joe trims each short description to 125 characters at a whole word and saves a CSV and a document."),

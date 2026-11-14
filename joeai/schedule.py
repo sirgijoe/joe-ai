@@ -25,9 +25,28 @@ from pathlib import Path
 
 from .system import LINUX, MAC, WINDOWS, no_window_flags
 
-TASK_NAME = "Joe night shift"
-LABEL = "io.github.sirgijoe.joe.tonight"
-CRON_TAG = "# joe-ai night shift"
+_TASK_NAME = "Joe night shift"
+_LABEL = "io.github.sirgijoe.joe.tonight"
+_CRON_TAG = "# joe-ai night shift"
+TASK_NAME, LABEL, CRON_TAG = _TASK_NAME, _LABEL, _CRON_TAG   # the main person's names; others get a suffix
+
+
+def _who() -> str:
+    """The household profile (profiles.py) this night shift belongs to; '' = the original Joe."""
+    from . import profiles
+    return profiles.current()
+
+
+def task_name() -> str:
+    return f"{_TASK_NAME} ({_who()})" if _who() else _TASK_NAME
+
+
+def label() -> str:
+    return f"{_LABEL}.{_who()}" if _who() else _LABEL
+
+
+def cron_tag() -> str:
+    return f"{_CRON_TAG} ({_who()})" if _who() else _CRON_TAG
 _TIME = re.compile(r"^\s*([01]?\d|2[0-3]):([0-5]\d)\s*$")
 
 
@@ -180,7 +199,7 @@ def put_back(sb, texts: list[tuple[str, str]]) -> list[str]:
 
 def windows_commands(hh: int, mm: int, cmd: list[str]) -> list[list[str]]:
     tr = " ".join(f'"{c}"' if " " in c or "\\" in c else c for c in cmd)
-    return [["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/SC", "DAILY", "/ST", f"{hh:02d}:{mm:02d}",
+    return [["schtasks", "/Create", "/F", "/TN", task_name(), "/SC", "DAILY", "/ST", f"{hh:02d}:{mm:02d}",
              "/TR", tr]]
 
 
@@ -215,7 +234,7 @@ def mac_plist(hh: int, mm: int, cmd: list[str]) -> str:
     return f"""<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0"><dict>
-  <key>Label</key><string>{LABEL}</string>
+  <key>Label</key><string>{label()}</string>
   <key>ProgramArguments</key><array>{args}</array>
   <key>StartCalendarInterval</key><dict><key>Hour</key><integer>{hh}</integer><key>Minute</key><integer>{mm}</integer></dict>
 </dict></plist>
@@ -223,16 +242,17 @@ def mac_plist(hh: int, mm: int, cmd: list[str]) -> str:
 
 
 def mac_plist_path() -> Path:
-    return Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
+    return Path.home() / "Library" / "LaunchAgents" / f"{label()}.plist"
 
 
 def cron_lines(current: str, hh: int | None = None, mm: int | None = None,
                cmd: list[str] | None = None) -> str:
     """The crontab with Joe's line removed, then added back when a time is given."""
     import shlex
-    keep = [ln for ln in current.splitlines() if CRON_TAG not in ln]
+    tag = cron_tag()
+    keep = [ln for ln in current.splitlines() if not ln.rstrip().endswith(tag)]     # (endswith: "...night shift" isn't "...night shift (sam)")
     if hh is not None:
-        keep.append(f"{mm} {hh} * * * {' '.join(shlex.quote(c) for c in cmd or [])} {CRON_TAG}")
+        keep.append(f"{mm} {hh} * * * {' '.join(shlex.quote(c) for c in cmd or [])} {tag}")
     return "\n".join(keep).strip() + "\n" if keep else ""
 
 
@@ -266,7 +286,7 @@ def apply(settings, log=lambda *_: None) -> dict:
             from .config import config_path
             xml = config_path().parent / "joe-night-shift.xml"
             xml.write_text(windows_xml(hh, mm, joe, date.today().isoformat()), encoding="utf-16")
-            r = _run(["schtasks", "/Create", "/F", "/TN", TASK_NAME, "/XML", str(xml)])
+            r = _run(["schtasks", "/Create", "/F", "/TN", task_name(), "/XML", str(xml)])
             if r.returncode:                            # older Windows: plain entry, no wake
                 r = _run(windows_commands(hh, mm, joe)[0])
             if r.returncode:
@@ -298,9 +318,9 @@ def apply(settings, log=lambda *_: None) -> dict:
 def remove(log=lambda *_: None) -> dict:
     try:
         if WINDOWS:
-            q = _run(["schtasks", "/Query", "/TN", TASK_NAME])
+            q = _run(["schtasks", "/Query", "/TN", task_name()])
             if q.returncode == 0:
-                _run(["schtasks", "/Delete", "/F", "/TN", TASK_NAME])
+                _run(["schtasks", "/Delete", "/F", "/TN", task_name()])
                 log("Night shift off: removed Joe's entry from Task Scheduler.")
         elif MAC:
             p = mac_plist_path()
@@ -310,7 +330,7 @@ def remove(log=lambda *_: None) -> dict:
                 log("Night shift off: removed Joe's launchd entry.")
         elif LINUX and shutil.which("crontab"):
             cur = _run(["crontab", "-l"])
-            if cur.returncode == 0 and CRON_TAG in cur.stdout:
+            if cur.returncode == 0 and any(ln.rstrip().endswith(cron_tag()) for ln in cur.stdout.splitlines()):
                 _run(["crontab", "-"], input=cron_lines(cur.stdout))
                 log("Night shift off: removed Joe's cron line.")
     except (OSError, subprocess.SubprocessError) as e:

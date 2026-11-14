@@ -18,6 +18,9 @@ if sys.version_info < (3, 11, 4):                # older Pythons unpack download
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
+from joeai import profiles  # noqa: E402   (household profiles: "--profile NAME" says whose Joe this is)
+sys.argv[1:] = profiles.take_arg(sys.argv[1:])
+
 if sys.argv[1:2] in (["mcp"], ["tonight"], ["disconnect-all"]):   # connector / night shift / uninstall
     from joeai.cli import main  # noqa: E402
     sys.exit(main(sys.argv[1:]))

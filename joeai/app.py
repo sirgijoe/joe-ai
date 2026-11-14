@@ -86,8 +86,9 @@ def open_window(url: str) -> None:
 
 
 def main() -> int:
-    from . import portable
+    from . import portable, profiles
     portable.start()
+    profiles.pick_for_launch()               # "Who's using Joe?" when this PC has household profiles
     config_dir().mkdir(parents=True, exist_ok=True)
     url = _existing_url()
     if url:                                  # already running (maybe mid-run): just reopen

@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import re
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -83,6 +84,43 @@ ACTIONS = {
     "start": ("start another of the owner's agents that exists",
               '{"action": "start", "agent": "<its name>", "request": "<what it should do this time>"}', ""),
 }
+
+
+class TimeCut:
+    """`engine.stop` while an agent runs. It is set by the owner's Stop button (`orig`) OR by this run's
+    time limit (`cut`), so a step that is running when the minutes run out is told to stop at its next
+    check instead of finishing first. Only the Stop button ever sets the original event."""
+
+    def __init__(self, orig):
+        self.orig = orig
+        self.cut = threading.Event()
+
+    def by_time(self) -> bool:
+        return self.cut.is_set() and not self.orig.is_set()
+
+    def is_set(self) -> bool:
+        return self.orig.is_set() or self.cut.is_set()
+
+    isSet = is_set
+
+    def set(self) -> None:
+        self.orig.set()
+
+    def clear(self) -> None:
+        self.orig.clear()
+
+    def wait(self, timeout: float | None = None) -> bool:
+        end = None if timeout is None else time.monotonic() + timeout
+        while True:
+            if self.is_set():
+                return True
+            left = 0.25 if end is None else min(0.25, end - time.monotonic())
+            if left <= 0:
+                return False
+            self.orig.wait(left)
+
+    def __getattr__(self, name):
+        return getattr(self.orig, name)
 
 
 class Stuck(Exception):
@@ -603,6 +641,15 @@ class Run:
     # -- the whole run -------------------------------------------------------
     def go(self) -> str:
         """Returns '' when the job is done, else why I got stuck."""
+        orig = self.engine.stop
+        self.timecut = TimeCut(orig)
+        self.engine.stop = self.timecut
+        try:
+            return self._go()
+        finally:
+            self.engine.stop = orig
+
+    def _go(self) -> str:
         from .engine import Stopped
         if not self.engine._text_ready(self.st):
             raise Stuck("the writing model isn't running, and I need it to plan and pick my steps.")
@@ -689,7 +736,20 @@ class Run:
             since_reset += 1
             self.live(ACTIONS[step["action"]][0].split(" (")[0], n)
             self.log(f"  Agent step {n}: {step['action']}")
-            r = self.do(n, step)
+            cutter = threading.Timer(max(0.0, self.deadline - time.monotonic()), self.timecut.cut.set)
+            cutter.daemon = True
+            cutter.start()
+            try:
+                r = self.do(n, step)
+            except Stopped:
+                if self.timecut.by_time():             # the minutes ran out in the middle of this step
+                    self.steps.append({"n": n, "action": step["action"], "what": step["action"], "status": "cut off",
+                                       "note": "stopped part-way because the time ran out", "made": []})
+                    raise Stuck(f"I ran out of time ({self.agent['minutes']} minutes) in the middle of step {n} "
+                                f"({step['action']}), so I stopped it.") from None
+                raise
+            finally:
+                cutter.cancel()
             self.steps.append({"n": n, "action": step["action"], "what": r.get("what", step["action"]),
                                "status": r["status"], "note": r.get("note", ""), "made": r.get("made", [])})
             if r.get("ctx"):
