@@ -643,4 +643,20 @@ def client_config() -> dict:
     entry = {"command": cmd[0], "args": cmd[1:], "env": {"PYTHONIOENCODING": "utf-8"}}
     if cmd[1:3] == ["-m", "joeai"]:
         entry["env"]["PYTHONPATH"] = str(Path(__file__).resolve().parent.parent)
+    own = _own_settings()
+    if own:                                    # a copy on its own settings file (a test copy): the app
+        entry["env"]["JOE_CONFIG"] = own       # must start THAT Joe, not the everyday one's settings
     return {"mcpServers": {"joe": entry}}
+
+
+def _own_settings() -> str:
+    """The settings file this Joe was started with (JOE_CONFIG), when it isn't the usual one; else ''."""
+    import os
+    from .config import config_dir
+    own = os.environ.get("JOE_CONFIG")
+    if not own:
+        return ""
+    mine = os.path.abspath(own)
+    if os.path.normcase(mine) == os.path.normcase(os.path.abspath(config_dir() / "settings.json")):
+        return ""
+    return mine

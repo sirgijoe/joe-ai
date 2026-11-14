@@ -162,6 +162,13 @@ def note(what: str, model: str) -> str:
             "check names, numbers and anything marked [CHECK]. Your original wasn't changed.\n\n")
 
 
+def _without_note(body: str) -> str:
+    """The text without Joe's own "> ... by Joe on this computer" line, whose "anything marked [CHECK]"
+    was counted as a [CHECK] flag on every rewrite, summary and brainstorm (2.3.0.dev25)."""
+    first, _, rest = body.partition("\n")
+    return rest if first.startswith("> ") and "by Joe on this computer" in first else body
+
+
 # --------------------------------------------------------------------------- shared run loop
 def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "JobState":
     from .engine import PartFailed, Stopped
@@ -223,7 +230,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
 
     def save(name: str, body: str, label: str) -> None:
         atomic_write_text(folder / name, body if body.endswith("\n") else body + "\n")
-        flags = find_flags(body)
+        flags = find_flags(_without_note(body))
         st.flags.extend({"item": label, "flag": f} for f in flags[:30])
         st.media_files.append(name)
         st.words += count_words(body)
@@ -312,9 +319,10 @@ def _summarize(engine, job, src, stem, text, ask, save, model) -> list[str]:
 
 
 def _rewrite(engine, job, src, stem, text, ask, save, model) -> list[str]:
-    from .tools import option_value
+    from .tools import chosen_options, option_value
     style = option_value(job, "style") or "friendly"
     how = REWRITE_HOW.get(style, REWRITE_HOW["friendly"])
+    voice = ", in your own voice (from Inbox/My writing)" if "mine" in chosen_options(job) else ""
     wish = _wish(job)
     if style in ("resume", "custom") and not job.format.strip():
         wish += ("\n(No job post was given: tailor it for the kind of job the resume already points to.)"
@@ -331,7 +339,7 @@ def _rewrite(engine, job, src, stem, text, ask, save, model) -> list[str]:
     changes = ask("rewrite", RW_SYSTEM.split(". ")[0] + ".",
                   RW_CHANGES + f"\n\nORIGINAL:\n<<<\n{text[:6000]}\n>>>\n\nREWRITE:\n<<<\n{new[:6000]}\n>>>", 10)
     cname = f"{stem}-what-changed.md"
-    save(cname, note("Rewritten", model) + f"# What changed: {src.name} -> {name}\n\nAsked for: {how}.\n\n{changes}\n",
+    save(cname, note("Rewritten", model) + f"# What changed: {src.name} -> {name}\n\nAsked for: {how}{voice}.\n\n{changes}\n",
          src.stem)
     return [name, cname]
 

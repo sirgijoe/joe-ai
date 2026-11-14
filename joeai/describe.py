@@ -40,8 +40,8 @@ Kinds of task:
   products, places or people.
 - Video clips: TYPE: video, CHUNKS: 1 x clips (keep it to 1-4 clips), FORMAT: what happens. Add EXPORT: gif
   when they want a GIF.
-- Finished copies (EXPORT: docx/pdf/epub, or xlsx for a .csv) can take TEMPLATE: book (printed
-  novel) | manuscript (for an editor/agent) | kids (children's picture book) | ebook | report |
+- Finished copies (EXPORT: docx/pdf/epub, pptx for slides with one PART per slide, or xlsx for a .csv)
+  can take TEMPLATE: book (printed novel) | manuscript (for an editor/agent) | kids (children's picture book) | ebook | report |
   largeprint | poetry | screenplay | letter (incl. cover letter) | resume | cookbook | recipecard |
   coloring (coloring/activity book) | school (MLA paper) | standard; for a .csv: sheet | pricelist.
   Only add it when the request names that kind of project. A screenplay's FORMAT says: scene headings

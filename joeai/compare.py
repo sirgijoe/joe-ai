@@ -14,13 +14,28 @@ SHOW_MAX = 500                 # changes listed in the report; the rest are coun
 TEXT_MAX = 1200                # characters of one paragraph shown in the report
 
 
+LIST_LINE = re.compile(r"^\s*(?:[-*+]|\d+[.)])\s+")
+LINE_END = re.compile(r"[.!?:;]\s*$")
+
+
+def _is_list(block: str) -> bool:
+    """A block of separate lines (a to-do list, bullets, one sentence per line), not prose wrapped
+    over several lines: every line is a bullet, ends a sentence, or is at most 4 words (milk, eggs, bread)."""
+    lines = [ln for ln in block.split("\n") if ln.strip()]
+    return len(lines) >= 2 and all(LIST_LINE.match(ln) or LINE_END.search(ln) or len(ln.split()) <= 4
+                                   for ln in lines)
+
+
 def paragraphs(text: str) -> list[str]:
     """Non-empty paragraphs with their spaces and line breaks tidied. Blank lines separate
-    paragraphs; a file with no blank lines (a plain list of lines) is split on line breaks."""
+    paragraphs; a file with no blank lines (a plain list of lines) is split on line breaks, and so is
+    a block that is a list of lines (2.3.0.dev25: a to-do list came out as one long changed paragraph)."""
     text = (text or "").replace("\r\n", "\n").replace("\r", "\n")
     blocks = re.split(r"\n[ \t]*\n", text)
     if len([b for b in blocks if b.strip()]) <= 1:
         blocks = text.split("\n")
+    else:
+        blocks = [ln for b in blocks for ln in (b.split("\n") if _is_list(b) else [b])]
     out = [" ".join(b.split()) for b in blocks]
     return [p for p in out if p]
 

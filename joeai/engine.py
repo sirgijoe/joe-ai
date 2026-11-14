@@ -205,6 +205,17 @@ def asked_words(text: str) -> int:
 PEOPLE_STYLES = frozenset({"photo", "bw", "general", "painting", "concept", "illustration"})
 
 
+SLIDE_RULE = ("SLIDE: this part becomes one slide of a PowerPoint. After the heading, write 3 to 6 short "
+              "bullet points (lines starting with '- ', each under 15 words). No paragraphs, no sub-headings.")
+SLIDE_THIN = 8           # fewer words than this on a slide is a failed reply, not a short slide
+
+
+def is_slides(job) -> bool:
+    """EXPORT: pptx on a written task: each PART is a slide, so it's written as bullets (2.3.0.dev25: slides
+    came out as 400-500-word essays because parts under 80 words were retried as 'too short')."""
+    return "pptx" in (getattr(job, "export", None) or []) and not getattr(job, "min_words", 0)
+
+
 def thin_reply_words(words_so_far: int, parts_done: int, asked: int = 0) -> int:
     """A guided part with fewer words than this gets retried: 80 words, or a third of
     what earlier parts averaged (FAQ part 2 came back with 21 words, a pack part with 0 items).
@@ -927,6 +938,8 @@ class Engine:
             lines.append(job.part_prompts[part])
         if job.min_words:
             lines += ["", f"LENGTH: every item under a heading needs at least {job.min_words} words."]
+        elif is_slides(job):
+            lines += ["", SLIDE_RULE]
         recent = st.titles[-TITLE_MEMORY:]
         if recent:
             lines += ["", "Headings already written in earlier parts (do NOT repeat them):"]
@@ -958,6 +971,8 @@ class Engine:
         asked = asked_words(job.part_prompts[part]) or asked_words(job.rules) or \
             asked_words(getattr(getattr(self, "_mission", None), "rules", ""))
         thin = thin_reply_words(st.words, st.parts_done, asked)
+        if is_slides(job) and not asked:         # a slide is a few bullets: 13 words is fine, 500 isn't
+            thin = SLIDE_THIN
         empty = 0
         attempt = 0
         while attempt < tries:

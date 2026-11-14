@@ -241,14 +241,24 @@ def status() -> list[dict]:
         mine = got.get(ENTRY) if isinstance(got.get(ENTRY), dict) else None
         out.append({"id": app_id, "name": name, "installed": installed, "file": str(p),
                     "connected": mine is not None, "readable": d is not None,
-                    "points_to": " ".join([str(mine.get("command", ""))] + [str(x) for x in mine.get("args", [])])
-                    if mine else "", "link": bool(deeplink(app_id, {"command": "x"}))})
+                    "points_to": points_to(mine) if mine else "",
+                    "link": bool(deeplink(app_id, {"command": "x"}))})
     return out
 
 
+def points_to(entry: dict) -> str:
+    """What an app's Joe entry starts: the command, and the settings file when it names its own
+    (JOE_CONFIG, a test copy). Two entries with the same command but different settings are different Joes."""
+    text = " ".join([str(entry.get("command", ""))] + [str(x) for x in entry.get("args", [])])
+    env = entry.get("env") if isinstance(entry.get("env"), dict) else {}
+    if env.get("JOE_CONFIG"):
+        text += f" (settings: {env['JOE_CONFIG']})"
+    return text
+
+
 def entry_matches(have: str, entry: dict) -> bool:
-    """Does the app start THIS Joe (same Python and same Joe.pyw)?"""
-    want = " ".join([str(entry.get("command", ""))] + [str(x) for x in entry.get("args", [])])
+    """Does the app start THIS Joe (same Python, same Joe.pyw, same settings file)?"""
+    want = points_to(entry)
     norm = lambda t: t.replace("\\", "/").lower().strip()      # noqa: E731
     return norm(have) == norm(want)
 

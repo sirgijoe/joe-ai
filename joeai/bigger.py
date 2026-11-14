@@ -32,7 +32,7 @@ def extra_keys() -> str:
 - INPUT: file names from Joe's Inbox (for tools)   OPTIONS: tool options, comma separated
 - TEMPLATE: book | manuscript | kids | ebook | report | largeprint | poetry | screenplay | letter | resume |
   cookbook | recipecard | coloring | school | standard (how the EXPORT copies look); sheet | pricelist (.xlsx)
-- EXPORT: docx | pdf | epub | odt | html (a finished copy of a document); xlsx (a .csv task's Excel copy); social (posts for a scheduler:
+- EXPORT: docx | pdf | epub | odt | html | pptx (a finished copy of a document; pptx = PowerPoint, one PART per slide); xlsx (a .csv task's Excel copy); social (posts for a scheduler:
   csv/json/Postiz lines; also works on a .csv task); gif on a video task
 - FROM: the name of an earlier list or spreadsheet task. Each task is written on its own and
   can't see the others, so when one task must use the same names as another (a price list
