@@ -180,7 +180,7 @@ def test_the_key_never_appears_on_a_command_line(monkeypatch):
 
     class R:
         returncode, stdout = 0, 'pa"ss\\word\n'
-    monkeypatch.setattr(vault, "_run", lambda cmd, stdin=None, timeout=20: calls.append((cmd, stdin)) or R())
+    monkeypatch.setattr(vault, "_run", lambda cmd, stdin=None, timeout=20, env=None: calls.append((cmd, stdin)) or R())
     k = vault._Keychain("/usr/bin/security")
     assert k.put("web.ollama_key@x", 'pa"ss\\word')
     assert calls[0][0] == ["/usr/bin/security", "-i"] and 'pa\\"ss\\\\word' in calls[0][1]
