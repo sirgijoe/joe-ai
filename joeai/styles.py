@@ -75,7 +75,7 @@ STYLES = {
                 "black and white photograph, monochrome, high contrast, fine film grain",
                 NEG_PHOTO + ", color, colored, sepia, tinted", cfg=-1.5, sampler="dpmpp_2m_sde", steps=30,
                 denoise=0.3),
-    "anime": Style("anime", "Anime / manga",
+    "anime": Style("anime", "Anime",
                    "STYLE: anime illustration. Cel shading, clean dynamic line work, expressive eyes and "
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
                    "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon, low score, bad score, average score", cfg=1.0,

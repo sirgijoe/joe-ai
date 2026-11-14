@@ -287,6 +287,19 @@ class Engine:
         atomic_write_text(self.sb.output / "_progress.txt", text + "\n")
 
     # -- mission ------------------------------------------------------------
+    def _reload_workflows(self) -> None:
+        """Workflow settings changed in settings.json count from the next mission (no restart)."""
+        try:
+            from .config import config_path
+            wf = json.loads(config_path().read_text(encoding="utf-8-sig")).get("workflows")
+        except (OSError, ValueError):
+            return
+        if isinstance(wf, dict) and wf != self.s.workflows:
+            self.s.workflows = wf
+            from . import workflowprefs
+            workflowprefs.apply(self.s)
+            self.log("  Workflow settings re-read from settings.json.")
+
     def run_mission(self, mission: Mission, earlier: list | None = None,
                     finish: bool = True) -> list[JobState]:
         """Run one mission. earlier = missions already run from the same queue (for the
@@ -295,6 +308,7 @@ class Engine:
         from .storage import cap_logs
         self._mission = mission
         cap_logs(self.sb)
+        self._reload_workflows()
         states: list[JobState] = []
         self.live = [self._load_state(mission, j) for j in mission.jobs]
         self.services.log = self.log           # "Starting ComfyUI..." etc. land in _log.txt too

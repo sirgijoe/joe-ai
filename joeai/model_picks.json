@@ -790,7 +790,7 @@
           "match": "",
           "words": "cute mascot character, full body, simple friendly shapes, clean outlines, plain white background",
           "example": "cute mascot character: a round clay pot with a little leaf on its head, big friendly eyes, full body, clean outlines, plain white background.",
-          "negative": "photo, realistic, human, woman, man, busy background, cropped"
+          "negative": "photo, realistic, busy background, cropped"
         }
       ],
       "trigger": "character sheet"
