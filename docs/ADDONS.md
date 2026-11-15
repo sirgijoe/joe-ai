@@ -70,7 +70,8 @@ A tool runs one program on each file the person gives it and keeps the files the
 ```
 
 - `id`: becomes the task type `x-<id>` (`TYPE: x-word-count`), so it never clashes with Joe's own.
-- `group`: Writing, Pictures, Video, Audio or Files (where the card sits on the Tools tab).
+- `group`: Writing, Pictures, Video, Audio or Files (the kind of tool). On the Tools tab, add-on tools show
+  together in a **More tools** box under Joe's own boxes, and the Find a tool box finds them.
 - `accepts`: the kinds of file it reads.
 - `program`:
   - `joe:python`: the Python Joe runs on (always there, on every PC, started with `-I`).

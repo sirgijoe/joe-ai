@@ -115,7 +115,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Speech runs on the regular processor in its own small add-on, so it never fights the
   night's work for the graphics card. Recordings are never kept.
 
-**48 ready-made tools** (Tools tab, **F3**)
+**58 ready-made tools** (Tools tab, **F3**)
+- **Easy to find**: the tools sit in six boxes named for what you want to do (Write and edit, Read and
+  understand, Files and spreadsheets, Pictures, Video, Sound and voice); click a box to open it. Type in
+  **Find a tool** to search names, descriptions and examples. Click the star on a tool to keep it in
+  **Favorites** at the top; **Used lately** shows the last few you ran.
 - **Transcribe a recording**: drop in audio or video and get a text transcript, a subtitles
   file (.srt) and short notes (summary, key points, decisions, to-dos). English plus 23 other
   languages (or let Joe find out); notes in the recording's language or in English. Uses the
@@ -338,10 +342,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   how much you'd have paid a cloud AI for the same thing, for today, this week, month, year or all
   time. The same screen shows how much room Joe takes up, with clean-up buttons (everything goes
   to the Recycle Bin, after asking).
-- Setup has a page for everything, a find box, **Setup > Models** (downloads by kind, or DOWNLOAD
+- Setup has a short menu (the everyday pages first, the rest under **Advanced settings**), a find box that
+  also knows the old page names, **Setup > Models** (downloads by kind, or DOWNLOAD
   ALL for an overnight download) and **Setup > Workflows** (see and edit the exact words Joe adds
   for each picture style, video and tool, or pick the model). Every page has RESET THIS PAGE,
-  and there's one RESET ALL SETTINGS; both ask first.
+  and Setup > This PC and backup has START OVER (resets all settings, keeps your starred tools); both ask first.
 - Screen savers for Joe's window (coffee mug, binary rain, starfield...; they can show how the run
   is going), or describe your own and MAKE SCREEN SAVER designs it.
 - A morning report sized to paste straight into a bigger AI for review.

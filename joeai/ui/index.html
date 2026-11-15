@@ -629,7 +629,7 @@ FORMAT: ...
                   <li><b>Installing programs and downloading models</b> (Setup &gt; Start here, setup helper): only after you say yes.</li>
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
-                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
+                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off under UPDATES, further down this page.</li>
                   <li><b>whisper.cpp</b> (optional, Setup &gt; Start here): the small program from GitHub (Windows) or Homebrew (Mac), and its hearing model from Hugging Face, once. Never your recordings.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
                   <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Setup &gt; Privacy and internet &gt; Let Joe look things up online).</li>
@@ -1060,8 +1060,12 @@ FORMAT: ...
  F1    This help (ABOUT JOE is at the bottom)
  F2    Home: ask anything or say what to make; short words like go, stop, help, report, files, tools, update work too
        (ADVANCED shows the mission text)
- F3    Tools: ready-made jobs for your own files. Pick a card, drop
-       your files on it (or click to pick), choose the extras, RUN IT.
+ F3    Tools: ready-made jobs for your own files, in six boxes (Write and
+       edit, Read and understand, Files and spreadsheets, Pictures,
+       Video, Sound and voice). Open a box, or type in Find a tool.
+       The star keeps a tool in Favorites; Used lately shows the last
+       few you ran. Pick a card, drop your files on it (or click to
+       pick), choose the extras, RUN IT.
        Ready now: Transcribe a recording (24 languages, or let
        Joe find out), Read a document aloud
        (MP3), Proofread my writing (a list of every change; your
@@ -1071,14 +1075,14 @@ FORMAT: ...
        (CSV/Excel in, a tidy CSV and a change list out), and the
        picture tools: Listings from photos, Read scans and
        receipts, Sort my photos (they need a vision model: F10 >
-       Setup > Start here), and Ask my files (type your questions; Joe
+       Start here), and Ask my files (type your questions; Joe
        answers only from your documents and shows the excerpts).
        Picture and sound tools (run in ComfyUI, each needs its
        model once; the form offers it): Remove background and
        upscale, Edit a picture by asking, Restore old photos,
        Animate a photo, Music and sound effects.
        Dropping a recording anywhere outside Talk opens Transcribe;
-       a document dropped on Tools lights up the tools that fit it.
+       a document dropped on Tools lists the tools that fit it first.
        Files you add are copied to Inbox\tools\<tool>.
  F4    Talk to Joe. Drop a file on the window (or ATTACH) and ask about it,
        or say "read it". Text, Word, PDF, web pages; pictures need a vision model.

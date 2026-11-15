@@ -1,5 +1,15 @@
 ## What's new in 2.3 (in development)
 
+- **Tools page: find things faster.** The tools now sit in six closed boxes named for what you want to do
+  (Write and edit, Read and understand, Files and spreadsheets, Pictures, Video, Sound and voice); click a
+  box to open it. A **Find a tool** box searches names, descriptions and examples as you type. Click the
+  star on a tool to keep it in **Favorites** at the top, and **Used lately** shows the last few you ran.
+  Drop files on the page and the tools that can use them are listed first.
+- **Setup: a shorter menu.** The everyday pages come first (Start here, Look and sound, Voice and Talk,
+  Quality and speed, Night shift and alerts, Folders and filing, Privacy and internet); the rest are under
+  **Advanced settings**. No setting was removed or changed, only moved, and the find box still knows the
+  old page names (type "General" or "System check"). START OVER has its own box on This PC and backup,
+  asks first, and keeps your starred tools.
 - **Daily restart** (Setup > Night shift and alerts): a Joe left running closes and opens again once a day (6am unless
   you pick another time), to free memory, the graphics card and the voice programs. Never in the
   middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.
@@ -162,7 +172,7 @@ words, check his plan, press RUN IT, and in the morning the drafts are waiting w
   Word, PDF or EPUB copies. He checks his own work and marks anything unsure with [CHECK].
 - **Pictures and short videos** (with ComfyUI): 21 styles, his own image prompts, every picture
   labelled AI-GENERATED.
-- **48 ready-made tools:** transcribe, read aloud, proofread, translate, photo tools, OCR,
+- **58 ready-made tools:** transcribe, read aloud, proofread, translate, photo tools, OCR,
   photo restore and more.
 - **Talk to him** (optional): he listens, answers out loud and drafts the night's plan.
 - **Works with bigger AIs:** ASK A BIGGER AI for any chatbot, or connect him to Claude Desktop,

@@ -1938,7 +1938,7 @@ def make_handler(app: App):
 
         def _mcp_http(self):
             """MCP Streamable HTTP (JSON replies). Needs 'Authorization: Bearer <key>' (Setup >
-            General shows it), so a web page in a browser can't drive Joe."""
+            Other AI apps shows it), so a web page in a browser can't drive Joe."""
             import secrets as _sec
             key = app.settings.mcp_key
             got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()

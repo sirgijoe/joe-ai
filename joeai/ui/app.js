@@ -1008,7 +1008,7 @@ function choicePicker(it, where) {
     `<label class="mc"><input type="radio" name="mc-${where}-${esc(it.id)}" data-mchoice="${esc(it.id)}" value="${esc(c.name)}"${c.name === it.model ? " checked" : ""}> ` +
     `<b>${esc(c.label)}</b>${c.maker ? ` <span class="dim">by ${esc(c.maker)}</span>` : ""} <span class="dim">(${c.size_gb} GB)</span>` +
     ` <span class="bright mcrole">${MC_ROLE[c.role] || MC_ROLE.alternative}</span>${c.note ? `<span class="mcnote dim small">${esc(c.note)}</span>` : ""}</label>`).join("") +
-    `<span class="mcnote dim small">Want a different one? Type any model's name in Setup (F10) &gt; Writing &gt; Model, or bring your own with LM Studio, llama.cpp or LocalAI.</span></span>`;
+    `<span class="mcnote dim small">Want a different one? Type any model's name in Setup (F10) &gt; Writing program, or bring your own with LM Studio, llama.cpp or LocalAI.</span></span>`;
 }
 function applyChoice(d) {
   ((d && d.issues) || []).forEach((it) => {

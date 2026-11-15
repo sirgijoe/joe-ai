@@ -17,6 +17,8 @@ Joe's interface runs in your web browser (Edge, Chrome, Firefox, Safari) on Wind
 - Joe tells your screen reader (NVDA, JAWS, Narrator, VoiceOver, Orca) what's happening while he works, without anything showing on the screen: a run starting, each task finished, progress at 25, 50 and 75 percent, and the run's end. A failed task is announced straight away (as an alert). Setup > Look and sound > *Screen reader announcements*: progress and finished/failed jobs (the default), only finished and failed jobs, or off.
 - Short messages that pop up at the bottom ("Saved", "Setup finished") are read out too.
 - Tabs, Setup pages and every button are real buttons with plain-word names, and every screen works from the keyboard (F1 lists the keys).
+- On the Tools tab each box of tools is a button that says whether it is open or closed (Enter or Space opens it). The star on a tool is a switch named "Keep (tool) in Favorites", and starring or un-starring is read out. The Find a tool box reads out how many tools match.
+- In Setup, the Advanced settings button says whether its list is open, and the EVERYDAY and Advanced pages are two named groups.
 
 ## Moving through results by voice (Talk, F4)
 

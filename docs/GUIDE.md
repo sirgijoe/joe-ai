@@ -129,6 +129,12 @@ In Step by step (F6) it's **Use the names from**.
 
 ### Setup: Models, Workflows and resets
 
+- **The menu**: the pages you use most come first under EVERYDAY (Start here, Look and sound, Voice and
+  Talk, Quality and speed, Night shift and alerts, Folders and filing, Privacy and internet). **Advanced
+  settings** opens the rest (Models, Workflows, Writing program, Templates, Pictures and video program,
+  Phone, Memory, Add-ons, Other AI apps, This PC and backup, Stats & costs) and remembers whether you
+  left it open. **Find a setting** looks through every page, the Advanced ones too, and still finds a
+  page by its old name ("General", "System check", "Images & video").
 - **Better-model tips**: when a model you don't have would do a job better (FLUX.2 klein for words in a
   picture, groups of people or two animals; a style's own picture model; the video Turbo add-on) and it
   suits your graphics card's memory, the run log says so once, with the reason. Setup > Start here then
@@ -271,7 +277,7 @@ on tools from people you trust. TURN OFF or REMOVE any time. To make one, see
 ### Night shift (Setup > Night shift and alerts)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >
-General and pick a time (24-hour clock, e.g. 23:00): Joe asks your computer's own scheduler to
+Night shift and alerts and pick a time (24-hour clock, e.g. 23:00): Joe asks your computer's own scheduler to
 start him then (Task Scheduler on Windows, launchd on a Mac, cron on Linux). On Windows he also
 wakes the PC from sleep for it. If his window is open
 he just runs them; if not, he starts without a window, works through them (keep-awake, "when
@@ -665,12 +671,21 @@ so after changing a level the first estimate may be off.
 
 ## Tools (F3)
 
-Ready-made jobs for your own files. Each card opens a short form: drop your files on it (or click
+Ready-made jobs for your own files, in six boxes named for what you want to do: **Write and edit**,
+**Read and understand**, **Files and spreadsheets**, **Pictures** (which opens to Fix and prepare,
+Change, Make new, Sort and describe), **Video** and **Sound and voice**. Click a box (or press Enter
+on it) to open or close it; Joe remembers which ones you left open. **Find a tool** at the top searches
+names, descriptions and examples as you type (Esc clears it). Click the star on a tool to keep it in
+**Favorites** at the top of the page (saved with your settings; START OVER keeps them), and **Used
+lately** shows the last five you ran on this computer. Tools from add-ons show in a **More tools** box.
+
+Each card opens a short form: drop your files on it (or click
 to pick them), tick the extras you want, give it a name if you like, and press **RUN IT** (it
 queues behind other work if Joe is busy). **SHOW THE PLAN** shows the plan and the mission text
 without running. Files you add are copied into `Inbox\tools\<tool>\`; your originals aren't
 touched. Dropping a recording anywhere outside Talk opens Transcribe with it. Dropping a
-document on the Tools tab lights up the tools that can use it (Read aloud, Proofread); pick one.
+document on the Tools tab lists the tools that can use it first, under "These can use your files"
+(Read aloud, Proofread...); pick one, or press NOT THESE: SHOW ALL TOOLS.
 All the tools are ready. The picture and sound tools need ComfyUI and their model once (see
 "Picture and sound tools" below).
 
@@ -1135,7 +1150,7 @@ opening another one, or deleting the one he's answering in also stops him.
 
 ### Looking things up online (off unless you turn it on)
 
-Setup > Privacy and internet > **Let Talk look things up online**. When it's on and you ask about
+Setup > Privacy and internet > **Let Joe look things up online**. When it's on and you ask about
 something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
 other questions he can decide to search when he isn't sure. He answers in his own words and lists
 his **Sources** under the reply (click one to open it). Only the search words go online, never
@@ -1192,7 +1207,7 @@ file: the plan shows under Joe's answer with RUN IT and OPEN IN BUILDER. No AI g
 so it can't pick the wrong file. A follow-up like "make it a new mission" right after means the same
 picture. Questions about a picture ("what's in this?") go to the vision model.
 
-Dropped on the Home screen, a file goes to Tools (F3) with every tool that can use it lit up: pick
+Dropped on the Home screen, a file goes to Tools (F3) with every tool that can use it listed first: pick
 what Joe should do. To ask Joe about a file instead, drop it on Talk (F4).
 
 Spoken answers are kept to a few sentences; ask for detail ("explain in detail", "tell me more",
