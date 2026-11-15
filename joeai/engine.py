@@ -112,6 +112,37 @@ def stray_script(text: str, brief: str) -> str:
     return hits[0][:12]
 
 
+NO_SOURCES_RULE = ("LOOKUP: nothing was found online for this task. Write only what you are sure of, put [CHECK] "
+                   "after any fact you are not sure of, and do NOT write a Sources list or name any source.")
+NO_SOURCES_NOTE = ("Joe looked this up online but found no sources, so nothing here was checked against one. "
+                   "Check every fact before you use it. [CHECK]")
+
+
+def drop_made_up_sources(text: str) -> str:
+    """Remove 'Sources:' blocks the model wrote itself (a 'Sources' line and the list under it)."""
+    lines, out, skip = text.split("\n"), [], False
+    for ln in lines:
+        s = ln.strip()
+        if re.fullmatch(r"(?:#{1,4}\s*)?\**\s*(?:sources|references|citations)\s*:?\s*\**\s*:?", s, flags=re.I):
+            skip = True
+            continue
+        if skip:
+            if not s or re.match(r"^(?:[-*+]|\d+[.)])\s+", s):
+                continue
+            skip = False
+        out.append(ln)
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(out))
+
+
+KIDS_HELD = "held back - not for kids"
+KIDS_CHECK_SYSTEM = ("You check pictures that will be printed for young children. Be strict: when in doubt, "
+                     "say unsafe. Reply with ONLY JSON.")
+KIDS_CHECK_ASK = ('Is any person or creature in this picture nude, topless, partly undressed (underwear, '
+                  'lingerie, bare chest of a woman or mermaid), wearing a bikini-style top that shows cleavage, '
+                  'or shown in a sexual, pin-up or suggestive way? '
+                  'Reply with ONLY JSON: {"unsafe": true or false, "why": "a few words"}')
+
+
 def research_query(job) -> str:
     """Search words for a task: what it's about, not its label ("T3 Mug care" -> "Mug care")."""
     name = re.sub(r"^(?:[A-Z]{0,3}\d+[a-z]?|test|task)\s*[-:.)]?\s+", "", job.name or "", flags=re.I).strip()
@@ -519,15 +550,18 @@ class Engine:
             f = self.sb.output / rel
             if f.suffix.lower() in IMAGE_EXT and f.exists() and f.name[:3].isdigit():
                 firsts.setdefault(f.name[:3], f)
-        pictures = [firsts[k] for k in sorted(firsts)]
+        # page n gets picture n; a page whose picture was held back (kids' safety check) stays without one
+        # instead of every later picture moving up a page
+        last = max((int(k) for k in firsts), default=0)
+        pictures = [firsts.get(f"{n:03d}") for n in range(1, last + 1)]
         pandoc = pandoc_exe(self.s.pandoc)
-        if not pictures or not md.is_file() or not pandoc:
+        if not any(pictures) or not md.is_file() or not pandoc:
             return
         docs = [x for x in book.export if x != "social"]
         made = export_document(md, docs, pandoc, self.log, settings=self.s, template=book.template,
                                heading=book.name, cache=self.meta / "templates", pictures=pictures)
         if made:
-            self.log(f"  '{book.name}': {len(pictures)} picture(s) put on its pages -> "
+            self.log(f"  '{book.name}': {sum(1 for p in pictures if p)} picture(s) put on its pages -> "
                      + ", ".join(p.name for p in made))
 
     def _text_ready(self, st: JobState) -> bool:
@@ -624,6 +658,8 @@ class Engine:
             from . import websearch
             parts.append(websearch.as_context(found) + "\n\nUse these facts where they fit and put the "
                          "source number in brackets after a fact, like [2]. Don't invent sources.")
+        elif job.research:                         # asked to look it up, nothing found: say so, never make sources up
+            parts.append(NO_SOURCES_RULE)
         if job.guided and job.source:
             given = self.source_items(mission, job)
             if given:
@@ -664,6 +700,10 @@ class Engine:
         from . import websearch
         src = websearch.sources(found)
         if not src:
+            if job.research and not job.is_csv and out.is_file():
+                # 2.3.0.dev26: with 0 sources the model still wrote "Sources:" lists of made-up archives
+                text = drop_made_up_sources(out.read_text(encoding="utf-8", errors="replace"))
+                atomic_write_text(out, text.rstrip() + "\n\n## Sources\n\n" + NO_SOURCES_NOTE + "\n")
             return
         lines = ["", "## Sources", "", "Joe looked these up online while writing. Check facts against them."]
         lines += [f"{i}. [{x['title']}]({x['url']})" for i, x in enumerate(src, 1)]
@@ -1153,7 +1193,7 @@ class Engine:
     def _image_system(self, mission: Mission, job: Job) -> str:
         parts = [IMAGE_SYSTEM + ("\n" + VIDEO_EXTRA if job.type == "video" else "")]
         parts += styles_mod.recipe(job, self._picks()).notes
-        if styles_mod.for_kids(job):
+        if self._for_kids(mission, job):
             parts.append(styles_mod.KID_NOTE)
         project = job.project or mission.project
         profile = self._load_profile(project)
@@ -1555,6 +1595,8 @@ class Engine:
             w, h = max(256, w // 16 * 16), max(256, h // 16 * 16)     # FLUX.2 wants sizes in 16s
         rec = styles_mod.recipe(job, self._picks())
         style = rec.style
+        kids = self._for_kids(mission, job)
+        kids_made: list[str] = []
         # Black-and-white video: Wan makes it in color (asking Wan for monochrome fought its own
         # leave-out list, which includes "greyish", and gave bad hands and missing fingers), then
         # FFmpeg turns it black and white. The photo style words ("photograph", lens, grain) and
@@ -1564,7 +1606,7 @@ class Engine:
             rec = dc_replace(rec, words="", negative="")
             self.log("  Black and white video: made in color, then turned black and white by FFmpeg.")
         extra = ", ".join(x for x in (job.negative.strip(), rec.negative,
-                                      styles_mod.KID_NEGATIVE if styles_mod.for_kids(job) else "") if x)
+                                      styles_mod.KID_NEGATIVE if kids else "") if x)
         negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra, rec.anatomy) if builtin \
             else job.negative
         from . import workflowprefs as wfp
@@ -1614,6 +1656,8 @@ class Engine:
                 if builtin and job.type == "image" and style.id in styles_mod.NO_SIGN_STYLES:
                     raw = styles_mod.no_signs(raw)        # before the style's own "no signage" words
                 pos = self._styled(raw, rec) if builtin else raw
+                if kids and job.type == "image":
+                    pos = f"{pos.rstrip(' .,')}, {styles_mod.KID_WORDS}"
                 if job.type == "video" and wpref.get("motion") in wfp.MOTION_WORDS:
                     pos = f"{pos.rstrip(' .,')}, {wfp.MOTION_WORDS[wpref['motion']]}"
                 if builtin and job.type == "image" and style.id in PEOPLE_STYLES and styles_mod.crowded(p["prompt"]):
@@ -1634,7 +1678,7 @@ class Engine:
                         entry = client.wait(client.submit(g), stop=self.stop)
                         saved = self._save_outputs(client, entry, folder, stem, job, ffmpeg)
                         if style.id == "coloring" and job.type == "image":
-                            saved = self._coloring_pages(folder, saved, ffmpeg, styles_mod.for_kids(job))
+                            saved = self._coloring_pages(folder, saved, ffmpeg, kids)
                         if bw_video:
                             saved = self._bw_videos(folder, saved, ffmpeg)
                         if "gif" in job.export and ffmpeg:
@@ -1671,6 +1715,8 @@ class Engine:
                                                       "size": f"{w}x{h}" if w else ""}, job=job.name)
                     st.media_files += [f"{st.output}/{fn}" for fn in saved]
                     st.items += len(saved)
+                    if kids and job.type == "image":
+                        kids_made += [fn for fn in saved if Path(fn).suffix.lower() in IMAGE_EXT]
                 else:
                     fails_in_row += 1
                     if pi + 1 not in st.skipped_parts:
@@ -1691,12 +1737,71 @@ class Engine:
             self._save_state(job, st)
             self.log(f"'{job.name}' failed: {e}")
             return st
+        if kids_made:
+            self._kids_check(job, st, folder, kids_made)
         st.status = "done" if not st.skipped_parts else "partial"
         st.phase = ""
         st.finished = datetime.now().isoformat(timespec="seconds")
         self._save_state(job, st)
         self.log(f"Finished '{job.name}': {st.items} file(s) in {st.output}/ (AI-generated)")
         return st
+
+    def _for_kids(self, mission: Mission, job: Job) -> bool:
+        src = next((j for j in mission.jobs if job.source and j.name == job.source), None) if mission else None
+        return styles_mod.for_kids(job, mission, src)
+
+    def _kids_check(self, job: Job, st: JobState, folder: Path, names: list[str]) -> None:
+        """Pictures for children: the vision model looks at each one. Anything with nudity or something
+        suggestive is moved to a 'held back' folder (kept, never deleted) and left out of the book, with
+        a flag in the report, so it can't end up printed for a child unseen. Adults' pictures are never
+        checked (Joseph: no filters, but adult content and kids' content never mix)."""
+        from . import tools as tools_mod
+        from .doctor import ffmpeg_exe
+        if not self.services.handoff("text"):
+            st.flags.append({"item": job.name, "flag": "[CHECK] the kids' safety check couldn't run (Ollama isn't "
+                                                       "running): look at every picture before printing."})
+            return
+        model = tools_mod.find_vision_model(self)
+        if not model:
+            st.flags.append({"item": job.name, "flag": "[CHECK] no vision model, so these kids' pictures weren't "
+                                                       "checked: look at every picture before printing "
+                                                       "(Setup > System check offers one)."})
+            self.log("  Kids' safety check skipped: no vision model (Setup > System check offers one).")
+            return
+        ff = ffmpeg_exe(self.s.comfy.ffmpeg)
+        held = folder / KIDS_HELD
+        bad = 0
+        for n, name in enumerate(names):
+            f = folder / name
+            if not f.is_file():
+                continue
+            try:
+                img = tools_mod.picture_b64(ff, f, self.meta / "tmp" / f"kids-{job.job_id}-{n}.jpg", 1024)
+            except (ValueError, OSError):
+                img = ""
+            o = tools_mod._look(self, job, st, n, "kids-check", KIDS_CHECK_SYSTEM, KIDS_CHECK_ASK, img,
+                                model) if img else None
+            if o is None:
+                st.flags.append({"item": name, "flag": "[CHECK] the kids' safety check couldn't read this "
+                                                       "picture: look at it before printing."})
+                continue
+            if str(o.get("unsafe", "")).strip().lower() not in ("true", "yes", "1"):
+                continue
+            bad += 1
+            held.mkdir(exist_ok=True)
+            base = f.stem[:-len("_example")] if f.stem.endswith("_example") else f.stem
+            for fn in (name, f"{base}{f.suffix}", f"{base}_example{f.suffix}"):   # a coloring page + its guide
+                if (folder / fn).is_file():
+                    try:
+                        (folder / fn).replace(held / fn)
+                    except OSError:
+                        pass
+                st.media_files = [m for m in st.media_files if not m.endswith("/" + fn)]
+            why = " ".join(str(o.get("why", "")).split())[:80] or "not right for children"
+            st.flags.append({"item": name, "flag": f"[CHECK] held back from the kids' pages ({why}): "
+                                                   f"it's in '{KIDS_HELD}', not in the book."})
+        self.log(f"  Kids' safety check: {len(names)} picture(s) looked at, {bad} held back"
+                 + (f" (in {KIDS_HELD})" if bad else "") + ".")
 
     def _bw_videos(self, folder: Path, names: list[str], ffmpeg: str | None) -> list[str]:
         """Black-and-white video style: each MP4 becomes black and white; the color original is
@@ -1924,8 +2029,24 @@ def _fix_part_heading(text: str, part_prompt: str) -> str:
         head = m.group(2).strip()
         if head.lower().startswith(title.lower()) and len(head) > len(title) + 3:
             lines[n] = f"{m.group(1)} {title}"
+        # the instructions copied as the first line under the heading ("How Battle Creek became known
+        # for breakfast cereal." under "## The cereal city", 2.3.0.dev26): drop that line
+        for k in range(n + 1, min(n + 4, len(lines))):
+            if not lines[k].strip():
+                continue
+            if _same_words(lines[k], what):
+                del lines[k]
+                if k < len(lines) and not lines[k].strip() and k > n + 1 and not lines[k - 1].strip():
+                    del lines[k]
+            break
         break
     return "\n".join(lines)
+
+
+def _same_words(a: str, b: str) -> bool:
+    """The same sentence, give or take case, punctuation and markdown."""
+    norm = lambda s: " ".join(re.sub(r"[^\w\s]", " ", s.lower()).split())   # noqa: E731
+    return bool(norm(a)) and norm(a) == norm(b)
 
 
 def _short_title(text: str) -> str:

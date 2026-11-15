@@ -54,6 +54,14 @@ Postiz (AGPL-3.0); he never installs or runs Postiz or Mixpost and never posts f
 | Chatterbox (Resemble AI) | "Sound like me", optional | MIT |
 | PyTorch | used by Chatterbox | BSD-3-Clause |
 
+**Face finder for privacy blur (asks first)**
+
+| What | Used for | License |
+|---|---|---|
+| OpenCV (opencv-python-headless) | runs the face model, in its own private Python | Apache-2.0 |
+| NumPy | used by OpenCV | BSD-3-Clause |
+| YuNet face model (`face_detection_yunet_2023mar.onnx`, OpenCV Zoo, downloaded from github.com/opencv/opencv_zoo) | finds faces to blur | MIT |
+
 **AI models Joe may offer (asks first; each has its own license)**
 
 | What | Used for | License |

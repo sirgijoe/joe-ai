@@ -233,16 +233,33 @@ _WORDS = [
 
 # Only when the task says the pictures are for children: everyone fully clothed, nothing
 # suggestive. Nothing is filtered otherwise (not every coloring book is for kids).
-KIDS = re.compile(r"\b(?:kids?|child(?:ren|'s)?|toddlers?|preschool\w*|kindergarten|nursery|"
-                  r"family[- ]friendly|for (?:my )?(?:son|daughter|grandkids?)|baby|babies|young readers)\b", re.I)
+KIDS = re.compile(r"\b(?:kids?|kiddos?|child(?:ren|'s)?|toddlers?|preschool\w*|pre-?k|kindergarten|nursery|"
+                  r"family[- ]friendly|for (?:my |our )?(?:son|daughter|grandkids?|grandchild(?:ren)?|granddaughter|"
+                  r"grandson|niece|nephew|students?|class(?:room)?|little ones?)|grandkids?|granddaughter|grandson|"
+                  r"baby|babies|young readers|(?:1st|2nd|3rd|[4-6]th|first|second|third|fourth|fifth|sixth) grade\w*|"
+                  r"elementary|\d{1,2}[- ]?(?:year|yr)s?[- ]?olds?|boys? and girls?|bedtime stor(?:y|ies))\b", re.I)
 KID_NOTE = ("FOR CHILDREN: everything is family-friendly. Every person or creature is fully clothed or "
             "covered (a mermaid wears a shell top), nothing scary, violent or suggestive.")
-KID_NEGATIVE = "(nsfw, nude, naked, topless, nipples, cleavage, lingerie, underwear, sexy, suggestive, gore:1.4)"
+KID_NEGATIVE = ("(nsfw, nude, naked, topless, nipples, cleavage, lingerie, underwear, sexy, suggestive, pin-up, "
+                "seductive, gore:1.4)")   # Joseph 2026-11-14: pin-up and seductive only, or every mermaid looks 8
 
 
-def for_kids(job) -> bool:
-    return bool(KIDS.search(f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}\n"
-                            f"{getattr(job, 'rules', '')}"))
+KID_WORDS = "fully clothed, modest, family-friendly"      # in the picture prompt itself: FLUX.2 has no leave-out list
+
+
+def for_kids(job, mission=None, source=None) -> bool:
+    """Is this task (or the book its pictures are FROM, or the whole mission) for children?
+    2.3.0.dev26: the mission's RULES, TEMPLATE: kids, PART lines and the FROM book now count too
+    (a picture-book's pictures task named "Rocky book pictures" got no protection)."""
+    def text(j) -> str:
+        if j is None:
+            return ""
+        return "\n".join([getattr(j, "name", "") or "", getattr(j, "format", "") or "", getattr(j, "rules", "") or "",
+                          *(getattr(j, "part_prompts", None) or [])])
+    for j in (job, source):
+        if j is not None and (getattr(j, "template", "") or "").strip().lower() in ("kids", "children", "picture-book"):
+            return True
+    return bool(KIDS.search(f"{text(job)}\n{text(source)}\n{getattr(mission, 'rules', '') or ''}"))
 
 
 def valid(name: str) -> bool:

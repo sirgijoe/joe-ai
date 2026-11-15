@@ -184,40 +184,84 @@ def bundled_font(bold: bool = True) -> Path | None:
 
 
 # --------------------------------------------------------------------------- privacy blur
-BLUR_KINDS = {"faces": "faces (every person's face, even small or in the background)",
-              "plates": "vehicle license plates",
-              "addresses": "house numbers, street signs with the address, mail or packages with addresses",
-              "screens": "computer and phone screens, and documents or papers with readable writing",
-              "kids": "children (their whole body)"}
-BLUR_SYSTEM = ("You find private things in a photo so they can be blurred before it's posted online. Be "
-               "generous: it's better to blur too much than to miss something. Reply with ONLY JSON.")
-BLUR_ASK = ('Find every one of these in the picture: {what}. Reply with ONLY JSON: {{"boxes": [{{"kind": "faces", '
-            '"x": 0.0, "y": 0.0, "w": 0.0, "h": 0.0}}]}} where x, y are the top-left corner and w, h the size, all '
-            'as fractions of the picture width/height from 0 to 1. Nothing found: {{"boxes": []}}.')
+BLUR_KINDS = {"faces": "human face",
+              "plates": "vehicle license plate",
+              "addresses": "house number, street sign with an address, or address label on mail or a package",
+              "screens": "computer or phone screen, or paper with readable writing",
+              "kids": "child (the whole body)"}
+# Plain detection words, one kind per question, in Qwen2.5-VL's own grounding phrasing ("Locate every ... and
+# output the bbox coordinates in JSON format"; it answers [{"bbox_2d": [x1, y1, x2, y2], "label": ...}] in
+# pixels of the picture it saw). On Joseph's PC (2.3.0.dev26) the earlier "find private things so they can be
+# blurred before it's posted online" framing got {"boxes": []} for every kind on a porch photo with two
+# children's faces in plain view.
+BLUR_SYSTEM = "You are an object detector. Reply with ONLY JSON."
+BLUR_ASK = ('Locate every {what} in this image ({w} x {h} pixels) and output the bbox coordinates in JSON '
+            'format: [{{"bbox_2d": [x1, y1, x2, y2], "label": "{label}"}}]. None in the image: [].')
+BLUR_AGAIN = "Look carefully at the whole image, including small, turned or partly hidden ones. "
 
 
-def parse_boxes(raw: str, kinds: set[str]) -> list[dict]:
-    m = re.search(r"\{.*\}", re.sub(r"(?s)<think>.*?</think>", "", raw or ""), re.S)
+def _box_list(data) -> list:
+    """The boxes in whatever shape the model used: {"boxes": [...]}, {"faces": [...]}, or a bare list."""
+    if isinstance(data, list):
+        return data
+    if isinstance(data, dict):
+        for v in data.values():
+            if isinstance(v, list):
+                return v
+    return []
+
+
+def parse_boxes(raw: str, kinds: set[str], size: tuple[int, int] | None = None, kind: str = "") -> list[dict]:
+    """Boxes as 0-1 fractions. With `size` (the picture the model saw), pixel answers are understood too:
+    {"bbox_2d": [x1, y1, x2, y2]} or x/y/w/h in pixels. `kind` = the one kind that was asked for."""
+    text = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
+    m = re.search(r"[\[{].*[\]}]", text, re.S)
     try:
         data = json.loads(m.group(0)) if m else {}
     except json.JSONDecodeError:
         return []
     out = []
-    for b in (data.get("boxes") or []) if isinstance(data, dict) else []:
+    W, H = size or (0, 0)
+    for b in _box_list(data):
+        if not isinstance(b, dict):
+            continue
+        corners = b.get("bbox_2d") or b.get("bbox") or b.get("box")
         try:
-            x, y, w, h = (float(b[k]) for k in ("x", "y", "w", "h"))
+            if isinstance(corners, list) and len(corners) == 4:
+                x1, y1, x2, y2 = (float(v) for v in corners)
+                x, y, w, h = min(x1, x2), min(y1, y2), abs(x2 - x1), abs(y2 - y1)
+            else:
+                x, y, w, h = (float(b[k]) for k in ("x", "y", "w", "h"))
         except (KeyError, TypeError, ValueError):
             continue
-        if max(x, y, w, h) > 1.5:                       # given in pixels/percent: not trustworthy
-            continue
+        if max(x, y, w, h) > 1.5:                       # pixels: only trusted when we know the picture's size
+            if not (W and H) or x + w > W * 1.05 or y + h > H * 1.05:
+                continue
+            x, y, w, h = x / W, y / H, w / W, h / H
         if w <= 0 or h <= 0:
             continue
-        kind = str(b.get("kind", "")).lower()
-        if kinds and kind and kind not in kinds:
+        said = str(b.get("kind", "")).lower()
+        if kind:
+            said = kind                                 # one kind per question: the model's label doesn't matter
+        elif kinds and said and said not in kinds:
             continue
-        out.append({"kind": kind or "?", "x": max(0.0, x), "y": max(0.0, y), "w": min(w, 1 - max(0.0, x)),
+        kind_ = said
+        out.append({"kind": kind_ or "?", "x": max(0.0, x), "y": max(0.0, y), "w": min(w, 1 - max(0.0, x)),
                     "h": min(h, 1 - max(0.0, y))})
     return out
+
+
+def face_boxes(src: Path, size: tuple[int, int], log=None) -> list[dict] | None:
+    """Every face the face finder sees, as 0-1 boxes; None when it isn't installed or couldn't run."""
+    from . import addons
+    if not addons.faces_ready():
+        return None
+    found = addons.detect_faces(src, log)
+    if found is None:
+        return None
+    W, H = size
+    return [{"kind": "faces", "x": max(0.0, x / W), "y": max(0.0, y / H), "w": min(1.0, w / W),
+             "h": min(1.0, h / H)} for x, y, w, h, *_ in found if w > 0 and h > 0]
 
 
 def blur_command(ffmpeg: str, src: Path, out: Path, boxes: list[dict], size: tuple[int, int],
@@ -226,13 +270,19 @@ def blur_command(ffmpeg: str, src: Path, out: Path, boxes: list[dict], size: tup
     W, H = size
     parts, last = [], "0:v"
     for i, b in enumerate(boxes):
-        bw, bh = b["w"] * W, b["h"] * H
-        x = max(0, int(b["x"] * W - bw * grow))
-        y = max(0, int(b["y"] * H - bh * grow))
-        w = min(W - x, int(bw * (1 + 2 * grow))) // 2 * 2 or 2
-        h = min(H - y, int(bh * (1 + 2 * grow))) // 2 * 2 or 2
-        r = max(4, min(w, h) // 4)
-        parts.append(f"[{last}]split[b{i}a][b{i}b];[b{i}b]crop={w}:{h}:{x}:{y},boxblur={r}:3[b{i}c];"
+        # at least 24 px (a tiny box made boxblur's radius bigger than the box and FFmpeg wrote nothing:
+        # 2.3.0.dev26 on Joseph's PC), kept inside the picture
+        bw, bh = max(b["w"] * W, 24 / (1 + 2 * grow)), max(b["h"] * H, 24 / (1 + 2 * grow))
+        w = min(W, int(bw * (1 + 2 * grow))) // 2 * 2 or 2
+        h = min(H, int(bh * (1 + 2 * grow))) // 2 * 2 or 2
+        x = min(max(0, int(b["x"] * W - bw * grow)), W - w)
+        y = min(max(0, int(b["y"] * H - bh * grow)), H - h)
+        r = max(1, min(min(w, h) // 4, (min(w, h) - 1) // 2))
+        # colors can be stored at half size (yuv420), so their radius must stay under a quarter of the box:
+        # FFmpeg 9 on Joseph's PC refused "chroma radius 6" for a 24-px box
+        c = max(0, min(r, (min(w, h) // 2 - 1) // 2))
+        parts.append(f"[{last}]split[b{i}a][b{i}b];[b{i}b]crop={w}:{h}:{x}:{y},"
+                     f"boxblur=lr={r}:lp=3:cr={c}:cp=3[b{i}c];"
                      f"[b{i}a][b{i}c]overlay={x}:{y}[o{i}]")
         last = f"o{i}"
     graph = ";".join(parts) if parts else "[0:v]null[o]"
@@ -925,12 +975,31 @@ def _blur(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[s
         img = picture_b64(ffmpeg, src, engine.meta / "tmp" / f"blur-{job.job_id}.jpg", 1536)
     except (ValueError, OSError) as e:
         raise RuntimeError(str(e)) from e
-    what = "; ".join(BLUR_KINDS[k] for k in BLUR_KINDS if k in kinds)
-    o = _look(engine, job, st, len(st.titles), "privacy-blur", BLUR_SYSTEM, BLUR_ASK.format(what=what), img,
-              job.__dict__.get("_vision_model", "") or getattr(engine, "_vision_model", ""))
-    if o is None:
-        raise RuntimeError("the vision model didn't answer in the right form, so nothing was blurred")
-    boxes = parse_boxes(_json.dumps(o), kinds)
+    from .tools import fit_size
+    sent = fit_size(size[0], size[1], 1536)             # the size of the picture the model sees
+    model = job.__dict__.get("_vision_model", "") or getattr(engine, "_vision_model", "")
+    boxes: list[dict] = []
+    ask_model = [k for k in BLUR_KINDS if k in kinds]
+    if "faces" in kinds:
+        faces = face_boxes(src, size, getattr(engine, "log", None))        # the face finder (YuNet), when it's installed
+        if faces is not None:
+            boxes += faces
+            ask_model.remove("faces")
+        else:
+            getattr(engine, "log", print)("  Faces are looked for by the vision model, which misses some: "
+                                          "Setup > System check offers the face finder (small, free).")
+    if not ask_model:
+        img = ""
+    for k in ask_model:                                 # one kind per question: small models miss less
+        ask = BLUR_ASK.format(what=BLUR_KINDS[k], w=sent[0], h=sent[1], label=BLUR_KINDS[k].split(",")[0])
+        o = _look(engine, job, st, len(st.titles), "privacy-blur", BLUR_SYSTEM, ask, img, model)
+        if o is None:
+            raise RuntimeError("the vision model didn't answer in the right form, so nothing was blurred")
+        got = parse_boxes(_json.dumps(o), kinds, sent, k)
+        if not got and k in ("faces", "kids"):          # the one that matters most: look a second time
+            o = _look(engine, job, st, len(st.titles), "privacy-blur", BLUR_SYSTEM, BLUR_AGAIN + ask, img, model)
+            got = parse_boxes(_json.dumps(o), kinds, sent, k) if o is not None else []
+        boxes += got
     out = folder / f"{stem}-blurred{'.png' if src.suffix.lower() == '.png' else '.jpg'}"
     err = _ff(blur_command(ffmpeg, src, out, boxes, size), 300)
     if err:

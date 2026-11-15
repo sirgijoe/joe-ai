@@ -109,7 +109,8 @@ RELIGHTS = {
 }
 # style name -> (label, words for the editor)
 RESTYLES = {
-    "watercolor": ("Watercolor", "a soft watercolor painting on textured paper"),
+    "watercolor": ("Watercolor", "a loose watercolor painting on textured white paper, with visible brush strokes, "
+                                 "soft color washes, paint bleeding at the edges and white paper showing through"),
     "oil": ("Oil painting", "a classic oil painting with visible brush strokes"),
     "sketch": ("Pencil sketch", "a detailed graphite pencil sketch on white paper"),
     "anime": ("Anime", "a clean anime illustration with cel shading"),
@@ -3110,6 +3111,14 @@ def parse_json_object(raw: str) -> dict | None:
     raw = re.sub(r"(?s)<think>.*?</think>", "", raw or "")
     raw = re.sub(r"```[\w-]*", "", raw)
     a, b = raw.find("{"), raw.rfind("}")
+    s, e = raw.find("["), raw.rfind("]")
+    if 0 <= s < e and (a < 0 or s < a):         # a bare list ([{"bbox_2d": ...}, ...], how Qwen2.5-VL points at
+        try:                                    # things): handed back as {"items": [...]} (2.3.0.dev26)
+            o = json.loads(raw[s:e + 1])
+            if isinstance(o, list):
+                return {"items": o}
+        except json.JSONDecodeError:
+            pass
     if a < 0 or b < a:
         return None
     try:

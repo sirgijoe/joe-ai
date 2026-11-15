@@ -185,6 +185,99 @@ def voice_ready() -> bool:
             and all((voice_dir() / "models" / n).exists() for n in KOKORO_FILES))
 
 
+# --------------------------------------------------------------------------- face finder
+# Privacy blur finds faces with YuNet, a small face detector from the OpenCV Zoo (MIT license, about 230 KB),
+# run by OpenCV (Apache-2.0) in its own small Python environment, on the processor, so it works on any PC.
+# A real face detector finds faces a general vision model misses (2.3.0.dev26: qwen2.5vl found no faces
+# on a porch photo with two children in plain view). Standard detectors find every face, adults and children.
+FACES_PY = "3.12"
+FACES_PACKAGES = ["opencv-python-headless>=4.10", "numpy"]
+YUNET_FILE = "face_detection_yunet_2023mar.onnx"
+YUNET_URL = ("https://github.com/opencv/opencv_zoo/raw/main/models/face_detection_yunet/" + YUNET_FILE)
+
+
+def faces_dir() -> Path:
+    return addons_dir() / "faces"
+
+
+def faces_python() -> Path:
+    env = faces_dir() / "env"
+    return env / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+def faces_ready() -> bool:
+    m = faces_dir() / YUNET_FILE
+    return faces_python().exists() and (faces_dir() / ".ready").exists() and m.is_file() \
+        and m.stat().st_size > 100_000
+
+
+def install_faces(log: Log, approved: bool = False, progress=None) -> bool:
+    """uv -> private Python 3.12 -> OpenCV -> the YuNet face model -> a test run."""
+    if not approved:
+        raise PermissionError("needs the user's approval")
+    fd = faces_dir()
+    fd.mkdir(parents=True, exist_ok=True)
+    uv = get_uv(log)
+    if not uv:
+        return False
+    if not faces_python().exists():
+        log(f"Making the face finder's environment (Python {FACES_PY})...")
+        if not _run([uv, "venv", "--python", FACES_PY, str(fd / "env")], log):
+            return False
+    log("Installing OpenCV (the face finder)...")
+    if not _run([uv, "pip", "install", "--python", str(faces_python()), *FACES_PACKAGES], log):
+        return False
+    model = fd / YUNET_FILE
+    if not model.is_file() or model.stat().st_size < 100_000:
+        log(f"Downloading the face model ({YUNET_FILE}, about 230 KB)...")
+        if not _download(YUNET_URL, model, log, progress):
+            return False
+        if model.stat().st_size < 100_000 or not model.read_bytes()[:64].strip():
+            model.unlink(missing_ok=True)       # a web page or a Git LFS pointer, not the model
+            log("  the face model didn't download properly; try again later")
+            return False
+    test = fd / "test.png"
+    _write_test_png(test)
+    r = detect_faces(test, log)
+    test.unlink(missing_ok=True)
+    if r is None:
+        return False
+    (fd / ".ready").write_text(time.strftime("%Y-%m-%d %H:%M"), encoding="utf-8")
+    log("The face finder is ready (privacy blur uses it for faces).")
+    return True
+
+
+def _write_test_png(path: Path) -> None:
+    """A tiny plain picture, only to see that the face finder runs."""
+    import struct
+    import zlib
+    w = h = 64
+    raw = b"".join(b"\x00" + b"\x80\x80\x80" * w for _ in range(h))
+    def chunk(tag, data):
+        return struct.pack(">I", len(data)) + tag + data + struct.pack(">I", zlib.crc32(tag + data) & 0xFFFFFFFF)
+    path.write_bytes(b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", w, h, 8, 2, 0, 0, 0))
+                     + chunk(b"IDAT", zlib.compress(raw)) + chunk(b"IEND", b""))
+
+
+def detect_faces(picture: Path, log: Log | None = None, timeout: int = 180) -> list[list[float]] | None:
+    """[[x, y, w, h, score], ...] in pixels of the picture, or None when the face finder couldn't run."""
+    worker = Path(__file__).with_name("face_worker.py")
+    try:
+        p = subprocess.run([str(faces_python()), str(worker), str(faces_dir() / YUNET_FILE), str(picture)],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=timeout, creationflags=NO_WINDOW)
+        r = json.loads((p.stdout or "").strip().splitlines()[-1])
+    except (OSError, subprocess.TimeoutExpired, ValueError, IndexError) as e:
+        if log:
+            log(f"  face finder didn't run: {e}")
+        return None
+    if not r.get("ok"):
+        if log:
+            log(f"  face finder: {r.get('error')}")
+        return None
+    return [list(map(float, f)) for f in r.get("faces") or []]
+
+
 # --------------------------------------------------------------------------- voice copy
 # "Make Joe sound like me": Chatterbox (Resemble AI, MIT license) copies a voice from a short
 # recording. It's big (PyTorch) and wants an NVIDIA card, so it's a separate, optional add-on
@@ -575,7 +668,8 @@ def add_pictures(text: str, pictures: list[str]) -> str:
     for line in text.split("\n"):
         out.append(line)
         if line.startswith("## ") and n < len(pictures):
-            out += ["", f"![]({pictures[n]})", ""]
+            if pictures[n]:                        # None = no picture for this page (held back)
+                out += ["", f"![]({pictures[n]})", ""]
             n += 1
     return "\n".join(out)
 
@@ -656,7 +750,7 @@ def export_document(md: Path, formats: list[str], pandoc: str, log: Log, setting
     body = safe_export_text(body if body is not None else "\n".join(lines) + "\n", md.parent)
     if pictures:
         import os
-        rel = [os.path.relpath(p, md.parent).replace("\\", "/") for p in pictures]
+        rel = [os.path.relpath(p, md.parent).replace("\\", "/") if p else None for p in pictures]
         body = add_pictures(body, rel)
 
     def tpl(fmt: str) -> dict:

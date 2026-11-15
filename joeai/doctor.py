@@ -480,6 +480,11 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
     if not addons_mod.pandoc_exe(settings.pandoc):
         issues.append({"id": "install-pandoc", "text": "Pandoc isn't installed (only needed for EXPORT: "
                        "finished Word, PDF and EPUB copies).", "action": "install-pandoc", "optional": True})
+    if not addons_mod.faces_ready():
+        issues.append({"id": "install-faces", "text": "The face finder isn't set up (optional: privacy blur uses it "
+                       "to find every face, children's too; a general vision model misses some). OpenCV and "
+                       "the YuNet face model: free, about 40 MB, runs on the processor.",
+                       "action": "install-faces", "optional": True})
     from .finder import qpdf_exe
     if not qpdf_exe():
         issues.append({"id": "install-qpdf", "text": "qpdf isn't installed (optional: the PDF toolkit uses it to "

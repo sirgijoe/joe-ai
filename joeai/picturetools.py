@@ -1216,8 +1216,11 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
             for f in files:
                 items.append({"src": f, "stem": slug(f.stem) + f"-{want}", "label": f.name,
                               "key": f"restyle {f.name} {want}",
-                              "prompt": f"Redraw this picture as {look}. Keep the same people, objects, pose "
-                                        "and layout." + (f" {extra}." if extra else "")})
+                              # "Redraw this picture as a soft watercolor..." gave back the photo almost
+                              # unchanged (2.3.0.dev26 overnight test): say the medium must replace the photo
+                              "prompt": f"Turn this picture into {look}. The whole picture must look made in "
+                                        "that medium, not like a photograph. Keep the same people, objects, "
+                                        "pose and layout." + (f" {extra}." if extra else "")})
     elif tid == "redraw":
         if not extra:
             return [], [], "say what the picture should look like"

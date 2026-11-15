@@ -1048,7 +1048,7 @@ async function loadDoctor() {
     `PANDOC   ${d.pandoc || "not found"}`;
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
-    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}${choicePicker(it, "sc")}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
+    `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}${choicePicker(it, "sc")}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "install-faces": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;
   const progs = d.issues.map((it, i) => [it, i]).filter(([it]) => !it.kind);
   const mods = d.issues.map((it, i) => [it, i]).filter(([it]) => it.kind);
   const needMods = mods.filter(([it]) => !it.optional).length;
@@ -1084,6 +1084,7 @@ function askFix(it) {
     "download-video-turbo": "Download it now? Under 1 GB. Restart ComfyUI afterwards.",
     "install-voice": "Set it up now? It downloads about 500 MB and takes a few minutes. Your system may ask for permission.",
     "install-pandoc": viaPkg,
+    "install-faces": "Set it up now? Joe downloads OpenCV (free) and the small YuNet face model, about 40 MB. It runs on the processor.",
     "import-models": it.page ? "Joe opens the model's page in your browser. Read its license there and download the file into your Downloads folder. When the download has finished, Joe asks to move it into ComfyUI (pressing GET IT again does the same)."
       : "Move it into ComfyUI's models folder now?",
     "mcp-fix": "Reconnect Joe? Close that AI app completely first (Joe checks).",
@@ -3073,7 +3074,7 @@ const W_GROUPS = [
   { id: "writing", name: "Writing (needed)", ids: ["install-ollama", "start-ollama", "get-engine", "use-ollama", "engine-model", "pull-model", "use-model", "upgrade-model"] },
   { id: "pictures", name: "Pictures and video", ids: ["install-comfyui", "start-comfyui", "get-image-model", "get-video-model", "get-video-turbo", "pack-bg", "pack-upscale", "pack-edit", "pack-flux2", "pack-sketch", "pack-illusion", "pack-video-restyle", "pack-3d", "share-models"] },
   { id: "talk", name: "Talking", ids: ["install-voice", "pull-talk-model", "pull-vision", "install-clone"] },
-  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-qpdf", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
+  { id: "extras", name: "Little helpers", ids: ["install-pandoc", "install-ffmpeg", "install-qpdf", "install-faces", "install-whispercpp", "pull-embed", "pack-music", "pack-sfx"] },
 ];
 const W_STEPS = [
   { id: "hello", name: "Hello" },
@@ -3102,12 +3103,13 @@ const W_TEXT = {
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
   "install-qpdf": ["For the PDF toolkit: join, split, shrink and fill in PDFs (small and free).", "YES, INSTALL IT", ""],
+  "install-faces": ["For privacy blur: a small face finder that spots every face, children's too (about 40 MB, free).", "YES, SET IT UP", "Runs on the regular processor."],
 };
 let W = { open: false, i: 0, d: null, busyWas: "", asked: {}, pick: null, queue: [], auto: false, tried: {} };
 // The checklist: everything Joe could install, grouped, with sizes. Small and needed things
 // start ticked; big downloads (picture editor, video, music) start unticked. Nothing is
 // installed until the person presses INSTALL WHAT'S TICKED.
-const W_SMALL = ["install-voice", "install-ffmpeg", "install-pandoc", "install-qpdf", "pull-vision", "pull-embed",
+const W_SMALL = ["install-voice", "install-ffmpeg", "install-pandoc", "install-qpdf", "install-faces", "pull-vision", "pull-embed",
   "pull-talk-model", "pack-bg", "pack-upscale", "get-video-turbo"];
 function wSizeGB(it) {
   const m = /(?:about |under )?(\d+(?:\.\d+)?)\s*(GB|MB)/i.exec((it.what || "") + " " + it.text);

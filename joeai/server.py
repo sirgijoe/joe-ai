@@ -1149,6 +1149,8 @@ class App:
                     ok = addons_mod.install_clone(addons_mod.install_log(self.log), approved=True)
                 elif action == "install-pandoc":
                     ok = addons_mod.install_pandoc(addons_mod.install_log(self.log), approved=True)
+                elif action == "install-faces":
+                    ok = addons_mod.install_faces(addons_mod.install_log(self.log), approved=True, progress=prog)
                 elif action == "download-pack":
                     from . import picturetools
                     ok = picturetools.download_pack(self.settings, b.get("pack", ""), self.log,
@@ -1235,6 +1237,7 @@ class App:
                   "download-video-model": "downloading video model",
                   "download-video-turbo": "downloading the Turbo add-on",
                   "install-voice": "setting up Joe's voice", "install-pandoc": "installing Pandoc",
+                  "install-faces": "setting up the face finder",
                   "install-clone": "setting up voice copy", "update-joe": "updating Joe",
                   "download-pack": "downloading a picture/sound model",
                   "import-models": "getting a picture model",
