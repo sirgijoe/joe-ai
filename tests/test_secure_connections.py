@@ -171,6 +171,30 @@ def test_every_web_request_joe_makes_uses_it(monkeypatch, site):
     assert pagereader._TLSConn("example.org", 443, "93.184.216.34", 5)._context is marker   # the page reader
 
 
+def test_starting_joe_reads_no_certificates_until_the_first_secure_request(monkeypatch, site):
+    """The connector and other parts that never go online don't touch the certificate list at all
+    (on GitHub's Windows + Python 3.14 the connector died at startup when Joe built it right away)."""
+    lists = _windows(monkeypatch)
+    reads, made = [], []
+    monkeypatch.setattr(http, "_windows_store", lambda name: (reads.append(name), list(lists.get(name, [])))[1])
+    real = ssl.create_default_context
+    monkeypatch.setattr(ssl, "create_default_context", lambda *a, **kw: (made.append(1), real(*a, **kw))[1])
+    assert http.install() is True
+    assert reads == [] and made == []
+    assert http.request_json("GET", site.url("/x"), timeout=5) == {"ok": True}
+    assert reads == ["CA", "ROOT"] and made
+    n = len(made)
+    assert http.request_json("GET", site.url("/y"), timeout=5) == {"ok": True}
+    assert reads == ["CA", "ROOT"] and len(made) == n                    # read once, then kept
+
+
+def test_trouble_setting_it_up_never_stops_joe_starting(monkeypatch):
+    def broken(*a, **kw):
+        raise OSError("this computer won't say what its web settings are")
+    monkeypatch.setattr(urllib.request, "build_opener", broken)
+    assert http.install() is False                                        # Joe starts; Python's own way stays
+
+
 def test_joe_starts_with_it_installed():
     import joeai
     src = (ROOT / "joeai" / "__init__.py").read_text(encoding="utf-8")

@@ -214,6 +214,7 @@ def test_joe_pyw_runs_cli_commands(tmp_path):
     r = subprocess.run([sys.executable, str(root / "Joe.pyw"), "mcp"], input='{"jsonrpc":"2.0","id":1,"method":"ping"}\n',
                        capture_output=True, text=True, timeout=60,
                        env={"JOE_CONFIG": str(tmp_path / "s.json"), "JOE_OFFLINE": "1", "PATH": "/usr/bin:/bin"})
+    assert r.stdout.strip(), f"Joe.pyw mcp said nothing (exit code {r.returncode}). Its error text: {r.stderr[-3000:]!r}"
     assert json.loads(r.stdout)["result"] == {}
 
 

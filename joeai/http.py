@@ -187,11 +187,24 @@ def _cert_error(e: BaseException) -> ssl.SSLCertVerificationError | None:
 
 
 class _Https(urllib.request.HTTPSHandler):
-    """Every https request Joe makes: checked against tls_context(), and a certificate refusal is noted."""
+    """Every https request Joe makes: checked against tls_context(), and a certificate refusal is noted.
+    The certificate list is read on the first secure request, not when Joe starts: the connector and
+    other parts that never go online don't touch it."""
+
+    def __init__(self):
+        urllib.request.AbstractHTTPHandler.__init__(self)      # no list read yet
+        self._ctx = None
+        self._ctx_lock = threading.Lock()
+
+    def _context_now(self) -> ssl.SSLContext:
+        with self._ctx_lock:
+            if self._ctx is None:
+                self._ctx = tls_context()
+            return self._ctx
 
     def https_open(self, req):
         try:
-            return super().https_open(req)
+            return self.do_open(http.client.HTTPSConnection, req, context=self._context_now())
         except OSError as e:
             c = _cert_error(e)
             if c is not None:
@@ -200,10 +213,15 @@ class _Https(urllib.request.HTTPSHandler):
             raise
 
 
-def install() -> None:
+def install() -> bool:
     """Make every urllib request in Joe (lookups, update checks, downloads) use tls_context().
-    Called once when Joe starts (joeai/__init__.py)."""
-    urllib.request.install_opener(urllib.request.build_opener(_Https(context=tls_context())))
+    Called once when Joe starts (joeai/__init__.py). Reads nothing and connects to nothing itself.
+    False when it couldn't be set up (Joe still starts; connections then go Python's own way)."""
+    try:
+        urllib.request.install_opener(urllib.request.build_opener(_Https()))
+        return True
+    except Exception:                                  # noqa: BLE001 (never stop Joe from starting)
+        return False
 
 
 # --------------------------------------------------------------------------- requests
