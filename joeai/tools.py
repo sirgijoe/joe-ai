@@ -33,7 +33,7 @@ VIDEO_IN_EXT = (".mp4", ".mov", ".mkv", ".webm", ".avi", ".m4v", ".wmv", ".3gp")
 SHEET_EXT = (".csv", ".tsv", ".xlsx")
 DOC_EXT = (".txt", ".md", ".markdown", ".docx", ".pdf", ".html", ".htm")
 VISION_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
-VISION_HELP_TEXT = ("Uses a vision model on this PC (Setup > System check offers a free one). Big "
+VISION_HELP_TEXT = ("Uses a vision model on this PC (Setup > Start here offers a free one). Big "
                     "photos are shrunk first with FFmpeg. Your pictures never leave this computer "
                     "and are never changed.")
 PHOTO_EXT = (".jpg", ".jpeg", ".png", ".webp", ".bmp", ".tif", ".tiff")
@@ -139,7 +139,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                          choices=(("same", "The recording's language"), ("english", "English")),
                          value="same")),
          needs=("voice", "ffmpeg"), ready=True,
-         help="Uses the Hearing setting (Setup > Voice & Talk): Most accurate is slower but makes "
+         help="Uses the Hearing setting (Setup > Voice and Talk): Most accurate is slower but makes "
               "fewer mistakes. Runs on the processor, so it can work while pictures are drawing. "
               "Roughly real time on Balanced. Other languages use Whisper's all-languages "
               "model: the first time, Joe downloads it once from Hugging Face (about 75-480 MB, "
@@ -157,7 +157,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          options=(Option("chapters", "One track per chapter", False,
                          "Splits at headings like '# Title' or 'Chapter 3'. Handy for long documents."),),
          needs=("voice", "ffmpeg"), ready=True,
-         help="Uses Joe's voice and speed from Setup > Voice & Talk (your own copied voice isn't "
+         help="Uses Joe's voice and speed from Setup > Voice and Talk (your own copied voice isn't "
               "used here yet). Runs on the processor, so it can work while pictures are drawing. "
               "Without FFmpeg Joe saves WAV files (much bigger) instead of MP3. Reading PDFs needs "
               "Joe's voice add-on. Long books take a while: a stopped run picks up where it left off.",
@@ -176,7 +176,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
               "Joe looks it up in Open Library; if it's in the public domain and Project Gutenberg has it, he "
               "downloads the text and queues Read a document aloud. Books still under copyright can't be "
               "downloaded: scan your own copy's pages (Read scans and receipts) and Joe reads those. Needs online "
-              "lookups on (Setup > Voice & Talk); only the ISBN or title is sent.",
+              "lookups on (Setup > Privacy and internet); only the ISBN or title is sent.",
          plan_hint="Find / download / read aloud a book by ISBN, title or cover photo: TYPE: find-book, FORMAT: the "
                    "ISBN or title and author, word for word, OPTIONS: aloud yes|no. INPUT only a cover/barcode photo "
                    "they point at. No CHUNKS.",
@@ -187,7 +187,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "A letter, story or note read in the voice of someone you miss, made from family recordings.",
          accepts=DOC_EXT,
          needs=("ffmpeg",), ready=True,
-         help="First make the voice in Setup > Voice & Talk > A voice to remember: add a family recording of them "
+         help="First make the voice in Setup > Voice and Talk > A voice to remember: add a family recording of them "
               "talking (a few clear seconds are enough) and tick the three promises. Then type their name in the box "
               "here. Everything stays on this PC. Each recording comes with a note saying it was made by AI, and the "
               "voice program hides an inaudible watermark that marks it as AI-made. Needs the voice-copy add-on "
@@ -239,7 +239,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          help="Type your question(s) in the box below (one per line, or end each with ?). Joe finds "
               "the parts of your documents that fit and answers only from them, showing which "
               "excerpts he used; if the documents don't say, he says so. Works straight away; a small "
-              "search model (Setup > System check, about 270 MB) helps him find the right parts in "
+              "search model (Setup > Start here, about 270 MB) helps him find the right parts in "
               "big folders. Everything stays on this computer.",
          plan_hint="Questions about / summaries of the person's documents: TYPE: ask-files, INPUT: the "
                    "document file(s) or folder from the list below, FORMAT: their question(s), one "
@@ -410,7 +410,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          needs=("ollama",), ready=True,
          help="Joe collects every line of his own screens and the writing model translates them in small batches, "
               "saved to Languages/<code>.json in Joe's folder as he goes (a stopped run carries on next time). Then pick "
-              "the language in Setup > Display & sound. A machine translation: fix any line in that file.",
+              "the language in Setup > Look and sound. A machine translation: fix any line in that file.",
          plan_hint="Translate Joe's own screens / app window into another language: TYPE: joe-language, OPTIONS: to <language>. "
                    "No INPUT, no CHUNKS.",
          examples=("Translate Joe's screens into Spanish",)),
@@ -587,7 +587,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          help="Your originals are never changed: new copies go in Output. A watermark is only "
               "added if you type one (or pick a logo .png); it's faint, in the spot you choose. "
               "Hidden photo details like the camera and GPS location are left out of the copies. "
-              "Needs FFmpeg (Setup > System check). iPhone HEIC photos aren't supported yet: save "
+              "Needs FFmpeg (Setup > Start here). iPhone HEIC photos aren't supported yet: save "
               "them as JPG first.",
          plan_hint="Resize/convert photos: TYPE: photo-batch, INPUT: the photo file(s) or folder "
                    "from the list below, OPTIONS: size 800|1200|1600|2400|keep, format "
@@ -686,7 +686,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                   Option("change-faces", "Let AI repair redraw faces too", False,
                          "Off (the usual): with AI repair, Joe finds the faces first and puts the real "
                          "ones back afterwards, so nobody turns into a stranger (needs a vision model; "
-                         "System check offers one)."),
+                         "Setup > Start here offers one)."),
                   Option("strength", "How strong (true to the photo)", choices=(
                       ("auto", "Joe decides from how faded each photo is"),
                       ("strong", "Strong (very faded)"), ("medium", "Medium"),
@@ -1045,7 +1045,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          "Your resume and a job posting in; a matched resume, cover letter and gap list out. Nothing invented.",
          accepts=DOC_EXT,
          options=(Option("letter", "Write a cover letter", True),
-                  Option("word", "Word copies too", True, "Needs Pandoc (Setup > System check).")),
+                  Option("word", "Word copies too", True, "Needs Pandoc (Setup > Start here).")),
          needs=("ollama",), ready=True,
          help="Give your resume and the job posting (paste it in the box, or add it as a second file with 'job' in "
               "its name). Joe lists what the job asks for and finds each one in your resume, quoting the line (each "
@@ -1300,7 +1300,7 @@ def tool_dir(engine: "Engine", job: "Job", st: "JobState") -> Path:
         p.mkdir(parents=True, exist_ok=True)
         return p
     from . import filing
-    cand = filing.place(engine, job, "folder")                     # Setup > General > HOW JOE FILES HIS WORK
+    cand = filing.place(engine, job, "folder")                     # Setup > Folders and filing > HOW JOE FILES HIS WORK
     if cand is None:
         target = engine._under_output(engine.sb.resolve(job.save))  # like text tasks: always inside Output
         if target.suffix:
@@ -1418,7 +1418,7 @@ HEARING_TOOLS = ("transcribe", "make-shorts", "tidy-speech", "edit-words", "dub-
 
 
 def hearing_backend(settings) -> str:
-    """'whisper.cpp' or 'faster-whisper' for long recordings (Setup > Voice & Talk > Transcribe with)."""
+    """'whisper.cpp' or 'faster-whisper' for long recordings (Setup > Voice and Talk > Transcribe with)."""
     from . import whispercpp
     want = getattr(settings.voice, "transcriber", "auto") or "auto"
     if want == "faster-whisper":
@@ -1573,13 +1573,13 @@ def run_transcribe(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     if not hearing_ready(engine.s) and engine.voice is None:
-        st.status, st.note = "failed", "transcribing needs Joe's voice add-on or whisper.cpp (Setup > System check)"
+        st.status, st.note = "failed", "transcribing needs Joe's voice add-on or whisper.cpp (Setup > Start here)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg and any(f.suffix.lower() != ".wav" for f in files):
         engine.log("  FFmpeg isn't installed, so only .wav recordings can be read "
-                   "(Setup > System check installs it).")
+                   "(Setup > Start here installs it).")
     folder = tool_dir(engine, job, st)
     opts = chosen_options(job)
     lang = option_value(job, "language") or "english"
@@ -1854,7 +1854,7 @@ def to_mp3(ffmpeg: str, wav: Path, mp3: Path, title: str, log) -> bool:
 def _voice_missing(engine: "Engine", job: "Job", st: "JobState", what: str) -> bool:
     from .addons import voice_python
     if not Path(voice_python()).exists() and engine.voice is None:
-        st.status, st.note = "failed", f"{what} needs Joe's voice add-on (Setup > System check)"
+        st.status, st.note = "failed", f"{what} needs Joe's voice add-on (Setup > Start here)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return True
     return False
@@ -1890,7 +1890,7 @@ def run_read_aloud(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg:
         engine.log("  FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3 "
-                   "(Setup > System check installs it).")
+                   "(Setup > Start here installs it).")
     folder = tool_dir(engine, job, st)
     opts = chosen_options(job)
     worker = engine.voice or VoiceWorker(engine.log)
@@ -2480,7 +2480,7 @@ def run_photo_batch(engine: "Engine", mission: "Mission", job: "Job", st: "JobSt
     files, _ = resolve_inputs(engine, job)
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg:
-        st.status, st.note = "failed", "photo tools need FFmpeg (Setup > System check installs it)"
+        st.status, st.note = "failed", "photo tools need FFmpeg (Setup > Start here installs it)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     size_opt = option_value(job, "size")
@@ -3102,7 +3102,7 @@ def picture_b64(ffmpeg: str | None, src: Path, tmp: Path, longest: int) -> str:
             except OSError:
                 pass
     if ext not in (".jpg", ".jpeg", ".png", ".webp") or src.stat().st_size > RAW_IMAGE_MAX:
-        raise ValueError("big or unusual pictures need FFmpeg to shrink them first (Setup > System check)")
+        raise ValueError("big or unusual pictures need FFmpeg to shrink them first (Setup > Start here)")
     return base64.b64encode(src.read_bytes()).decode()
 
 
@@ -3165,7 +3165,7 @@ def _vision_start(engine: "Engine", job: "Job", st: "JobState", what: str):
     model = find_vision_model(engine)
     if not model:
         st.status, st.note = "failed", ("this needs a vision model (one that can look at pictures). "
-                                        "Setup (F10) > System check offers a free one")
+                                        "Setup (F10) > Start here offers a free one")
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
@@ -3730,8 +3730,8 @@ def run_ask_files(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
                 except Exception as e:                   # noqa: BLE001 (keyword search still works)
                     engine.log(f"  The search model didn't work ({e}); searching by words only.")
             elif not emodel and len(chunks) > ASK_TOP:
-                engine.log("  No search model installed, so Joe searches by words only (Setup > System "
-                           f"check offers {EMBED_MODEL}, about 270 MB, for better answers).")
+                engine.log("  No search model installed, so Joe searches by words only (Setup > Start "
+                           f"here offers {EMBED_MODEL}, about 270 MB, for better answers).")
             answers_p = folder / "answers.md"
             done_md = answers_p.read_text(encoding="utf-8") if answers_p.exists() and st.titles else \
                 f"# Answers from your files\n\nFrom {len(texts)} document(s), searched by {how}. Every answer " \
@@ -3962,7 +3962,7 @@ def needs_problem(settings, job: "Job") -> str:
     if job.type == "restore-photo" and not uses_comfy:
         from .doctor import ffmpeg_exe
         if not ffmpeg_exe(settings.comfy.ffmpeg):
-            return f"Task '{job.name}': restoring photos needs FFmpeg. Setup (F10) > System check installs it."
+            return f"Task '{job.name}': restoring photos needs FFmpeg. Setup (F10) > Start here installs it."
     if uses_comfy and tool.ready:
         from .doctor import comfy_models_dir
         try:
@@ -3972,7 +3972,7 @@ def needs_problem(settings, job: "Job") -> str:
         kind = option_value(job, "kind") if job.type == "music" else ""
         if not mdir:
             return (f"Task '{job.name}': {tool.name.lower()} needs ComfyUI. Setup (F10) > "
-                    "System check installs it.")
+                    "Setup > Start here installs it.")
         if "sdxl" in tool.needs and not sdxl_installed(mdir):
             return (f"Task '{job.name}': {tool.name.lower()} needs an SDXL picture model. Setup (F10) > "
                     "Models offers one.")
@@ -3981,11 +3981,11 @@ def needs_problem(settings, job: "Job") -> str:
         if missing:
             return (f"Task '{job.name}': {tool.name.lower()} needs "
                     + " and ".join(picturetools.pack_offer(p, mdir) for p in missing)
-                    + ". Setup (F10) > System check > DOWNLOAD, or the button on the Tools form.")
+                    + ". Setup (F10) > Start here > DOWNLOAD, or the button on the Tools form.")
     if "qpdf" in tool.needs:
         from .paperwork import qpdf_exe
         if not qpdf_exe():
-            return (f"Task '{job.name}': the PDF toolkit needs qpdf (free). Setup (F10) > System check > "
+            return (f"Task '{job.name}': the PDF toolkit needs qpdf (free). Setup (F10) > Start here > "
                     "qpdf > INSTALL.")
     if job.type == "meeting-minutes" and job.inputs and all(
             Path(i).suffix.lower() in (".txt", ".md", ".srt", ".vtt", ".docx") for i in job.inputs):
@@ -3996,7 +3996,7 @@ def needs_problem(settings, job: "Job") -> str:
             pass
         elif not Path(voice_python()).exists():
             return (f"Task '{job.name}': {tool.name.lower()} needs Joe's voice add-on first. "
-                    "Setup (F10) > System check > \"Joe's voice\" > SET UP.")
+                    "Setup (F10) > Start here > \"Joe's voice\" > SET UP.")
     return ""
 
 

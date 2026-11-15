@@ -526,7 +526,7 @@ class Engine:
             return
         pandoc = pandoc_exe(self.s.pandoc)
         if not pandoc:
-            st.note = (st.note + "; " if st.note else "") + "EXPORT skipped: Pandoc isn't installed (F10 > System check)"
+            st.note = (st.note + "; " if st.note else "") + "EXPORT skipped: Pandoc isn't installed (F10 > Start here)"
             self.log(f"  {st.note}")
             self._save_state(job, st)
             return
@@ -606,7 +606,7 @@ class Engine:
                 p.unlink(missing_ok=True)
                 return p
         from . import filing
-        cand = filing.place(self, job, "file")                 # Setup > General > HOW JOE FILES HIS WORK
+        cand = filing.place(self, job, "file")                 # Setup > Folders and filing > HOW JOE FILES HIS WORK
         if cand is None:                                       # flat: as written, like before 2.3
             target = self._under_output(self.sb.resolve(job.save))
             if not target.suffix:
@@ -682,7 +682,7 @@ class Engine:
         import os
         if not w or not w.enabled or os.environ.get("JOE_OFFLINE"):
             self.log(f"  '{job.name}' asked to look things up, but online lookups are off "
-                     "(Setup > Voice & Talk > Let Joe look things up online). Writing from what the model knows.")
+                     "(Setup > Privacy and internet > Let Joe look things up online). Writing from what the model knows.")
         else:
             from . import websearch
             query = research_query(job)
@@ -1378,7 +1378,7 @@ class Engine:
             missing = comfy_mod.wan_missing(comfy_models_dir(self.s))
             if missing:
                 raise comfy_mod.WorkflowError(
-                    "the video model isn't installed yet. F10 > System check offers "
+                    "the video model isn't installed yet. F10 > Start here offers "
                     f"{comfy_mod.WAN_VIDEO['label']} (about {comfy_mod.WAN_VIDEO['size_gb']:.0f} GB), "
                     "or give the task a WORKFLOW.")
             fps = job.fps if job.fps != 16 else 0          # 16 is the mission default: use Wan's 24
@@ -1431,7 +1431,7 @@ class Engine:
             raise comfy_mod.WorkflowError(f"no SD1.5/SDXL checkpoint matches MODEL: {job.model} "
                                           "(Flux and video models need a WORKFLOW file).")
         if not m:
-            raise comfy_mod.WorkflowError("no SD1.5/SDXL checkpoint found. Add one (F10 > System check) "
+            raise comfy_mod.WorkflowError("no SD1.5/SDXL checkpoint found. Add one (F10 > Start here) "
                                           "or give the task a WORKFLOW.")
         pp = quality_mod.pictures(self.s)
         lv = quality_mod.level(self.s, "pictures")
@@ -1565,7 +1565,7 @@ class Engine:
         st.status, st.phase = "running", "render"
         if not self.services.handoff(job.type):
             st.status, st.note = "failed", ("ComfyUI is not running and could not be started "
-                                            "(F10 > System check)")
+                                            "(F10 > Start here)")
             self.log(st.note)
             self._save_state(job, st)
             return st
@@ -1765,8 +1765,8 @@ class Engine:
         if not model:
             st.flags.append({"item": job.name, "flag": "[CHECK] no vision model, so these kids' pictures weren't "
                                                        "checked: look at every picture before printing "
-                                                       "(Setup > System check offers one)."})
-            self.log("  Kids' safety check skipped: no vision model (Setup > System check offers one).")
+                                                       "(Setup > Start here offers one)."})
+            self.log("  Kids' safety check skipped: no vision model (Setup > Start here offers one).")
             return
         ff = ffmpeg_exe(self.s.comfy.ffmpeg)
         held = folder / KIDS_HELD
@@ -1807,7 +1807,7 @@ class Engine:
         """Black-and-white video style: each MP4 becomes black and white; the color original is
         kept next to it as '<name>_color.mp4'."""
         if not ffmpeg:
-            self.log("  FFmpeg isn't installed, so the video stays in color (F10 > System check installs it).")
+            self.log("  FFmpeg isn't installed, so the video stays in color (F10 > Start here installs it).")
             return names
         out = []
         for n in names:
@@ -1830,7 +1830,7 @@ class Engine:
         """Coloring style: each picture becomes black outlines on white; the colored original
         is kept next to it as '<name>_example.png' (a guide for colors)."""
         if not ffmpeg:
-            self.log("  FFmpeg isn't installed, so the pages may have color (F10 > System check installs it).")
+            self.log("  FFmpeg isn't installed, so the pages may have color (F10 > Start here installs it).")
             return names
         out = []
         for n in names:
@@ -1876,7 +1876,7 @@ class Engine:
             mp4 = media_mod.frames_to_mp4(ffmpeg, paths, folder / f"{stem}.mp4", job.fps) if ffmpeg else None
             if mp4:
                 return [mp4.name]
-            self.log("  frames saved (no FFmpeg to make an MP4; F10 > System check installs it)")
+            self.log("  frames saved (no FFmpeg to make an MP4; F10 > Start here installs it)")
             return [f"frames/{stem}/{p.name}" for p in paths[:1]]
         for i, ((f, data), ext) in enumerate(zip(blobs, exts)):
             name = stem + (f"_{i + 1}" if len(blobs) > 1 else "") + ext

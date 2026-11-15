@@ -17,7 +17,7 @@ Themes\     custom color themes and screen savers (made in F10, or by hand)
 Ideas.md    ideas you parked ("park this: ...")
 ```
 
-### How Joe files his work (Setup > General)
+### How Joe files his work (Setup > Folders and filing)
 
 New in 2.3. **By date** (the default): every mission gets one folder in Output with the date in
 front, named after its first task, and everything it makes goes inside:
@@ -71,7 +71,7 @@ and the phone-ping topic) are not kept in that file: Joe puts them in the comput
 store. Windows: DPAPI, locked to your Windows sign-in (`keys.dpapi.json` beside the settings, unreadable
 for other accounts or on another computer). Mac: the login Keychain (items named "Joe (joe-ai)").
 Linux: the system keyring through `secret-tool` when it's installed and a keyring is running; without
-one they stay in the settings file, readable by your account only, and Setup > Privacy says so. Keys
+one they stay in the settings file, readable by your account only, and Setup > Privacy and internet says so. Keys
 from an older Joe move over by themselves on the first start; a key is only taken out of the settings
 file after it was stored and read back the same, and a key Joe can't read one day (a locked keychain)
 is never deleted. A Portable Joe keeps its keys in the settings file on its drive. BACK UP MY SETTINGS
@@ -92,7 +92,7 @@ JOE'S PLAN — about 14 minutes
 **RUN IT** starts it (or puts it in line if Joe is busy), **CHANGE IT** opens it in Step by step (F6),
 **START OVER** clears it. Nothing runs until you press RUN IT.
 Time estimates learn from your own runs; until then they're marked as a rough guess. TEST MY
-SPEED (in the setup helper or Setup > System check) times one small batch to get them right at once. The mission text itself is under
+SPEED (in the setup helper or Setup > Start here) times one small batch to get them right at once. The mission text itself is under
 **ADVANCED** for anyone who likes editing it by hand; the plan updates as you edit.
 
 ### Ask a bigger AI (free, any chatbot, no keys)
@@ -131,14 +131,14 @@ In Step by step (F6) it's **Use the names from**.
 
 - **Better-model tips**: when a model you don't have would do a job better (FLUX.2 klein for words in a
   picture, groups of people or two animals; a style's own picture model; the video Turbo add-on) and it
-  suits your graphics card's memory, the run log says so once, with the reason. System check then
+  suits your graphics card's memory, the run log says so once, with the reason. Setup > Start here then
   lists that offer first, marked **RECOMMENDED** with the reason. Offers too big for your card say so.
   Nothing downloads until you press its button. With the writing model left blank (Joe picks), Joe's
   pick for your card's memory is offered there whenever it's missing (RECOMMENDED), with the alternative
   and the little-to-no-filtering choice beside it: pick whichever you want.
 - **Models** (Setup > Models): every model download Joe offers, sorted by what it's for (writing,
   pictures and styles, video, picture tools, music and sound, helpers, newer copies), plus
-  SHOW MY MODELS. System check keeps the programs (Ollama, ComfyUI, FFmpeg...). **DOWNLOAD ALL**
+  SHOW MY MODELS. Setup > Start here keeps the programs (Ollama, ComfyUI, FFmpeg...). **DOWNLOAD ALL**
   at the bottom gets every model on the page, one after another (it shows the list and rough total
   size first, keeps going if one fails, adds follow-on files by itself, keeps the PC awake, and
   has a STOP button). Good for slow connections: press it at bedtime.
@@ -165,7 +165,7 @@ In Step by step (F6) it's **Use the names from**.
 - **Restart Joe**: a bar with RESTART JOE shows up when a restart helps: newer Joe files were copied
   into his folder, helpers were set up, or DOWNLOAD ALL finished. It asks first; Joe closes and opens
   again by himself (LATER hides it).
-- **Reset**: every Setup page has RESET THIS PAGE, and System check has RESET ALL SETTINGS. Each
+- **Reset**: every Setup page has RESET THIS PAGE, and This PC and backup has START OVER: RESET ALL SETTINGS (your starred tools stay). Each
   asks first, and only a click on YES, RESET does it (Enter doesn't). Your stats, files, chats,
   models, Joe's folder and any keys you typed are never touched.
 - **Stats** (F9): Today, This week, This month, This year or All time.
@@ -190,7 +190,7 @@ folder, so it's out of your head and safe for later.
 A writing task with `RESEARCH: yes` is looked up online once before Joe writes it. The facts go
 to the model, the text marks them like [2], and a **Sources** list is added at the end (a
 `-sources.md` file next to a spreadsheet). Only the search words go online, and only when Setup >
-Voice & Talk > **Let Joe look things up online** is on; otherwise Joe writes from what he knows and
+Privacy and internet > **Let Joe look things up online** is on; otherwise Joe writes from what he knows and
 the plan warns you. Ask for research or current facts in the box and Joe adds it himself.
 
 ### GIFs
@@ -212,7 +212,7 @@ take milk off my shopping list
 send my shopping list to my phone
 ```
 
-Reminders come to your phone as a phone ping (Setup > Display & sound > phone ping, an ntfy topic
+Reminders come to your phone as a phone ping (Setup > Night shift and alerts > phone ping, an ntfy topic
 name, free). Joe hands each one to ntfy with the time to deliver it, so it arrives even if your PC
 is off by then. ntfy holds messages for up to 3 days: a reminder further out waits in
 `Reminders.md` and Joe hands it over once it's within 3 days (whenever he's open). Without phone
@@ -222,7 +222,7 @@ pings, reminders are still saved in `Reminders.md`. Lists are plain files in Joe
 Quick answers and voice controls are instant too (no AI, no internet): "what time is it?",
 "what's the date today?", plain arithmetic like "what's 15% of 80?" or "12 times 7", "stop talking"
 (cuts Joe's voice off) and "say that again" (repeats his last answer). Anything else that needs
-current facts (weather, opening hours) is answered in Talk when Setup > Voice & Talk > Let Joe look
+current facts (weather, opening hours) is answered in Talk when Setup > Privacy and internet > Let Joe look
 things up online is on, with the sources shown.
 
 ### Joe Phone (Setup > Phone)
@@ -245,7 +245,7 @@ From the phone Joe can't change settings, install anything or open files outside
 Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on
 public Wi-Fi.
 
-### Joe's screens in other languages (Setup > Display & sound > Language)
+### Joe's screens in other languages (Setup > Look and sound > Language)
 
 Pick a language and press SAVE: Joe's window switches right away. Spanish comes with the main
 screens done; anything not translated yet stays in English, so a half-made language still works.
@@ -268,7 +268,7 @@ turns it off until you look again. A tool's program can still do anything a prog
 on tools from people you trust. TURN OFF or REMOVE any time. To make one, see
 [ADDONS.md](ADDONS.md); there's a full example in `examples/addons/simple-extras`.
 
-### Night shift (Setup > General)
+### Night shift (Setup > Night shift and alerts)
 
 **SAVE FOR TONIGHT** (on the plan) keeps a plan for later. Turn on **Night shift** in Setup >
 General and pick a time (24-hour clock, e.g. 23:00): Joe asks your computer's own scheduler to
@@ -288,7 +288,7 @@ was asleep or off and the scheduler only starts Joe after the stop time, he leav
 the next night instead of running into your day. A mission that's already running is never cut
 off half-way.
 
-### Recurring missions (Setup > General)
+### Recurring missions (Setup > Night shift and alerts)
 
 Start a request on Home with when it should happen again: "every Sunday night, make next week's meal
 plan", "every weekday write a short to-do list", "on Fridays, a summary of the week's sales", "every
@@ -314,7 +314,7 @@ may use them too** and **Apps connected to Joe may read them** are separate swit
 connected app can only read them (through `joe_memory`), never change them. BACK UP MY SETTINGS leaves
 them out unless **Include memory** is ticked; restoring adds the notes to the ones you have.
 
-### Daily restart (Setup > General)
+### Daily restart (Setup > Night shift and alerts)
 
 For a Joe that is left running: once a day he closes and opens again (the same as RESTART JOE), which
 frees memory, the graphics card and the voice programs. It could take a few minutes. Type the time
@@ -327,7 +327,7 @@ queue, missions on hold and the night shift carry on afterwards. A PC that was o
 nothing extra (starting Joe is already a fresh start), and one that was asleep doesn't restart the
 moment it wakes up more than an hour late: it waits for the next day.
 
-### Watch folders (Setup > General)
+### Watch folders (Setup > Folders and filing)
 
 Turn on **Watch folders** and Joe makes a folder per tool in `Inbox\Watch` (`clean-audio`,
 `summarize`, `privacy-blur`...), with a READ ME listing them. Drop a file into one while Joe is open
@@ -349,7 +349,7 @@ keeps working) and stops with a plain message if it won't fit. A plan that makes
 video or tool copies gets a "Low on space" warning, and the log says so at the start of a run when less
 than 2 GB is free.
 
-### Back up and restore my settings (Setup > General)
+### Back up and restore my settings (Setup > This PC and backup)
 
 **BACK UP MY SETTINGS** saves one zip in `Output\Backups`: your settings, your own writing templates,
 workflow words, color themes and screen savers (`Themes`), imported workflows (`Workflows`), project
@@ -360,7 +360,7 @@ the backup's, except where things are on this computer (Joe's folder, program pa
 backup doesn't have. Files you already have are never overwritten; a different file with the same name
 comes back as `name (restored)`.
 
-### Portable Joe (Setup > General)
+### Portable Joe (Setup > This PC and backup)
 
 **MAKE A PORTABLE JOE** copies Joe to a USB drive or any folder you pick (into a folder called
 `Joe`). Press LOOK first to see what can come along and how big it is: Joe's program (and his
@@ -381,7 +381,7 @@ Joe\JoeData\data\        add-ons: voice, Ollama, Joe's own ComfyUI and its model
 ```
 
 Started from the drive, Joe shows PORTABLE next to his version and keeps everything there:
-downloads and caches (uv, Python, Hugging Face, PyTorch) go to the drive too. System check offers
+downloads and caches (uv, Python, Hugging Face, PyTorch) go to the drive too. Setup > Start here offers
 **Put Ollama on the drive** (Ollama's official release from GitHub, run on its own port 11435 with
 its models in `JoeData\data\ollama-models`, so the computer's own Ollama is left alone) and **Put
 ComfyUI on the drive** (Joe's own copy with a private Python; models you copied are already in
@@ -397,7 +397,7 @@ drive (an SSD is best) formatted as exFAT or NTFS: FAT32 can't hold files over 4
 models are. On a Mac or Linux the drive copy uses the computer's Python 3.11.4+ unless Joe came with
 his own.
 
-### Keep my PC usable (Setup > General)
+### Keep my PC usable (Setup > Quality and speed)
 
 For using the PC while Joe works: Ollama and ComfyUI run at below-normal priority (so the mouse,
 browser and games stay smooth) and videos are made smaller (960x544 instead of 1280x704). Runs
@@ -411,7 +411,7 @@ make, writes and queues the plan, makes pictures, runs Joe's tools on files in h
 the report, reads the results and looks at the pictures, then polishes them for you. It can't
 install anything, change settings, or reach outside Joe's folder.
 
-Setup > General > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC. Wherever an app has
+Setup > Other AI apps > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC. Wherever an app has
 its own way to add a connector, Joe uses it, so the app itself asks you and nobody has to open a
 settings file:
 
@@ -431,7 +431,7 @@ checks and won't continue while it's running (Claude Desktop keeps running in th
 Task Manager). Joe only ever touches his own entry, keeps a copy of the file as it was before he
 first touched it (`.before-joe`), and leaves a file he can't read alone.
 
-System check keeps an eye on the apps you connected: if one lost Joe (it moved or reset its
+Setup > Start here keeps an eye on the apps you connected: if one lost Joe (it moved or reset its
 settings), or starts Joe from an old place (Joe's folder moved, Python was updated, or it points at
 another copy of Joe), it says so with a RECONNECT button. Uninstalling Joe takes him out of every
 app's settings, so none keeps trying to start a Joe that's gone. For other apps, copy the lines
@@ -482,28 +482,28 @@ SmartScreen "couldn't be reached", that's its online check timing out: choose **
 ## First start, tabs and looks
 
 The first time Joe opens, a setup helper walks through it one step at a time. **Hello** lets you
-pick Joe's look right away (change it any time in Setup > Display & sound, or describe your own
+pick Joe's look right away (change it any time in Setup > Look and sound, or describe your own
 under CUSTOM THEME and Joe designs it). Then your graphics card in plain words, then **Pick**: a checklist of everything Joe could install, grouped (Writing,
 Pictures, Talking, Extras), each with its size, and a running total. Small and needed things start
 ticked; big downloads (the picture editor, video, music) start unticked, and picture programs are
 pre-ticked only on a strong graphics card. **INSTALL WHAT'S TICKED** installs them one after
 another; more choices appear once Ollama and ComfyUI are in. The later steps (writing, pictures,
 talking, extras) still explain each piece with its own **YES**, and the last one picks a look.
-Reopen it any time: Setup (F10) > System check > **SETUP HELPER**.
+Reopen it any time: Setup (F10) > Start here > **SETUP HELPER**.
 
 **The top bar**, left to right: making things (Home F2, Tools F3, Talk F4, Step by step F6), seeing
 results (Files F7, Report F8, Stats F9), then Setup F10 and Help F1 (ABOUT JOE is at the bottom of
 Help). On the right: **RUN/STOP** (F5) and the **TOOLS n/28** badge. Hover the badge to see every
-tool with √ (ready) or × and what it still needs; click it for System check. Ollama and ComfyUI
+tool with √ (ready) or × and what it still needs; click it for Setup > Start here. Ollama and ComfyUI
 keep their up/down lights in the status bar.
 
 Joe finds the programs he works with on his own: ComfyUI Desktop (old and new program names),
 a portable ComfyUI (`run_nvidia_gpu.bat`) or your own install with a `venv`, ComfyUI's models
 folder (from its own settings), and Ollama, FFmpeg and Pandoc from the usual install folders
-(winget, Scoop, Chocolatey, Program Files, Homebrew). F10 > System check shows what he found.
+(winget, Scoop, Chocolatey, Program Files, Homebrew). F10 > Start here shows what he found.
 Anything you type in Setup wins; if that path stops existing, Joe looks again.
 
-If the model that suits your PC best isn't installed, System check (and the setup helper) offers
+If the model that suits your PC best isn't installed, Setup > Start here (and the setup helper) offers
 to download it: a bigger writing model when your graphics card has room for one, a small quick
 model just for Talk, a smaller one when Writing quality is Low, a picture model, the video model
 and its Turbo add-on. Every download asks first.
@@ -518,14 +518,14 @@ with who made it and one or two plain sentences on why it's there and what it co
   Hermes, depending on the card). Usually a little less accurate than Joe's pick; the note says so.
 
 Tick the one you want before pressing the download button. Prefer something else? Type any model's
-name in Setup > Writing > Model (Ollama downloads it the first time), or bring your own model with
+name in Setup > Writing program (Ollama downloads it the first time), or bring your own model with
 LM Studio, llama.cpp or LocalAI. The list lives in `joeai/model_picks.json` on GitHub, so it can
 change without a new version of Joe.
 
 Every screen has a tab along the top (the F-keys still work). Hover over any button and the
 bottom line says what it does.
 
-Looks (Setup > Display & sound > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
+Looks (Setup > Look and sound > Theme): **Modern** (follows your PC's day/night setting), **Modern day**,
 **Modern night**, **Futuristic**, and the **Retro** green, amber and white screens (the old-screen
 effect only applies to the retro looks). CUSTOM THEME still designs a retro-style look from a
 description. **Easy-to-read font** (same section) switches every look to Atkinson Hyperlegible, a
@@ -540,11 +540,11 @@ Pictures and video always run after the writing tasks, so the GPU switches over 
 
 Model files ending in .ckpt, .pt, .pth or .bin are an older format that can run hidden code when
 they're loaded. Joe always uses a .safetensors file first when there's a choice, and Setup >
-System check > Your models lists any older ones so you can swap them for .safetensors copies.
+Setup > Models > Your models lists any older ones so you can swap them for .safetensors copies.
 
 ### Graphics cards other than NVIDIA
 
-System check names your graphics and says plainly what they mean for Joe. NVIDIA cards give the
+Setup > Start here names your graphics and says plainly what they mean for Joe. NVIDIA cards give the
 full picture (temperature, load, memory). AMD cards on Linux report the same through the driver;
 AMD and Intel on Windows only give the name and memory, and Apple Silicon Macs share the main
 memory with the graphics (Joe counts about two thirds of it for models). Where the card doesn't
@@ -556,7 +556,7 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
 
 ### Use the programs and models you already have
 
-- **Other writing programs**: Setup > Writing > Writing program picks the program, with a line
+- **Other writing programs**: Setup > Writing program picks the program, with a line
   under it on what each is good for and what it costs:
   - **Ollama** (recommended): Joe installs, starts and fills it, and frees the graphics card for
     pictures. The easiest; a little slower than a hand-tuned llama.cpp.
@@ -570,7 +570,7 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
 
   With the
   others, you add models in that program; Joe writes with whatever it has (the biggest one that fits
-  your card, or the one in Setup > Writing > Model). LM Studio: Joe starts its server himself with
+  your card, or the one in Setup > Writing program). LM Studio: Joe starts its server himself with
   its `lms` helper. llama.cpp and LocalAI: put the line that starts them in More options > Start
   command (for example `llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192`), or
   start them yourself. Joe only talks to programs on this PC or your home network. One catch:
@@ -584,18 +584,18 @@ on NVIDIA, AMD and Apple Silicon with 8 GB+, and "Sound like me" only on NVIDIA.
   its models and says plainly what's wrong if not (not running, wrong port, key needed, model not
   there). The key stays in your settings and is blanked in help files. Online addresses are refused
   even with a key: Joe never sends your work to a paid online service.
-- **AUTOMATIC1111 / Forge / reForge models**: when System check finds a Stable Diffusion WebUI folder,
+- **AUTOMATIC1111 / Forge / reForge models**: when Setup > Start here finds a Stable Diffusion WebUI folder,
   SHARE THEM adds it to ComfyUI's extra model folders file (Desktop: `extra_models_config.yaml` in its
   settings folder; portable and own installs: `extra_model_paths.yaml` next to ComfyUI). Checkpoints,
   LoRAs, VAEs, upscalers, embeddings and ControlNets are used where they are: nothing is copied. The
   old file is kept as `.joe-backup`; Joe's lines start with `# joe-ai`. Restart ComfyUI afterwards.
   Joe also reads any extra folders you added yourself when he looks for picture models.
 - **whisper.cpp**: a faster transcriber (Transcribe, Make shorts), especially on Macs, and the
-  Transcribe tool then works without the voice add-on. System check offers it on Windows (a 4 MB
+  Transcribe tool then works without the voice add-on. Setup > Start here offers it on Windows (a 4 MB
   download into Joe's add-ons folder) and Macs (Homebrew). On Linux Joe uses `whisper-cli` if you
-  have it. Setup > Voice & Talk > Transcribe with: Auto uses it when it's there.
+  have it. Setup > Voice and Talk > Transcribe with: Auto uses it when it's there.
 
-## Quality vs speed (Setup > Writing, and Setup > Images & video)
+## Quality vs speed (Setup > Quality and speed)
 
 Each kind of work has its own **Low / Medium / High** choice, so you can have quick drafts but
 careful pictures, or the other way round. The line under each choice says what it does.
@@ -606,7 +606,7 @@ careful pictures, or the other way round. The line under each choice says what i
 | **Pictures** | about half the drawing steps, slightly smaller pictures (about 2x faster, less detail) | the model's normal settings | more steps and a finer sampler (sharper, about 1.5x as long) |
 | **Video** | about 3-second, smaller clips; very quick with the Turbo add-on | full 5-second 1280x704 clips, using Turbo when installed | the full model with extra steps, never Turbo (can take 20+ minutes a clip on a 12 GB card) |
 
-**Turbo add-on for video**: once the video model is installed, System check offers the
+**Turbo add-on for video**: once the video model is installed, Setup > Start here offers the
 Wan 2.2 5B Turbo add-on (under 1 GB, Apache 2.0). It makes a clip in 4 steps instead of 20,
 several times faster, with a little less detail. Low and Medium use it; High never does.
 Restart ComfyUI after downloading it.
@@ -625,7 +625,7 @@ out of tries), Joe writes the missing items at the end, so 100 asked means 100 w
 A task's own SIZE or MODEL always wins over these choices. Time estimates learn from your runs,
 so after changing a level the first estimate may be off.
 
-## Comfort (Setup > Display & sound, and Setup > General)
+## Comfort (Setup > Look and sound, and Setup > Night shift and alerts)
 
 - **High contrast** (Theme): *High contrast (dark)* is white and yellow on black, *High contrast
   (light)* is black on white; both meet the strictest contrast level (WCAG AAA, 7:1), give every box
@@ -649,7 +649,7 @@ so after changing a level the first estimate may be off.
   hello needs Joe's voice set up; it's made once and kept, so it plays right away. Always silent
   during quiet hours.
 - **Screen saver**: after this many minutes without the mouse or keyboard (default 10, 0 = off)
-  the screen saver starts; any key or mouse move wakes Joe. Setup > Display & sound > SCREEN SAVER
+  the screen saver starts; any key or mouse move wakes Joe. Setup > Look and sound > SCREEN SAVER
   picks one: Joe (classic drifting status), Binary rain (Joe's real name, 01000001 01001001),
   Coffee break (the mug that started it all), Starfield, Bouncing Joe, Phosphor waves, Fireflies,
   Snowfall, Pipes or Retro clock. PREVIEW shows it now. Or describe one ("a calm night sky with slow
@@ -689,8 +689,8 @@ FORMAT: focus on dates and to-dos           (optional, for the notes)
 `<name>.txt` (the transcript, a [mm:ss] time at the start of each paragraph), `<name>.srt`
 (subtitles) and `<name>-notes.md` (summary, key points, decisions, to-dos, written by the
 writing model from the transcript; anything unclear is marked [CHECK]). Long recordings are
-noted in pieces, then combined. It needs Joe's voice add-on (Setup > System check) and FFmpeg
-for anything but .wav. It uses the Hearing setting (Setup > Voice & Talk; Most accurate is
+noted in pieces, then combined. It needs Joe's voice add-on (Setup > Start here) and FFmpeg
+for anything but .wav. It uses the Hearing setting (Setup > Voice and Talk; Most accurate is
 slower) and runs on the processor, so it can work while pictures draw. A stopped run picks up at
 the next recording.
 
@@ -707,7 +707,7 @@ you pick `notes-in english`. Big languages are heard best; check names and numbe
 it makes one track per chapter (`<name>-01-<title>.mp3` ...), split at `# Title` / `## Title`
 lines or lines like "Chapter 3"; with fewer than two of those it makes one track. Markdown
 symbols, links, code blocks and [CHECK] marks aren't read out; titles and list lines get a
-pause. It uses the voice and speed from Setup > Voice & Talk (your own copied voice isn't used
+pause. It uses the voice and speed from Setup > Voice and Talk (your own copied voice isn't used
 for this yet), needs Joe's voice add-on, and saves WAV instead of MP3 when FFmpeg isn't
 installed. Runs on the processor. Finished pieces are kept while a document is read, so a
 stopped run carries on mid-document.
@@ -744,7 +744,7 @@ WATERMARK: My Shop                     (optional: text, or a logo .png in Inbox)
   fifth of the photo.
 
 Phone photos are turned the right way up, and hidden details (camera, GPS location, dates)
-aren't copied. Needs FFmpeg (Setup > System check). On the Tools tab the picks are drop-down
+aren't copied. Needs FFmpeg (Setup > Start here). On the Tools tab the picks are drop-down
 lists, and the Watermark box (or **USE A LOGO**) is empty unless you fill it in.
 
 **Tidy a spreadsheet** (`TYPE: tidy-sheet`) reads .csv, .tsv and Excel .xlsx (the first sheet,
@@ -767,7 +767,7 @@ Sheets longer than 20,000 rows are cut (the change list says so).
 
 **Picture tools** (Listings from photos, Read scans and receipts, Sort my photos) read .jpg,
 .png, .webp, .bmp and .tif and use a vision model in Ollama (any installed model whose name
-says it can see, like qwen2.5vl; Setup > System check offers one sized for your graphics
+says it can see, like qwen2.5vl; Setup > Start here offers one sized for your graphics
 card). Each photo is turned upright and shrunk with FFmpeg before Joe looks at it (without
 FFmpeg only JPG/PNG/WebP under 6 MB work). Originals are never changed or moved. A stopped
 run carries on at the next picture.
@@ -802,7 +802,7 @@ question, and asks the writing model to answer only from those, naming the excer
 and the excerpts (file, part, first words) so you can check. With no question, or with
 **summaries**, `summaries.md` has a short summary of each document plus anything worth
 knowing (dates, amounts, deadlines). Finding the pieces works by words straight away; with a
-search model installed (Setup > System check offers nomic-embed-text, about 270 MB) it also
+search model installed (Setup > Start here offers nomic-embed-text, about 270 MB) it also
 matches by meaning, which helps a lot in big folders. The search model's results are kept in
 `Output\.joe\search\` so asking again is quick. Nothing leaves your computer.
 
@@ -886,7 +886,7 @@ date or name, Joe's own code checks it against your file and marks anything it c
 
 - **PDF toolkit** (`TYPE: pdf-tools`, `OPTIONS: do merge|split|pages|rotate|compress|fill`, plus
   `turn right|left|upside`, `shrink safe|smaller`, `lock`): no AI. It uses **qpdf**, a small free
-  program (Apache license) that System check installs with one click (winget, Homebrew or your Linux
+  program (Apache license) that Setup > Start here installs with one click (winget, Homebrew or your Linux
   package manager; about 10 MB). What goes in the box (`FORMAT:`):
   - **Join**: nothing; drop the PDFs in the order you want them. You get `joined.pdf`.
   - **Pick or reorder pages**: the pages, like `3, 1, 2`, `1-4, 7`, `2 to 5 and last`, `odd`.
@@ -989,7 +989,7 @@ Saved as `recipe.md`. Without a recipe the tool plans a week of meals as before.
 
 These five run in ComfyUI on the graphics card, using only ComfyUI's own built-in nodes (nothing
 extra to install in ComfyUI, but it needs a recent version). Each needs a model pack once: the
-Tools form shows a **DOWNLOAD IT** button with the size and license, and System check lists them
+Tools form shows a **DOWNLOAD IT** button with the size and license, and Setup > Start here lists them
 too. Packs come from Hugging Face into ComfyUI's models folders; restart ComfyUI afterwards.
 Your originals are never changed; results go in `Output\<task name>\` with an `about.txt` naming
 the models used.
@@ -1098,15 +1098,15 @@ itself):
 
 Press **F4** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
 just talk, and when you pause Joe hears it and answers. He doesn't listen while he's speaking,
-and the mic closes when you leave Talk. Prefer push-to-talk? Setup > Voice & Talk > How to talk >
-Push-to-talk, then SET KEY and press any key; hold it anywhere in Joe to talk. Typing works without any setup. For voice, run F10 > System check > "Joe's voice"
+and the mic closes when you leave Talk. Prefer push-to-talk? Setup > Voice and Talk > How to talk >
+Push-to-talk, then SET KEY and press any key; hold it anywhere in Joe to talk. Typing works without any setup. For voice, run F10 > Start here > "Joe's voice"
 once: Joe installs uv, makes a private Python 3.12 just for speech (your Python is left alone),
 then installs faster-whisper (hearing) and Kokoro (his voice). Everything runs on the CPU and
 lives in `%LOCALAPPDATA%\joe-ai\addons`. Recordings are deleted right after they're heard.
 
 Ask how the run is going, what failed, or tell him what you need done. If he writes a mission,
 it shows up with OPEN IN BUILDER and RUN IT buttons: Joe never starts work on his own.
-Setup > Voice & Talk picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
+Setup > Voice and Talk picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
 quick model (3-4B) answer in Talk while the big one keeps writing missions overnight; blank uses
 the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
@@ -1123,7 +1123,7 @@ any time. A run that's still going stays on screen, and its results go into the 
 started in. Click an old chat to read it (it opens on Talk), carry on where you left off (Joe
 remembers what was said in it), or **RUN AGAIN** / **OPEN IN BUILDER** a mission from it. The **✕** next to a
 chat deletes it, **DELETE ALL** clears the list, and the search box finds a chat by its words.
-Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than Setup > Voice & Talk >
+Chats are saved in Joe's own folder (`Output\.joe\chats`). Chats older than Setup > Voice and Talk >
 **Delete chats after (days)** are removed on their own (default 30; 0 keeps them). Nothing
 leaves the PC.
 
@@ -1135,12 +1135,12 @@ opening another one, or deleting the one he's answering in also stops him.
 
 ### Looking things up online (off unless you turn it on)
 
-Setup > Voice & Talk > **Let Talk look things up online**. When it's on and you ask about
+Setup > Privacy and internet > **Let Talk look things up online**. When it's on and you ask about
 something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
 other questions he can decide to search when he isn't sure. He answers in his own words and lists
 his **Sources** under the reply (click one to open it). Only the search words go online, never
 your files or chats, and overnight runs never go online. (Everything Joe uses the internet
-for is listed in the README under "When Joe uses the internet" and in Setup > Privacy.)
+for is listed in the README under "When Joe uses the internet" and in Setup > Privacy and internet.)
 
 - **With a free Ollama key** (make an account at ollama.com, then Settings > Keys, and paste it
   into **Ollama web search key**): searches the whole web.
@@ -1156,8 +1156,8 @@ local address every time he opens so the answer sticks.)
 
 ### Make Joe sound like me (optional)
 
-System check offers **Voice copy** on PCs with an NVIDIA card (6 GB+). It installs Chatterbox
-(Resemble AI, MIT license) and PyTorch, about 3 GB, in its own environment. Then Setup > Voice & Talk >
+Setup > Start here offers **Voice copy** on PCs with an NVIDIA card (6 GB+). It installs Chatterbox
+(Resemble AI, MIT license) and PyTorch, about 3 GB, in its own environment. Then Setup > Voice and Talk >
 MAKE JOE SOUND LIKE ME: tick "this is my own voice", press RECORD and read the passage
 (about 30 seconds). Pick "My voice" in the voice list. The recording lives only in
 `%LOCALAPPDATA%\joe-ai\addons\voice\myvoice` and is never shared, exported or packaged;
@@ -1166,7 +1166,7 @@ built-in voice instead. Chatterbox marks its audio with an inaudible watermark.
 
 ### A voice to remember (optional)
 
-With voice copy installed (above), Setup > Voice & Talk > **A VOICE TO REMEMBER** makes a voice from
+With voice copy installed (above), Setup > Voice and Talk > **A VOICE TO REMEMBER** makes a voice from
 a family recording of someone you miss: a phone video, a voicemail, an old home movie. Type their
 name, pick the recording, and tick the three promises: you're family (or have the family's OK), it's
 only for your family's own listening (never sold, posted or shared as if real), and it will never be
@@ -1184,7 +1184,7 @@ Drag files onto Joe's window (or press ATTACH). They're copied to `Inbox\dropped
 your next message. Say "read it" to hear a file word for word, or ask anything about it.
 Text, Markdown, CSV, JSON, Word (.docx), web pages and PDFs work (PDFs use the voice add-on's
 Python; the PDF reader is added the first time). Pictures need a vision model in Ollama;
-System check offers one that fits your graphics card.
+Setup > Start here offers one that fits your graphics card.
 
 A picture plus a request for work ("restore this photo", "remove the background", "colorize it",
 "swap the sky for a sunset", "make it watercolor") goes straight to the right tool on exactly that
@@ -1203,9 +1203,9 @@ asks again with the thinking kept out of the answer, and remembers to do that fo
 
 `EXPORT: docx, pdf, epub` on a writing task makes finished copies next to the .md when it's
 done (also `odt`, `html`). In F7, P makes Word + PDF copies of any .md file. Needs Pandoc
-(System check installs it); PDFs are printed by Microsoft Edge, so no LaTeX is needed.
+(Setup > Start here installs it); PDFs are printed by Microsoft Edge, so no LaTeX is needed.
 
-**Templates** (Setup > Writing > TEMPLATES) decide how those copies look: page size, margins, body
+**Templates** (Setup > Templates) decide how those copies look: page size, margins, body
 and heading fonts, text size, line spacing, first-line indent, alignment, space between paragraphs,
 centered headings, each chapter on a new page, and a title page. Joe's built-in ones:
 
@@ -1325,7 +1325,7 @@ Desktop can stop on its start screen (the list of installs, or "New / GitHub / C
 wait for a click while Joe waits too. Set it once: ComfyUI menu (☰, top left) > **Desktop
 Settings** > **Auto-launch on startup** > pick your install (not "None (show dashboard)").
 
-**Video without a workflow file:** System check offers Wan 2.2 5B (Apache 2.0, about 18 GB,
+**Video without a workflow file:** Setup > Start here offers Wan 2.2 5B (Apache 2.0, about 18 GB,
 needs an 8 GB+ graphics card). After it downloads, restart ComfyUI once. Then
 `TASK: Shop tour  SAVE: clips/tour.mp4` (or `TYPE: video`) makes about 5-second 1280 x 704
 clips at 24 fps, one per prompt. `SIZE` changes the size; `FPS` the speed.
@@ -1336,7 +1336,7 @@ itself, or you can type `{{PROMPT}}`, `{{NEGATIVE}}`, `{{SEED}}`, `{{WIDTH}}`, `
 into the workflow before exporting. With your own video workflow, frames or GIFs are
 turned into MP4 with FFmpeg (`FPS: 16`).
 
-Or skip the copying: Setup > Images & video > **Your own workflows** > pick the exported file >
+Or skip the copying: Setup > Pictures and video program > More options > **Your own workflows** > pick the exported file >
 **IMPORT WORKFLOW**. Joe checks it's in API format and saves it to `Workflows\`. Give it a picture
 style and Joe uses it for every picture in that style (`Workflows\style-<style>.json`); leave the
 style blank to pick it per task with `WORKFLOW:`.
@@ -1360,7 +1360,7 @@ versions (the newest is kept, and picture folders with a K or S mark are never t
 reports older than 30 days, leftover ComfyUI copies, and past missions (the saved plans in the
 Step by step list; what they made stays in Output). Logs trim themselves at 2 MB.
 ComfyUI keeps its own copy of every picture; Joe removes it once he has saved his
-(Setup > Images & video, on by default). Only ComfyUI's `output\Joe` folder is ever touched.
+(Setup > Pictures and video program, on by default). Only ComfyUI's `output\Joe` folder is ever touched.
 
 Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 "Note: …" inside a value is left alone. Values can span several lines.
@@ -1368,7 +1368,7 @@ Keys are UPPERCASE and must start a line or follow two spaces, so prose such as
 ## Running it
 
 The installers bring everything Joe needs to start. Running from the source code instead needs
-Python 3.11.4+ (python.org). For writing, Joe needs Ollama with a model (System check offers to
+Python 3.11.4+ (python.org). For writing, Joe needs Ollama with a model (Setup > Start here offers to
 install both) or another writing program you already use (see "Use the programs and models you
 already have").
 
@@ -1388,7 +1388,7 @@ Double-click again to check on it. F1 shows all keys.
 | F8 | Report: what finished and what needs a look |
 | F9 | Stats and storage: space used, clean-up buttons |
 | (Help) | ABOUT JOE: the story, privacy and license |
-| F10 | Setup: a side menu with System check, General, Writing, Images & video, Voice & Talk, Display & sound, Privacy, Stats & costs, plus a find box |
+| F10 | Setup: a side menu with the everyday pages (Start here, Look and sound, Voice and Talk, Quality and speed, Night shift and alerts, Folders and filing, Privacy and internet), an Advanced settings group, and a find box that also knows the old page names |
 
 The status bar shows the GPU live: temperature, load, memory, power and fan (hover it for the
 CPU load too). It flashes
@@ -1442,15 +1442,15 @@ Joe refuses one whose version isn't the release being offered or isn't newer tha
 signed release can't be passed off as a new one.
 
 
-**CHECK FOR UPDATES** (Setup > System check) asks GitHub for the newest release; Joe also checks when he
+**CHECK FOR UPDATES** (Setup > Start here) asks GitHub for the newest release; Joe also checks when he
 opens unless that's off. When Joe was installed with an installer, an update is one click: he
 downloads the installer for your system, checks it against the release's `SHA256SUMS.txt` (and
 refuses it if the checksum is missing or wrong), then on Windows runs it quietly and opens again,
 on a Mac opens it for you to drag onto Applications, and on Linux swaps the AppImage and restarts.
 Not while a run is going. A copy run from source (git) just gets the release page.
 
-**MAKE A HELP FILE** (Setup > System check) saves `Joe-help-<date>.zip` in Output and shows it: Joe's
-version and install type, the system and graphics, System check's findings, settings with every
+**MAKE A HELP FILE** (Setup > Start here) saves `Joe-help-<date>.zip` in Output and shows it: Joe's
+version and install type, the system and graphics, what Joe found on this PC, settings with every
 key, topic and password hidden, and the last part of each log. Your home folder and user name
 become `~` and `<user>`. It never holds your Inbox/Output files, chats, recordings or voices. Logs
 can mention task and file names, so look inside before sending it.

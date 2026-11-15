@@ -4,7 +4,7 @@ the whole session: what was said in Talk, what was asked for on the Home screen,
 each run that started, and its results (tasks, output folders, report and log).
 
 Chats can be deleted one at a time or all at once, and old ones are removed automatically
-after Setup > Voice & Talk > "Delete chats after (days)" (0 = keep them). Nothing leaves the PC.
+after Setup > Voice and Talk > "Delete chats after (days)" (0 = keep them). Nothing leaves the PC.
 """
 from __future__ import annotations
 

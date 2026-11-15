@@ -369,7 +369,7 @@ def after_load(settings, data: dict, settings_path: Path) -> bool:
 
 
 def status(settings, settings_path: Path) -> dict:
-    """For Setup > Privacy: where the keys are kept, in plain words."""
+    """For Setup > Privacy and internet: where the keys are kept, in plain words."""
     b = backend(settings_path)
     from . import portable
     kept = list(getattr(settings, "_vault_kept_in_file", []) or [])

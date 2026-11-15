@@ -143,8 +143,8 @@ class ServiceManager:
     def start_comfy(self) -> bool:
         inst = self.comfy_install()
         if not inst or not inst.command:
-            self.log("ComfyUI not found on this PC. Install it from F10 > System check, or put its "
-                     "start command in Setup > Images & video > More options.")
+            self.log("ComfyUI not found on this PC. Install it from F10 > Start here, or put its "
+                     "start command in Setup > Pictures and video program > More options.")
             return False
         shown = inst.command if isinstance(inst.command, str) else inst.command[0]
         self.log(f"Starting {inst.label}: {shown}")
@@ -198,7 +198,7 @@ class ServiceManager:
 
     # -- Keep my PC usable --------------------------------------------------
     def ease(self, which: str) -> list[int]:
-        """Setup > General > Keep my PC usable: the server (and Ollama's model runners) at
+        """Setup > Quality and speed > Keep my PC usable: the server (and Ollama's model runners) at
         below-normal priority, once per program. Returns the process ids changed now."""
         if not getattr(self.s.engine, "keep_pc_usable", False):
             return []

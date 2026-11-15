@@ -96,7 +96,7 @@ def test_no_qpdf_says_how_to_get_it(app, monkeypatch):  # noqa: F811
     make_pdf(app.sb.inbox / "a.pdf")
     monkeypatch.setattr(paperwork, "qpdf_exe", lambda configured="": None)
     st = _run(app, "TASK: J  TYPE: pdf-tools\nINPUT: a.pdf\nOPTIONS: do compress")
-    assert st.status == "failed" and "System check" in st.note and "qpdf" in st.note
+    assert st.status == "failed" and "Start here" in st.note and "qpdf" in st.note
 
 
 def _pages_text(p: Path) -> list[str]:

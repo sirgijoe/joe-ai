@@ -148,7 +148,7 @@ def add(sb, settings, text: str, now: datetime | None = None, send=None) -> dict
     if not topic:
         save(sb, items)
         return {"ok": True, "say": f"Saved: {what}, {nice}. To get it on your phone, turn on phone pings in Setup > "
-                                   "Display & sound (ntfy, free). It's in Reminders.md (Files, F7) meanwhile."}
+                                   "Night shift and alerts (ntfy, free). It's in Reminders.md (Files, F7) meanwhile."}
     err = ""
     if when - now <= NTFY_MAX:
         soon = (when - now).total_seconds() < 12           # ntfy holds messages 10 s at the least: just send it
@@ -252,7 +252,7 @@ def list_send(sb, settings, name: str, send=None) -> dict:
     if not items:
         return {"ok": False, "error": f"Your {list_name(name)} list is empty."}
     if not topic:
-        return {"ok": False, "error": "Turn on phone pings first (Setup > Display & sound, ntfy, free)."}
+        return {"ok": False, "error": "Turn on phone pings first (Setup > Night shift and alerts, ntfy, free)."}
     err = (send or notify.send_ntfy)(settings.comfort.ntfy_server, topic, "\n".join(f"- {x}" for x in items),
                                      title=f"{list_name(name).capitalize()} list")
     return {"ok": not err, "say": f"Sent your {list_name(name)} list to your phone.", "error": err}

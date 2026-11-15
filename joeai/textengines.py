@@ -32,15 +32,15 @@ ENGINES: dict[str, dict] = {
                         "for you). Load a model there, or let LM Studio load one when Joe asks."},
     "llamacpp": {"label": "llama.cpp (llama-server)", "url": "http://127.0.0.1:8080",
                  "how": "Start it with a model, for example: llama-server -m your-model.gguf --port 8080 "
-                        "--ctx-size 8192. Put that line in Setup > Writing > Start command and Joe "
+                        "--ctx-size 8192. Put that line in Setup > Writing program and Joe "
                         "starts it when he needs it."},
     "localai": {"label": "LocalAI", "url": "http://127.0.0.1:8080",
                 "how": "Start LocalAI (for example: local-ai run) and install a model in its web page. "
-                       "Put the start line in Setup > Writing > Start command if you want Joe to start it."},
+                       "Put the start line in Setup > Writing program if you want Joe to start it."},
     "openai": {"label": "Other (OpenAI-compatible)", "url": "http://127.0.0.1:8000",
                "how": "Any program on this PC or your home network that speaks the OpenAI-style "
                       "language (Jan, KoboldCpp, vLLM, Apple MLX, Text Generation WebUI...). Put its address in "
-                      "Setup > Writing > Address (for example http://127.0.0.1:1337 for Jan, :5001 for "
+                      "Setup > Writing program (for example http://127.0.0.1:1337 for Jan, :5001 for "
                       "KoboldCpp, :8000 for vLLM, :8080 for Apple MLX's mlx_lm.server) and its start line in Start command if you want Joe to start it."},
 }
 NOT_WRITERS = re.compile(r"embed|nomic|bge|minilm|rerank|whisper|clip|vision-adapter|mmproj", re.I)
@@ -202,11 +202,11 @@ def auth_headers(cfg: OllamaSettings) -> dict:
 
 
 def test_connection(cfg: OllamaSettings, timeout: float = 5) -> dict:
-    """Setup > Writing > TEST CONNECTION: is the other program there, and does it have the model?
+    """Setup > Writing program: is the other program there, and does it have the model?
     Plain words for every way it can go wrong."""
     e = engine_id(cfg)
     if e == "ollama":
-        return {"ok": False, "error": "Pick a writing program other than Ollama first (Ollama is checked in System check)."}
+        return {"ok": False, "error": "Pick a writing program other than Ollama first (Ollama is checked in Setup > Start here)."}
     raw = (getattr(cfg, "engine_url", "") or "").strip()
     url = engine_url(cfg)
     label = ENGINES[e]["label"]

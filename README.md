@@ -55,9 +55,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   he picks the installed model that suits it best and adds the style's own words.
 - "An image of a fox in the snow" gets you 4 versions of that one picture to pick from.
 - Coloring pages always come out as clean black-and-white outlines (a colored example is kept).
-- Uses the image models you already have, or helps you get one (System check shows free picks
+- Uses the image models you already have, or helps you get one (Setup > Start here shows free picks
   for each style, with their licenses). Bring your own ComfyUI workflow too
-  (Setup > Images & video > IMPORT WORKFLOW).
+  (Setup > Pictures and video program > More options > IMPORT WORKFLOW).
 - Short video clips (Wan 2.2), black-and-white films, and looping GIFs (`EXPORT: gif`). The
   Turbo add-on makes video several times faster; **Keep my PC usable** makes smaller videos so
   you can still use the computer while Joe works.
@@ -67,11 +67,11 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 
 **Lines up the night for you**
 - **Queue** as much as you like: plans run one after another, with one combined morning report.
-- **Night shift** (Setup > General): SAVE FOR TONIGHT and Joe starts those plans at the time you
+- **Night shift** (Setup > Night shift and alerts): SAVE FOR TONIGHT and Joe starts those plans at the time you
   set, even with his window closed (Windows can wake the PC for it). Uses your computer's own
   scheduler, and turning it off removes the entry again. Give it a **Stop by** time too and he
   finishes the job he's on, saves the rest for the next night and says so in the morning report.
-- **Watch folders** (Setup > General): drop a file into `Inbox\Watch\<tool>` (like `clean-audio` or
+- **Watch folders** (Setup > Folders and filing): drop a file into `Inbox\Watch\<tool>` (like `clean-audio` or
   `summarize`) and Joe does it by himself while he's open, with that tool's usual options.
 - **Starter packs**: one question ("what's your shop called?") and Joe plans a whole bundle: a shop
   starter, a month of social posts, a blog starter, a party kit or a coloring book. Make your own
@@ -89,7 +89,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   paths and your user name are left out of the message, and nothing is sent unless you paste it.
 - **Use Joe from another AI app**: Joe is an MCP connector, so Claude Desktop, ChatGPT desktop
   (and Codex), Gemini CLI, Cursor and LM Studio can see what Joe can do, queue plans, run his tools
-  and read the results. One-click CONNECT in Setup > General (it keeps a copy of that app's
+  and read the results. One-click CONNECT in Setup > Other AI apps (it keeps a copy of that app's
   settings first and only touches Joe's own entry).
 
 **Talks, and listens** (optional, one-time setup)
@@ -98,7 +98,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   the night's mission into Step by step (F6) for you to check. He never starts a run on his own.
 - **Joe has a face** beside the chat: he listens while the mic is open, thinks while he works out
   an answer, moves his mouth with his voice, smiles when a run is done, looks worried when
-  something failed and gets sleepy during the night shift. Setup > Voice & Talk > "Joe's face in
+  something failed and gets sleepy during the night shift. Setup > Voice and Talk > "Joe's face in
   Talk": On, Still (no blinking or moving mouth; also used when your computer is set to reduce
   motion) or Off.
 - He can read the morning report to you, or tell you his own backstory.
@@ -189,7 +189,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   exactly; anything unclear is marked [CHECK].
 - **Sort my photos**: a category, tags and a caption for every photo, and copies sorted into
   a folder per category (your own categories, or Joe picks short ones). Faces are never named.
-- These three use a free vision model on your computer (Setup > System check offers one); your
+- These three use a free vision model on your computer (Setup > Start here offers one); your
   pictures never leave it.
 - **Ask my files**: type questions about a folder of documents ("what do these contracts say
   about cancelling?") and Joe answers only from them, showing the excerpts he used, or says
@@ -199,7 +199,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   the AI gives are checked against your own file, [CHECK] where they aren't there):
   - **PDF toolkit**: join, split, pick or reorder pages, turn pages, make a PDF smaller, and fill in
     PDF forms (Joe lists the fields, you type the answers). No AI: uses qpdf, a small free program
-    System check installs.
+    Setup > Start here installs.
   - **Explain this letter**: a bill, lease, insurance or benefits letter (or a photo of it) in plain
     words: what it means, what to do, every deadline with the days left, money and reference numbers
     checked against the letter, scam warnings, and a polite reply to fill in. Not legal advice.
@@ -256,9 +256,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring book, school paper (MLA),
   everyday, spreadsheet and price list. They set page size, margins (with binding gutter), fonts,
   spacing, page numbers, headers, drop caps and more for Word, PDF, EPUB and Excel copies; every one
-  is shown and editable in Setup > Writing. Need a look that isn't there? **Add your own**: name it,
+  is shown and editable in Setup > Templates. Need a look that isn't there? **Add your own**: name it,
   start from the closest one, change anything, and use it with `TEMPLATE:` and its name.
-- **Portable Joe**: copy Joe to a USB drive (Setup > General > MAKE A PORTABLE JOE) and start him on
+- **Portable Joe**: copy Joe to a USB drive (Setup > This PC and backup > MAKE A PORTABLE JOE) and start him on
   any computer with "Start Joe". His settings, your work and anything he sets up (voice, Ollama,
   ComfyUI, models) stay on the drive. Each computer still needs its own graphics driver, and
   Windows may still remember that a program ran: portable means carried with you, not invisible.
@@ -271,9 +271,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   version: how he does it behind the scenes, what to give him, every option, time, needs and tips.
   Every tool card has a "learn more" link. It's all built from Joe's own code, so it stays true.
 - **Use what you already have**: write with **LM Studio, llama.cpp, LocalAI or any other OpenAI-compatible program** (Jan, KoboldCpp, vLLM...) instead of Ollama
-  (Setup > Writing > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
-  folders without downloading them again (System check > SHARE THEM), and transcribe with
-  **whisper.cpp** (faster on Macs; offered in System check).
+  (Setup > Writing program), let ComfyUI use the models in your **AUTOMATIC1111 / Forge**
+  folders without downloading them again (Setup > Start here > SHARE THEM), and transcribe with
+  **whisper.cpp** (faster on Macs; offered in Setup > Start here).
 - **Better words in pictures**: with FLUX.2 [klein] 4B installed (Apache-2.0, about 16 GB, offered
   in Setup > Models), Joe uses it by himself for pictures with words in them (a sign, a poster
   title), or for every picture when you pick it in Setup > Workflows.
@@ -287,8 +287,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - "Add milk and eggs to my shopping list", "what's on my to-do list?", "take milk off my list",
   "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
 - "Directions to the feed store", "where can I buy a cheap air fryer?": opens your map or shopping
-  site (picked in Setup > General) in the browser. Joe doesn't pick stores or track you.
-- **Joe in your language** (Setup > Display & sound): Spanish built in for the main screens; MAKE IT has
+  site (picked in Setup > Voice and Talk) in the browser. Joe doesn't pick stores or track you.
+- **Joe in your language** (Setup > Look and sound): Spanish built in for the main screens; MAKE IT has
   Joe translate the rest of his window into any of 23 languages overnight. Edit any line yourself.
 - **Add-ons from other people** (Setup > Add-ons): new tools, starter packs, picture workflows and
   themes in a .zip. Each stays off until you've read what it runs; changed files switch it off again.
@@ -311,7 +311,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   anything**. Installs use Windows' own installer (winget) and the official packages.
 - Offers three writing models that fit your graphics card: Joe's pick (Gemma or Llama), an
   alternative (Qwen) and one with little to no filtering (Mistral, Dolphin or Hermes), each with a
-  plain line on what it's good at and its downside. Or type any model's name in Setup > Writing.
+  plain line on what it's good at and its downside. Or type any model's name in Setup > Writing program.
 - When a model thinks so long it runs out of room, Joe writes the rest of the task without
   thinking first, and a list that comes up short gets its missing items written at the end.
 - Shows your graphics card's temperature, load and memory live at the bottom of the window,
@@ -368,10 +368,10 @@ internet. None of them send your files, chats or recordings.
 | Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files, and the picture/sound tool models) | Ollama's model library, Hugging Face | Setup, the Tools form, or when you pick a better model | Asks you first, every time |
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
-| Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > General > Updates |
-| Helper and model update check | GitHub (newest Ollama and ComfyUI versions, Joe's list of recommended models), Ollama's model library (are your models up to date?) | At most once a week, when System check runs | Nothing installs until you say yes; off with the update check (Setup > General > Updates) |
+| Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > Privacy and internet > Updates |
+| Helper and model update check | GitHub (newest Ollama and ComfyUI versions, Joe's list of recommended models), Ollama's model library (are your models up to date?) | At most once a week, when Setup > Start here runs | Nothing installs until you say yes; off with the update check (Setup > Privacy and internet > Updates) |
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
-| Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in System check | Asks you first, every time |
+| Ollama on a portable drive (only if you use Portable Joe) | GitHub (Ollama's official release) | When you choose "Put Ollama on the drive" in Setup > Start here | Asks you first, every time |
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
 | Find a book to read aloud | Open Library and Project Gutenberg (only the ISBN or title; the free book text comes back) | When you use that tool | Only with online lookups on |
 | Reminders and lists sent to your phone | ntfy.sh (the reminder text, with the time to deliver it; or the list you asked to send) | When you say "remind me..." or "send my list to my phone" | Off until you type a topic name |
@@ -406,7 +406,7 @@ other people, each under their own license. AI models are big downloads (2–20 
 - "Sound like me" needs an NVIDIA card. The cool-down pause only works on cards that report their
   temperature (NVIDIA, and AMD on Linux).
 
-System check (Setup) says what your own graphics mean for Joe.
+Setup > Start here says what your own graphics mean for Joe.
 
 ## Why your computer may warn you about Joe
 
@@ -432,7 +432,7 @@ If UPDATE doesn't work on your computer, download the installer from the
 
 **Older model files:** Joe only downloads `.safetensors` models (data only). Files in the older
 `.ckpt`, `.pt`, `.pth` or `.bin` formats can run hidden code when they're loaded, so Joe never picks
-one himself; if you bring one you trust, say YES to it once in Setup > System check > Your models.
+one himself; if you bring one you trust, say YES to it once in Setup > Models > Your models.
 [SECURITY_REVIEW.md](SECURITY_REVIEW.md) lists what an outside reviewer should check. How releases are signed, and by whom: [Code signing policy](CODE_SIGNING.md).
 
 ## How a night with Joe goes
@@ -464,13 +464,13 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 - **Memory, only if you want it.** Turn it on in Setup > Memory and say "remember that I like short
   captions": Joe keeps a note you can see, edit and delete, on this computer only.
 - **Recurring missions.** "Every Sunday night, make next week's meal plan", then REPEAT under the plan:
-  it runs with the night shift on those nights (Setup > General lists them to pause or delete).
+  it runs with the night shift on those nights (Setup > Night shift and alerts lists them to pause or delete).
 - **Your keys stay locked away.** Keys and passwords you give Joe (web-search key, connector password)
   are kept in the computer's own protected store (Windows DPAPI, the Mac Keychain, the Linux keyring),
-  not in a plain settings file. Setup > Privacy shows where.
+  not in a plain settings file. Setup > Privacy and internet shows where.
 - **Where your work goes.** Each mission gets one folder in Output with the date in front
   ("2026-11-10 Showcase video"); writing gets its own folder with its Word and PDF copies, and a task
-  run again goes beside the first as v2. Prefer the old way? Setup > General > HOW JOE FILES HIS WORK
+  run again goes beside the first as v2. Prefer the old way? Setup > Folders and filing > HOW JOE FILES HIS WORK
   > Flat. TIDY MY OUTPUT sorts older work the same way, only moving things, with an UNDO. Group
   missions into **projects** (Files F7 > PROJECTS) with notes and a "what's left" list.
 
@@ -479,8 +479,8 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
 - **Check model licenses** before using pictures or text commercially. Each AI model has its
   own license. [THIRD_PARTY.md](THIRD_PARTY.md) lists every program, model and font Joe ships
   or can fetch, with its license.
-- **Need help?** Setup > System check > **MAKE A HELP FILE** saves one zip with Joe's version, System
-  check and the end of the logs (keys hidden, never your files, chats or recordings) to send to
+- **Need help?** Setup > Start here > **MAKE A HELP FILE** saves one zip with Joe's version, what Joe
+  found on this PC and the end of the logs (keys hidden, never your files, chats or recordings) to send to
   whoever is helping you.
 - **Joe is free; what you plug into him might not be.** Joe works with programs, AI models,
   ComfyUI workflows and custom nodes, add-ons and plugins made by other people and companies.

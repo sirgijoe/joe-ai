@@ -274,7 +274,7 @@ def test_builtin_video_wan(env, tmp_path):
     m = parse("TASK: Kiln clip  SAVE: clips/kiln.mp4  CHUNKS: 1 x 1")
     assert m.jobs[0].type == "video"
     st = Engine(s, sb, log=lambda x: None).run_mission(m)[0]
-    assert st.status == "failed" and "System check" in st.note          # model not installed yet
+    assert st.status == "failed" and "Start here" in st.note          # model not installed yet
     for folder, name, _ in comfy.WAN_VIDEO["files"]:
         (mdir / folder).mkdir(parents=True, exist_ok=True)
         (mdir / folder / name).write_bytes(b"x")
@@ -338,7 +338,7 @@ def test_check_video_needs_model_not_workflow(env, tmp_path):
     (tmp_path / "models").mkdir()
     app = App(s)
     r = app.check("TASK: Clip  SAVE: clips/a.mp4")
-    assert not r["ok"] and "System check" in r["error"]
+    assert not r["ok"] and "Start here" in r["error"]
     for folder, name, _ in comfy.WAN_VIDEO["files"]:
         (tmp_path / "models" / folder).mkdir(exist_ok=True)
         (tmp_path / "models" / folder / name).write_bytes(b"x")

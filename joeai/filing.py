@@ -1,4 +1,4 @@
-"""How Joe files what he makes (Setup > General > HOW JOE FILES HIS WORK).
+"""How Joe files what he makes (Setup > Folders and filing > HOW JOE FILES HIS WORK).
 
 Three ways, picked in Setup (settings.filing.how):
   date     (the default) one folder per mission with the date in front, every task inside it:
@@ -376,7 +376,7 @@ def tidy(sb, plan: list[dict] | None = None) -> dict:
                                                 ensure_ascii=False))
         txt = ["Joe tidied Output on " + datetime.now().strftime("%Y-%m-%d %H:%M") + ".",
                "Nothing was deleted. Each line: old place  ->  new place.",
-               "Setup > General > HOW JOE FILES HIS WORK > UNDO puts everything back.", ""]
+               "Setup > Folders and filing > HOW JOE FILES HIS WORK > UNDO puts everything back.", ""]
         txt += [f"{m['from']}  ->  {m['to']}" for m in moved]
         atomic_write_text(out / f"_TIDY_UNDO_{stamp}.txt", "\n".join(txt) + "\n")
         undo_file = undo_path.name

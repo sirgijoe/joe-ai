@@ -1,6 +1,6 @@
 """Night shift: plans saved "for tonight" start at a set time, even with Joe's window closed.
 
-Setup > General > Night shift turns it on. Joe asks the computer's own scheduler to start him
+Setup > Night shift and alerts > Night shift turns it on. Joe asks the computer's own scheduler to start him
 at that time (Windows Task Scheduler, launchd on a Mac, cron on Linux); turning it off removes
 that entry again. Nothing of Joe's keeps running in the meantime.
 
@@ -210,7 +210,7 @@ def windows_xml(hh: int, mm: int, cmd: list[str], start_date: str = "2026-01-01"
     exe, args = cmd[0], " ".join(f'"{c}"' if " " in c or "\\" in c else c for c in cmd[1:])
     return f"""<?xml version="1.0" encoding="UTF-16"?>
 <Task version="1.2" xmlns="http://schemas.microsoft.com/windows/2004/02/mit/task">
-  <RegistrationInfo><Description>Joe's night shift: starts the plans saved for tonight (Setup &gt; General).</Description></RegistrationInfo>
+  <RegistrationInfo><Description>Joe's night shift: starts the plans saved for tonight (Setup &gt; Night shift and alerts).</Description></RegistrationInfo>
   <Triggers><CalendarTrigger><StartBoundary>{start_date}T{hh:02d}:{mm:02d}:00</StartBoundary><Enabled>true</Enabled>
     <ScheduleByDay><DaysInterval>1</DaysInterval></ScheduleByDay></CalendarTrigger></Triggers>
   <Principals><Principal id="Author"><LogonType>InteractiveToken</LogonType><RunLevel>LeastPrivilege</RunLevel></Principal></Principals>

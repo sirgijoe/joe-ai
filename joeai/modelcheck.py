@@ -104,12 +104,12 @@ def scan(models_dir: Path | None, extra: list[Path] | None = None) -> dict:
 
 def plain(result: dict) -> str:
     if not result["checked"]:
-        return "No model files found to check (is ComfyUI's models folder set? System check finds it)."
+        return "No model files found to check (is ComfyUI's models folder set? Setup > Start here finds it)."
     if not result["short"]:
         return (f"All {result['checked']} model files are whole ({result['checked_gb']} GB checked). "
                 "Nothing to download again.")
     lines = [f"{len(result['short'])} of {result['checked']} model files are cut short (the download "
-             "stopped part way). Move them to the Recycle Bin, then System check / Setup > Models offers "
+             "stopped part way). Move them to the Recycle Bin, then Setup > Start here / Setup > Models offers "
              "them again:"]
     for s in result["short"]:
         lines.append(f"- {s['name']}: {s['have'] / 1e9:.2f} of {s['want'] / 1e9:.2f} GB ({s['pct']}%)")

@@ -1,4 +1,4 @@
-"""BACK UP MY SETTINGS / RESTORE FROM A BACKUP (Setup > General).
+"""BACK UP MY SETTINGS / RESTORE FROM A BACKUP (Setup > This PC and backup).
 
 One zip with everything you set up by hand, for a new computer, after a reinstall, or to give
 a friend your setup:

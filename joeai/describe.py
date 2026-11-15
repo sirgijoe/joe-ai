@@ -659,7 +659,7 @@ def draft(app, request: str) -> dict:
     if busy_drawing(app):
         return {"ok": False, "error": "Joe is busy drawing right now. Try again when the pictures finish."}
     if not app.services.ensure_ollama():
-        return {"ok": False, "error": "Ollama isn't running. Setup (F10) > System check can start it."}
+        return {"ok": False, "error": "Ollama isn't running. Setup (F10) > Start here can start it."}
     from .doctor import resolve_text_model
     model = resolve_text_model(app.settings, app.services, app.log)
     from . import tools as tools_mod

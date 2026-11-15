@@ -371,7 +371,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
     if template:
         from . import doctemplates as _dt
         found = _dt.resolve(None, template)               # Joe's own templates
-        if not found:                                     # one of yours (Setup > Writing > Templates)
+        if not found:                                     # one of yours (Setup > Templates)
             try:
                 from .config import Settings
                 found = _dt.resolve(Settings.load(), template)
@@ -379,7 +379,7 @@ def _make_job(d: dict, mission_project: str = "") -> Job:
                 found = ""
         if not found:
             raise MissionError(f"Task '{name}': TEMPLATE can be {', '.join(_dt.TEMPLATES)}, "
-                               "or the name of one of your own (Setup > Writing > Templates).")
+                               "or the name of one of your own (Setup > Templates).")
         template = found
     watermark = " ".join(d.get("WATERMARK", "").split())[:120]
     if watermark:

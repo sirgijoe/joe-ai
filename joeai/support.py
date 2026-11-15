@@ -30,7 +30,7 @@ Made {when} by Joe {version}. Send this zip to whoever is helping you.
 
 Inside:
   about.txt          Joe's version, how he was installed, the system, graphics, memory
-  system-check.json  what System check (Setup) found: programs, models, problems
+  system-check.json  what Joe found on this PC (Setup > Start here): programs, models, problems
   settings.json      your settings, with every key, topic and password replaced by (hidden)
   logs/              the last part of each log Joe keeps
 

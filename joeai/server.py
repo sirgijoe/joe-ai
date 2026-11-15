@@ -87,7 +87,7 @@ class App:
         self.last_seen = time.monotonic()
         self.quit_now = False
         from .dailyrestart import DailyRestart
-        self.daily = DailyRestart(self.settings)      # Setup > General > DAILY RESTART
+        self.daily = DailyRestart(self.settings)      # Setup > Night shift and alerts > DAILY RESTART
         self.services_status = {"ollama": False, "comfyui": False, "loaded": []}
         self.dl_all: dict = {}            # Setup > Models > DOWNLOAD ALL progress
         self.restart_hint = ""            # "restart Joe" advice shown in the window (with a button)
@@ -194,7 +194,7 @@ class App:
         names = {x.name: x for x in m.jobs}
         if any(j.research for j in m.jobs) and not self.settings.web.enabled:
             warnings.append("A task asks Joe to look things up online, but online lookups are off. Turn on "
-                            "Setup (F10) > Voice & Talk > Let Joe look things up online, or Joe writes from what he knows.")
+                            "Setup (F10) > Privacy and internet > Let Joe look things up online, or Joe writes from what he knows.")
         for j in m.jobs:
             src = names.get(j.source) if j.source else None
             if src is not None:
@@ -225,12 +225,12 @@ class App:
                 from .doctor import comfy_models_dir
                 if wan_missing(comfy_models_dir(self.settings)):
                     return {"ok": False, "error": (
-                        f"Task '{j.name}': the video model isn't installed yet. F10 > System check "
+                        f"Task '{j.name}': the video model isn't installed yet. F10 > Start here "
                         f"downloads {WAN_VIDEO['label']} (about {WAN_VIDEO['size_gb']:.0f} GB); restart "
                         "ComfyUI after. Or give the task a WORKFLOW.")}
         if any(j.media for j in m.jobs) and not (self.services.comfy_up() or self.services.comfy_exe()
                                                  or self.settings.comfy.start_command):
-            warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > System check).")
+            warnings.append("ComfyUI isn't installed; image/video tasks will fail (F10 > Start here).")
         from .picturetools import COMFY_TOOLS
         if any(j.media or j.type in COMFY_TOOLS for j in m.jobs) and not self.services.comfy_up():
             warnings.append("Joe will start ComfyUI (the picture maker) for this. If it's updating or waits "
@@ -244,7 +244,7 @@ class App:
             if lv != "high" and mdir and not wan_missing(mdir) and not wan_turbo_installed(mdir):
                 warnings.append(f"Based on your {lv.capitalize()} video setting, I'd recommend the "
                                 f"{WAN_TURBO['label']} (under 1 GB) for this: several times faster. "
-                                "Install it from Setup > System check, or run as is.")
+                                "Install it from Setup > Start here, or run as is.")
         need = disk_need(m, self.sb)                  # room for what this plan makes?
         room = system.room_problem(self.sb.output, need, spare=2_000_000_000)
         if room:
@@ -270,17 +270,17 @@ class App:
                 from .doctor import ffmpeg_exe
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
                     warnings.append("FFmpeg isn't installed, so only .wav recordings can be read "
-                                    "(Setup > System check installs it).")
+                                    "(Setup > Start here installs it).")
             if j.type == "photo-batch":
                 from .doctor import ffmpeg_exe
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
                     return {"ok": False, "error": f"Task '{j.name}': photo tools need FFmpeg first. "
-                            "Setup (F10) > System check installs it."}
+                            "Setup (F10) > Start here installs it."}
             if j.type == "read-aloud":
                 from .doctor import ffmpeg_exe
                 if not ffmpeg_exe(self.settings.comfy.ffmpeg):
                     warnings.append("FFmpeg isn't installed, so Joe saves WAV files (much bigger) "
-                                    "instead of MP3 (Setup > System check installs it).")
+                                    "instead of MP3 (Setup > Start here installs it).")
             secs += info["seconds"]
             tool_info[j.job_id] = info
         for j in m.jobs:
@@ -629,7 +629,7 @@ class App:
                                 "himself (while Joe is open), with the tool's usual options. Results go to "
                                 "Output/watch-<tool>. Each folder is named after its tool:\n\n"
                                 + "\n".join(f"  {tid:16} {tools_mod.TOOLS[tid].name}" for tid in self.watch_tools())
-                                + "\n\nTurn this off in Setup > General > Watch folders.\n", encoding="utf-8")
+                                + "\n\nTurn this off in Setup > Folders and filing > Watch folders.\n", encoding="utf-8")
         except OSError as e:
             self.log(f"Watch folders: {e}")
 
@@ -1080,7 +1080,7 @@ class App:
         if action == "use" and b.get("set") == "talk":   # System check: a quick model just for Talk
             self.settings.voice.talk_model = model
             self.settings.save()
-            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
+            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice and Talk).")
             return {"ok": True}
         if action == "use":
             if self.running:
@@ -1124,7 +1124,7 @@ class App:
                         elif b.get("set") == "talk":                    # the quick Talk model
                             self.settings.voice.talk_model = model
                             self.settings.save()
-                            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice & Talk).")
+                            self.log(f"Talk now uses {model} for quicker replies (Setup > Voice and Talk).")
                         elif (not self.running and self.settings.ollama.text_model
                                 and b.get("id") not in ("pull-vision", "pull-small-model", "pull-embed")):
                             self.settings.ollama.text_model = model
@@ -1133,7 +1133,7 @@ class App:
                                 and model != ((b.get("choices") or [{}])[0].get("name") or model)):
                             self.settings.ollama.text_model = model    # the person picked this one over Joe's pick
                             self.settings.save()
-                            self.log(f"Joe now writes with {model}, the one you picked (Setup > Writing to change it).")
+                            self.log(f"Joe now writes with {model}, the one you picked (Setup > Writing program to change it).")
                 elif action == "download-image-model":
                     ok = doctor.download_image_model(self.settings, self.log, approved=True, progress=prog)
                 elif action == "download-video-model":
@@ -1344,7 +1344,7 @@ class App:
         if self.running:
             return {"ok": False, "error": "Wait until the run finishes (the model is busy)."}
         if not self.services.handoff("text"):
-            return {"ok": False, "error": "The writing program isn't running (F10 > System check)."}
+            return {"ok": False, "error": "The writing program isn't running (F10 > Start here)."}
         from . import savers
         from .doctor import resolve_text_model
         model = resolve_text_model(self.settings, self.services, self.log)
@@ -1362,7 +1362,7 @@ class App:
         if self.running:
             return {"ok": False, "error": "Wait until the run finishes (the model is busy)."}
         if not self.services.handoff("text"):
-            return {"ok": False, "error": "Ollama isn't running (F10 > System check)."}
+            return {"ok": False, "error": "Ollama isn't running (F10 > Start here)."}
         from .doctor import resolve_text_model
         model = resolve_text_model(self.settings, self.services, self.log)
         try:
@@ -1380,7 +1380,7 @@ class App:
         if self.running:
             return {"ok": False, "error": "Joe is busy with a run; its timings teach him anyway."}
         if not self.services.ensure_ollama():
-            return {"ok": False, "error": "Ollama isn't running (Setup > System check)."}
+            return {"ok": False, "error": "Ollama isn't running (Setup > Start here)."}
         from .doctor import resolve_text_model
         model = resolve_text_model(self.settings, self.services, self.log)
         try:
@@ -1464,7 +1464,7 @@ class App:
 
     def listen(self, audio: bytes, ext: str) -> dict:
         if not addons_mod.voice_ready():
-            return {"ok": False, "error": "Joe's voice isn't set up yet (F10 > System check)."}
+            return {"ok": False, "error": "Joe's voice isn't set up yet (F10 > Start here)."}
         d = addons_mod.voice_dir() / "tmp"
         d.mkdir(parents=True, exist_ok=True)
         f = d / f"heard_{int(time.time() * 1000)}.{ext}"
@@ -1483,7 +1483,7 @@ class App:
 
     def speak(self, text: str) -> tuple[bytes, str]:
         if not addons_mod.voice_ready():
-            return b"", "Joe's voice isn't set up yet (F10 > System check)."
+            return b"", "Joe's voice isn't set up yet (F10 > Start here)."
         d = addons_mod.voice_dir() / "tmp"
         d.mkdir(parents=True, exist_ok=True)
         out = d / f"say_{int(time.time() * 1000)}.wav"
@@ -1574,7 +1574,7 @@ class App:
             return {"ok": False, "error": "Pick a .md or .txt file to turn into a document."}
         pandoc = addons_mod.pandoc_exe(self.settings.pandoc)
         if not pandoc:
-            return {"ok": False, "error": "Pandoc isn't installed (F10 > System check)."}
+            return {"ok": False, "error": "Pandoc isn't installed (F10 > Start here)."}
         made = addons_mod.export_document(p, formats, pandoc, self.log, settings=self.settings,
                                           cache=self.sb.meta / "templates")
         return {"ok": bool(made), "made": [m.name for m in made],
@@ -1584,7 +1584,7 @@ class App:
         p = self.rel_path(rel)
         ff = doctor.ffmpeg_exe(self.settings.comfy.ffmpeg)
         if not ff:
-            return {"ok": False, "error": "FFmpeg not found (F10 > System check can install it)."}
+            return {"ok": False, "error": "FFmpeg not found (F10 > Start here can install it)."}
         if not p.is_file() or p.suffix.lower() not in (".gif", ".webp", ".webm", ".mov", ".mkv", ".mp4"):
             return {"ok": False, "error": "Pick a GIF, WebP or video file."}
         out = media_mod.to_mp4(ff, p)
@@ -1607,8 +1607,13 @@ class App:
                     "error": "Joe needs times on the 24-hour clock. Check the change and save again."}
         old_ws = self.settings.workspace_path
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
+        old_daily = (self.settings.engine.daily_restart, self.settings.engine.restart_time)
         _merge(self.settings, data)
-        self.daily.reset(self.settings)               # a new daily restart time counts from now
+        from .config import clean_favorites
+        clean_favorites(self.settings)
+        if (self.settings.engine.daily_restart, self.settings.engine.restart_time) != old_daily:
+            self.daily.reset(self.settings)           # a new daily restart time counts from now (starring a tool
+                                                      # or any other save leaves a restart that is waiting alone)
         return self._settings_changed(old_ws, old_sched)
 
     def reset_settings(self, paths: list[str] | None) -> dict:
@@ -1754,7 +1759,13 @@ def make_handler(app: App):
                     return self._send(200, f.read_bytes(),
                                       "font/ttf" if f.suffix == ".ttf" else "text/css; charset=utf-8")
                 return self._send(404, b"not found", "text/plain")
-            if u.path in ("/app.css", "/app.js", "/joe.js"):
+            if u.path == "/agent":                         # the agent window (its key rides in #t=..., like the main window)
+                return self._send(200, (UI_DIR / "agent.html").read_bytes(), "text/html; charset=utf-8",
+                                  {"Content-Security-Policy":
+                                   "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
+                                   "font-src 'self'; script-src 'self'; frame-ancestors 'none'",
+                                   "X-Frame-Options": "DENY", "Referrer-Policy": "no-referrer"})
+            if u.path in ("/app.css", "/app.js", "/joe.js", "/agent.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"
                 return self._send(200, f.read_bytes(), ctype + "; charset=utf-8")
@@ -1787,14 +1798,14 @@ def make_handler(app: App):
                 if u.path == "/api/memory":              # Setup > Memory (Joe's own window only)
                     from . import memory
                     return self._json({"ok": True, "notes": memory.load(), "on": memory.enabled(app.settings)})
-                if u.path == "/api/recurring":           # Setup > General > RECURRING MISSIONS
+                if u.path == "/api/recurring":           # Setup > Night shift and alerts > RECURRING MISSIONS
                     from . import recurring
                     return self._json({"ok": True, "items": recurring.load(app.sb),
                                        "night": app.settings.schedule.enabled, "time": app.settings.schedule.time})
-                if u.path == "/api/profiles":            # Setup > General > PEOPLE ON THIS PC
+                if u.path == "/api/profiles":            # Setup > This PC and backup > PEOPLE ON THIS PC
                     from . import profiles
                     return self._json(profiles.summary())
-                if u.path == "/api/vault":               # Setup > Privacy: where the keys are kept
+                if u.path == "/api/vault":               # Setup > Privacy and internet: where the keys are kept
                     from . import vault
                     from .config import config_path
                     return self._json(vault.status(app.settings, config_path()))
@@ -1804,7 +1815,7 @@ def make_handler(app: App):
                 if u.path == "/api/project":
                     from . import projects as projects_mod
                     return self._json(projects_mod.page(app.sb, (q.get("name") or [""])[0]))
-                if u.path == "/api/tidy":                # Setup > General > HOW JOE FILES HIS WORK: LOOK
+                if u.path == "/api/tidy":                # Setup > Folders and filing > HOW JOE FILES HIS WORK: LOOK
                     from . import filing
                     plan = filing.tidy_plan(app.sb)
                     return self._json({"ok": True, "plan": plan[:400], "count": len(plan),
@@ -1826,7 +1837,7 @@ def make_handler(app: App):
                                        "keep_days": app.settings.voice.chat_keep_days})
                 if u.path == "/api/history":
                     return self._json(app.history())
-                if u.path == "/api/models":               # Setup > System check > Your models
+                if u.path == "/api/models":               # Setup > Models > Your models
                     from . import stylemodels
                     from .doctor import comfy_models_dir, ollama_models
                     try:
@@ -1932,7 +1943,7 @@ def make_handler(app: App):
             key = app.settings.mcp_key
             got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
             if not key or not got or not _sec.compare_digest(got, key):
-                return self._json({"error": "Joe's connector key is missing or wrong (Setup > General)."}, 401)
+                return self._json({"error": "Joe's connector key is missing or wrong (Setup > Other AI apps)."}, 401)
             n = int(self.headers.get("Content-Length") or 0)
             if not 0 < n <= 2_000_000:
                 return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "empty"}}, 400)
@@ -1989,7 +2000,7 @@ def make_handler(app: App):
                     return self._json({"ok": False, "error": "Please tick all three promises first."})
                 ff = ffmpeg_exe(app.settings.comfy.ffmpeg)
                 if not ff:
-                    return self._json({"ok": False, "error": "This needs FFmpeg (Setup > System check installs it)."})
+                    return self._json({"ok": False, "error": "This needs FFmpeg (Setup > Start here installs it)."})
                 ext = re.sub(r"[^a-z0-9.]", "", unquote(self.headers.get("X-Ext") or ".wav").lower())[:6] or ".wav"
                 tmpd = app.sb.meta / "tmp"
                 tmpd.mkdir(parents=True, exist_ok=True)
@@ -2310,7 +2321,7 @@ def make_handler(app: App):
                         a = abilities.answer(str(b["ask"]))
                         return self._json({"ok": bool(a), **(a or {})})
                     return self._json({"ok": True, "groups": abilities.groups(), "text": abilities.overview()})
-                if u.path == "/api/portable":                   # Setup > General > PORTABLE JOE
+                if u.path == "/api/portable":                   # Setup > This PC and backup > PORTABLE JOE
                     act = b.get("action", "info")
                     job = app.portable_job
                     if act == "info":
@@ -2388,7 +2399,7 @@ def make_handler(app: App):
                     target = app.sb.check(pic.with_name(pic.stem + MASK_SUFFIX))
                     target.write_bytes(raw)
                     return self._json({"ok": True, "mask": target.name})
-                if u.path == "/api/templates":         # Setup > Writing > Templates
+                if u.path == "/api/templates":         # Setup > Templates
                     from . import doctemplates
                     return self._json({"ok": True, **doctemplates.entries(app.settings)})
                 if u.path == "/api/templates/add":     # a template of your own, copied from one of Joe's
@@ -2624,7 +2635,7 @@ def make_handler(app: App):
                         mc = memory.command(str(b.get("text", "")))
                         return self._json(memory.handle(app.settings, mc) if mc else {"ok": False, "error": "?"})
                     return self._json({"ok": False, "error": "unknown memory action"}, 400)
-                if u.path.startswith("/api/profiles/"):   # Setup > General > PEOPLE ON THIS PC
+                if u.path.startswith("/api/profiles/"):   # Setup > This PC and backup > PEOPLE ON THIS PC
                     from . import profiles
                     act = u.path.rsplit("/", 1)[1]
                     if act == "add":
@@ -2682,7 +2693,7 @@ def make_handler(app: App):
                         if k in b:
                             setattr(cfg, k, str(b.get(k) or "").strip())
                     return self._json(textengines.engine_check(cfg))
-                if u.path == "/api/engine/test":          # Setup > Writing > TEST CONNECTION
+                if u.path == "/api/engine/test":          # Setup > Writing program
                     from copy import deepcopy
                     from . import textengines
                     cfg = deepcopy(app.settings.ollama)

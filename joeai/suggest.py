@@ -48,7 +48,7 @@ def _read(sb) -> dict:
         return {}
 
 
-def note(engine, key: str, label: str, why: str, where: str = "Setup > System check", base: str = "") -> bool:
+def note(engine, key: str, label: str, why: str, where: str = "Setup > Start here", base: str = "") -> bool:
     """A model would have done this better. Logged once per run (only when it suits this PC) and
     remembered for System check. Returns True when it was suggested."""
     gb = vram()

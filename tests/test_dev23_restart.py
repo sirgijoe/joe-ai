@@ -1,4 +1,4 @@
-"""2.3 stage 5: the daily restart (Setup > General). One test per rule in dailyrestart.py."""
+"""2.3 stage 5: the daily restart (Setup > Night shift and alerts). One test per rule in dailyrestart.py."""
 from __future__ import annotations
 
 from datetime import datetime

@@ -2,7 +2,7 @@
 
     python -m joeai mcp
 
-The app starts this itself (Setup > General > Use Joe from another AI app shows the lines to
+The app starts this itself (Setup > Other AI apps > Use Joe from another AI app shows the lines to
 paste into its settings). It speaks JSON-RPC 2.0, one message per line, on stdin/stdout. What
 the other app can do, and nothing more:
   - see Joe's status (is the window open, Ollama/ComfyUI up, what's running, what's waiting)
@@ -268,7 +268,7 @@ class Joe:
         atomic_write_text(target, block.strip() + "\n")
         if tonight:
             when = (f"at {self.s.schedule.time} tonight (night shift is on)" if self.s.schedule.enabled
-                    else "when the night shift is turned on in Setup > General")
+                    else "when the night shift is turned on in Setup > Night shift and alerts")
             return f"{msg}\nSaved for the night shift as {target.name}. Joe starts it {when}."
         return (f"{msg}\nQueued as {target.name}. " +
                 ("Joe's window is open, so he picks it up within a few seconds." if _window_open()

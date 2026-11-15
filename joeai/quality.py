@@ -1,5 +1,5 @@
 """Quality vs speed: one Low / Medium / High choice each for writing, pictures and video
-(Setup > Writing, Setup > Images & video). Low = fastest, rougher results. High = best results, takes longest.
+(Setup > Quality and speed). Low = fastest, rougher results. High = best results, takes longest.
 Medium = the balance for daytime use. High is the default (Joe mostly runs overnight). Everything here is plain numbers handed to the
 models; nothing is downloaded or installed from this module.
 """

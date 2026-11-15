@@ -76,7 +76,7 @@ ABILITIES = {
         "never": "Its searches are about the job you typed. Once it has read one of your files, only words "
                  "from your job can go into a search, so nothing from your files goes out. No file ever "
                  "leaves this PC, and it never opens addresses on this PC or your home network.",
-        "needs": "Setup > Voice & Talk > Let Joe look things up online must be on too.",
+        "needs": "Setup > Privacy and internet > Let Joe look things up online must be on too.",
     },
     "files": {
         "version": 1,
@@ -98,10 +98,10 @@ ABILITIES = {
         "wrong": "The message goes through ntfy (the same free phone ping as 'Joe is done'), so it passes "
                  "through ntfy's server on the way. Anyone who knows your topic name could read it.",
         "worst": "A message you'd rather keep private is seen by someone who guessed your topic name. Use a "
-                 "long, random topic name (Setup > Display & sound).",
+                 "long, random topic name (Setup > Night shift and alerts).",
         "never": "It only ever sends to your own phone ping, never to other people. Nothing read from one of "
                  "your files is ever sent.",
-        "needs": "Phone pings must be set up in Setup > Display & sound.",
+        "needs": "Phone pings must be set up in Setup > Night shift and alerts.",
     },
 }
 

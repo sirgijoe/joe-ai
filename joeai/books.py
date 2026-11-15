@@ -5,7 +5,7 @@ Project Gutenberg has it, Joe downloads the plain text into Inbox/books and, if 
 "Read a document aloud" for it. A book still under copyright can't be downloaded: Joe says so and
 points to scanning your own copy's pages (Read scans and receipts), which he can read aloud.
 
-Online, and only when Setup > Voice & Talk > online lookups is on: only the ISBN or title is sent.
+Online, and only when Setup > Privacy and internet > online lookups is on: only the ISBN or title is sent.
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     from .mission import slug
     w = getattr(engine.s, "web", None)
     if not w or not w.enabled or os.environ.get("JOE_OFFLINE"):
-        st.status, st.note = "failed", ("finding a book needs online lookups (Setup > Voice & Talk > Let Joe look "
+        st.status, st.note = "failed", ("finding a book needs online lookups (Setup > Privacy and internet > Let Joe look "
                                         "things up online). Only the ISBN or title is sent")
         engine.log(f"'{job.name}' failed: {st.note}")
         return st

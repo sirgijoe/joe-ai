@@ -397,7 +397,7 @@ def font_file() -> Path | None:
 
 
 # --------------------------------------------------------------------------- priority
-# "Keep my PC usable" (Setup > General): the programs that do the heavy work run at below-normal
+# "Keep my PC usable" (Setup > Quality and speed): the programs that do the heavy work run at below-normal
 # priority, so the mouse, browser and games stay smooth. They still use the whole graphics card
 # when nothing else wants it; a run only takes a little longer.
 _BELOW_NORMAL = 0x00004000            # Windows BELOW_NORMAL_PRIORITY_CLASS

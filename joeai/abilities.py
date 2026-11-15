@@ -34,11 +34,11 @@ OTHER: tuple[Ability, ...] = (
     Ability("writing", "Writing", "Writing (lists, documents, spreadsheets)",
             "Lists of anything, articles, guides, books, FAQs, product descriptions and spreadsheets, written overnight on your PC.",
             "What it does: Joe writes as much as you need with a writing model on your own computer (Ollama), so it costs nothing and nothing leaves your PC.\n"
-            "How Joe does it: he turns your request into a plan with one task per thing to make. Big counts are split into small batches (5 x 6 instead of 1 x 30) so the model stays sharp. Each part is checked: too short, repeated or broken parts are written again (up to the Retries number in Setup > General). Near-duplicates are dropped and logged. Long documents are written part by part with the outline in view, and a part that comes out far shorter than the others is redone.\n"
+            "How Joe does it: he turns your request into a plan with one task per thing to make. Big counts are split into small batches (5 x 6 instead of 1 x 30) so the model stays sharp. Each part is checked: too short, repeated or broken parts are written again (up to the Retries number in Setup > Night shift and alerts). Near-duplicates are dropped and logged. Long documents are written part by part with the outline in view, and a part that comes out far shorter than the others is redone.\n"
             "What to give it: just say what you want in the box on Home, in your own words (\"40 product descriptions for handmade mugs, friendly and short\"). Facts it must use go in a file in Inbox, or in a project profile (Projects folder) for your brand voice and rules.\n"
-            "Options: Quality in Setup > Writing (High thinks each part through: better, 2-3 times slower). FROM: makes a spreadsheet or pictures use the names from a list above it. RESEARCH: yes looks facts up online first (only when you allow lookups). EXPORT: makes Word, PDF, EPUB or Excel copies.\n"
+            "Options: Quality in Setup > Quality and speed (High thinks each part through: better, 2-3 times slower). FROM: makes a spreadsheet or pictures use the names from a list above it. RESEARCH: yes looks facts up online first (only when you allow lookups). EXPORT: makes Word, PDF, EPUB or Excel copies.\n"
             "Time: a few seconds to a minute per part, depending on the model and quality. The plan shows an estimate that learns from your own runs.\n"
-            "Needs: Ollama and a writing model (System check offers the best one for your graphics card). LM Studio, llama.cpp or LocalAI work too.\n"
+            "Needs: Ollama and a writing model (Setup > Start here offers the best one for your graphics card). LM Studio, llama.cpp or LocalAI work too.\n"
             "Limits: a local model can get facts wrong. Check names, prices and anything important before you publish.\n"
             "Tips: be specific about tone, length and who it's for. Put your real facts in Inbox so Joe doesn't have to guess.",
             ("write", "writing tasks", "lists", "documents", "articles", "books", "spreadsheets", "descriptions")),
@@ -47,9 +47,9 @@ OTHER: tuple[Ability, ...] = (
             "What it does: Joe makes pictures with ComfyUI on your graphics card, from a few words or a long description.\n"
             "How Joe does it: the writing model turns each idea into a detailed picture prompt for the style you picked, Joe adds the style's own words and leave-out list, picks the best installed model for that style (Setup > Workflows lets you choose), and ComfyUI draws it. On High quality a second pass adds fine detail. \"An image of X\" makes 4 versions so you can pick. Coloring pages are forced to clean black and white, with a colored example kept.\n"
             "What to give it: describe what you want: \"8 pictures of mugs on a wooden table, cozy morning light\". Name a style if you like (anime, watercolor, product, mascot, coloring page...). Words that must appear in the picture (a sign, a label) work best with the FLUX.2 [klein] pack.\n"
-            "Options: style, number of pictures and versions of each, shape (square, wide, tall), quality (Setup > Images & video), MODEL: to force one.\n"
+            "Options: style, number of pictures and versions of each, shape (square, wide, tall), quality (Setup > Quality and speed), MODEL: to force one.\n"
             "Time: about 10-60 seconds a picture on a modern graphics card; High takes longer.\n"
-            "Needs: ComfyUI and at least one picture model (System check and Setup > Models offer free ones, with their licenses).\n"
+            "Needs: ComfyUI and at least one picture model (Setup > Start here and Setup > Models offer free ones, with their licenses).\n"
             "Limits: hands, text and exact counts can still go wrong; make a few versions and pick the best.\n"
             "Tips: say the subject, the setting, the light and the mood. Check Setup > Workflows to see (and change) exactly which words Joe adds.",
             ("images", "picture", "image", "drawing", "art", "styles", "coloring pages", "mascot")),
@@ -69,7 +69,7 @@ OTHER: tuple[Ability, ...] = (
             "What it does: Talk is a chat with Joe. Ask questions, think out loud, or ask him to make a plan.\n"
             "How Joe does it: your voice is turned into text on your PC (Whisper or whisper.cpp), a small quick writing model answers, and Joe's voice (Kokoro) speaks it sentence by sentence so he starts talking in about a second. If you allow lookups, he searches the web for current facts and shows his sources. Drop a picture in and a vision model looks at it; drop a document in and he reads it.\n"
             "What to give it: just talk, or type. Short words act at once: go, stop, report, files, tools, help.\n"
-            "Options: Setup > Voice & Talk: voice and speed, mic always listening or push-to-talk (F4), how accurate the hearing is, a small Talk model for quicker answers, how long chats are kept.\n"
+            "Options: Setup > Voice and Talk: voice and speed, mic always listening or push-to-talk (F4), how accurate the hearing is, a small Talk model for quicker answers, how long chats are kept.\n"
             "Needs: Ollama with a writing model; Joe's voice add-on (about 500 MB) for speaking and hearing. The microphone is only used with your permission.\n"
             "Limits: Joe's answers come from a local model, so double-check important facts.\n"
             "Tips: every chat is a whole session: its plan, run and results stay with it, and past chats are in the list to reopen or delete.",
@@ -84,7 +84,7 @@ OTHER: tuple[Ability, ...] = (
             "Queue as much work as you like; Joe works through it while you sleep and leaves a report.",
             "What it does: Joe runs plan after plan with nobody watching, then writes a morning report (_REPORT.md) and a log.\n"
             "How Joe does it: plans wait in line (Home shows NEXT UP and an overall time estimate). Joe hands the graphics card between writing and pictures, keeps the PC awake, pauses if the card gets too hot, retries parts that fail, and picks up where he stopped if the run is stopped or the PC restarts. A plan file dropped in Missions\\Queue is queued too.\n"
-            "Options: Setup > General: keep the PC awake, sleep or shut down when finished, pause above a GPU temperature, retries, phone ping when done (ntfy), quiet hours.\n"
+            "Options: Setup > Night shift and alerts: keep the PC awake, sleep or shut down when finished, pause above a GPU temperature, retries, phone ping when done (ntfy), quiet hours.\n"
             "Tips: \"do it again\" or \"rerun the black and white videos\" finds those tasks in past runs and plans them again exactly.",
             ("queue", "run", "running", "report", "overnight", "morning report", "resume", "rerun", "do it again")),
     Ability("reminders", "Working for you", "Reminders and lists",
@@ -92,7 +92,7 @@ OTHER: tuple[Ability, ...] = (
             "What it does: reminders come to your phone at the time you said, and simple lists (to-do, shopping, any name) live in Joe's folder.\n"
             "How Joe does it: he works out the time from your words (at 3pm, in 20 minutes, tomorrow at 9, on Friday) and hands the reminder to ntfy, the free phone-ping service, with the time to deliver it. ntfy holds it, so it arrives even if this PC is off. ntfy keeps messages for up to 3 days, so a reminder further out waits in Joe's folder and is handed over when it's closer (whenever Joe is open). No AI is needed, so it's instant.\n"
             "What to give it: say or type \"remind me ...\" with a time and what; \"add ... to my ... list\", \"what's on my ... list?\", \"take ... off my list\", \"send my shopping list to my phone\".\n"
-            "Options: phone pings are set up in Setup > Display & sound (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
+            "Options: phone pings are set up in Setup > Night shift and alerts (an ntfy topic name). Without them reminders are still saved in Reminders.md.\n"
             "Limits: ntfy is an online service (only the reminder text goes there). Lists stay on this PC in the Lists folder.",
             ("remind", "reminder", "reminders", "list", "lists", "shopping list", "to-do list", "todo list")),
     Ability("phone", "Working for you", "Joe Phone",
@@ -104,7 +104,7 @@ OTHER: tuple[Ability, ...] = (
             "Limits: works only while this PC is on and Joe's window is open, and only at home (reminders still reach your phone with the PC off through phone pings). From the phone Joe can't change settings, install anything or open files outside his Output folder. Home Wi-Fi traffic isn't encrypted, so don't use it on public Wi-Fi.",
             ("phone", "joe phone", "my phone", "from my phone", "phone app", "mobile", "pair a phone")),
     Ability("language", "Working for you", "Joe in your language",
-            "Joe's own screens in Spanish and 22 other languages (Setup > Display & sound > Language).",
+            "Joe's own screens in Spanish and 22 other languages (Setup > Look and sound > Language).",
             "What it does: switches Joe's window (buttons, settings, tooltips, messages) into another language. Spanish comes with the main screens done.\n"
             "How Joe does it: a language file maps each English line of the window to the other language, and the window swaps them as it shows them. MAKE IT has Joe translate every remaining line himself with the writing model, in small batches, saving as he goes.\n"
             "What to give it: pick the language and press SAVE; press MAKE IT to fill in the rest (it's queued like any task).\n"
@@ -123,21 +123,21 @@ OTHER: tuple[Ability, ...] = (
             "\"Directions to the feed store\" or \"where can I buy an air fryer?\" opens your map or shopping site.",
             "What it does: opens directions or a shopping search in your browser, by voice or in the box.\n"
             "How Joe does it: he takes the place or thing from your words and opens the site you picked with it filled in. No AI and no tracking; the map site works out the route from your location.\n"
-            "Options: Setup > General > Directions and shopping: Google Maps, OpenStreetMap, Apple Maps or Bing Maps; Google Shopping, DuckDuckGo or Bing Shopping.\n"
+            "Options: Setup > Voice and Talk > Directions and shopping: Google Maps, OpenStreetMap, Apple Maps or Bing Maps; Google Shopping, DuckDuckGo or Bing Shopping.\n"
             "Limits: Joe doesn't pick stores or compare prices himself, and nobody pays him: compare on the site.",
             ("directions", "map", "maps", "navigate", "route", "shopping", "buy", "store", "price")),
     Ability("watch-folders", "Working for you", "Watch folders",
             "Drop a file into a tool's folder and Joe does it by himself.",
             "What it does: with watch folders on, Inbox\\Watch has a folder per tool (clean-audio, summarize, privacy-blur...). Anything you drop in is done with that tool's usual options, no plan or button needed.\n"
             "How Joe does it: while he's open he looks in those folders every few seconds; once a file has finished copying he queues one task per tool for the new files. Each file is done once.\n"
-            "Options: Setup > General > Watch folders on. The READ ME in Inbox\\Watch lists the folders.\n"
+            "Options: Setup > Folders and filing > Watch folders on. The READ ME in Inbox\\Watch lists the folders.\n"
             "Limits: only while Joe is open. Tools that need a choice first (like which language to translate into) don't get a folder.",
             ("watch folder", "watch folders", "hot folder", "drop folder", "automatic", "automatically")),
     Ability("night-shift", "Working for you", "Night shift",
             "Save plans for tonight and Joe starts them at a set time, even with his window closed.",
             "What it does: SAVE FOR TONIGHT keeps a plan for later; at the time you pick, Joe starts by himself and runs them.\n"
             "How Joe does it: he asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux). On Windows he can wake the PC from sleep. With no window open he works through the plans and closes when done.\n"
-            "Options: Setup > General > Night shift on, the start time (24-hour clock) and an optional Stop by time: then Joe finishes the mission he's on and leaves the rest for the next night, noted in the morning report. A stop time before the start time means the next morning.\n"
+            "Options: Setup > Night shift and alerts > Night shift on, the start time (24-hour clock) and an optional Stop by time: then Joe finishes the mission he's on and leaves the rest for the next night, noted in the morning report. A stop time before the start time means the next morning.\n"
             "Limits: the PC must be signed in; on a Mac or Linux it must be awake. Turned off, or Joe uninstalled, the scheduler entry is removed. Not available while Joe runs from a USB drive.",
             ("night shift", "tonight", "schedule", "scheduled", "save for tonight", "timer")),
     Ability("starter-packs", "Working for you", "Starter packs",
@@ -150,15 +150,15 @@ OTHER: tuple[Ability, ...] = (
             "Writing tasks can look facts up online first and list their sources (only if you allow it).",
             "What it does: a task with RESEARCH: yes is looked up once before Joe writes it; the text marks facts like [2] and a Sources list is added.\n"
             "How Joe does it: only the search words go online (Ollama's web search with a free key, or Wikipedia), the results go to the model with the task, and they're cached.\n"
-            "Options: Setup > Voice & Talk > Let Joe look things up online (off until you turn it on). Asking for current facts in the box adds research by itself.\n"
+            "Options: Setup > Privacy and internet > Let Joe look things up online (off until you turn it on). Asking for current facts in the box adds research by itself.\n"
             "Limits: a search can miss things or find wrong pages: check the sources.",
             ("research", "lookup", "look up", "web search", "internet", "sources", "online")),
     Ability("exports", "Working for you", "Finished copies and templates",
             "Word, PDF, EPUB, PowerPoint and Excel copies that follow a template (book, kids, screenplay, resume, price list...).",
             "What it does: EXPORT: docx, pdf, epub, pptx (a slide for every ## heading; or xlsx for spreadsheets, social for post schedulers) makes finished copies next to the text Joe wrote.\n"
             "How Joe does it: Pandoc builds the Word and EPUB files and a styled page for the PDF (printed by Edge or Chrome without a window). The template sets page size, margins, fonts, spacing, page numbers, chapter breaks and more. Spreadsheets get money columns and totals.\n"
-            "Options: Setup > Writing > Templates: 17 ready-made ones (standard, book, manuscript, kids, ebook, report, large print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring, school, price list...), EDIT any of them, set a default per file kind, or ADD YOUR OWN. A task picks one with TEMPLATE: and its name.\n"
-            "Needs: Pandoc for Word, PDF, EPUB and PowerPoint (System check installs it).",
+            "Options: Setup > Templates: 17 ready-made ones (standard, book, manuscript, kids, ebook, report, large print, poetry, screenplay, letter, resume, cookbook, recipe card, coloring, school, price list...), EDIT any of them, set a default per file kind, or ADD YOUR OWN. A task picks one with TEMPLATE: and its name.\n"
+            "Needs: Pandoc for Word, PDF, EPUB and PowerPoint (Setup > Start here installs it).",
             ("export", "word", "pdf", "epub", "powerpoint", "pptx", "slides", "excel", "docx", "xlsx", "templates", "template", "formatting", "book layout")),
     Ability("bigger-ai", "Working for you", "Ask a bigger AI",
             "A paste-ready message for any big chatbot (ChatGPT, Claude, Gemini...); paste its answer back and Joe runs it.",
@@ -169,13 +169,13 @@ OTHER: tuple[Ability, ...] = (
     Ability("connector", "Working for you", "Use Joe from another AI app (connector)",
             "Claude Desktop and other apps can use Joe directly: see what he can do, queue plans, run tools, read results.",
             "What it does: Joe works as a connector (MCP) for AI apps on your PC, so a bigger AI hands grunt work to Joe and polishes the results.\n"
-            "How Joe does it: Setup > General > SHOW CONNECT OPTIONS lists the apps Joe found (Claude Desktop, ChatGPT desktop, Gemini CLI, Cursor, LM Studio) with a CONNECT button each; Joe adds only his own entry to that app's settings and keeps a copy of the old file.\n"
+            "How Joe does it: Setup > Other AI apps > SHOW CONNECT OPTIONS lists the apps Joe found (Claude Desktop, ChatGPT desktop, Gemini CLI, Cursor, LM Studio) with a CONNECT button each; Joe adds only his own entry to that app's settings and keeps a copy of the old file.\n"
             "Limits: the other app can't install anything, change settings, or reach outside Joe's folder. Chatbots in a web browser can't reach programs on your PC: use ASK A BIGGER AI for those.",
             ("mcp", "connector", "claude desktop", "connect", "another ai app")),
     Ability("portable", "Working for you", "Portable Joe (run from a USB drive)",
             "Copy Joe to a USB drive and carry him to any computer, with your work and models.",
-            "What it does: MAKE A PORTABLE JOE (Setup > General) copies Joe to a drive or folder with a \"Start Joe\" file. Started from there, he keeps his settings, your work and everything he sets up on the drive instead of the computer's folders.\n"
-            "How Joe does it: a portable.txt file next to his program tells him he's portable. Downloads and caches go to the drive. From System check he can put Ollama (on its own port, so the computer's Ollama is left alone) and ComfyUI on the drive too. Paths are saved relative to the drive, so a different drive letter on another PC still works.\n"
+            "What it does: MAKE A PORTABLE JOE (Setup > This PC and backup) copies Joe to a drive or folder with a \"Start Joe\" file. Started from there, he keeps his settings, your work and everything he sets up on the drive instead of the computer's folders.\n"
+            "How Joe does it: a portable.txt file next to his program tells him he's portable. Downloads and caches go to the drive. From Setup > Start here he can put Ollama (on its own port, so the computer's Ollama is left alone) and ComfyUI on the drive too. Paths are saved relative to the drive, so a different drive letter on another PC still works.\n"
             "Options: bring along your settings, your work, your writing models and your picture models (sizes are shown first).\n"
             "Limits: each computer still needs its own graphics driver. Windows may still remember that a program ran: portable means carried with you, not invisible. The night shift is off while running from a drive. A FAT32 drive can't hold files over 4 GB (most models): use exFAT or NTFS, and a fast USB 3 drive.\n"
             "Tips: you can run MAKE A PORTABLE JOE again later; it carries on and skips what's already copied.",
@@ -185,11 +185,11 @@ OTHER: tuple[Ability, ...] = (
             "What it does: F9 counts words, items, pictures and video seconds, time spent, power used and the honest cloud price of the same work, for today, this week, this month, this year or all time. It also shows how much space Joe's files use, with a way to clean up.\n"
             "Options: Setup > Stats & costs: cloud prices and your power price, so the numbers match your situation.",
             ("statistics", "numbers", "savings", "cost", "storage", "space")),
-    Ability("setup", "Setting up", "System check, models and setup",
+    Ability("setup", "Setting up", "Start here, models and setup",
             "Joe finds, installs and updates what he needs, with your OK for every step.",
-            "What it does: System check (Setup, F10) shows what Joe found on your PC and offers each missing piece with its size and license: Ollama, ComfyUI, FFmpeg, Pandoc, voice, and the best models for your graphics card.\n"
+            "What it does: Setup (F10) > Start here shows what Joe found on your PC and offers each missing piece with its size and license: Ollama, ComfyUI, FFmpeg, Pandoc, voice, and the best models for your graphics card.\n"
             "How Joe does it: he looks for programs where they're usually installed (and the ones you already have, like LM Studio or Automatic1111/Forge models), checks your graphics card and memory, and only downloads after you say yes. DOWNLOAD ALL in Setup > Models gets every offered model overnight. Once a week he can check for newer versions (only telling you).\n"
-            "Options: Setup > Workflows sets the model and words for each kind of picture, video and sound. RESET THIS PAGE and RESET ALL SETTINGS put things back. MAKE A HELP FILE packs up what someone helping you needs (never your files). CHECK MY MODEL FILES (Setup > Models) finds a model whose download stopped part way, with no internet needed. BACK UP MY SETTINGS (Setup > General) saves everything you set up by hand in one zip, and RESTORE brings it back on any computer.\n"
+            "Options: Setup > Workflows sets the model and words for each kind of picture, video and sound. RESET THIS PAGE and RESET ALL SETTINGS put things back. MAKE A HELP FILE packs up what someone helping you needs (never your files). CHECK MY MODEL FILES (Setup > Models) finds a model whose download stopped part way, with no internet needed. BACK UP MY SETTINGS (Setup > This PC and backup) saves everything you set up by hand in one zip, and RESTORE brings it back on any computer.\n"
             "Limits: setup, downloads and update checks use the internet. Joe tells you each time. Before a big download (or a plan that makes lots of pictures or video) he checks there's room on the drive and tells you if there isn't. Updates are only installed when their checksum (and, for signed releases, the maker's signature) matches.",
             ("system check", "install", "installing", "models", "download", "updates", "settings", "setup helper", "workflows",
              "backup", "back up", "restore", "model check", "broken model", "disk space")),
@@ -197,11 +197,11 @@ OTHER: tuple[Ability, ...] = (
             "Low, Medium or High for writing, pictures and video; High is the default for overnight work.",
             "What it does: one setting per kind of work trades speed for quality.\n"
             "How Joe does it: Low uses smaller, quicker models; High uses the best model, lets writing think each part through, and adds a detail pass to pictures and full-size video. Proofreading, translating and asking your files always use the best model. If a plan asks for \"high quality\" or \"quick\", Joe offers to switch for just that kind of work.\n"
-            "Tips: Keep my PC usable (Setup > General) lowers Joe's priority while you use the computer.",
+            "Tips: Keep my PC usable (Setup > Quality and speed) lowers Joe's priority while you use the computer.",
             ("quality", "speed", "faster", "slow", "high quality", "keep my pc usable")),
     Ability("looks", "Setting up", "Looks, sounds and screen savers",
             "Retro green-screen or modern looks, an easy-to-read font, Joe's jingle and screen savers.",
-            "What it does: Setup > Display & sound changes how Joe looks and sounds: modern day/night, futuristic, green, amber or white retro screens, your own color themes, text size, the CRT effect, an easy-to-read font (Atkinson Hyperlegible), the opening jingle and Joe's hello.\n"
+            "What it does: Setup > Look and sound changes how Joe looks and sounds: modern day/night, futuristic, green, amber or white retro screens, your own color themes, text size, the CRT effect, an easy-to-read font (Atkinson Hyperlegible), the opening jingle and Joe's hello.\n"
             "Screen savers: 10 built in, or MAKE SCREEN SAVER describes one in words and Joe builds it.",
             ("theme", "themes", "look", "display", "font", "screen saver", "screensaver", "jingle", "colors")),
     Ability("ideas", "Working for you", "Park an idea",
@@ -263,7 +263,7 @@ STEPS: dict[str, tuple[str, ...]] = {
                     "FFmpeg cuts them out (long pauses become a short natural gap) and Joe lists every cut."),
     "joe-language": ("Joe collects every line of his own window (buttons, settings, tooltips, messages).",
                      "The writing model translates them in small numbered batches, keeping names and {1} places as they are.",
-                     "Joe saves them to Languages/<code>.json as he goes; pick the language in Setup > Display & sound."),
+                     "Joe saves them to Languages/<code>.json as he goes; pick the language in Setup > Look and sound."),
     "edit-words": ("Joe listens word by word, with the time of every word, and writes what was said as plain text.",
                    "You delete the words you don't want and give the file back; Joe lines it up with what he heard.",
                    "FFmpeg cuts each deleted word (and the gap after it) out of a copy, and Joe lists every cut."),
@@ -400,9 +400,9 @@ STEPS: dict[str, tuple[str, ...]] = {
 }
 
 NEED_WORDS = {"voice": "Joe's voice add-on (about 500 MB; whisper.cpp also works for hearing)",
-              "ollama": "Ollama and a writing model", "ffmpeg": "FFmpeg (free; System check installs it)",
-              "comfy": "ComfyUI", "vision": "a vision model in Ollama (System check offers a free one)",
-              "sdxl": "an SDXL picture model", "qpdf": "qpdf (a free PDF program; System check installs it)"}
+              "ollama": "Ollama and a writing model", "ffmpeg": "FFmpeg (free; Setup > Start here installs it)",
+              "comfy": "ComfyUI", "vision": "a vision model in Ollama (Setup > Start here offers a free one)",
+              "sdxl": "an SDXL picture model", "qpdf": "qpdf (a free PDF program; Setup > Start here installs it)"}
 
 
 def _tool_abilities() -> list[Ability]:

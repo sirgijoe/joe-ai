@@ -1,6 +1,6 @@
 ## What's new in 2.3 (in development)
 
-- **Daily restart** (Setup > General): a Joe left running closes and opens again once a day (6am unless
+- **Daily restart** (Setup > Night shift and alerts): a Joe left running closes and opens again once a day (6am unless
   you pick another time), to free memory, the graphics card and the voice programs. Never in the
   middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.
 - **Setup > Workflows shows each look's words**: every picture style's looks (Portrait, Landscape...)
@@ -8,7 +8,7 @@
 - **Tidier Output: one folder per mission.** New work goes into a folder with the date in front
   ("2026-11-10 Showcase video") with every task of that mission inside. A piece of writing gets its
   own folder with its Word, PDF and other copies. Running a task again puts the new one beside the
-  old one as "v2", "v3" (never over it), even on another day. Setup > General > HOW JOE FILES HIS
+  old one as "v2", "v3" (never over it), even on another day. Setup > Folders and filing > HOW JOE FILES HIS
   WORK: by date (new), by project, or flat like before. Nothing you already have moves.
 - **TIDY MY OUTPUT** (same place): sorts what's already in Output the same way, once. It only moves
   things (nothing is deleted or written over), shows you the list first, and UNDO puts it all back.
@@ -25,7 +25,7 @@
 - **Key vault:** your keys and passwords (web-search key, connector password, a writing program's key,
   the phone-ping topic) now live in the computer's own protected store instead of the plain settings
   file: Windows' DPAPI, the Mac Keychain, or the Linux keyring (when there isn't one, the settings file
-  is kept readable by your account only, and Setup > Privacy says so). They move over by themselves
+  is kept readable by your account only, and Setup > Privacy and internet says so). They move over by themselves
   on the first start, and none is ever lost. Backups with "include keys" and Portable Joe work as before.
 - **Memory (off until you turn it on):** say "remember that I like short captions" and Joe keeps it
   as a note. Setup > Memory lists every note to edit or delete ("forget that ..." works too). Notes stay
@@ -33,7 +33,7 @@
   settings backup leaves them out unless you tick "Include memory". Joe uses them in Talk and when he
   plans on Home, where they show up in the plan's RULES before anything runs.
 - **Recurring missions:** start a request with when ("every Sunday night, make next week's meal plan")
-  and press REPEAT under the plan. It runs with the night shift on those nights; Setup > General >
+  and press REPEAT under the plan. It runs with the night shift on those nights; Setup > Night shift and alerts >
   RECURRING MISSIONS lists them to pause or delete.
 - **Clearer morning reports when a long job fails or stops:** a new "What went wrong, in plain words"
   part says for each one how far it got and how long it ran, what happened (the writing or picture
@@ -44,13 +44,13 @@
   say "double it", "half", "for 10 people", "no eggs" or "out of buttermilk". Joe scales every amount
   himself in kitchen numbers (1 1/2 cups, 3/4 tsp) and lists swaps from his own table of common kitchen
   substitutions, saying when a swap changes the dish. No AI guessing, so it's instant.
-- **For low vision and screen readers** (Setup > Display & sound): two high contrast themes (dark and
+- **For low vision and screen readers** (Setup > Look and sound): two high contrast themes (dark and
   light), a Large text setting that grows every button and box, screen-reader announcements while Joe
   works (progress, finished and failed jobs; failures as an alert), and voice commands in Talk to move
   through a list or the morning report: "read the third one", "next", "go back", "skip to the CHECK
   items", "how many are there?". See ACCESSIBILITY.md for what works and what doesn't yet.
 - **Quicker Talk:** when the Talk model is blank (so the big writing model answers, 10-20 seconds),
-  System check offers a small model you already have, or a small one to download.
+  Setup > Start here offers a small model you already have, or a small one to download.
 
 ## What's new in 2.2
 

@@ -1,4 +1,4 @@
-"""dev109: Setup > System check > Your models."""
+"""dev109: Setup > Models > Your models."""
 from joeai import stylemodels as sm
 
 

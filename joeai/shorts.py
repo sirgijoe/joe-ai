@@ -209,11 +209,11 @@ def run(engine, mission, job, st):
         return st
     ff = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ff:
-        st.status, st.note = "failed", "Make shorts needs FFmpeg (Setup > System check)"
+        st.status, st.note = "failed", "Make shorts needs FFmpeg (Setup > Start here)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     if not hearing_ready(engine.s) and engine.voice is None:
-        st.status, st.note = "failed", "Make shorts needs Joe's voice add-on or whisper.cpp (Setup > System check)"
+        st.status, st.note = "failed", "Make shorts needs Joe's voice add-on or whisper.cpp (Setup > Start here)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     opts = chosen_options(job)

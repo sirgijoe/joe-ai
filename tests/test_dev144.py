@@ -29,7 +29,7 @@ def test_choices_for_a_card(monkeypatch):
     ch = upkeep.writing_choices(12)
     assert [c["name"] for c in ch] == ["gemma4:12b", "qwen3:14b", "mistral-nemo:12b"]
     assert ch[0]["recommended"] and ch[2]["role"] == "free"
-    assert "Setup > Writing > Model" in doctor.choices_text(ch)
+    assert "Setup > Writing program" in doctor.choices_text(ch)
     assert upkeep.writing_choices(0)[0]["name"] == "llama3.2:1b"
 
 

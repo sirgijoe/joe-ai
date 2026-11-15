@@ -424,7 +424,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                 return [], [], "add the picture to hide (a black-and-white shape, logo or word works best)"
         else:
             if not ff:
-                return [], [], "needs FFmpeg to draw the hidden pattern (Setup > System check installs it)"
+                return [], [], "needs FFmpeg to draw the hidden pattern (Setup > Start here installs it)"
             if hidden == "word" and not word:
                 return [], [], "write the hidden word on its own line, like: word: JOE"
             why: list = []
@@ -442,7 +442,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                               "key": f"illusion {name} {scene[:40]} {v}", "prompt": scene})
     elif tid == "restyle-video":
         if not ff:
-            return [], [], "needs FFmpeg to cut the video (Setup > System check installs it)"
+            return [], [], "needs FFmpeg to cut the video (Setup > Start here installs it)"
         from .tools import RESTYLES
         videos = [f for f in files if f.suffix.lower() in VIDEO_EXT]
         pics = [f for f in files if f.suffix.lower() not in VIDEO_EXT]
@@ -532,7 +532,7 @@ def graph_for(engine, job, tid: str, item: dict, i: int, prefix: str, client) ->
         name = upload_image(client.base, item["src"])
         cut = pack_ready(comfy_models_dir(engine.s), "bg")
         if i == 0 and not cut:
-            engine.log("  Tip: with the background remover installed (System check, 900 MB) Joe cuts the "
+            engine.log("  Tip: with the background remover installed (Setup > Start here, 900 MB) Joe cuts the "
                        "object out first, which gives cleaner 3D models.")
         return (model3d_graph(name, api_name(client, PACKS["3d"].files[0][1]), seed, steps=30 if hi else 20,
                               cut_out=cut, prefix=prefix), item["stem"], ".glb")

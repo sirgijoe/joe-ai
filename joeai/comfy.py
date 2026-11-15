@@ -74,7 +74,7 @@ def is_pickle(name: str) -> bool:
 
 # The rule for pickle files (decided 2026-11-11): Joe never downloads or picks one himself. A pickle
 # file the person already has is used only after a one-time plain-words warning and their YES for
-# that file, given in Joe's own window (Setup > System check > Your models). The YES is remembered
+# that file, given in Joe's own window (Setup > Models > Your models). The YES is remembered
 # for that exact file: where it is, its size and when it was last changed, so a swapped file or a
 # different file with the same name needs a new YES. A plan from another AI, Joe Phone or the MCP
 # connector can name the file, but ComfyClient.submit refuses it until then.
@@ -231,7 +231,7 @@ def check_pickles(graph: dict, models_dir: Path | None) -> None:
     if bad:
         raise WorkflowError(
             f"{bad[0]} is an older model format that can run hidden code when it's loaded, and you "
-            "haven't said YES to it. Joe doesn't use one without that: Setup > System check > Your "
+            "haven't said YES to it. Joe doesn't use one without that: Setup > Models > Your "
             "models > ALLOW next to the file (only if you trust where it came from), or use the "
             ".safetensors version of the model.")
 
@@ -503,7 +503,7 @@ def parse_template(text: str, name: str = "workflow") -> dict:
 
 
 def basic_graph(family: str, steps: int = 0, sampler: str = "dpmpp_2m", cfg_shift: float = 0.0) -> dict:
-    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Images & video;
+    """Built-in text-to-image graph for SD1.5/SDXL-style checkpoints (steps: Setup > Quality and speed;
     cfg_shift: the picture style's nudge to how strictly the prompt is followed)."""
     sdxl = family != "sd15"
     return {

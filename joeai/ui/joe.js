@@ -15,7 +15,7 @@ What he looks like:
   night shift /
   screen saver    sleepy
 
-Setup > Voice & Talk > "Joe's face in Talk": on (moving) | still | off. "still", and the
+Setup > Voice and Talk > "Joe's face in Talk": on (moving) | still | off. "still", and the
 computer's own "reduce motion" setting, mean no blinking, no flapping mouth, no blinking light:
 he still changes face for each state, and shows one open mouth while he speaks.
 

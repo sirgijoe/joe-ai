@@ -76,7 +76,7 @@ A tool runs one program on each file the person gives it and keeps the files the
   - `joe:python`: the Python Joe runs on (always there, on every PC, started with `-I`).
     Put your script in the add-on and pass `{addon}/script.py`. Standard library only, unless you
     tell people what to install.
-  - `joe:ffmpeg`: the FFmpeg Joe uses (System check installs it).
+  - `joe:ffmpeg`: the FFmpeg Joe uses (Setup > Start here installs it).
   - a program name such as `magick`: found on the PC's PATH. Say on your homepage how to get it;
     Joe tells people it's missing (with your homepage) instead of failing quietly.
   - a path inside the add-on such as `bin/tool.exe`: runs your own program. People see a warning

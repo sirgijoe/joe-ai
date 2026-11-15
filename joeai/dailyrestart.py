@@ -1,4 +1,4 @@
-"""Daily restart (2.3, Setup > General), for a Joe that is left running.
+"""Daily restart (2.3, Setup > Night shift and alerts), for a Joe that is left running.
 
 Joseph, 2026-11-11: "We recommend a restart daily. What time would you like that to happen? It could
 take a few minutes. Leaving this blank restarts at 6am." Joe closes and opens again (the same thing
@@ -86,7 +86,7 @@ class DailyRestart:
                     "the next one is tomorrow.")
             self.reset(s, now)
             return "skip"
-        app.log("Daily restart (Setup > General): Joe is closing and opening again to free memory, the "
+        app.log("Daily restart (Setup > Night shift and alerts): Joe is closing and opening again to free memory, the "
                 "graphics card and the voice programs. Back in a few minutes.")
         if do_restart is None:
             from .app import restart as do_restart

@@ -67,7 +67,7 @@ def _html_text(raw: str) -> str:
 def _pdf_text(p: Path, log) -> str:
     from . import addons
     if not addons.voice_python().exists():
-        raise ValueError("Reading PDFs needs Joe's voice add-on (F10 > System check), or save it as .txt/.docx.")
+        raise ValueError("Reading PDFs needs Joe's voice add-on (F10 > Start here), or save it as .txt/.docx.")
     py = str(addons.voice_python())
     code = ("import sys,pypdf;r=pypdf.PdfReader(sys.argv[1]);"
             "sys.stdout.reconfigure(encoding='utf-8');"

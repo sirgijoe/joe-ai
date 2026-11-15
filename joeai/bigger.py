@@ -136,7 +136,7 @@ def message(app, request: str = "", with_report: bool = True, mission: str = "")
     from .tools import inbox_media
     fmt_text = format_text()
     parts = [INTRO.format(pc=_pc_line(app)), "--- THE MISSION FORMAT ---", fmt_text, extra_keys(), HOW_TO_ANSWER]
-    try:                                    # templates the person made (Setup > Writing > Templates)
+    try:                                    # templates the person made (Setup > Templates)
         from . import doctemplates
         mine = [r for r in doctemplates.entries(app.settings)["rows"] if r.get("custom")]
     except Exception:                       # noqa: BLE001

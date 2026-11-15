@@ -291,7 +291,7 @@ async function poll() {
       $("#setup-msg") && ($("#setup-msg").textContent = "The update didn't finish: " + (fr.error || ""));
       confirmBox(`The update didn't finish.\n\n${fr.error || "The log on the main screen says why."}\n\nYou can always download the installer yourself from the release page and run it; your files and settings are kept.\n\nOpen the release page?`,
         () => window.open(fr.url || "https://github.com/sirgijoe/joe-ai/releases/latest", "_blank", "noopener"));
-    } else if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > System check > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
+    } else if (lastFix !== -1 && !fr.ok) confirmBox("That setup didn't finish.\n\nThe log on the main screen says why. If you're stuck, Setup (F10) > Start here > MAKE A HELP FILE packs up what's needed for someone to help.\n\nOpen the log now?", () => show("queue"));
     else if (lastFix !== -1 && fr.ok) {
       toast(fr.say || "Setup finished", fr.say ? 15000 : 2600);
       if (fr.say && $("#setup-msg")) $("#setup-msg").textContent = fr.say;      // stays on Setup after the toast goes
@@ -352,7 +352,7 @@ async function takeQualityOffer() {             // the plan card's "use High / L
   const r = await api("/api/settings", { quality });
   if (!r.ok) { toast(r.error); return; }
   $("#plan-offer").hidden = true;
-  toast(`Quality set to ${planOffer.level === "high" ? "High" : "Low"} (Setup > Quality)`);
+  toast(`Quality set to ${planOffer.level === "high" ? "High" : "Low"} (Setup > Quality and speed)`);
   planOffer = null;
   refreshPlan();                                // the time estimate changes with it
 }
@@ -478,7 +478,7 @@ async function packsUse() {
 $("#pt-dest").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); ptPlan(); } });
 $("#pk-for").addEventListener("keydown", (ev) => { if (ev.key === "Enter") { ev.preventDefault(); packsUse(); } });
 
-/* ---------------- Setup > General > RESTORE FROM A BACKUP ---------------- */
+/* ---------------- Setup > This PC and backup > RESTORE FROM A BACKUP ---------------- */
 $("#bk-file").addEventListener("change", () => {
   const f = $("#bk-file").files[0]; if (!f) return;
   confirmBox(`Restore Joe's settings from ${f.name}?\n\nYour settings become the ones in the backup (where things are on this computer stays the same). Files you already have are never overwritten.`, async () => {
@@ -1038,7 +1038,7 @@ async function loadDoctor() {
     `GPU      ${g ? `${g.name}  ${d.vram_gb ? `${d.vram_gb} GB ${g.unified ? "shared memory" : "VRAM"}` : "(shares main memory)"}` : "no graphics card found"}   RAM ${d.ram_gb} GB   ${d.os || ""}  installs: ${d.pkg || "by hand"}\n` +
     (d.gpu_advice ? `         ${d.gpu_advice}\n` : "") +
     `WRITING  ${d.engine ? d.engine.label + "  " + d.engine.url : "Ollama"}\n` +
-    (d.engine && d.engine.others && d.engine.others.length ? `         also answering: ${d.engine.others.map((e) => e.label + " " + e.url).join(", ")} (pick it in Setup > Writing)\n` : "") +
+    (d.engine && d.engine.others && d.engine.others.length ? `         also answering: ${d.engine.others.map((e) => e.label + " " + e.url).join(", ")} (pick it in Setup > Writing program)\n` : "") +
     `         installed ${yes(o.installed)} running ${yes(o.running)}  models: ${o.models.map((m) => m.name).join(", ") || "none"}\n` +
     `         best fit installed: ${o.best || "-"}   in use: ${o.configured}\n` +
     `COMFYUI  installed ${yes(c.installed)} running ${yes(c.running)}  ${c.url}\n` +
@@ -1137,7 +1137,7 @@ async function ptPlan() {
     + row("work", "My work (Joe's folder)", p.work_gb, false)
     + row("ollama_models", "My writing models (Ollama)", p.ollama_models_gb, false, p.ollama_models_gb > 0)
     + row("comfy_models", "My picture and video models (ComfyUI)", p.comfy_models_gb, false, p.comfy_models_gb > 0)
-    + `<span class="dim">Models only get used once Ollama / ComfyUI are put on the drive (System check, when Joe runs from it).</span>`;
+    + `<span class="dim">Models only get used once Ollama / ComfyUI are put on the drive (Setup > Start here, when Joe runs from it).</span>`;
 }
 async function ptMake() {
   const dest = $("#pt-dest").value.trim();
@@ -1244,7 +1244,7 @@ function addPickButtons() {
 }
 addPickButtons();
 
-/* Setup > Writing > Templates: how finished copies look (doctemplates.py). */
+/* Setup > Templates: how finished copies look (doctemplates.py). */
 let tplData = null;
 async function loadTemplates() {
   try { tplData = await api("/api/templates", {}); } catch (e) { $("#tpl-list").textContent = e.message; return; }
@@ -1470,7 +1470,7 @@ function wfReset(btn) {
     }, null, true);
 }
 
-/* Reset to how Joe came: one button per Setup page, and RESET ALL on System check. Each asks
+/* Reset to how Joe came: one button per Setup page, and RESET ALL on This PC and backup. Each asks
    first, and only a click on YES, RESET does it (Enter and Y don't). */
 function addResetButtons() {
   document.querySelectorAll("#setup .setpage").forEach((page) => {
@@ -1510,8 +1510,17 @@ function resetAll() {
 // --- setup side menu: one section at a time, a find box, and an "unsaved" note ---------------
 let setupPageName = "system";
 try { setupPageName = localStorage.getItem("joe-setup-page") || "system"; } catch (e) {}
+let setAdvOpen = false;
+try { setAdvOpen = localStorage.getItem("joe-setup-adv") === "1"; } catch (e) {}
+function setupAdv(open, keep) {      // the ADVANCED group in the side list: one button opens and closes it
+  const box = $("#set-adv"), btn = $("#set-adv-btn"); if (!box || !btn) return;
+  box.hidden = !open; btn.setAttribute("aria-expanded", String(open)); btn.classList.toggle("open", open);
+  if (keep) { setAdvOpen = open; try { localStorage.setItem("joe-setup-adv", open ? "1" : "0"); } catch (e) {} }
+}
 function setupPage(name) {
   if (!document.querySelector(`.setpage[data-page="${name}"]`)) name = "system";
+  if (document.querySelector(`#set-adv button[data-page="${name}"]`)) setupAdv(true);      // a page in Advanced opens its group
+  else if (!$("#set-find").value) setupAdv(setAdvOpen);
   setupPageName = name;
   try { localStorage.setItem("joe-setup-page", name); } catch (e) {}
   const find = $("#set-find");
@@ -1520,7 +1529,7 @@ function setupPage(name) {
   document.querySelectorAll(".setnav button[data-page]").forEach((b) => b.classList.toggle("on", b.dataset.page === name));
   $(".setpages").scrollTop = 0;
   if (name === "workflows" && typeof loadWorkflows === "function") loadWorkflows();
-  if (name === "writing" && typeof loadTemplates === "function") loadTemplates();
+  if (name === "templates" && typeof loadTemplates === "function") loadTemplates();
   if (name === "phone") loadPhone();
   if (name === "addons") loadAddons();
   if (name === "display") loadLangChoices();
@@ -1596,6 +1605,7 @@ function setupFind() {
   const items = "fieldset > label, fieldset > .row, fieldset > .qrow, fieldset > .dim, details.more > label";
   document.querySelectorAll(".setup .hide").forEach((el) => el.classList.remove("hide"));
   nav.classList.toggle("finding", !!q);
+  setupAdv(q ? true : setAdvOpen || !!document.querySelector(`#set-adv button[data-page="${setupPageName}"]`));      // searching looks in both groups
   if (!q) {
     document.querySelectorAll(".setup details.more").forEach((d) => { if (d.dataset.found) { d.open = false; delete d.dataset.found; } });
     $(".setnone").hidden = true;
@@ -1607,7 +1617,7 @@ function setupFind() {
   let any = false;
   document.querySelectorAll(".setpage").forEach((page) => {
     let pageHit = false;
-    const pageNameHit = (page.dataset.title || "").toLowerCase().includes(q);
+    const pageNameHit = ((page.dataset.title || "") + " " + (page.dataset.alias || "")).toLowerCase().includes(q);      // the old page names still find it
     page.querySelectorAll("fieldset").forEach((fs) => {
       const legendHit = pageNameHit || (fs.querySelector("legend") || {}).textContent.toLowerCase().includes(q);
       let fsHit = legendHit;
@@ -1631,6 +1641,7 @@ document.querySelector(".setnav").addEventListener("click", (ev) => {
   const b = ev.target.closest("button[data-page]");
   if (b) setupPage(b.dataset.page);
 });
+$("#set-adv-btn").addEventListener("click", () => setupAdv($("#set-adv").hidden, true));
 $("#set-find").addEventListener("input", setupFind);
 $("#set-find").addEventListener("keydown", (ev) => {
   if (ev.key === "Escape" && ev.target.value) { ev.stopPropagation(); ev.preventDefault(); ev.target.value = ""; setupFind(); }
@@ -1695,7 +1706,7 @@ document.addEventListener("click", async (ev) => {
       const r = await api("/api/tonight/add", { text: $("#mission").value });
       if (!r.ok) toast(r.error);
       else toast(r.on ? `Saved for tonight: Joe starts at ${r.time} (${r.waiting} waiting)`
-                      : `Saved for tonight (${r.waiting} waiting). Turn the night shift on in Setup > General.`);
+                      : `Saved for tonight (${r.waiting} waiting). Turn the night shift on in Setup > Night shift and alerts.`);
     }
     if (act === "mcp-show") await mcpShow();
     if (act === "pt-plan") { await ptPlan(); return; }
@@ -2113,7 +2124,7 @@ function boot() {
   }, 55);
 }
 // When Joe opens: his 8-bit theme, then (with his voice set up) "Joe is now reporting
-// for duty." Setup > Display & sound > "Intro sound" picks jingle, voice, both or off. Quiet hours = silent.
+// for duty." Setup > Look and sound > "Intro sound" picks jingle, voice, both or off. Quiet hours = silent.
 let bootCtx = null;
 // Joe's 8-bit intro theme. Resolves with its length (seconds) once it starts, so his spoken
 // hello can wait until the tune is done.
@@ -2469,7 +2480,7 @@ async function loadTalk() {
   pttLabel();
   $("#talk-note").textContent = voiceReady ? (talkMode === "push" ? `Voice is on. Hold ${keyName(pttKey)} anywhere and speak; let go to send.`
     : "Voice is on and the mic is open while this screen is up. Just talk; Joe answers when you pause.")
-    : "Typing works now. For voice, set it up once in F10 > System check (\"Joe's voice\").";
+    : "Typing works now. For voice, set it up once in F10 > Start here (\"Joe's voice\").";
   renderTalk();
   if (!(talkMode === "push" && /^(Key|Digit|Space)/.test(pttKey))) setTimeout(() => $("#talk-in").focus(), 50);
   openMicStart();
@@ -2713,7 +2724,7 @@ async function say(text, loud) {
   if (!text || !text.trim()) return;
   if (!voiceReady) {
     try { voiceReady = (await api("/api/voice/status")).voice; } catch (e) {}
-    if (!voiceReady) { if (loud) toast("Set up Joe's voice first: F10 > System check"); return; }
+    if (!voiceReady) { if (loud) toast("Set up Joe's voice first: F10 > Start here"); return; }
   }
   speechStart();
   for (const p of speechPieces(text)) speechQueue(p);
@@ -2851,7 +2862,7 @@ window.addEventListener("keyup", (ev) => { if (isPtt(ev)) { ev.preventDefault();
 function f6Down() { show("talk"); }                 // F4 opens Talk (open mic starts there)
 $("#ptt").addEventListener("mousedown", (ev) => {
   ev.preventDefault();
-  if (!voiceReady) { show("setup", "system"); toast("Press SET UP next to \"Joe's voice\" in the System check"); return; }
+  if (!voiceReady) { show("setup", "system"); toast("Press SET UP next to \"Joe's voice\" in Setup > Start here"); return; }
   if (talkMode === "push") { recStartFn(); return; }
   micMuted = !micMuted; pttLabel();
   if (micMuted) openMicStop(); else openMicStart();
@@ -2873,8 +2884,8 @@ async function loadMyVoice() {
   const st = await api("/api/settings").catch(() => null);
   if (st) sel.value = st.voice.voice;
   $("#mv-record").disabled = !v.clone;
-  $("#mv-status").textContent = !v.voice ? "Set up Joe's voice first (System check)."
-    : !v.clone ? "Needs the Voice copy add-on: System check > Voice copy > SET UP (NVIDIA card, about 3 GB)."
+  $("#mv-status").textContent = !v.voice ? "Set up Joe's voice first (Setup > Start here)."
+    : !v.clone ? "Needs the Voice copy add-on: Setup > Start here > Voice copy > SET UP (NVIDIA card, about 3 GB)."
     : v.my_voice ? "Joe has your voice. Pick \"My voice\" above, or record again to replace it. (While Joe works overnight he uses the built-in voice so the graphics card stays free.)"
     : "Tick the box, press RECORD and read the passage out loud (about 30 seconds).";
 }
@@ -2937,7 +2948,7 @@ document.addEventListener("click", async (ev) => {
   });
 });
 
-/* ---------------- A VOICE TO REMEMBER (Setup > Voice & Talk) ---------------- */
+/* ---------------- A VOICE TO REMEMBER (Setup > Voice and Talk) ---------------- */
 async function loadMemoryVoices() {
   let r; try { r = await api("/api/voice/memory/list", {}); } catch (e) { return; }
   const box = $("#mem-promises"); if (!box) return;
@@ -3092,14 +3103,14 @@ const W_TEXT = {
   "upgrade-model": [null, "YES, GET THE BETTER ONE", "It can take a while. Joe uses it as soon as it's done."],
   "get-video-turbo": ["The Turbo add-on makes videos several times faster (under 1 GB).", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "pull-talk-model": ["A small, quick model just for talking, so Joe answers faster.", "YES, DOWNLOAD IT", ""],
-  "use-talk-model": [null, "YES, USE IT FOR TALK", "Setup > Voice & Talk can change it back."],
+  "use-talk-model": [null, "YES, USE IT FOR TALK", "Setup > Voice and Talk can change it back."],
   "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Your computer may ask for permission. Skip this if you only want writing."],
   "get-image-model": ["ComfyUI needs a picture model to draw with.", "YES, DOWNLOAD ONE", ""],
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "install-voice": ["So you can talk to Joe and hear him answer. About 500 MB.", "YES, SET UP HIS VOICE", "Runs on the regular processor, so it never slows the night's work."],
   "pull-vision": ["So Joe can look at pictures you show him.", "YES, DOWNLOAD IT", ""],
   "pull-embed": ["A small search model (about 270 MB) so Ask my files finds the right parts of your documents.", "YES, DOWNLOAD IT", ""],
-  "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice & Talk."],
+  "install-clone": ["Optional fun: make Joe talk in YOUR voice (stays on this PC). About 3 GB.", "YES, SET IT UP", "You record yourself later in Setup > Voice and Talk."],
   "install-pandoc": ["To make finished Word and PDF copies of what Joe writes.", "YES, INSTALL IT", ""],
   "install-ffmpeg": ["To turn animations into MP4 videos you can share.", "YES, INSTALL IT", ""],
   "install-qpdf": ["For the PDF toolkit: join, split, shrink and fill in PDFs (small and free).", "YES, INSTALL IT", ""],
@@ -3224,7 +3235,7 @@ function wRender() {
     h = `<p>01000001 01001001, if you're fancy. Humans can't say that, so just call me Joe.</p>
       <p>I do the grunt work on your own computer while you sleep: lists, descriptions, documents, spreadsheets, pictures and short videos. Free and private: your files never leave this PC. Setting me up needs the internet to download programs and models, and I ask before each one.</p>
       <p>First, pick how I look:</p>` + wLooks() +
-      `<p class="dim small">You can change it any time in Setup (F10) &gt; Display &amp; sound, or make your very own:
+      `<p class="dim small">You can change it any time in Setup (F10) &gt; Look and sound, or make your very own:
       describe it there under CUSTOM THEME ("deep ocean at night, teal text, warm orange highlights") and I'll design it.</p>
       <p>Then let's get me set up. It's a few short steps, and I ask before installing anything.</p>`;
   } else if (st.id === "pc") {
@@ -3541,24 +3552,125 @@ const agCountText = () => agCount === null ? "" : agCount ? `${agCount} set up` 
 const agRow = () => `<div class="tgroup agentsrow"><h3 class="tgname">Agents</h3><div class="row">
       <span>Give Joe a whole job: he plans it, looks things up, checks his own answers and works until each point is done.</span>
       <button type="button" data-act="agents-open" class="primary">[ OPEN AGENTS ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>`;
+const TOOL_CATS = [      // [name, label shown, parent box ("" = top level), the tool ids in it]
+  ["Write and edit", "Write and edit", "", ["ai-search", "brainstorm", "joe-language", "meal-plan", "proofread", "resume-tailor", "rewrite", "translate"]],
+  ["Read and understand", "Read and understand", "", ["ask-files", "ask-sheet", "code-review", "compare-docs", "explain-letter", "read-scans", "study", "summarize"]],
+  ["Files and spreadsheets", "Files and spreadsheets", "", ["bank-budget", "calendar-file", "hide-details", "mail-merge", "pdf-tools", "sort-files", "tidy-sheet"]],
+  ["Pictures", "Pictures", "", []],
+  ["Fix and prepare", "Fix and prepare", "Pictures", ["fix-spot", "privacy-blur", "remove-bg", "photo-batch", "restore-photo"]],
+  ["Change", "Change", "Pictures", ["redraw", "relight", "edit-picture", "make-bigger", "merge-pictures", "restyle"]],
+  ["Make new", "Make new", "Pictures", ["character-spin", "illusion-art", "make-3d", "character-scenes", "sketch-to-picture", "social-graphic"]],
+  ["Sort and describe", "Sort and describe", "Pictures", ["duplicate-photos", "photo-listing", "alt-text", "sort-photos"]],
+  ["Video", "Video", "", ["b-roll", "animate-photo", "dub-video", "edit-words", "make-shorts", "restyle-video"]],
+  ["Sound and voice", "Sound and voice", "", ["clean-audio", "tidy-speech", "find-book", "memory-voice", "meeting-minutes", "music", "read-aloud", "transcribe"]],
+];
+// Tools are shown in closed boxes (UI reorganization). Every box looks the same; Pictures just opens to
+// four boxes instead of tools. A tool this table doesn't know goes under "More tools", so none can vanish.
+const TOOL_CAT_OF = {};
+TOOL_CATS.forEach((c) => c[3].forEach((id) => { TOOL_CAT_OF[id] = c[0]; }));
+let toolCatsOpen = new Set();
+try { toolCatsOpen = new Set(JSON.parse(localStorage.getItem("joe-tool-cats") || "[]")); } catch (e) {}
+const toolCatSlug = (n) => "tcat-" + n.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+function toolCardHtml(t, lit) {
+  const st = toolStat[t.id], miss = t.ready && st && !st.ok;
+  const fav = toolFavs().includes(t.id);
+  const star = t.ready ? `<button type="button" class="tstar${fav ? " on" : ""}" data-fav="${t.id}" aria-pressed="${fav}" aria-label="Keep ${esc(t.name)} in Favorites"` +
+    ` title="${fav ? "In Favorites. Click to take it out." : "Click the star to keep this tool in Favorites."}">${fav ? "\u2605" : "\u2606"}</button>` : "";
+  return `<div class="tcw"><button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
+    ` title="${esc(!t.ready ? "Coming soon: " + t.blurb : miss ? "Not ready yet: " + st.why + ". Open it to get what's missing." : t.blurb)}"${t.ready ? "" : " disabled"}>` +
+    `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
+    (t.ready ? `<span class="tlearn" data-learn="${t.id}" role="link" title="How this tool works, what to give it, options, time and tips.">learn more</span>` : "") +
+    (!t.ready ? `<span class="tsoon">Coming soon</span>` : miss ? `<span class="tsoon tneed">${esc(st.why.replace(/^needs /, "Needs "))} · GET IT</span>`
+      : st ? `<span class="tsoon tok">√ Ready</span>` : "") + `</button>` + star + `</div>`;
+}
+const toolFavs = () => (state && state.ui && Array.isArray(state.ui.favorite_tools)) ? state.ui.favorite_tools : [];
+async function toolFavToggle(id) {      // star or unstar a tool; kept in Setup's saved settings (ui.favorite_tools)
+  const cur = toolFavs(), next = cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id];
+  let r; try { r = await api("/api/settings", { ui: { favorite_tools: next } }); } catch (e) { r = { ok: false, error: e.message }; }
+  if (!r || !r.ok) { toast((r && r.error) || "Couldn't save that. Try again."); return; }
+  if (state && state.ui) state.ui.favorite_tools = next;
+  const name = (toolById(id) || {}).name || "Tool";
+  renderToolGrid(toolPending ? toolsFor(toolPending).map((t) => t.id) : undefined);
+  const again = document.querySelector(`.tstar[data-fav="${id}"]`); if (again) again.focus();
+  const msg = $("#tool-find-msg"); if (msg && !$("#tool-find").value) msg.textContent = next.includes(id) ? `${name} added to Favorites` : `${name} taken out of Favorites`;
+}
+function toolFavHtml() {
+  const ts = toolFavs().map(toolById).filter((t) => t && t.ready);
+  return `<div class="tgroup tfavs"><h3 class="tgname" id="tfav-h">Favorites</h3>` + (ts.length
+    ? `<div class="tchips" role="group" aria-labelledby="tfav-h">` + ts.map((t) => `<button type="button" class="tchip" data-tool="${t.id}" title="${esc(t.blurb)}">${esc(t.name)}</button>`).join("") + `</div>`
+    : `<p class="dim small">Click the star on a tool to keep it here.</p>`) + `</div>`;
+}
 function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting for a pick)
-  const by = {};
-  toolCat.tools.forEach((t) => (by[t.group] = by[t.group] || []).push(t));
-  Object.values(by).forEach((list) => list.sort((x, y) => y.ready - x.ready));     // ready tools first
-  const groups = toolCat.groups.filter((g) => by[g]).sort((x, y) => by[y][0].ready - by[x][0].ready);
+  const cats = TOOL_CATS.map((c) => ({ name: c[0], label: c[1], parent: c[2], tools: [] }));
+  const more = { name: "More tools", label: "More tools", parent: "", tools: [] };
+  toolCat.tools.forEach((t) => (cats.find((c) => c.name === TOOL_CAT_OF[t.id]) || more).tools.push(t));
+  cats.push(more);
+  const q = ($("#tool-find") ? $("#tool-find").value : "").trim().toLowerCase(), words = q.split(/\s+/).filter(Boolean);
+  if (words.length) {      // keep only tools whose name, blurb, examples or box name hold every word typed
+    const hay = (t, c) => [t.name, t.blurb, c ? c.label : "", c && c.parent ? c.parent : "", t.examples, t.id.replace(/-/g, " ")]
+      .flat().filter((x) => typeof x === "string").join(" ").toLowerCase();
+    cats.forEach((c) => { c.tools = c.tools.filter((t) => { const h = hay(t, c); return words.every((w) => h.includes(w)); }); });
+  }
+  cats.forEach((c) => c.tools.sort((x, y) => (y.ready - x.ready) || x.name.toLowerCase().localeCompare(y.name.toLowerCase())));
+  const kids = (c) => cats.filter((k) => k.parent === c.name && k.tools.length);
+  const isOpen = (c) => words.length ? true : toolCatsOpen.has(c.name);   // a search opens every box that has a match
+  const box = (c, inner, cnt) => {
+    const open = isOpen(c), id = toolCatSlug(c.name);
+    return `<div class="tgroup tcat${open ? " open" : ""}${c.parent ? " tsub" : ""}">` +
+      `<button type="button" class="tcathead" data-tcat="${esc(c.name)}" aria-expanded="${open}" aria-controls="${id}">` +
+      `<span class="tgname">${esc(c.label)}</span><span class="tcount">${cnt}</span></button>` + inner(id, open) + `</div>`;
+  };
+  const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
   // Agents are NOT offered in 2.3 (Joseph, 2026-11-12: they are being rebuilt as one agent, Joe-AlIve, with
   // helpers; five kinds now would only confuse people). The row shows only where an agent already exists.
-  $("#toolgrid").innerHTML = (agCount > 0 ? agRow() : "") + groups.map((g) =>
-    `<div class="tgroup"><h3 class="tgname">${esc(g)}</h3><div class="tcards">` +
-    by[g].map((t) => { const st = toolStat[t.id], miss = t.ready && st && !st.ok;
-      return `<button type="button" class="tcard${t.ready ? "" : " soon"}${miss ? " needs" : ""}${lit && lit.includes(t.id) ? " lit" : ""}" data-tool="${t.id}"` +
-      ` title="${esc(!t.ready ? "Coming soon: " + t.blurb : miss ? "Not ready yet: " + st.why + ". Open it to get what's missing." : t.blurb)}"${t.ready ? "" : " disabled"}>` +
-      `<span class="tcn">${esc(t.name)}</span><span class="tcb">${esc(t.blurb)}</span>` +
-      (t.ready ? `<span class="tlearn" data-learn="${t.id}" role="link" title="How this tool works, what to give it, options, time and tips.">learn more</span>` : "") +
-      (!t.ready ? `<span class="tsoon">Coming soon</span>` : miss ? `<span class="tsoon tneed">${esc(st.why.replace(/^needs /, "Needs "))} · GET IT</span>`
-        : st ? `<span class="tsoon tok">√ Ready</span>` : "") + `</button>`; }).join("") +
-    `</div></div>`).join("");
-  $("#toolgrid").hidden = false; $("#toolform").hidden = true;
+  let html = "";
+  cats.filter((c) => !c.parent).forEach((c) => {
+    const ks = kids(c);
+    if (ks.length) {
+      const n = ks.reduce((a, k) => a + k.tools.length, 0);
+      html += box(c, (id, open) => `<div class="tsubs" id="${id}"${open ? "" : " hidden"}>` +
+        ks.map((k) => box(k, (kid, kopen) => `<div class="tcards" id="${kid}"${kopen ? "" : " hidden"}>` + k.tools.map((t) => toolCardHtml(t)).join("") + `</div>`, plural(k.tools.length, "tool"))).join("") + `</div>`,
+        plural(n, "tool"));
+    } else if (c.tools.length) {
+      html += box(c, (id, open) => `<div class="tcards" id="${id}"${open ? "" : " hidden"}>` + c.tools.map((t) => toolCardHtml(t)).join("") + `</div>`, plural(c.tools.length, "tool"));
+    }
+  });
+  if (lit && lit.length) {      // files were dropped: one flat list of the tools that can use them, above the boxes
+    const fit = toolCat.tools.filter((t) => lit.includes(t.id)).sort((x, y) => x.name.toLowerCase().localeCompare(y.name.toLowerCase()));
+    html = `<div class="tgroup tfit"><h3 class="tgname" id="tfit-h" tabindex="-1">These can use your files</h3>` +
+      `<div class="tcards">` + fit.map((t) => toolCardHtml(t, lit)).join("") + `</div>` +
+      `<div class="row"><button type="button" data-act="tool-fit-clear">[ NOT THESE: SHOW ALL TOOLS ]</button></div></div>` + html;
+  }
+  if (!words.length && !(lit && lit.length)) html = toolFavHtml() + toolRecentHtml() + html;
+  const found = cats.reduce((a, c) => a + c.tools.length, 0), msg = $("#tool-find-msg");
+  if (words.length && !found) html = `<p class="dim">No tool matches "${esc(q)}". Try one word, like "photo" or "pdf".</p>`;
+  if (msg) msg.textContent = words.length ? (found ? `${found} tool${found === 1 ? "" : "s"} found` : "No tools found") : "";
+  $("#toolgrid").innerHTML = (agCount > 0 ? agRow() : "") + html;
+  $("#toolgrid").hidden = false; $("#toolform").hidden = true; $("#toolfind").hidden = false;
+}
+if ($("#tool-find")) {
+  $("#tool-find").addEventListener("input", () => { if (toolCat && !toolOpen) renderToolGrid(); });
+  $("#tool-find").addEventListener("keydown", (ev) => { if (ev.key === "Escape" && ev.target.value) { ev.preventDefault(); ev.stopPropagation(); ev.target.value = ""; if (toolCat && !toolOpen) renderToolGrid(); } });
+}
+let toolRecent = [];      // the last few tools that were run, newest first (kept in this browser only)
+try { toolRecent = JSON.parse(localStorage.getItem("joe-tool-recent") || "[]").filter((x) => typeof x === "string").slice(0, 5); } catch (e) {}
+function toolUsed(id) {
+  toolRecent = [id, ...toolRecent.filter((x) => x !== id)].slice(0, 5);
+  try { localStorage.setItem("joe-tool-recent", JSON.stringify(toolRecent)); } catch (e) {}
+}
+function toolRecentHtml() {
+  const ts = toolRecent.map(toolById).filter((t) => t && t.ready);
+  return `<div class="tgroup trecent"><h3 class="tgname" id="trecent-h">Used lately</h3>` + (ts.length
+    ? `<div class="tchips" role="group" aria-labelledby="trecent-h">` + ts.map((t) => `<button type="button" class="tchip" data-tool="${t.id}" title="${esc(t.blurb)}">${esc(t.name)}</button>`).join("") + `</div>`
+    : `<p class="dim small">Tools you run will show here, so you can get back to them fast.</p>`) + `</div>`;
+}
+function toolCatToggle(btn) {      // open or close one category without redrawing (keeps the keyboard focus)
+  const open = btn.getAttribute("aria-expanded") !== "true", name = btn.dataset.tcat;
+  btn.setAttribute("aria-expanded", String(open));
+  const box = document.getElementById(btn.getAttribute("aria-controls")); if (box) box.hidden = !open;
+  const g = btn.parentElement; if (g) g.classList.toggle("open", open);
+  if (open) toolCatsOpen.add(name); else toolCatsOpen.delete(name);
+  try { localStorage.setItem("joe-tool-cats", JSON.stringify([...toolCatsOpen])); } catch (e) {}
 }
 function toolById(id) { return toolCat && toolCat.tools.find((t) => t.id === id); }
 let toolPending = null;            // files dropped while several tools fit: waiting for a pick
@@ -3573,25 +3685,25 @@ function toolFor(files) {          // dropped outside Tools: recordings go to Tr
 }
 function toolNeeds() {
   const t = toolOpen, msgs = [], needs = t.needs || [];
-  if (needs.includes("voice") && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > System check > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
-  if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > System check installs it.");
-  if (needs.includes("vision") && toolHave.vision === false) msgs.push("This needs a vision model (one that can look at pictures). Setup (F10) > System check offers a free one to download.");
-  if (needs.includes("vision") && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only JPG, PNG and WebP photos under 6 MB can be used. Setup (F10) > System check installs it.");
-  if (needs.includes("qpdf") && !toolHave.qpdf) msgs.push("This needs qpdf, a small free PDF program (Apache license). Setup (F10) > System check > qpdf > INSTALL.");
-  if (t.id === "duplicate-photos" && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only exact copies can be found. Setup (F10) > System check installs it.");
-  if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > System check installs it.");
+  if (needs.includes("voice") && !toolHave.voice) msgs.push("This needs Joe's voice add-on first: Setup (F10) > Start here > \"Joe's voice\" > SET UP. It's a one-time download of about 500 MB.");
+  if (t.id === "transcribe" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so only .wav files can be read. Setup (F10) > Start here installs it.");
+  if (needs.includes("vision") && toolHave.vision === false) msgs.push("This needs a vision model (one that can look at pictures). Setup (F10) > Start here offers a free one to download.");
+  if (needs.includes("vision") && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only JPG, PNG and WebP photos under 6 MB can be used. Setup (F10) > Start here installs it.");
+  if (needs.includes("qpdf") && !toolHave.qpdf) msgs.push("This needs qpdf, a small free PDF program (Apache license). Setup (F10) > Start here > qpdf > INSTALL.");
+  if (t.id === "duplicate-photos" && !toolHave.ffmpeg) msgs.push("Without FFmpeg, only exact copies can be found. Setup (F10) > Start here installs it.");
+  if (t.id === "read-aloud" && !toolHave.ffmpeg) msgs.push("FFmpeg isn't installed, so Joe saves WAV files (much bigger) instead of MP3. Setup (F10) > Start here installs it.");
   let html = msgs.map(esc).join("<br>");
   if (needs.includes("comfy")) {
-    if (!toolHave.comfy) html += (html ? "<br>" : "") + esc("This runs in ComfyUI, which isn't installed yet. Setup (F10) > System check installs it.");
+    if (!toolHave.comfy) html += (html ? "<br>" : "") + esc("This runs in ComfyUI, which isn't installed yet. Setup (F10) > Start here installs it.");
     else {
       if (needs.includes("sdxl") && toolHave.sdxl === false) html += (html ? "<br>" : "") + esc("This works with an SDXL picture model, and none is installed yet. Setup (F10) > Models offers one.");
-      if (needs.includes("ffmpeg") && !toolHave.ffmpeg) html += (html ? "<br>" : "") + esc("This needs FFmpeg to cut and join video. Setup (F10) > System check installs it.");
+      if (needs.includes("ffmpeg") && !toolHave.ffmpeg) html += (html ? "<br>" : "") + esc("This needs FFmpeg to cut and join video. Setup (F10) > Start here installs it.");
       const kind = (document.querySelector('#tf-options [data-pick="kind"]') || {}).value || "";
       const want = t.id === "music" ? [kind === "sfx" ? "sfx" : "music"] : (t.packs || []);
       const packs = toolHave.packs || {};
       want.filter((p) => packs[p] && !packs[p].ready).forEach((p) => {
         html += (html ? "<br>" : "") + esc(`This needs ${packs[p].offer}, once. It comes from Hugging Face and goes into ComfyUI's models folder.`) +
-          (p === "video" ? esc(" Setup (F10) > System check offers it.") : ` <button type="button" data-pack="${esc(p)}">[ DOWNLOAD IT ]</button>`);
+          (p === "video" ? esc(" Setup (F10) > Start here offers it.") : ` <button type="button" data-pack="${esc(p)}">[ DOWNLOAD IT ]</button>`);
       });
     }
   }
@@ -3622,7 +3734,7 @@ function openTool(id) {
   $("#tf-extra").placeholder = t.extra_hint || "optional, e.g. focus on dates and to-dos";
   $("#tf-extra-label").textContent = t.extra_label || "Anything else?";
   renderToolFiles(); toolNeeds();
-  $("#toolgrid").hidden = true; $("#toolform").hidden = false;
+  $("#toolgrid").hidden = true; $("#toolform").hidden = false; $("#toolfind").hidden = true;
 }
 function renderToolFiles() {
   const marking = toolOpen && toolOpen.id === "fix-spot";
@@ -3696,6 +3808,7 @@ async function toolsDrop(files) {
     if (!fit.length) { toast("Pick a tool first, then drop the files on it."); return; }
     if (fit.length > 1) {          // e.g. a document: read it aloud or proofread it? Let them pick.
       toolPending = files; renderToolGrid(fit.map((t) => t.id));
+      const fh = $("#tfit-h"); if (fh) fh.focus();      // keyboard and screen-reader users land on the list
       toast(fit.length > 4 ? "What should Joe do with it? Pick one of the lit-up cards. (To ask Joe about it instead, drop it on Talk, F4.)"
         : "Which tool? Pick one of the lit-up cards: " + fit.map((t) => t.name).join(" or "), 8000);
       return;
@@ -3735,6 +3848,7 @@ async function toolPlan(run) {
   if (!run) return;
   const q = await api("/api/queue/add", { text: r.mission });
   if (!q.ok) { $("#tf-plan").textContent = "ERROR: " + q.error; return; }
+  toolUsed(toolOpen.id);
   toast(q.queued ? `Queued: it runs after the current work (${q.queued} waiting)` : "Started — safe to close this window");
   toolFiles = []; renderToolFiles();
 }
@@ -3751,6 +3865,8 @@ $("#tf-logo").addEventListener("change", async (ev) => {       // a logo .png as
 $("#tf-drop").addEventListener("keydown", (ev) => { if (ev.key === "Enter" || ev.key === " ") { ev.preventDefault(); $("#tf-file").click(); } });
 document.addEventListener("click", (ev) => {
   if (ev.target.closest("#tf-drop")) { $("#tf-file").click(); return; }
+  const fv = ev.target.closest("[data-fav]");
+  if (fv) { ev.preventDefault(); toolFavToggle(fv.dataset.fav); return; }
   const lm = ev.target.closest("[data-learn]");
   if (lm) { ev.preventDefault(); abilitiesOpen("tool:" + lm.dataset.learn); return; }
   const b = ev.target.closest("button"); if (!b) return;
@@ -3759,10 +3875,12 @@ document.addEventListener("click", (ev) => {
     const waiting = toolPending; toolPending = null;
     if (waiting && toolOpen) toolsDrop(waiting);
   }
+  else if (b.dataset.tcat !== undefined) toolCatToggle(b);
   else if (b.dataset.tfmark !== undefined) maskOpen(+b.dataset.tfmark);
   else if (b.dataset.act === "mask-save") maskSave();
   else if (b.dataset.act === "mask-clear") { if (maskCtx) { maskCtx.fillStyle = "#000"; maskCtx.fillRect(0, 0, maskCtx.canvas.width, maskCtx.canvas.height); maskShow.clearRect(0, 0, maskShow.canvas.width, maskShow.canvas.height); } }
   else if (b.dataset.act === "mask-close") $("#maskbox").hidden = true;
+  else if (b.dataset.act === "tool-fit-clear") { toolPending = null; renderToolGrid(); }
   else if (b.dataset.act === "tool-back") { toolOpen = null; toolPending = null; renderToolGrid(); }
   else if (b.dataset.act === "tool-logo") $("#tf-logo").click();
   else if (b.dataset.act === "tool-run") toolPlan(true).catch((e) => toast(e.message));
@@ -3770,9 +3888,9 @@ document.addEventListener("click", (ev) => {
   else if (b.dataset.tfrm !== undefined) { toolFiles.splice(+b.dataset.tfrm, 1); renderToolFiles(); }
   else if (b.dataset.pack) {
     const p = b.dataset.pack, offer = ((toolHave.packs || {})[p] || {}).offer || "this model";
-    confirmBox(`Download ${offer}? It goes into ComfyUI's models folder; restart ComfyUI afterwards. Progress shows in Setup > System check.`, async () => {
+    confirmBox(`Download ${offer}? It goes into ComfyUI's models folder; restart ComfyUI afterwards. Progress shows in Setup > Start here.`, async () => {
       const r = await api("/api/doctor/fix", { action: "download-pack", pack: p, approved: true });
-      toast(r.ok ? "Downloading… (Setup > System check shows progress)" : (r.error || "Couldn't start the download"));
+      toast(r.ok ? "Downloading… (Setup > Start here shows progress)" : (r.error || "Couldn't start the download"));
     });
   }
 });
@@ -3788,7 +3906,7 @@ function toolBadge(status) {
   b.classList.toggle("allok", ok === status.length);
   b.classList.toggle("some", ok < status.length);
   b.title = status.map((t) => (t.ok ? "√ " : "× ") + t.name + (t.ok ? "" : " — " + t.why)).join("\n") +
-    "\n\nClick: Setup > System check, to install what's missing.";
+    "\n\nClick: Setup > Start here, to install what's missing.";
 }
 function refreshBadge() { api("/api/tools").then((r) => { toolHave = r.have || toolHave; toolBadge(r.status); }).catch(() => {}); }
 setInterval(refreshBadge, 120000);
@@ -3805,7 +3923,7 @@ document.addEventListener("change", (ev) => {
 });
 
 
-// Setup > Images & video > Your own workflows: import a ComfyUI API-format workflow.
+// Setup > Pictures and video program > Your own workflows: import a ComfyUI API-format workflow.
 (function wfImport() {
   const sel = document.getElementById("wf-style"), go = document.getElementById("wf-go");
   if (!sel || !go) return;
@@ -3820,7 +3938,7 @@ document.addEventListener("change", (ev) => {
 })();
 
 
-// Setup > System check > Your models
+// Setup > Models > Your models
 (function myModels() {
   const go = document.getElementById("mymodels-go"), box = document.getElementById("mymodels");
   if (!go || !box) return;
@@ -3888,7 +4006,7 @@ $("#addon-file").addEventListener("change", async (ev) => {
   loadAddons();
 });
 
-// --- Joe's screens in other languages (Setup > Display & sound > Language) ----------------------
+// --- Joe's screens in other languages (Setup > Look and sound > Language) ----------------------
 // The window is written in English; a language file maps English screen text to the other language.
 // Every text piece, tooltip and box hint that matches is swapped (and swapped again when the window
 // changes it). Lines with {1}, {2}... match text that has numbers or names in those places.
@@ -4111,7 +4229,7 @@ document.addEventListener("click", async (ev) => {
 });
 
 
-/* ---------------- 2.3: screen-reader announcements (Setup > Display & sound) ----------------
+/* ---------------- 2.3: screen-reader announcements (Setup > Look and sound) ----------------
    Said through the screen reader only (nothing shows): a run starting, each task finished or failed,
    progress at a quarter, half and three quarters, and the run's end. Failures use role="alert". */
 let srSeen = null, srLastText = "";
@@ -4150,7 +4268,7 @@ function announceTick() {
 }
 
 
-/* ---------------- 2.3: memory notes (Setup > Memory) and recurring missions (Setup > General) ---------------- */
+/* ---------------- 2.3: memory notes (Setup > Memory) and recurring missions (Setup > Night shift and alerts) ---------------- */
 let mmNotes = [];
 async function loadMemory() {
   const r = await api("/api/memory");
@@ -4184,7 +4302,7 @@ document.addEventListener("click", async (ev) => {
   try {
     if (b.dataset.act === "repeat-add" && planRepeat) {
       const r = await api("/api/recurring/add", { mission: $("#mission").value, days: planRepeat.days });
-      toast(r.ok ? r.say + " Setup > General lists it." : r.error, 4000);
+      toast(r.ok ? r.say + " Setup > Night shift and alerts lists it." : r.error, 4000);
       return;
     }
     if (b.dataset.act === "prof-add") {
@@ -4263,16 +4381,30 @@ function agLive(lv) {
     <div class="small">THE PLAN</div><ul class="small">${(lv.plan || []).map((p) => `<li>${p.done ? "[x]" : "[ ]"} ${esc(p.point)}</li>`).join("")}</ul>
     <div class="small">STEPS</div><ul class="small">${(lv.steps || []).map((x) => `<li>${esc(x)}</li>`).join("") || "<li>(none yet)</li>"}</ul>`;
 }
+let asKey = "", asWasOn = false;
+function agWindow() {            // the agent window: small, its own; a tab if pop-ups are blocked
+  const url = "/agent#t=" + encodeURIComponent(TOKEN);
+  let w = window.open(url, "joe-agent", "popup,width=480,height=680");
+  if (!w) w = window.open(url, "_blank");
+  if (!w) { toast("Your browser blocked the window. Allow pop-ups for Joe, or use Tools > Agents."); return; }
+  try { w.opener = null; w.focus(); } catch (e) { /* fine */ }      // already open: bring it to the front
+}
 function agStrip(lv) {            // the strip under the tabs, on every tab, while an agent works
   const s = $("#agentstrip");
   if (!s) return;
   const on = !!(lv && lv.name);
   if (s.hidden === on) s.hidden = !on;
-  if (!on) return;
+  if (!on) {
+    if (asWasOn) { asWasOn = false; asKey = ""; const l = $("#as-live"); if (l) l.textContent = "The agent has finished or stopped."; }
+    return;
+  }
+  asWasOn = true;
   $("#as-name").textContent = `${lv.name} (${lv.template || ""})`;
   $("#as-doing").textContent = (lv.step ? `step ${lv.step} of ${lv.of} · ` : "") + (lv.doing || "") + ` · ${lv.minutes} min`;
   const pts = lv.plan || [], done = pts.filter((p) => p.done).length;
   $("#as-bar").style.width = (pts.length ? Math.round(100 * done / pts.length) : 0) + "%";
+  const sk = lv.name + "|" + lv.step;                       // say it aloud only when the step changes
+  if (sk !== asKey) { asKey = sk; const l = $("#as-live"); if (l) l.textContent = `${lv.name}: ${lv.step ? "step " + lv.step + " of " + lv.of + ". " : ""}${lv.doing || ""}`; }
   if (current === "agents") agLive(lv);
 }
 function agAbilities(tpl, a) {
@@ -4282,8 +4414,8 @@ function agAbilities(tpl, a) {
     return `<label><input type="checkbox" data-agab="${k}"${on[k] ? " checked" : ""}> ${esc(ab.title)} <span class="dim small">· ${esc(ab.can)}</span></label>`;
   }).join("") || `<div class="dim small">Nothing risky: this kind of agent only reads, writes and uses the tools you tick.</div>`;
   const warn = [];
-  if ((tpl.abilities || []).includes("lookups") && !agData.lookups_setting) warn.push("Looking things up also needs Setup > Voice & Talk > Let Joe look things up online.");
-  if ((tpl.abilities || []).includes("phone") && !agData.phone_setting) warn.push("Sending to your phone needs phone pings (Setup > Display & sound).");
+  if ((tpl.abilities || []).includes("lookups") && !agData.lookups_setting) warn.push("Looking things up also needs Setup > Privacy and internet > Let Joe look things up online.");
+  if ((tpl.abilities || []).includes("phone") && !agData.phone_setting) warn.push("Sending to your phone needs phone pings (Setup > Night shift and alerts).");
   if (warn.length) $("#ag-abilities").insertAdjacentHTML("beforeend", `<div class="warn small">${esc(warn.join(" "))}</div>`);
 }
 function agRiskScreen(k, yes, no) {    // THE DESIGN RULE: one short screen per risky ability, a real yes/no
@@ -4329,6 +4461,7 @@ document.addEventListener("click", async (ev) => {
   const act = b.dataset.act;
   try {
     if (act === "agents-open") { show("agents"); return; }
+    if (act === "agent-window") { agWindow(); return; }
     if (act === "agent-stop") {
       confirmBox("Stop the agent?\n\nWhat it has done so far is kept, with its report.", async () => { await api("/api/stop", {}); toast("Stopping…"); });
       return;

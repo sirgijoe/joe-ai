@@ -481,6 +481,14 @@ body.modern .netlist b { font-weight: 600; }
 .setnav button { text-align: left; padding: 3px 8px; }
 .setnav button.on { background: var(--ph); color: var(--bg); text-shadow: none; }
 .setnav.finding button:not(.hit) { opacity: .45; }
+.setgrp { display: flex; flex-direction: column; gap: 2px; }
+.setgrp[hidden] { display: none; }
+.setgrph { margin: 6px 0 2px; font-size: .75em; letter-spacing: .08em; color: var(--ph-dim); }
+.setgrp .setgrph + button, .setgrp button { margin-left: 0; }
+.setnav button.setadv { margin-top: 8px; border: 1px solid var(--ph-dim); display: flex; justify-content: space-between; gap: 8px; }
+.setnav button.setadv::after { content: "+"; }
+.setnav button.setadv[aria-expanded="true"]::after { content: "\2212"; }
+#set-adv { margin-top: 2px; }
 .setmain { display: flex; flex-direction: column; min-height: 0; min-width: 0; }
 .setpages { flex: 1; min-height: 0; overflow: auto; padding-right: 8px; }
 .setpage { display: none; flex-direction: column; gap: 14px; max-width: 58em; padding-bottom: 10px; }
@@ -511,6 +519,31 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 .tgname { margin: 4px 0 6px; font-size: 1em; font-weight: normal; letter-spacing: .08em; color: var(--ph-dim); text-transform: uppercase; }
 .tcards { display: grid; grid-template-columns: repeat(auto-fill, minmax(15em, 1fr)); gap: 10px; }
 .tcard { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; text-align: left; padding: 10px 12px; border: 1px solid var(--ph-dim); min-height: 5.2em; }
+/* Tools in closed categories: each heading is a real button (opens with Enter or Space). */
+.tcards[hidden] { display: none; }
+.tsubs[hidden] { display: none; }
+.tsubs { margin-top: 8px; display: grid; gap: 8px; }
+.tsub { margin: 0; }
+.toolfind { display: flex; align-items: center; gap: 12px; margin: 0 0 10px; }
+.toolfind input { flex: 1 1 auto; max-width: 28em; }
+.toolfind[hidden] { display: none; }
+.tcw { position: relative; display: flex; }
+.tcw > .tcard { flex: 1 1 auto; padding-right: 2.4em; }
+.tstar { position: absolute; top: 4px; right: 4px; min-width: 2em; min-height: 2em; padding: 0 4px; border: 1px solid transparent; background: none; font-size: 1.15em; line-height: 1; cursor: pointer; }
+.tstar.on { color: var(--ph); }
+.tstar:hover, .tstar:focus-visible { border-color: var(--ph-dim); }
+body.modern .tstar { border-radius: 8px; color: var(--ph-dim); }
+body.modern .tstar.on { color: var(--accent); }
+.tchips { display: flex; flex-wrap: wrap; gap: 8px; }
+.tchip { padding: 4px 12px; border: 1px solid var(--ph-dim); }
+body.modern .tchip { background: var(--btn); border: 1px solid var(--line); border-radius: var(--radius); }
+.tcathead { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 8px 12px; border: 1px solid var(--ph-dim); }
+.tcathead .tgname { margin: 0; color: inherit; }
+.tcathead .tcount { margin-left: auto; font-size: .85em; opacity: .75; }
+.tcathead::after { content: "+"; }
+.tcathead[aria-expanded="true"]::after { content: "\2212"; }
+.tcat .tcards { margin-top: 8px; }
+body.modern .tcathead { background: var(--btn); border: 1px solid var(--line); border-radius: var(--radius); }
 .tcard .tcn { font-size: 1.05em; }
 .tcard .tcb { font-size: .82em; color: var(--ph-dim); }
 .tcard:hover .tcb { color: var(--bg); }
@@ -523,6 +556,7 @@ body.modern .setup fieldset.myvoice { border-top: 1px solid var(--line); }
 .tcard.lit { border-color: var(--ph); box-shadow: 0 0 0 2px var(--ph); }
 .tcard .tsoon { font-size: .72em; letter-spacing: .06em; text-transform: uppercase; border: 1px solid var(--ph-dim); padding: 0 6px; margin-top: auto; }
 .toolform { display: flex; flex-direction: column; gap: 10px; max-width: 52em; }
+.toolform[hidden] { display: none; }
 .tfdrop { border: 2px dashed var(--ph-dim); padding: 22px 16px; text-align: center; cursor: pointer; }
 .tfdrop:hover, .tfdrop:focus-visible { border-color: var(--ph); outline: none; }
 .tffiles { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -555,7 +589,7 @@ body:not(.modern) .tcard.soon:hover { background: none; color: var(--ph); }
 .msg .tth { width: 120px; height: 90px; object-fit: cover; cursor: pointer; border: 1px solid var(--ph-dim); border-radius: 4px; background: #000; }
 
 
-/* Easy-to-read font (Setup > Display & sound): Atkinson Hyperlegible on every look, a touch
+/* Easy-to-read font (Setup > Look and sound): Atkinson Hyperlegible on every look, a touch
    more letter spacing; code-like boxes (logs, missions) keep their fixed-width font. */
 body.easyread { letter-spacing: .01em; }
 body.easyread.ph-green, body.easyread.ph-amber, body.easyread.ph-white, body.easyread.ph-custom { font-size: .9em; }
@@ -708,3 +742,21 @@ body.modern .agentstrip { border-radius: var(--radius); border-color: var(--line
 .agentsrow .row { gap: 10px; align-items: center; flex-wrap: wrap; }
 .wflooks { margin: 10px 0 2px; border-top: 1px dashed var(--ph-dim); padding-top: 6px; }
 .wftext.wflook { margin-left: 1em; }
+
+/* The agent window (/agent) */
+.aw-bar i { position: absolute; inset: 0 auto 0 0; width: 0; background: var(--ph); }
+.agentwin { margin: 0; overflow: auto; }      /* the main window never scrolls as a whole; this small page must, at any width */
+.aw { padding: 12px 14px; }
+.aw-sub { margin-left: 1.2em; }
+.aw-h { font-size: 1.15em; margin: 0 0 8px; }
+.aw-h2 { font-size: .9em; margin: 12px 0 4px; }
+.aw-status { margin: 0 0 8px; min-height: 1.4em; }
+.aw-bar { position: relative; display: block; flex: none; width: 100%; height: .8em; margin-bottom: 8px; border: 1px solid var(--ph-dim); }
+.aw-list { margin: 0; padding-left: 1.2em; list-style: none; font-size: .9em; }
+.aw-end { border: 1px solid var(--ph-dim); padding: 8px 10px; margin-top: 8px; }
+.aw-btns { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 14px; }
+.aw-confirm { position: fixed; inset: 0; background: #000b; display: grid; place-items: center; z-index: 9; }
+.aw-confirm[hidden] { display: none; }
+.aw-confirm-box { background: var(--bg, #000); border: 2px solid var(--ph, #39ff6a); padding: 14px; max-width: 24em; }
+.aw-sprite[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .aw * { transition: none !important; animation: none !important; } }

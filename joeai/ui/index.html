@@ -26,26 +26,29 @@
       <button data-key="F8" title="See results: what Joe finished last time and what needs a look (F8).">Report<b>F8</b></button>
       <button data-key="F9" title="See results: how much Joe has done and how much room he takes up (F9).">Stats<b>F9</b></button>
       <span class="tabsep" aria-hidden="true"></span>
-      <button data-key="F10" title="Settings, the System check and the look (F10).">Setup<b>F10</b></button>
+      <button data-key="F10" title="Settings, what Joe found on this PC, and the look (F10).">Setup<b>F10</b></button>
       <button data-key="F1" title="Every key and button explained, plus About Joe (F1).">Help<b>F1</b></button>
     </nav>
     <span class="grow"></span>
     <button type="button" id="runbtn" class="runbtn" data-key="F5" title="Run the plan on the Home screen, or stop the run that's going (F5).">RUN<b>F5</b></button>
-    <span id="toolsbadge" class="toolsbadge" tabindex="0" role="button" title="What's installed for the tools. Click for Setup > System check.">TOOLS …</span>
+    <span id="toolsbadge" class="toolsbadge" tabindex="0" role="button" title="What's installed for the tools. Click for Setup > Start here.">TOOLS …</span>
     <span id="title-screen" class="dim" hidden>QUEUE</span>
     <span id="ver" class="dim"></span> <span id="pt-badge" class="dim" hidden title="Joe is running from a drive: everything stays in that folder.">PORTABLE</span>
     <span id="clock">--:--</span>
   </header>
-  <div id="agentstrip" class="agentstrip" role="status" hidden>
-    <b>AGENT</b> <span id="as-name"></span> <span class="asbar" aria-hidden="true"><i id="as-bar"></i></span> <span id="as-doing"></span>
+  <div id="agentstrip" class="agentstrip" hidden>
+    <b>AGENT</b> <span id="as-name"></span> <span class="asbar" aria-hidden="true"><i id="as-bar"></i></span>
+    <span id="as-doing"></span>
+    <span id="as-live" class="sronly" role="status" aria-live="polite"></span>
     <span class="grow"></span>
+    <button type="button" id="as-open" data-act="agent-window" title="Open the agent's own small window: the plan with ticks and each step.">[ OPEN WINDOW ]</button>
     <button type="button" data-act="agents-open" title="The live step list: the plan with ticks and each step.">[ SEE STEPS ]</button>
     <button type="button" data-act="agent-stop" title="Stop the agent. What's done so far is kept.">[ STOP ]</button>
   </div>
 
   <div id="modelsbar" class="readybar modelsbar" role="status" hidden><span id="modelsbar-text"></span>
     <button type="button" data-act="models-move" class="primary" title="Joe moves the finished download(s) from your Downloads folder into ComfyUI's models folder.">[ MOVE INTO COMFYUI ]</button>
-    <button type="button" data-act="models-later" title="Hide this. The files stay in your Downloads folder; System check can still move them.">[ LATER ]</button></div>
+    <button type="button" data-act="models-later" title="Hide this. The files stay in your Downloads folder; Setup > Start here can still move them.">[ LATER ]</button></div>
 
   <div id="workarea" class="workarea">
   <aside id="chatside" class="panel chatside">
@@ -69,7 +72,7 @@
         <button type="button" data-act="finish-setup" class="primary">[ FINISH SETTING UP ]</button></div>
       <h2>WHAT DO YOU NEED?</h2>
       <div class="prompt" title="No special words needed. Ask a question, or say what you want made, how many, and any style or tone. Short words work too: go, stop, help, report, files, tools, update."><span class="dosp">C:\JOE&gt; </span>Ask Joe anything, or tell him what to make, in your own words. For work, he shows you a plan first.</div>
-      <textarea id="describe" spellcheck="true" placeholder="For example:
+      <textarea id="describe" aria-label="What can I help you with?" spellcheck="true" placeholder="For example:
 40 product descriptions for handmade coffee mugs, friendly and short
 fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
       <div class="row buttons">
@@ -88,15 +91,15 @@ fix my old photo  ·  what can you do?  ·  go  ·  help"></textarea>
         <div class="row buttons">
           <button data-act="plan-run" class="primary" title="Start now. If Joe is busy, it waits in line.">[ RUN IT <span class="k">F5</span> ]</button>
           <button data-act="queue-add" title="Put this plan in line after whatever Joe is doing now.">[ ADD TO QUEUE ]</button>
-          <button data-act="tonight-add" title="Joe starts it at the night-shift time (Setup > General), even with his window closed.">[ SAVE FOR TONIGHT ]</button>
-          <button data-act="repeat-add" id="plan-repeat" hidden title="Run this plan again on these nights, with the night shift. Setup > General lists it to pause or delete.">[ REPEAT ]</button>
+          <button data-act="tonight-add" title="Joe starts it at the night-shift time (Setup > Night shift and alerts), even with his window closed.">[ SAVE FOR TONIGHT ]</button>
+          <button data-act="repeat-add" id="plan-repeat" hidden title="Run this plan again on these nights, with the night shift. Setup > Night shift and alerts lists it to pause or delete.">[ REPEAT ]</button>
           <button data-act="to-builder" title="Change the numbers, style or details with simple forms.">[ CHANGE IT <span class="k">F6</span> ]</button>
           <button data-act="clear" title="Throw this plan away and start fresh.">[ START OVER ]</button>
         </div>
       </div>
       <details id="adv" class="adv">
       <summary title="The plan written out for Joe. Only needed if you like editing it by hand.">ADVANCED: THE MISSION TEXT</summary>
-      <textarea id="mission" spellcheck="false" placeholder="What can I help you with?
+      <textarea id="mission" aria-label="What can I help you with?" spellcheck="false" placeholder="What can I help you with?
 
 Paste tonight's mission here,
 build one with F6 (no typing keys),
@@ -158,7 +161,7 @@ FORMAT: ...
           <label title="A business or project profile from the Projects folder (facts Joe should know).">Profile <input id="b-project" list="dl-projects" placeholder="optional"></label>
         </div>
         <h2 class="sub">PASTE A WHOLE MISSION <span class="dim">it becomes a list you can change</span></h2>
-        <textarea id="b-paste" rows="3" spellcheck="false" placeholder="Paste a === JOE MISSION === block here, then IMPORT"></textarea>
+        <textarea id="b-paste" aria-label="Paste a mission block to import" rows="3" spellcheck="false" placeholder="Paste a === JOE MISSION === block here, then IMPORT"></textarea>
         <div class="row buttons"><button data-b="import">[ IMPORT ]</button><button data-b="import-box" title="Bring in the plan from the Home screen.">[ BRING IN THE QUEUE PLAN ]</button><button data-b="clear">[ START OVER ]</button></div>
       </details>
       <h2 class="sub">PAST MISSIONS <span class="dim">open or run one again</span></h2>
@@ -185,7 +188,12 @@ FORMAT: ...
     <section class="panel full tools">
       <h2>TOOLS <span class="dim">— pick one, add your files, press RUN · or just ask on the Home screen</span></h2>
       <div class="toolsbody">
+        <div id="toolfind" class="toolfind">
+          <input id="tool-find" type="search" placeholder="Find a tool…" aria-label="Find a tool" title="Type what you want to do, like 'photo', 'translate' or 'pdf'. Press Esc to clear.">
+          <span id="tool-find-msg" class="dim small" role="status" aria-live="polite"></span>
+        </div>
         <div id="toolgrid" class="toolgrid"></div>
+        <section id="tools-helpers" class="tgroup" aria-labelledby="th-h" hidden><h3 class="tgname" id="th-h">Helpers and the agent</h3></section>
         <div id="toolform" class="toolform" hidden>
           <div class="row"><button type="button" data-act="tool-back" title="Back to all tools.">[ ← ALL TOOLS ]</button></div>
           <h3 id="tf-title" class="settitle"></h3>
@@ -230,7 +238,7 @@ FORMAT: ...
       </div>
       <div id="talk-files" class="talkfiles"></div>
       <div class="talkin">
-        <textarea id="talk-in" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
+        <textarea id="talk-in" aria-label="Ask Joe anything" rows="2" spellcheck="true" placeholder="Ask Joe anything, or tell him what you need done tonight…"></textarea>
         <div class="talkbtns">
           <button data-act="talk-send" title="Send what you typed (or just press Enter).">[ SEND ]</button>
           <button id="talk-stop" data-act="talk-stop" class="stopbtn" title="Stop Joe's answer and his voice right now (or press Esc)." hidden>[ STOP ]</button>
@@ -348,7 +356,7 @@ FORMAT: ...
       <div id="storage" class="storage"><span class="dim">Measuring...</span></div>
       <h2 class="sub">CLEAN UP <span class="dim">— asks first; files go to the Recycle Bin</span></h2>
       <div id="cleanups" class="cleanups"></div>
-      <p class="dim small">Logs trim themselves at 2 MB. ComfyUI's own copy of each picture is removed once Joe saves his (Setup F10 &gt; Images &amp; video).</p>
+      <p class="dim small">Logs trim themselves at 2 MB. ComfyUI's own copy of each picture is removed once Joe saves his (Setup F10 &gt; Pictures and video program).</p>
     </section>
   </main>
 
@@ -359,320 +367,55 @@ FORMAT: ...
       <form id="setup" class="setup" autocomplete="off">
         <nav class="setnav" aria-label="Setup sections">
           <input id="set-find" type="search" placeholder="Find a setting…" aria-label="Find a setting" title="Type part of a setting's name, like 'voice' or 'folder'.">
-          <button type="button" data-page="system" title="What Joe found on this PC, and the setup helper.">System check</button>
-          <button type="button" data-page="models" title="Download models for writing, pictures, video, tools and sound, and see what's installed.">Models</button>
-          <button type="button" data-page="workflows" title="Pick the model and extra prompt words for each way Joe makes pictures, video and sound.">Workflows</button>
-          <button type="button" data-page="general" title="Joe's folder, what happens when a run ends, quiet hours, phone ping, updates.">General</button>
-          <button type="button" data-page="writing" title="Writing quality and the writing model.">Writing</button>
-          <button type="button" data-page="images" title="Picture and video quality, and ComfyUI.">Images &amp; video</button>
-          <button type="button" data-page="voice" title="Joe's voice, listening, chats, online lookups.">Voice &amp; Talk</button>
-          <button type="button" data-page="display" title="Theme, text size, intro, sounds, screen saver.">Display &amp; sound</button>
-          <button type="button" data-page="phone" title="Joe Phone: use Joe from your phone on your home Wi-Fi.">Phone</button>
-          <button type="button" data-page="addons" title="Tools, packs, workflows and themes made by other people.">Add-ons</button>
-          <button type="button" data-page="memory" title="Things you asked Joe to remember about you. Off until you turn it on.">Memory</button>
-          <button type="button" data-page="privacy" title="Microphone and what Joe sends anywhere.">Privacy</button>
-          <button type="button" data-page="stats" title="Prices used for the savings numbers on F9.">Stats &amp; costs</button>
+          <div class="setgrp" role="group" aria-labelledby="set-ev-h"><div class="setgrph" id="set-ev-h">EVERYDAY</div>
+            <button type="button" data-page="system" title="What Joe found on this PC, the setup helper, and a help file.">Start here</button>
+            <button type="button" data-page="display" title="Theme, text size, easier to see and hear, intro, sounds, screen saver.">Look and sound</button>
+            <button type="button" data-page="voice" title="Joe's voice, listening, microphone, replies and chats.">Voice and Talk</button>
+            <button type="button" data-page="quality" title="How good or fast writing, pictures and video are, and keeping your PC usable.">Quality and speed</button>
+            <button type="button" data-page="night" title="Night shift, repeating missions, what happens when a run ends, quiet hours, phone ping.">Night shift and alerts</button>
+            <button type="button" data-page="folders" title="Joe's folder, how he files his work, watched folders.">Folders and filing</button>
+            <button type="button" data-page="privacy" title="What Joe promises, when he uses the internet, online lookups, updates, keys.">Privacy and internet</button>
+          </div>
+          <button type="button" id="set-adv-btn" class="setadv" aria-expanded="false" aria-controls="set-adv" title="Less common settings: models, workflows, programs, phone, memory, add-ons, other AI apps, this PC, costs.">Advanced settings</button>
+          <div class="setgrp" id="set-adv" role="group" aria-label="Advanced settings" hidden>
+            <button type="button" data-page="models" title="Download models for writing, pictures, video, tools and sound, and see what's installed.">Models</button>
+            <button type="button" data-page="workflows" title="Pick the model and extra prompt words for each way Joe makes pictures, video and sound.">Workflows</button>
+            <button type="button" data-page="writing" title="Which writing program Joe uses, and how to reach it.">Writing program</button>
+            <button type="button" data-page="templates" title="How finished copies look, and your own templates.">Templates</button>
+            <button type="button" data-page="images" title="ComfyUI: where it is, how to start it, folders.">Pictures and video program</button>
+            <button type="button" data-page="phone" title="Joe Phone: use Joe from your phone on your home Wi-Fi.">Phone</button>
+            <button type="button" data-page="memory" title="Things you asked Joe to remember about you. Off until you turn it on.">Memory</button>
+            <button type="button" data-page="addons" title="Tools, packs, workflows and themes made by other people.">Add-ons</button>
+            <button type="button" data-page="otherai" title="Let another AI app use Joe.">Other AI apps</button>
+            <button type="button" data-page="pc" title="People on this PC, back up and restore settings, portable Joe, start over.">This PC and backup</button>
+            <button type="button" data-page="stats" title="Prices used for the savings numbers on F9.">Stats &amp; costs</button>
+          </div>
         </nav>
         <div class="setmain">
           <div class="setpages">
 
-            <!-- SYSTEM CHECK -->
-            <div class="setpage" data-page="system" data-title="System check">
-              <h3 class="settitle">System check</h3>
+            <!-- START HERE -->
+            <div class="setpage" data-page="system" data-title="Start here" data-alias="System check">
+              <h3 class="settitle">Start here</h3>
               <fieldset class="doctor"><legend>WHAT JOE FOUND ON THIS PC</legend>
                 <pre id="doctor" class="out dim">Checking…</pre>
                 <div id="issues"></div>
                 <div class="row"><button type="button" data-act="doctor" title="Look again for the programs and models Joe uses.">[ CHECK AGAIN ]</button>
                   <span id="busy" class="dim"></span></div>
               </fieldset>
-              <fieldset><legend>HELPERS</legend>
+              <fieldset><legend>SETUP HELP</legend>
                 <div class="row">
                   <button type="button" data-act="welcome" title="Walk through setting Joe up, one step at a time.">[ SETUP HELPER ]</button>
                   <button type="button" data-act="speedtest" title="Time one small batch so Joe's estimates fit this PC.">[ TEST MY SPEED ]</button>
                   <button type="button" data-act="check-update" title="See if a newer Joe is out.">[ CHECK FOR UPDATES ]</button>
-                  <button type="button" data-act="reset-all" title="Put every setting back to how Joe came. Asks first. Your files, chats and models stay.">[ RESET ALL SETTINGS ]</button>
-                  <button type="button" data-act="help-file" title="Makes one zip to send someone helping you: versions, System check, settings with keys hidden, and the end of the logs. Never your files, chats or recordings.">[ MAKE A HELP FILE ]</button>
+                  <button type="button" data-act="help-file" title="Makes one zip to send someone helping you: versions, what Joe found on this PC, settings with keys hidden, and the end of the logs. Never your files, chats or recordings.">[ MAKE A HELP FILE ]</button>
                 </div>
               </fieldset>
             </div>
 
-            <!-- MODELS -->
-            <div class="setpage" data-page="models" data-title="Models">
-              <h3 class="settitle">Models</h3>
-              <p class="dim small">The AI models Joe can download for you, sorted by what they're for. Nothing downloads until you press a button and say yes.</p>
-              <div id="model-issues"></div>
-              <fieldset><legend>DOWNLOAD ALL</legend>
-                <p class="dim small">Get every model listed above in one go, one after another. Handy on a slow connection: press it at bedtime and let Joe work through the list overnight (the PC stays awake). It keeps going if one fails, and you can stop it any time.</p>
-                <div class="row"><button type="button" id="dlall-go" data-act="download-all" class="primary" title="Download every model Joe offers on this page, one at a time. Shows the list and total size first.">[ DOWNLOAD ALL ]</button>
-                  <button type="button" id="dlall-stop" data-act="download-all-stop" hidden title="Stop after the download that's going now.">[ STOP ]</button></div>
-                <div id="dlall-status" class="dim small"></div>
-              </fieldset>
-              <fieldset><legend>CHECK MY MODEL FILES</legend>
-                <p class="dim small">Makes sure every picture, video and sound model is whole. A download that stopped part way can leave a file that looks fine but makes ComfyUI fail later. Joe reads each file's own size note, so this needs no internet and changes nothing. A cut-short file can be moved to the Recycle Bin, and then this page offers it again.</p>
-                <div class="row"><button type="button" data-act="models-check" title="Check every model file in ComfyUI's models folder (a few seconds).">[ CHECK MY MODEL FILES ]</button></div>
-                <div id="mcheck" class="dim small" aria-live="polite"></div>
-              </fieldset>
-              <fieldset class="mymodels"><legend>YOUR MODELS</legend>
-                <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
-                <div id="mymodels" class="dim">Press SHOW to look.</div>
-                <div class="row"><button type="button" id="mymodels-go" title="List the writing and picture models installed on this PC.">[ SHOW MY MODELS ]</button></div>
-              </fieldset>
-            </div>
-
-            <!-- WORKFLOWS -->
-            <div class="setpage" data-page="workflows" data-title="Workflows">
-              <h3 class="settitle">Workflows</h3>
-              <p class="dim small">How Joe makes pictures, video and sound. For each one you can pick the model and see the words Joe uses: what he tells the prompt writer, the words he adds to every prompt, and his leave-out list. Press EDIT to change them, or add your own words below them. Joe's own files are never changed: your choices are saved in your settings, and RESET THIS WORKFLOW brings Joe's words back.</p>
-              <div id="wf-list" class="dim">Loading…</div>
-            </div>
-
-            <!-- GENERAL -->
-            <div class="setpage" data-page="general" data-title="General">
-              <h3 class="settitle">General</h3>
-              <fieldset><legend>JOE'S FOLDER</legend>
-                <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace" data-pick="folder" data-pick-title="Choose Joe's folder"></label>
-              </fieldset>
-              <fieldset><legend>WHILE JOE WORKS</legend>
-                <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
-                <div class="dim small">Turn this on when you use the PC while Joe works. Leave it off overnight for the fastest runs and the biggest videos.</div>
-              </fieldset>
-              <fieldset><legend>DAILY RESTART</legend>
-                <label title="Joe closes and opens again once a day, which frees memory, the graphics card and the voice programs. Never in the middle of a job: he waits until it's done. Only matters when Joe is left running.">Restart Joe once a day (recommended) <input type="checkbox" data-path="engine.daily_restart"></label>
-                <label title="24-hour clock, e.g. 06:00. Blank = 6am.">We recommend a restart daily. What time would you like that to happen? <input data-path="engine.restart_time" placeholder="06:00" size="6"></label>
-                <div class="dim small">It could take a few minutes. Leaving this blank restarts at 6am. If Joe is working then (the night shift, an agent, a download), he restarts right after it's done; the queue, missions on hold and the night shift carry on afterwards.</div>
-              </fieldset>
-              <fieldset id="filing-box"><legend>HOW JOE FILES HIS WORK</legend>
-                <label title="Where new work goes. Nothing already in Output moves when you change this.">File new work
-                  <select data-path="filing.how">
-                    <option value="date">By date: one folder per mission (2026-11-10 Showcase video)</option>
-                    <option value="project">By project: the same, inside a folder for each PROJECT</option>
-                    <option value="flat">Flat: straight into Output, like before</option></select></label>
-                <div class="dim small">By date: each mission gets one folder with the date in front, and every task it does goes inside. A piece of writing gets its own folder with its Word, PDF and other copies. Running a task again puts the new one beside the old one as v2, v3 (never over it). Flat uses SAVE: names exactly as written.</div>
-                <div class="dim small">TIDY MY OUTPUT sorts what's already there the same way, once. It only moves things: nothing is deleted or written over, and it keeps a list so UNDO can put everything back.</div>
-                <div class="row"><button type="button" data-act="tidy-look" title="Show what tidying would move. Nothing moves yet.">[ LOOK FIRST ]</button>
-                  <button type="button" data-act="tidy-go" title="Sort Output into dated folders. Asks first. Only moves; writes an undo list.">[ TIDY MY OUTPUT ]</button>
-                  <button type="button" data-act="tidy-undo" title="Put everything from the last tidy back where it was. Asks first.">[ UNDO THE LAST TIDY ]</button>
-                  <button type="button" data-act="projects-open" title="Missions grouped into projects, with notes and what's left.">[ PROJECTS ]</button></div>
-                <pre id="tidy-msg" class="out small" aria-live="polite" hidden></pre>
-              </fieldset>
-              <fieldset><legend>WHEN A RUN ENDS</legend>
-                <label>When finished
-                  <select data-path="engine.when_finished">
-                    <option value="nothing">Do nothing</option><option value="sleep">Sleep</option>
-                    <option value="shutdown">Shut down</option></select></label>
-                <label title="Stops the PC from going to sleep while Joe works.">Keep PC awake <input type="checkbox" data-path="engine.keep_awake"></label>
-                <label title="Joe waits for the graphics card to cool down above this temperature. 0 = off.">Pause if GPU over (°C, 0 = off) <input type="number" data-path="engine.gpu_temp_pause_c" min="0" max="100"></label>
-                <label title="How many times Joe tries a part again when it comes out wrong.">Retries <input type="number" data-path="engine.max_retries" min="1" max="10"></label>
-              </fieldset>
-              <fieldset class="comfort"><legend>QUIET HOURS &amp; PHONE PING</legend>
-                <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
-                <div class="dim small">Optional: a ping on your phone when Joe is done. Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>
-                <label title="The same topic name you subscribed to in the ntfy app.">ntfy topic <input data-path="comfort.ntfy_topic" placeholder="blank = off"></label>
-                <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
-                <details class="more"><summary>More options</summary>
-                  <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
-                </details>
-              </fieldset>
-              <fieldset><legend>BACK UP &amp; RESTORE MY SETTINGS</legend>
-                <div class="dim small">One small zip with everything you set up by hand: your settings, your own writing templates, workflow words, color themes and screen savers, imported workflows, project profiles and your own starter packs. Handy for a new computer, after a reinstall, or to give a friend your setup. Never inside: your files, chats, recordings or models. Restoring keeps where things are on this computer and never overwrites a file you have (a different one comes back as "(restored)").</div>
-                <label title="Also save the Ollama web-search key, the connector password and the phone-ping topic. Leave it off for a backup you'll give to someone else.">Include keys and passwords <input type="checkbox" id="bk-keys"></label>
-                <label title="Also save your Memory notes (Setup > Memory). Leave it off for a backup you'll give to someone else.">Include memory <input type="checkbox" id="bk-mem"></label>
-                <div class="row"><button type="button" data-act="backup" title="Save the backup zip in Output/Backups (the folder opens).">[ BACK UP MY SETTINGS ]</button>
-                  <button type="button" data-act="restore" title="Pick a backup zip made by Joe and bring it back.">[ RESTORE FROM A BACKUP ]</button>
-                  <input type="file" id="bk-file" accept=".zip" hidden></div>
-                <div id="bk-msg" class="dim small" aria-live="polite"></div>
-              </fieldset>
-              <fieldset id="portable-box"><legend>PORTABLE JOE (RUN FROM A USB DRIVE)</legend>
-                <div id="pt-on" hidden>
-                  <div class="small">Joe is running from <b id="pt-root"></b>. His settings, your work, and anything he sets up (voice, Ollama, ComfyUI, models) stay in that folder.</div>
-                  <div id="pt-where" class="dim small"></div>
-                  <div class="dim small">Put Ollama and ComfyUI on the drive from <b>System check</b>, so writing and pictures work on any computer. The night shift is off while Joe runs from a drive (it would leave a task on this computer).</div>
-                </div>
-                <div id="pt-off">
-                  <div class="dim small">Carry Joe with you: copy him to a USB drive (or any folder) and start him there with "Start Joe". He keeps everything on the drive instead of this computer's folders. You can also bring your work and your models along. Each computer still needs its own graphics driver, and Windows may still remember that a program ran: portable means "carried with you", not "leaves no trace". A fast USB 3 drive (an SSD is best), formatted as exFAT or NTFS, works best.</div>
-                  <label title="The drive or folder to put the portable Joe in. Joe makes a folder called Joe inside it.">Put Joe on <input id="pt-dest" data-pick="folder" data-pick-title="Choose the USB drive or folder" placeholder="e.g. E:\  or  /Volumes/MYDRIVE"></label>
-                  <div id="pt-opts" class="ptopts dim small" role="group" aria-label="What to bring along">Press LOOK to see what can come along.</div>
-                  <div class="row"><button type="button" data-act="pt-plan" title="Show what Joe can copy and how big it is.">[ LOOK ]</button>
-                    <button type="button" data-act="pt-make" class="primary" title="Copy Joe (and what you ticked) to the drive. Asks first.">[ MAKE A PORTABLE JOE ]</button>
-                    <button type="button" data-act="pt-stop" id="pt-stop" hidden>[ STOP ]</button></div>
-                  <div id="pt-status" class="dim small" aria-live="polite"></div>
-                </div>
-              </fieldset>
-              <fieldset><legend>NIGHT SHIFT</legend>
-                <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. On Windows, Joe wakes the PC from sleep for it (it must be signed in, and not shut down). On a Mac or Linux, the PC has to be awake at that time.</div>
-                <label title="Start the plans saved for tonight at the time below.">Night shift on <input type="checkbox" data-path="schedule.enabled"></label>
-                <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
-                <label title="Optional, 24-hour clock, e.g. 07:00. At this time Joe finishes the mission he's on and leaves the rest for the next night. Earlier than the start time = the next morning. Blank = run until everything is done.">Stop by <input data-path="schedule.stop" placeholder="blank = until done" size="12"></label>
-                <div class="dim small">Stop by (optional): at that time Joe finishes the mission he's working on, puts the plans he hasn't started back in Missions\Tonight for the next night and says so in the morning report ("3 missions left for tomorrow night"). A stop time earlier than the start means the next morning (start 23:00, stop 06:00). Blank = he runs until everything is done.</div>
-              </fieldset>
-              <fieldset><legend>RECURRING MISSIONS</legend>
-                <div class="dim small">Plans that run again on set nights, with the night shift. Make one by starting your request with when, like "every Sunday night, make next week's meal plan", then press REPEAT under the plan.</div>
-                <div id="rec-warn" class="warn small" hidden>The night shift is off, so these won't run. Turn it on under NIGHT SHIFT above.</div>
-                <div id="rec-list" role="list"></div>
-              </fieldset>
-              <fieldset><legend>PEOPLE ON THIS PC</legend>
-                <div class="dim small">Share this PC? Each person can have their own Joe: separate settings, keys, chats, helpers, night shift and files (their own folder in Documents). The program and the AI models stay shared. A name you add shows up when Joe opens, under "Who's using Joe?". Taking someone off the list never deletes their files.</div>
-                <div id="prof-now" class="small" aria-live="polite"></div>
-                <div id="prof-list" role="list"></div>
-                <div class="row"><label>New person <input id="prof-new" maxlength="30" size="18" placeholder="Name"></label>
-                  <button type="button" data-act="prof-add">[ ADD PERSON ]</button>
-                  <span id="prof-msg" class="dim small" aria-live="polite"></span></div>
-              </fieldset>
-              <fieldset><legend>DIRECTIONS AND SHOPPING</legend>
-                <div class="dim small">"Directions to the feed store" or "where can I buy a cheap air fryer?" opens the site you pick here in your browser. Joe doesn't pick stores, track where you go, or get paid by anyone.</div>
-                <label title="Which map site opens for directions.">Maps <select data-path="comfort.maps"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option><option value="apple">Apple Maps</option><option value="bing">Bing Maps</option></select></label>
-                <label title="Which site opens for shopping searches.">Shopping search <select data-path="comfort.shop"><option value="google">Google Shopping</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing Shopping</option></select></label>
-              </fieldset>
-              <fieldset><legend>WATCH FOLDERS</legend>
-                <div class="dim small">Drop a file into Inbox\Watch\&lt;tool&gt; (for example Inbox\Watch\clean-audio) and Joe runs that tool on it by himself while he's open, with the tool's usual options. Results go to Output\watch-&lt;tool&gt;. Turning this on makes the folders, with a READ ME listing them.</div>
-                <label title="Joe looks in Inbox\Watch every few seconds while he's open.">Watch folders on <input type="checkbox" data-path="schedule.watch"></label>
-              </fieldset>
-              <fieldset><legend>USE JOE FROM ANOTHER AI APP</legend>
-                <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, make pictures, run Joe's tools on files in his Inbox, look at what he made, and stop a run. They can't install anything, change settings, or touch anything outside Joe's folder. CONNECT puts Joe into that app's settings for you (a copy of its old settings is kept); for other apps, paste the lines into their connector settings. Restart the app afterwards.</div>
-                <div id="mcp-apps" class="mcpapps"></div>
-                <div class="row"><button type="button" data-act="mcp-show">[ SHOW CONNECT OPTIONS ]</button>
-                  <button type="button" data-act="mcp-copy" hidden id="mcp-copy">[ COPY THE LINES ]</button><span id="mcp-msg" class="dim"></span></div>
-                <pre id="mcp-lines" class="out" hidden></pre>
-                <div id="mcp-http" class="dim small" hidden></div>
-              </fieldset>
-              <fieldset><legend>UPDATES</legend>
-                <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
-              </fieldset>
-            </div>
-
-            <!-- WRITING -->
-            <div class="setpage" data-page="writing" data-title="Writing">
-              <h3 class="settitle">Writing</h3>
-              <fieldset class="quality"><legend>QUALITY vs SPEED</legend>
-                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people. A task's own SIZE or MODEL always wins.</div>
-                <div class="qrow">
-                  <label>Writing
-                    <select data-path="quality.writing"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-                  <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
-                </div>
-              </fieldset>
-              <fieldset><legend>WRITING MODEL</legend>
-                <label title="The program that runs the writing models. The line under it says what each one is good for and what it costs. Ollama is the easy choice: Joe installs, starts and fills it for you. With the others you add models in that program.">Writing program
-                  <select data-path="ollama.engine"><option value="ollama">Ollama (recommended: Joe sets it up)</option><option value="lmstudio">LM Studio (alternative: a visual app)</option><option value="llamacpp">llama.cpp (fastest: for advanced users who like to tinker)</option><option value="localai">LocalAI (bring your own)</option><option value="openai">Other (bring your own: Jan, KoboldCpp, vLLM, Apple MLX...)</option></select></label>
-                <div class="dim small enginehelp" id="engine-help"></div>
-                <label title="The model that writes. Blank = Joe picks the best one for this PC. With another program, the model name exactly as that program lists it (TEST CONNECTION shows them).">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
-                <div class="row"><button type="button" data-act="start-ollama" title="Start the writing program.">[ START IT ]</button></div>
-                <details class="more"><summary>More options</summary>
-                  <label title="How much text the model can keep in mind at once. 0 = Joe picks.">Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
-                  <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
-                  <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
-                  <label title="Only for LM Studio, llama.cpp, LocalAI or Other. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080, Other 8000; Jan uses 1337, KoboldCpp 5001). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
-                  <label title="Only if that server asks for a key (vLLM started with --api-key, a KoboldCpp password). Kept in your settings on this PC; never shown in help files.">Key (optional) <input data-path="ollama.engine_key" type="password" autocomplete="off" placeholder="blank = no key"></label>
-                  <div class="row"><button type="button" data-act="test-engine" title="Checks that the program answers at that address and lists the model.">[ TEST CONNECTION ]</button> <span id="engine-test" class="small" aria-live="polite"></span></div>
-                  <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" data-pick="file" data-pick-title="Choose the program that starts it (llama-server, local-ai)" placeholder="blank = start it yourself"></label>
-                </details>
-              </fieldset>
-              <fieldset><legend>TEMPLATES (HOW FINISHED COPIES LOOK)</legend>
-                <p class="dim small">When Joe makes a finished copy (Word, PDF, EPUB, or an Excel copy of a spreadsheet), it follows a template: page size, margins, fonts, text size, line spacing, indents and more. Each one is filled in with Joe's choices; press EDIT to change it. A task can pick one with TEMPLATE: and its name (book, manuscript, kids, ebook, report, largeprint, poetry, screenplay, letter, resume, cookbook, recipecard, coloring, school; pricelist for spreadsheets). Missing one? Add your own at the bottom.</p>
-                <div id="tpl-defaults" class="small"></div>
-                <div id="tpl-list" class="dim">Loading…</div>
-                <fieldset class="tpladd"><legend>ADD YOUR OWN TEMPLATE</legend>
-                  <div class="dim small">Need a look Joe doesn't have (a church bulletin, a newsletter, a club handbook, your company's report style)? Give it a name and pick the template that's closest; Joe copies it so you can change anything with EDIT. A task uses it with TEMPLATE: and its name, and you can make it the default for a kind of file above. Joe's own templates are never changed.</div>
-                  <label>Name <input id="tpl-new-name" maxlength="60" placeholder="e.g. Church bulletin"></label>
-                  <label>Start from <select id="tpl-new-base"></select></label>
-                  <label>What it's for <input id="tpl-new-about" maxlength="300" placeholder="optional, e.g. the weekly 2-page bulletin"></label>
-                  <div class="row"><button type="button" data-act="tpl-add" class="primary">[ + ADD TEMPLATE ]</button><span id="tpl-add-msg" class="dim small"></span></div>
-                </fieldset>
-              </fieldset>
-            </div>
-
-            <!-- IMAGES & VIDEO -->
-            <div class="setpage" data-page="images" data-title="Images & video">
-              <h3 class="settitle">Images &amp; video</h3>
-              <fieldset class="quality"><legend>QUALITY vs SPEED</legend>
-                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people.</div>
-                <div class="qrow">
-                  <label>Pictures
-                    <select data-path="quality.pictures"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-                  <div class="dim small qhelp" data-q="pictures" data-low="About half the drawing steps and slightly smaller pictures. Roughly twice as fast; less fine detail." data-medium="The model's normal settings. Clean pictures at full size." data-high="More drawing steps and a finer sampler. Sharper detail; about half again as long per picture."></div>
-                </div>
-                <div class="qrow">
-                  <label>Video
-                    <select data-path="quality.video"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
-                  <div class="dim small qhelp" data-q="video" data-low="Shorter (about 3 s), smaller clips. With the Turbo add-on (System check) this is very quick." data-medium="Full 5-second clips at 1280x704. Uses the Turbo add-on when it's installed (several times faster), otherwise the full model." data-high="The full model with extra steps, never Turbo. Best motion and detail; can take 20 minutes or more per clip on a 12 GB card."></div>
-                </div>
-              </fieldset>
-              <fieldset><legend>PICTURES &amp; VIDEO (COMFYUI)</legend>
-                <label title="Things every picture should avoid. Blank = Joe's own list (shown and editable in Setup > Workflows > Pictures).">Leave out of every picture <input data-path="comfy.negative" placeholder="blank = Joe's list (see Workflows > Pictures)"></label>
-                <label title="ComfyUI keeps its own copy of each picture. Joe deletes that copy once he has saved his.">Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
-                <div class="row"><button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button></div>
-                <details class="more"><summary>More options</summary>
-                  <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
-                  <label title="Where ComfyUI listens. Leave as is unless ComfyUI runs on another PC.">ComfyUI address <input name="cu" data-path="comfy.url"></label>
-                  <label title="How to start ComfyUI. Blank = Joe finds ComfyUI Desktop himself.">Start command <input name="cs" data-path="comfy.start_command" data-pick="file" data-pick-title="Choose what starts ComfyUI (the program, or a .bat / .sh file)" placeholder="blank = find ComfyUI Desktop"></label>
-                  <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" data-pick="folder" data-pick-title="Choose ComfyUI's models folder" placeholder="blank = automatic"></label>
-                  <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" data-pick="folder" data-pick-title="Choose ComfyUI's output folder" placeholder="blank = automatic"></label>
-                  <label title="A ComfyUI workflow file (in Workflows/) to use instead of Joe's built-in one.">Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
-                  <div class="wfimport">
-                    <b>Your own workflows</b> (advanced)
-                    <p class="dim small">In ComfyUI: Workflow &gt; Export (API). Pick that file here. Give it a style and Joe uses it for every picture of that style; leave the style blank to pick it per task. Put {{PROMPT}} in the positive prompt box if Joe can't find it.</p>
-                    <label>Workflow file <input type="file" id="wf-file" accept=".json,application/json"></label>
-                    <label>Use for <select id="wf-style"></select></label>
-                    <button id="wf-go" type="button">IMPORT WORKFLOW</button>
-                    <span id="wf-msg" class="dim small"></span>
-                  </div>
-                  <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" data-pick="file" data-pick-title="Choose the FFmpeg program" placeholder="blank = automatic"></label>
-                </details>
-              </fieldset>
-            </div>
-
-            <!-- VOICE & TALK -->
-            <div class="setpage" data-page="voice" data-title="Voice & Talk">
-              <h3 class="settitle">Voice &amp; Talk</h3>
-              <fieldset><legend>JOE'S VOICE</legend>
-                <label>Joe's voice <select data-path="voice.voice" id="voice-select"><option value="am_adam">Adam (US)</option></select></label>
-                <label title="How fast Joe talks. 1 = normal.">Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
-                <label>Speak replies in Talk (F4) <input type="checkbox" data-path="voice.speak_replies"></label>
-                <label title="Joe's face beside the chat in Talk: he listens, thinks, talks and smiles along. Still = no blinking or moving mouth (also used when your computer is set to reduce motion). Off = no face.">Joe's face in Talk
-                  <select data-path="voice.face"><option value="on">On (moving)</option><option value="still">Still (no blinking or moving mouth)</option><option value="off">Off</option></select></label>
-                <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
-              </fieldset>
-              <fieldset><legend>LISTENING</legend>
-                <label>How to talk
-                  <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
-                <label title="The key you hold while talking, when push-to-talk is on.">Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
-                <label title="Fastest hears quickly but makes more mistakes; Most accurate is slower.">Hearing
-                  <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
-                <label title="For long recordings (Transcribe and Make shorts). Auto uses whisper.cpp when it's installed (faster, especially on Macs), otherwise the voice add-on.">Transcribe with
-                  <select data-path="voice.transcriber"><option value="auto">Auto (recommended)</option><option value="whisper.cpp">whisper.cpp</option><option value="faster-whisper">Voice add-on (faster-whisper)</option></select></label>
-              </fieldset>
-              <fieldset><legend>REPLIES &amp; CHATS</legend>
-                <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
-                <datalist id="dl-talkmodels"></datalist>
-                <label title="Every chat with Joe is saved in his folder and listed on the left. Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
-              </fieldset>
-              <fieldset><legend>ONLINE LOOKUPS</legend>
-                <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight tasks only look things up when the plan says RESEARCH: yes.">Let Joe look things up online <input type="checkbox" data-path="web.enabled"></label>
-                <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
-                <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
-                  For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
-                <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
-              </fieldset>
-              <fieldset class="myvoice"><legend>MAKE JOE SOUND LIKE ME</legend>
-                <div id="mv-status" class="dim small"></div>
-                <label class="inline small"><input type="checkbox" id="mv-consent"> This is my own voice, and I'm recording it myself.</label>
-                <div class="row"><button type="button" data-act="mv-record" id="mv-record" title="Record yourself reading a short passage (about 30 seconds).">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete" title="Delete your recording; Joe goes back to a built-in voice.">[ DELETE MY VOICE ]</button></div>
-                <pre id="mv-script" class="out mvscript" hidden></pre>
-                <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
-              </fieldset>
-              <fieldset class="memvoice"><legend>A VOICE TO REMEMBER</legend>
-                <div class="dim small">Hear a letter, a story or a note in the voice of someone you miss, made from a family recording of them talking (a phone video or voicemail is fine: a few clear seconds are enough). Then use the tool "Hear it in a loved one's voice". It stays on this PC, every recording it makes says it was made by AI, and the voice program hides an inaudible watermark marking it as AI. Needs the voice-copy add-on above (NVIDIA card).</div>
-                <label>Their name (or what you call them) <input id="mem-name" placeholder="e.g. Grandpa" maxlength="60"></label>
-                <label>Family recording <input type="file" id="mem-file" accept="audio/*,video/*"></label>
-                <div id="mem-promises" class="small"></div>
-                <div class="row"><button type="button" data-act="mem-make">[ MAKE THE VOICE ]</button> <span id="mem-msg" class="small" aria-live="polite"></span></div>
-                <div id="mem-list" class="small"></div>
-              </fieldset>
-            </div>
-
-            <!-- DISPLAY & SOUND -->
-            <div class="setpage" data-page="display" data-title="Display & sound">
-              <h3 class="settitle">Display &amp; sound</h3>
+            <!-- LOOK AND SOUND -->
+            <div class="setpage" data-page="display" data-title="Look and sound" data-alias="Display &amp; sound">
+              <h3 class="settitle">Look and sound</h3>
               <fieldset><legend>LOOK</legend>
                 <label>Theme
                   <select data-path="ui.phosphor" id="theme-select">
@@ -697,6 +440,17 @@ FORMAT: ...
                   <button type="button" data-act="lang-make" title="Joe translates the rest of his screens into this language with his writing model (queued like any task; good for the night shift).">[ MAKE IT ]</button></div>
                 <label title="Dims the window and shows a small moving status after this many minutes without using the mouse or keyboard. 0 = off.">Screen saver after (minutes, 0 = off) <input type="number" min="0" max="240" data-path="comfort.screensaver_min"></label>
               </fieldset>
+              <fieldset class="comfort"><legend>SOUNDS &amp; INTRO</legend>
+                <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
+                <label title="The short 01000001 01001001 / JOE screen when Joe opens. Off = straight to work.">Show the intro screen <input type="checkbox" data-path="ui.intro"></label>
+                <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (Setup > Start here). Always silent during quiet hours.">Intro sound
+                  <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
+                    <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
+                <label title="Which tune plays when Joe opens.">Jingle
+                  <select data-path="ui.jingle"><option value="theme">Joe's 8-bit theme</option><option value="chime">Short chime</option></select></label>
+                <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
+                <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
+              </fieldset>
               <fieldset><legend>SCREEN SAVER</legend>
                 <div class="dim small">What Joe shows after the minutes set above. Move the mouse or press a key to wake him. Most show his work status too.</div>
                 <label>Screen saver <select id="saver-select" data-path="comfort.screensaver"></select></label>
@@ -712,20 +466,312 @@ FORMAT: ...
                 <div class="row"><button type="button" data-act="make-theme" title="Joe designs a color scheme from your description.">[ MAKE THEME ]</button><span id="theme-msg" class="dim"></span></div>
                 <div id="swatches" class="swatches"></div>
               </fieldset>
-              <fieldset class="comfort"><legend>SOUNDS &amp; INTRO</legend>
-                <label title="A soft chime when a run finishes (a lower one if something didn't).">Chime when Joe is done <input type="checkbox" data-path="ui.sounds"></label>
-                <label title="The short 01000001 01001001 / JOE screen when Joe opens. Off = straight to work.">Show the intro screen <input type="checkbox" data-path="ui.intro"></label>
-                <label title="What you hear when Joe opens. Joe's spoken hello needs his voice set up (Setup > System check). Always silent during quiet hours.">Intro sound
-                  <select data-path="ui.startup_sound"><option value="both">Jingle + Joe says hello</option><option value="jingle">Jingle only</option>
-                    <option value="voice">Joe says hello</option><option value="off">Mute (no sound)</option></select></label>
-                <label title="Which tune plays when Joe opens.">Jingle
-                  <select data-path="ui.jingle"><option value="theme">Joe's 8-bit theme</option><option value="chime">Short chime</option></select></label>
-                <label title="What Joe says when he opens.">Joe's hello <input data-path="ui.hello_text"></label>
-                <div class="row"><button type="button" data-act="test-hello" title="Hear the jingle and Joe's hello now.">[ HEAR IT ]</button></div>
+            </div>
+
+            <!-- VOICE AND TALK -->
+            <div class="setpage" data-page="voice" data-title="Voice and Talk" data-alias="Voice &amp; Talk">
+              <h3 class="settitle">Voice and Talk</h3>
+              <fieldset><legend>JOE'S VOICE</legend>
+                <label>Joe's voice <select data-path="voice.voice" id="voice-select"><option value="am_adam">Adam (US)</option></select></label>
+                <label title="How fast Joe talks. 1 = normal.">Speed <input type="number" min="0.6" max="1.6" step="0.05" data-path="voice.speed"></label>
+                <label>Speak replies in Talk (F4) <input type="checkbox" data-path="voice.speak_replies"></label>
+                <label title="Joe's face beside the chat in Talk: he listens, thinks, talks and smiles along. Still = no blinking or moving mouth (also used when your computer is set to reduce motion). Off = no face.">Joe's face in Talk
+                  <select data-path="voice.face"><option value="on">On (moving)</option><option value="still">Still (no blinking or moving mouth)</option><option value="off">Off</option></select></label>
+                <div class="row"><button type="button" data-act="test-voice" title="Save and hear Joe say hello.">[ TEST VOICE ]</button></div>
+              </fieldset>
+              <fieldset><legend>LISTENING</legend>
+                <label>How to talk
+                  <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
+                <label title="The key you hold while talking, when push-to-talk is on.">Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
+                <label title="Fastest hears quickly but makes more mistakes; Most accurate is slower.">Hearing
+                  <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
+                <label title="For long recordings (Transcribe and Make shorts). Auto uses whisper.cpp when it's installed (faster, especially on Macs), otherwise the voice add-on.">Transcribe with
+                  <select data-path="voice.transcriber"><option value="auto">Auto (recommended)</option><option value="whisper.cpp">whisper.cpp</option><option value="faster-whisper">Voice add-on (faster-whisper)</option></select></label>
+              </fieldset>
+              <fieldset class="perms"><legend>MICROPHONE</legend>
+                <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
+                  <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
+                <div class="dim small" id="perm-mic-help"></div>
+              </fieldset>
+              <fieldset><legend>REPLIES &amp; CHATS</legend>
+                <label title="A small model answers faster in Talk (for example a 3-4B model). Blank = the writing model. Missions drafted in Talk are checked before they run, as always.">Talk model (faster replies) <input data-path="voice.talk_model" list="dl-talkmodels" placeholder="blank = the writing model"></label>
+                <datalist id="dl-talkmodels"></datalist>
+                <label title="Every chat with Joe is saved in his folder and listed on the left. Chats older than this are deleted on their own. 0 = keep them all.">Delete chats after (days, 0 = never) <input type="number" min="0" max="3650" data-path="voice.chat_keep_days"></label>
+              </fieldset>
+              <fieldset><legend>DIRECTIONS AND SHOPPING</legend>
+                <div class="dim small">"Directions to the feed store" or "where can I buy a cheap air fryer?" opens the site you pick here in your browser. Joe doesn't pick stores, track where you go, or get paid by anyone.</div>
+                <label title="Which map site opens for directions.">Maps <select data-path="comfort.maps"><option value="google">Google Maps</option><option value="osm">OpenStreetMap</option><option value="apple">Apple Maps</option><option value="bing">Bing Maps</option></select></label>
+                <label title="Which site opens for shopping searches.">Shopping search <select data-path="comfort.shop"><option value="google">Google Shopping</option><option value="duckduckgo">DuckDuckGo</option><option value="bing">Bing Shopping</option></select></label>
+              </fieldset>
+              <fieldset class="myvoice"><legend>MAKE JOE SOUND LIKE ME</legend>
+                <div id="mv-status" class="dim small"></div>
+                <label class="inline small"><input type="checkbox" id="mv-consent"> This is my own voice, and I'm recording it myself.</label>
+                <div class="row"><button type="button" data-act="mv-record" id="mv-record" title="Record yourself reading a short passage (about 30 seconds).">[ RECORD MY VOICE ]</button><button type="button" data-act="mv-delete" title="Delete your recording; Joe goes back to a built-in voice.">[ DELETE MY VOICE ]</button></div>
+                <pre id="mv-script" class="out mvscript" hidden></pre>
+                <div class="dim small">Your recording stays on this PC. It's never shared, exported or put in your Joe folder.</div>
+              </fieldset>
+              <fieldset class="memvoice"><legend>A VOICE TO REMEMBER</legend>
+                <div class="dim small">Hear a letter, a story or a note in the voice of someone you miss, made from a family recording of them talking (a phone video or voicemail is fine: a few clear seconds are enough). Then use the tool "Hear it in a loved one's voice". It stays on this PC, every recording it makes says it was made by AI, and the voice program hides an inaudible watermark marking it as AI. Needs the voice-copy add-on above (NVIDIA card).</div>
+                <label>Their name (or what you call them) <input id="mem-name" placeholder="e.g. Grandpa" maxlength="60"></label>
+                <label>Family recording <input type="file" id="mem-file" accept="audio/*,video/*"></label>
+                <div id="mem-promises" class="small"></div>
+                <div class="row"><button type="button" data-act="mem-make">[ MAKE THE VOICE ]</button> <span id="mem-msg" class="small" aria-live="polite"></span></div>
+                <div id="mem-list" class="small"></div>
               </fieldset>
             </div>
 
-            <!-- PRIVACY -->
+            <!-- QUALITY AND SPEED -->
+            <div class="setpage" data-page="quality" data-title="Quality and speed" data-alias="Writing Images &amp; video quality vs speed">
+              <h3 class="settitle">Quality and speed</h3>
+              <fieldset class="quality"><legend>WRITING</legend>
+                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people. A task's own SIZE or MODEL always wins.</div>
+                <div class="qrow">
+                  <label>Writing
+                    <select data-path="quality.writing"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="writing" data-low="A smaller, quicker writing model (when you have one installed). Drafts come faster but are simpler." data-medium="The best writing model for this PC. Good drafts at a steady pace." data-high="The best model, and it thinks each part through before writing. Noticeably better, often 2-3 times slower."></div>
+                </div>
+              </fieldset>
+              <fieldset class="quality"><legend>PICTURES AND VIDEO</legend>
+                <div class="dim small"><b>Low</b> is fastest with rougher results, <b>High</b> gives the best results but takes the longest. <b>Medium</b> suits most people.</div>
+                <div class="qrow">
+                  <label>Pictures
+                    <select data-path="quality.pictures"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="pictures" data-low="About half the drawing steps and slightly smaller pictures. Roughly twice as fast; less fine detail." data-medium="The model's normal settings. Clean pictures at full size." data-high="More drawing steps and a finer sampler. Sharper detail; about half again as long per picture."></div>
+                </div>
+                <div class="qrow">
+                  <label>Video
+                    <select data-path="quality.video"><option value="low">Low: fastest</option><option value="medium">Medium: balanced (recommended)</option><option value="high">High: best quality, slowest</option></select></label>
+                  <div class="dim small qhelp" data-q="video" data-low="Shorter (about 3 s), smaller clips. With the Turbo add-on (Setup > Start here) this is very quick." data-medium="Full 5-second clips at 1280x704. Uses the Turbo add-on when it's installed (several times faster), otherwise the full model." data-high="The full model with extra steps, never Turbo. Best motion and detail; can take 20 minutes or more per clip on a 12 GB card."></div>
+                </div>
+              </fieldset>
+              <fieldset><legend>WHILE JOE WORKS</legend>
+                <label title="Ollama and ComfyUI run at below-normal priority, and videos are made smaller (960x544), so your mouse, browser and games stay smooth while Joe works. Runs take a little longer. Leave it off for overnight runs.">Keep my PC usable <input type="checkbox" data-path="engine.keep_pc_usable"></label>
+                <div class="dim small">Turn this on when you use the PC while Joe works. Leave it off overnight for the fastest runs and the biggest videos.</div>
+              </fieldset>
+            </div>
+
+            <!-- NIGHT SHIFT AND ALERTS -->
+            <div class="setpage" data-page="night" data-title="Night shift and alerts" data-alias="General">
+              <h3 class="settitle">Night shift and alerts</h3>
+              <fieldset><legend>NIGHT SHIFT</legend>
+                <div class="dim small">Plans you save with SAVE FOR TONIGHT start at this time, even if Joe's window is closed. Joe asks your computer's own scheduler to start him (Task Scheduler on Windows, launchd on a Mac, cron on Linux); turning this off removes it again. On Windows, Joe wakes the PC from sleep for it (it must be signed in, and not shut down). On a Mac or Linux, the PC has to be awake at that time.</div>
+                <label title="Start the plans saved for tonight at the time below.">Night shift on <input type="checkbox" data-path="schedule.enabled"></label>
+                <label title="24-hour clock, e.g. 23:00 for 11 PM.">Start at <input data-path="schedule.time" placeholder="23:00" size="6"></label>
+                <label title="Optional, 24-hour clock, e.g. 07:00. At this time Joe finishes the mission he's on and leaves the rest for the next night. Earlier than the start time = the next morning. Blank = run until everything is done.">Stop by <input data-path="schedule.stop" placeholder="blank = until done" size="12"></label>
+                <div class="dim small">Stop by (optional): at that time Joe finishes the mission he's working on, puts the plans he hasn't started back in Missions\Tonight for the next night and says so in the morning report ("3 missions left for tomorrow night"). A stop time earlier than the start means the next morning (start 23:00, stop 06:00). Blank = he runs until everything is done.</div>
+              </fieldset>
+              <fieldset><legend>RECURRING MISSIONS</legend>
+                <div class="dim small">Plans that run again on set nights, with the night shift. Make one by starting your request with when, like "every Sunday night, make next week's meal plan", then press REPEAT under the plan.</div>
+                <div id="rec-warn" class="warn small" hidden>The night shift is off, so these won't run. Turn it on under NIGHT SHIFT above.</div>
+                <div id="rec-list" role="list"></div>
+              </fieldset>
+              <fieldset><legend>WHEN A RUN ENDS</legend>
+                <label>When finished
+                  <select data-path="engine.when_finished">
+                    <option value="nothing">Do nothing</option><option value="sleep">Sleep</option>
+                    <option value="shutdown">Shut down</option></select></label>
+                <label title="Stops the PC from going to sleep while Joe works.">Keep PC awake <input type="checkbox" data-path="engine.keep_awake"></label>
+                <label title="Joe waits for the graphics card to cool down above this temperature. 0 = off.">Pause if GPU over (°C, 0 = off) <input type="number" data-path="engine.gpu_temp_pause_c" min="0" max="100"></label>
+                <label title="How many times Joe tries a part again when it comes out wrong.">Retries <input type="number" data-path="engine.max_retries" min="1" max="10"></label>
+              </fieldset>
+              <fieldset class="comfort"><legend>QUIET HOURS &amp; PHONE PING</legend>
+                <label title="No chimes and no phone pings in these hours. A ping waits until they end.">Quiet hours <span class="inline"><input data-path="comfort.quiet_start" placeholder="22:00" size="6"> to <input data-path="comfort.quiet_end" placeholder="07:00" size="6"></span></label>
+                <div class="dim small">Optional: a ping on your phone when Joe is done. Install the free <b>ntfy</b> app on your phone, subscribe to a topic name only you know (like <i>joe-</i> plus some random letters), and type the same name here. Joe sends one short line, like "Joe is done: 3 of 3 tasks, 48 items." Nothing from your files goes with it. Blank = off.</div>
+                <label title="The same topic name you subscribed to in the ntfy app.">ntfy topic <input data-path="comfort.ntfy_topic" placeholder="blank = off"></label>
+                <div class="row"><button type="button" data-act="test-ping" title="Send one test ping to your phone now.">[ SEND A TEST PING ]</button><span id="ping-msg" class="dim"></span></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="Leave as is unless you run your own ntfy server.">ntfy server <input data-path="comfort.ntfy_server"></label>
+                </details>
+              </fieldset>
+              <fieldset><legend>DAILY RESTART</legend>
+                <label title="Joe closes and opens again once a day, which frees memory, the graphics card and the voice programs. Never in the middle of a job: he waits until it's done. Only matters when Joe is left running.">Restart Joe once a day (recommended) <input type="checkbox" data-path="engine.daily_restart"></label>
+                <label title="24-hour clock, e.g. 06:00. Blank = 6am.">We recommend a restart daily. What time would you like that to happen? <input data-path="engine.restart_time" placeholder="06:00" size="6"></label>
+                <div class="dim small">It could take a few minutes. Leaving this blank restarts at 6am. If Joe is working then (the night shift, an agent, a download), he restarts right after it's done; the queue, missions on hold and the night shift carry on afterwards.</div>
+              </fieldset>
+            </div>
+
+            <!-- FOLDERS AND FILING -->
+            <div class="setpage" data-page="folders" data-title="Folders and filing" data-alias="General">
+              <h3 class="settitle">Folders and filing</h3>
+              <fieldset><legend>JOE'S FOLDER</legend>
+                <label title="Where Joe keeps missions, projects and everything he makes.">Folder <input name="workspace" data-path="workspace" data-pick="folder" data-pick-title="Choose Joe's folder"></label>
+              </fieldset>
+              <fieldset id="filing-box"><legend>HOW JOE FILES HIS WORK</legend>
+                <label title="Where new work goes. Nothing already in Output moves when you change this.">File new work
+                  <select data-path="filing.how">
+                    <option value="date">By date: one folder per mission (2026-11-10 Showcase video)</option>
+                    <option value="project">By project: the same, inside a folder for each PROJECT</option>
+                    <option value="flat">Flat: straight into Output, like before</option></select></label>
+                <div class="dim small">By date: each mission gets one folder with the date in front, and every task it does goes inside. A piece of writing gets its own folder with its Word, PDF and other copies. Running a task again puts the new one beside the old one as v2, v3 (never over it). Flat uses SAVE: names exactly as written.</div>
+                <div class="dim small">TIDY MY OUTPUT sorts what's already there the same way, once. It only moves things: nothing is deleted or written over, and it keeps a list so UNDO can put everything back.</div>
+                <div class="row"><button type="button" data-act="tidy-look" title="Show what tidying would move. Nothing moves yet.">[ LOOK FIRST ]</button>
+                  <button type="button" data-act="tidy-go" title="Sort Output into dated folders. Asks first. Only moves; writes an undo list.">[ TIDY MY OUTPUT ]</button>
+                  <button type="button" data-act="tidy-undo" title="Put everything from the last tidy back where it was. Asks first.">[ UNDO THE LAST TIDY ]</button>
+                  <button type="button" data-act="projects-open" title="Missions grouped into projects, with notes and what's left.">[ PROJECTS ]</button></div>
+                <pre id="tidy-msg" class="out small" aria-live="polite" hidden></pre>
+              </fieldset>
+              <fieldset><legend>WATCH FOLDERS</legend>
+                <div class="dim small">Drop a file into Inbox\Watch\&lt;tool&gt; (for example Inbox\Watch\clean-audio) and Joe runs that tool on it by himself while he's open, with the tool's usual options. Results go to Output\watch-&lt;tool&gt;. Turning this on makes the folders, with a READ ME listing them.</div>
+                <label title="Joe looks in Inbox\Watch every few seconds while he's open.">Watch folders on <input type="checkbox" data-path="schedule.watch"></label>
+              </fieldset>
+            </div>
+
+            <!-- PRIVACY AND INTERNET -->
+            <div class="setpage" data-page="privacy" data-title="Privacy and internet" data-alias="Privacy">
+              <h3 class="settitle">Privacy and internet</h3>
+              <fieldset><legend>WHAT JOE PROMISES</legend>
+                <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
+                  He never sends your files, chats or recordings anywhere, and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
+              </fieldset>
+              <fieldset><legend>WHEN JOE USES THE INTERNET</legend>
+                <div class="dim small">The work itself happens on this PC. These need the internet, and none of them send your files:</div>
+                <ul class="netlist small">
+                  <li><b>Installing programs and downloading models</b> (Setup &gt; Start here, setup helper): only after you say yes.</li>
+                  <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
+                  <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
+                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
+                  <li><b>whisper.cpp</b> (optional, Setup &gt; Start here): the small program from GitHub (Windows) or Homebrew (Mac), and its hearing model from Hugging Face, once. Never your recordings.</li>
+                  <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
+                  <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Setup &gt; Privacy and internet &gt; Let Joe look things up online).</li>
+                  <li><b>Model pages</b>: GET IT on a recommended picture model opens its page (Hugging Face or Civitai) in your browser, and on Hugging Face starts the download there. You read its terms; the download is yours.</li>
+                </ul>
+                <div class="dim small">Ollama and ComfyUI have their own update checks and settings. Once everything is installed, overnight runs work without internet.</div>
+              </fieldset>
+              <fieldset><legend>ONLINE LOOKUPS</legend>
+                <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight tasks only look things up when the plan says RESEARCH: yes.">Let Joe look things up online <input type="checkbox" data-path="web.enabled"></label>
+                <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
+                <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
+                  For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
+                <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
+              </fieldset>
+              <fieldset><legend>UPDATES</legend>
+                <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
+              </fieldset>
+              <fieldset><legend>YOUR KEYS AND PASSWORDS</legend>
+                <div class="dim small">The Ollama web-search key, the connector password, a writing program's key and the phone-ping topic are kept in your computer's own protected store, not in Joe's plain settings file.</div>
+                <div id="vault-text" class="small" aria-live="polite">Checking…</div>
+              </fieldset>
+            </div>
+
+            <div class="setpage" data-page="models" data-title="Models">
+              <h3 class="settitle">Models</h3>
+              <p class="dim small">The AI models Joe can download for you, sorted by what they're for. Nothing downloads until you press a button and say yes.</p>
+              <div id="model-issues"></div>
+              <fieldset><legend>DOWNLOAD ALL</legend>
+                <p class="dim small">Get every model listed above in one go, one after another. Handy on a slow connection: press it at bedtime and let Joe work through the list overnight (the PC stays awake). It keeps going if one fails, and you can stop it any time.</p>
+                <div class="row"><button type="button" id="dlall-go" data-act="download-all" class="primary" title="Download every model Joe offers on this page, one at a time. Shows the list and total size first.">[ DOWNLOAD ALL ]</button>
+                  <button type="button" id="dlall-stop" data-act="download-all-stop" hidden title="Stop after the download that's going now.">[ STOP ]</button></div>
+                <div id="dlall-status" class="dim small"></div>
+              </fieldset>
+              <fieldset><legend>CHECK MY MODEL FILES</legend>
+                <p class="dim small">Makes sure every picture, video and sound model is whole. A download that stopped part way can leave a file that looks fine but makes ComfyUI fail later. Joe reads each file's own size note, so this needs no internet and changes nothing. A cut-short file can be moved to the Recycle Bin, and then this page offers it again.</p>
+                <div class="row"><button type="button" data-act="models-check" title="Check every model file in ComfyUI's models folder (a few seconds).">[ CHECK MY MODEL FILES ]</button></div>
+                <div id="mcheck" class="dim small" aria-live="polite"></div>
+              </fieldset>
+              <fieldset class="mymodels"><legend>YOUR MODELS</legend>
+                <p class="dim small">Everything Joe can use on this PC, and what he uses it for.</p>
+                <div id="mymodels" class="dim">Press SHOW to look.</div>
+                <div class="row"><button type="button" id="mymodels-go" title="List the writing and picture models installed on this PC.">[ SHOW MY MODELS ]</button></div>
+              </fieldset>
+            </div>
+
+            <div class="setpage" data-page="workflows" data-title="Workflows">
+              <h3 class="settitle">Workflows</h3>
+              <p class="dim small">How Joe makes pictures, video and sound. For each one you can pick the model and see the words Joe uses: what he tells the prompt writer, the words he adds to every prompt, and his leave-out list. Press EDIT to change them, or add your own words below them. Joe's own files are never changed: your choices are saved in your settings, and RESET THIS WORKFLOW brings Joe's words back.</p>
+              <div id="wf-list" class="dim">Loading…</div>
+            </div>
+
+            <!-- WRITING PROGRAM -->
+            <div class="setpage" data-page="writing" data-title="Writing program" data-alias="Writing">
+              <h3 class="settitle">Writing program</h3>
+              <fieldset><legend>WRITING MODEL</legend>
+                <label title="The program that runs the writing models. The line under it says what each one is good for and what it costs. Ollama is the easy choice: Joe installs, starts and fills it for you. With the others you add models in that program.">Writing program
+                  <select data-path="ollama.engine"><option value="ollama">Ollama (recommended: Joe sets it up)</option><option value="lmstudio">LM Studio (alternative: a visual app)</option><option value="llamacpp">llama.cpp (fastest: for advanced users who like to tinker)</option><option value="localai">LocalAI (bring your own)</option><option value="openai">Other (bring your own: Jan, KoboldCpp, vLLM, Apple MLX...)</option></select></label>
+                <div class="dim small enginehelp" id="engine-help"></div>
+                <label title="The model that writes. Blank = Joe picks the best one for this PC. With another program, the model name exactly as that program lists it (TEST CONNECTION shows them).">Model <input name="m" data-path="ollama.text_model" placeholder="auto: best for this PC"></label>
+                <div class="row"><button type="button" data-act="start-ollama" title="Start the writing program.">[ START IT ]</button></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="How much text the model can keep in mind at once. 0 = Joe picks.">Context (0 = auto) <input name="c" data-path="ollama.num_ctx" type="number" min="0" step="512"></label>
+                  <label title="Lower = steadier and more predictable, higher = more varied.">Temperature <input name="t" data-path="ollama.temperature" type="number" min="0" max="2" step="0.1"></label>
+                  <label title="Where Ollama listens. Leave as is unless Ollama runs on another PC.">Ollama address <input name="u" data-path="ollama.url"></label>
+                  <label title="Only for LM Studio, llama.cpp, LocalAI or Other. Blank = its usual address (LM Studio 1234, llama.cpp and LocalAI 8080, Other 8000; Jan uses 1337, KoboldCpp 5001). Use this PC or one on your home network.">Other program's address <input data-path="ollama.engine_url" placeholder="blank = usual address"></label>
+                  <label title="Only if that server asks for a key (vLLM started with --api-key, a KoboldCpp password). Kept in your settings on this PC; never shown in help files.">Key (optional) <input data-path="ollama.engine_key" type="password" autocomplete="off" placeholder="blank = no key"></label>
+                  <div class="row"><button type="button" data-act="test-engine" title="Checks that the program answers at that address and lists the model.">[ TEST CONNECTION ]</button> <span id="engine-test" class="small" aria-live="polite"></span></div>
+                  <label title="Only for llama.cpp or LocalAI (LM Studio starts by itself). The line that starts it, e.g. llama-server -m C:\models\model.gguf --port 8080 --ctx-size 8192">Start command <input data-path="ollama.engine_start" data-pick="file" data-pick-title="Choose the program that starts it (llama-server, local-ai)" placeholder="blank = start it yourself"></label>
+                </details>
+              </fieldset>
+            </div>
+
+            <!-- TEMPLATES -->
+            <div class="setpage" data-page="templates" data-title="Templates" data-alias="Writing">
+              <h3 class="settitle">Templates</h3>
+              <fieldset><legend>TEMPLATES (HOW FINISHED COPIES LOOK)</legend>
+                <p class="dim small">When Joe makes a finished copy (Word, PDF, EPUB, or an Excel copy of a spreadsheet), it follows a template: page size, margins, fonts, text size, line spacing, indents and more. Each one is filled in with Joe's choices; press EDIT to change it. A task can pick one with TEMPLATE: and its name (book, manuscript, kids, ebook, report, largeprint, poetry, screenplay, letter, resume, cookbook, recipecard, coloring, school; pricelist for spreadsheets). Missing one? Add your own at the bottom.</p>
+                <div id="tpl-defaults" class="small"></div>
+                <div id="tpl-list" class="dim">Loading…</div>
+                <fieldset class="tpladd"><legend>ADD YOUR OWN TEMPLATE</legend>
+                  <div class="dim small">Need a look Joe doesn't have (a church bulletin, a newsletter, a club handbook, your company's report style)? Give it a name and pick the template that's closest; Joe copies it so you can change anything with EDIT. A task uses it with TEMPLATE: and its name, and you can make it the default for a kind of file above. Joe's own templates are never changed.</div>
+                  <label>Name <input id="tpl-new-name" maxlength="60" placeholder="e.g. Church bulletin"></label>
+                  <label>Start from <select id="tpl-new-base"></select></label>
+                  <label>What it's for <input id="tpl-new-about" maxlength="300" placeholder="optional, e.g. the weekly 2-page bulletin"></label>
+                  <div class="row"><button type="button" data-act="tpl-add" class="primary">[ + ADD TEMPLATE ]</button><span id="tpl-add-msg" class="dim small"></span></div>
+                </fieldset>
+              </fieldset>
+            </div>
+
+            <!-- PICTURES AND VIDEO PROGRAM -->
+            <div class="setpage" data-page="images" data-title="Pictures and video program" data-alias="Images &amp; video">
+              <h3 class="settitle">Pictures and video program</h3>
+              <fieldset><legend>PICTURES &amp; VIDEO (COMFYUI)</legend>
+                <label title="Things every picture should avoid. Blank = Joe's own list (shown and editable in Setup > Workflows > Pictures).">Leave out of every picture <input data-path="comfy.negative" placeholder="blank = Joe's list (see Workflows > Pictures)"></label>
+                <label title="ComfyUI keeps its own copy of each picture. Joe deletes that copy once he has saved his.">Remove ComfyUI's copy after Joe saves <input type="checkbox" data-path="comfy.delete_copies"></label>
+                <div class="row"><button type="button" data-act="start-comfy" title="Start ComfyUI, the program that draws pictures and video.">[ START COMFYUI ]</button></div>
+                <details class="more"><summary>More options</summary>
+                  <label title="How long one picture may take before Joe gives up on it. Videos always get at least an hour.">Timeout per picture (s) <input type="number" data-path="comfy.timeout_s" min="60" max="7200"></label>
+                  <label title="Where ComfyUI listens. Leave as is unless ComfyUI runs on another PC.">ComfyUI address <input name="cu" data-path="comfy.url"></label>
+                  <label title="How to start ComfyUI. Blank = Joe finds ComfyUI Desktop himself.">Start command <input name="cs" data-path="comfy.start_command" data-pick="file" data-pick-title="Choose what starts ComfyUI (the program, or a .bat / .sh file)" placeholder="blank = find ComfyUI Desktop"></label>
+                  <label title="Where ComfyUI keeps its models. Blank = Joe finds it.">Models folder <input data-path="comfy.models_dir" data-pick="folder" data-pick-title="Choose ComfyUI's models folder" placeholder="blank = automatic"></label>
+                  <label title="Where ComfyUI saves its pictures. Blank = Joe finds it.">ComfyUI output folder <input data-path="comfy.output_dir" data-pick="folder" data-pick-title="Choose ComfyUI's output folder" placeholder="blank = automatic"></label>
+                  <label title="A ComfyUI workflow file (in Workflows/) to use instead of Joe's built-in one.">Workflow <input data-path="comfy.default_workflow" placeholder="blank = built-in (file in Workflows/)"></label>
+                  <div class="wfimport">
+                    <b>Your own workflows</b> (advanced)
+                    <p class="dim small">In ComfyUI: Workflow &gt; Export (API). Pick that file here. Give it a style and Joe uses it for every picture of that style; leave the style blank to pick it per task. Put {{PROMPT}} in the positive prompt box if Joe can't find it.</p>
+                    <label>Workflow file <input type="file" id="wf-file" accept=".json,application/json"></label>
+                    <label>Use for <select id="wf-style"></select></label>
+                    <button id="wf-go" type="button">IMPORT WORKFLOW</button>
+                    <span id="wf-msg" class="dim small"></span>
+                  </div>
+                  <label title="FFmpeg turns picture frames into MP4 videos. Blank = Joe finds it.">FFmpeg <input data-path="comfy.ffmpeg" data-pick="file" data-pick-title="Choose the FFmpeg program" placeholder="blank = automatic"></label>
+                </details>
+              </fieldset>
+            </div>
+
+            <!-- PHONE -->
+            <div class="setpage" data-page="phone" data-title="Phone" data-alias="">
+              <h3 class="settitle">Joe Phone</h3>
+              <fieldset><legend>SAFETY</legend>
+                <div class="dim small">Only phones on your home network can reach it; Joe never opens your router to the internet.
+                  Each phone is paired once with a code that works for 10 minutes; REMOVE ends a phone's access right away.
+                  From the phone Joe can't change settings, install anything or open files outside his Output folder.
+                  Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on public Wi-Fi.</div>
+              </fieldset>
+              <fieldset><legend>USE JOE FROM YOUR PHONE</legend>
+                <div class="dim small">A small page Joe serves to your phone on your home Wi-Fi: see what Joe is doing, stop a run,
+                  ask Joe or plan work (RUN IT on the phone, like here), lists, reminders, and the pictures and files he made.
+                  It works while Joe's window is open on this PC and your phone is on the same Wi-Fi. Reminders still reach
+                  your phone with the PC off (phone ping, General).</div>
+                <label title="Off until you turn it on. Windows may ask once whether Joe may use your network: pick Private networks.">Joe Phone on <input type="checkbox" data-path="phone.enabled"></label>
+                <label title="The door number phones use. Change it only if another program already uses 8770.">Port <input type="number" min="1024" max="65535" data-path="phone.port"></label>
+                <div class="dim small">Turn it on, press SAVE, then pair your phone.</div>
+                <div class="row"><span>Status: <b id="phone-state">checking…</b></span>
+                  <button type="button" data-act="phone-pair" title="Shows a QR code. Scan it with your phone's camera.">[ PAIR A PHONE ]</button></div>
+                <div id="phone-qr" class="small"></div>
+              </fieldset>
+              <fieldset><legend>PAIRED PHONES</legend>
+                <div id="phone-devices" class="small dim">None yet.</div>
+              </fieldset>
+            </div>
+
             <div class="setpage" data-page="memory" data-title="Memory">
               <h3 class="settitle">Memory</h3>
               <fieldset><legend>REMEMBER THINGS ABOUT ME</legend>
@@ -744,66 +790,15 @@ FORMAT: ...
               </fieldset>
             </div>
 
-            <div class="setpage" data-page="privacy" data-title="Privacy">
-              <h3 class="settitle">Privacy</h3>
-              <fieldset class="perms"><legend>MICROPHONE</legend>
-                <div class="row"><span>Microphone (for Talk): <b id="perm-mic">checking…</b></span>
-                  <button type="button" data-act="perm-mic" title="Ask Windows and this window for the microphone once. Joe remembers the answer.">[ ALLOW MICROPHONE ]</button></div>
-                <div class="dim small" id="perm-mic-help"></div>
-              </fieldset>
-              <fieldset><legend>YOUR KEYS AND PASSWORDS</legend>
-                <div class="dim small">The Ollama web-search key, the connector password, a writing program's key and the phone-ping topic are kept in your computer's own protected store, not in Joe's plain settings file.</div>
-                <div id="vault-text" class="small" aria-live="polite">Checking…</div>
-              </fieldset>
-              <fieldset><legend>WHAT JOE PROMISES</legend>
-                <div class="dim small">Joe <b>always asks first</b> before he installs a program, downloads a model, or starts a run.
-                  He never sends your files, chats or recordings anywhere, and only listens while Talk is open with the mic on (or while you hold the talk key).</div>
-              </fieldset>
-              <fieldset><legend>WHEN JOE USES THE INTERNET</legend>
-                <div class="dim small">The work itself happens on this PC. These need the internet, and none of them send your files:</div>
-                <ul class="netlist small">
-                  <li><b>Installing programs and downloading models</b> (System check, setup helper): only after you say yes.</li>
-                  <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
-                  <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
-                  <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off in General &gt; Updates.</li>
-                  <li><b>whisper.cpp</b> (optional, System check): the small program from GitHub (Windows) or Homebrew (Mac), and its hearing model from Hugging Face, once. Never your recordings.</li>
-                  <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
-                  <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Voice &amp; Talk &gt; Let Joe look things up online).</li>
-                  <li><b>Model pages</b>: GET IT on a recommended picture model opens its page (Hugging Face or Civitai) in your browser, and on Hugging Face starts the download there. You read its terms; the download is yours.</li>
-                </ul>
-                <div class="dim small">Ollama and ComfyUI have their own update checks and settings. Once everything is installed, overnight runs work without internet.</div>
-              </fieldset>
-            </div>
-
-            <!-- PHONE -->
-            <div class="setpage" data-page="phone" data-title="Phone">
-              <h3 class="settitle">Joe Phone</h3>
-              <fieldset><legend>USE JOE FROM YOUR PHONE</legend>
-                <div class="dim small">A small page Joe serves to your phone on your home Wi-Fi: see what Joe is doing, stop a run,
-                  ask Joe or plan work (RUN IT on the phone, like here), lists, reminders, and the pictures and files he made.
-                  It works while Joe's window is open on this PC and your phone is on the same Wi-Fi. Reminders still reach
-                  your phone with the PC off (phone ping, General).</div>
-                <label title="Off until you turn it on. Windows may ask once whether Joe may use your network: pick Private networks.">Joe Phone on <input type="checkbox" data-path="phone.enabled"></label>
-                <label title="The door number phones use. Change it only if another program already uses 8770.">Port <input type="number" min="1024" max="65535" data-path="phone.port"></label>
-                <div class="dim small">Turn it on, press SAVE, then pair your phone.</div>
-                <div class="row"><span>Status: <b id="phone-state">checking…</b></span>
-                  <button type="button" data-act="phone-pair" title="Shows a QR code. Scan it with your phone's camera.">[ PAIR A PHONE ]</button></div>
-                <div id="phone-qr" class="small"></div>
-              </fieldset>
-              <fieldset><legend>PAIRED PHONES</legend>
-                <div id="phone-devices" class="small dim">None yet.</div>
-              </fieldset>
-              <fieldset><legend>SAFETY</legend>
-                <div class="dim small">Only phones on your home network can reach it; Joe never opens your router to the internet.
-                  Each phone is paired once with a code that works for 10 minutes; REMOVE ends a phone's access right away.
-                  From the phone Joe can't change settings, install anything or open files outside his Output folder.
-                  Home Wi-Fi traffic isn't encrypted (like most home devices' own pages), so use it at home, not on public Wi-Fi.</div>
-              </fieldset>
-            </div>
-
             <!-- ADD-ONS -->
-            <div class="setpage" data-page="addons" data-title="Add-ons">
+            <div class="setpage" data-page="addons" data-title="Add-ons" data-alias="">
               <h3 class="settitle">Add-ons from other people</h3>
+              <fieldset><legend>SAFETY</legend>
+                <div class="dim small">Packs, workflows and themes are data, checked like Joe's own. A <b>tool</b> runs a program on your
+                  files: Joe shows the exact program and command first, runs it on copies of your files with a time limit, and keeps
+                  only what it writes into the task's folder. That program can still do anything a program can, so only turn on tools
+                  from people you trust. If an add-on's files change later, Joe turns it off until you look again.</div>
+              </fieldset>
               <fieldset><legend>ADD AN ADD-ON</legend>
                 <div class="dim small">Add-ons bring new tools, starter packs, picture workflows and themes that other people made.
                   Each one stays <b>off</b> until you read what it does and turn it on.</div>
@@ -816,15 +811,63 @@ FORMAT: ...
               <fieldset><legend>YOUR ADD-ONS</legend>
                 <div id="addon-list" class="small dim">None yet.</div>
               </fieldset>
-              <fieldset><legend>SAFETY</legend>
-                <div class="dim small">Packs, workflows and themes are data, checked like Joe's own. A <b>tool</b> runs a program on your
-                  files: Joe shows the exact program and command first, runs it on copies of your files with a time limit, and keeps
-                  only what it writes into the task's folder. That program can still do anything a program can, so only turn on tools
-                  from people you trust. If an add-on's files change later, Joe turns it off until you look again.</div>
+            </div>
+
+            <!-- OTHER AI APPS -->
+            <div class="setpage" data-page="otherai" data-title="Other AI apps" data-alias="General">
+              <h3 class="settitle">Other AI apps</h3>
+              <fieldset><legend>USE JOE FROM ANOTHER AI APP</legend>
+                <div class="dim small">Apps like Claude Desktop can use Joe as a connector (MCP): see his status, read the mission format, check and queue plans, make pictures, run Joe's tools on files in his Inbox, look at what he made, and stop a run. They can't install anything, change settings, or touch anything outside Joe's folder. CONNECT puts Joe into that app's settings for you (a copy of its old settings is kept); for other apps, paste the lines into their connector settings. Restart the app afterwards.</div>
+                <div id="mcp-apps" class="mcpapps"></div>
+                <div class="row"><button type="button" data-act="mcp-show">[ SHOW CONNECT OPTIONS ]</button>
+                  <button type="button" data-act="mcp-copy" hidden id="mcp-copy">[ COPY THE LINES ]</button><span id="mcp-msg" class="dim"></span></div>
+                <pre id="mcp-lines" class="out" hidden></pre>
+                <div id="mcp-http" class="dim small" hidden></div>
               </fieldset>
             </div>
 
-            <!-- STATS & COSTS -->
+            <!-- THIS PC AND BACKUP -->
+            <div class="setpage" data-page="pc" data-title="This PC and backup" data-alias="General people backup portable">
+              <h3 class="settitle">This PC and backup</h3>
+              <fieldset><legend>PEOPLE ON THIS PC</legend>
+                <div class="dim small">Share this PC? Each person can have their own Joe: separate settings, keys, chats, helpers, night shift and files (their own folder in Documents). The program and the AI models stay shared. A name you add shows up when Joe opens, under "Who's using Joe?". Taking someone off the list never deletes their files.</div>
+                <div id="prof-now" class="small" aria-live="polite"></div>
+                <div id="prof-list" role="list"></div>
+                <div class="row"><label>New person <input id="prof-new" maxlength="30" size="18" placeholder="Name"></label>
+                  <button type="button" data-act="prof-add">[ ADD PERSON ]</button>
+                  <span id="prof-msg" class="dim small" aria-live="polite"></span></div>
+              </fieldset>
+              <fieldset><legend>BACK UP &amp; RESTORE MY SETTINGS</legend>
+                <div class="dim small">One small zip with everything you set up by hand: your settings, your own writing templates, workflow words, color themes and screen savers, imported workflows, project profiles and your own starter packs. Handy for a new computer, after a reinstall, or to give a friend your setup. Never inside: your files, chats, recordings or models. Restoring keeps where things are on this computer and never overwrites a file you have (a different one comes back as "(restored)").</div>
+                <label title="Also save the Ollama web-search key, the connector password and the phone-ping topic. Leave it off for a backup you'll give to someone else.">Include keys and passwords <input type="checkbox" id="bk-keys"></label>
+                <label title="Also save your Memory notes (Setup > Memory). Leave it off for a backup you'll give to someone else.">Include memory <input type="checkbox" id="bk-mem"></label>
+                <div class="row"><button type="button" data-act="backup" title="Save the backup zip in Output/Backups (the folder opens).">[ BACK UP MY SETTINGS ]</button>
+                  <button type="button" data-act="restore" title="Pick a backup zip made by Joe and bring it back.">[ RESTORE FROM A BACKUP ]</button>
+                  <input type="file" id="bk-file" accept=".zip" hidden></div>
+                <div id="bk-msg" class="dim small" aria-live="polite"></div>
+              </fieldset>
+              <fieldset id="portable-box"><legend>PORTABLE JOE (RUN FROM A USB DRIVE)</legend>
+                <div id="pt-on" hidden>
+                  <div class="small">Joe is running from <b id="pt-root"></b>. His settings, your work, and anything he sets up (voice, Ollama, ComfyUI, models) stay in that folder.</div>
+                  <div id="pt-where" class="dim small"></div>
+                  <div class="dim small">Put Ollama and ComfyUI on the drive from <b>Setup &gt; Start here</b>, so writing and pictures work on any computer. The night shift is off while Joe runs from a drive (it would leave a task on this computer).</div>
+                </div>
+                <div id="pt-off">
+                  <div class="dim small">Carry Joe with you: copy him to a USB drive (or any folder) and start him there with "Start Joe". He keeps everything on the drive instead of this computer's folders. You can also bring your work and your models along. Each computer still needs its own graphics driver, and Windows may still remember that a program ran: portable means "carried with you", not "leaves no trace". A fast USB 3 drive (an SSD is best), formatted as exFAT or NTFS, works best.</div>
+                  <label title="The drive or folder to put the portable Joe in. Joe makes a folder called Joe inside it.">Put Joe on <input id="pt-dest" data-pick="folder" data-pick-title="Choose the USB drive or folder" placeholder="e.g. E:\  or  /Volumes/MYDRIVE"></label>
+                  <div id="pt-opts" class="ptopts dim small" role="group" aria-label="What to bring along">Press LOOK to see what can come along.</div>
+                  <div class="row"><button type="button" data-act="pt-plan" title="Show what Joe can copy and how big it is.">[ LOOK ]</button>
+                    <button type="button" data-act="pt-make" class="primary" title="Copy Joe (and what you ticked) to the drive. Asks first.">[ MAKE A PORTABLE JOE ]</button>
+                    <button type="button" data-act="pt-stop" id="pt-stop" hidden>[ STOP ]</button></div>
+                  <div id="pt-status" class="dim small" aria-live="polite"></div>
+                </div>
+              </fieldset>
+              <fieldset class="startover"><legend>START OVER</legend>
+                <div class="dim small">Puts every setting back to how Joe came. Your files, chats and models stay. Joe asks you to confirm before anything changes.</div>
+                <div class="row"><button type="button" data-act="reset-all" title="Put every setting back to how Joe came. Asks first. Your files, chats and models stay.">[ START OVER: RESET ALL SETTINGS ]</button></div>
+              </fieldset>
+            </div>
+
             <div class="setpage" data-page="stats" data-title="Stats & costs">
               <h3 class="settitle">Stats &amp; costs</h3>
               <fieldset><legend>PRICES FOR THE SAVINGS NUMBERS (F9)</legend>
@@ -983,7 +1026,7 @@ FORMAT: ...
   - get the hearing model for other languages, once (Transcribe)
   - check GitHub for a newer Joe, and about weekly for newer Ollama,
     ComfyUI and models, plus his list of suggested models
-    (all off with Setup > General > Updates)
+    (all off with Setup > Privacy and internet > Updates)
   - send a phone ping, if you set one up (one short line)
   - look things up in Talk and RESEARCH tasks, if you turn it on
     (search words only)
@@ -1028,7 +1071,7 @@ FORMAT: ...
        (CSV/Excel in, a tidy CSV and a change list out), and the
        picture tools: Listings from photos, Read scans and
        receipts, Sort my photos (they need a vision model: F10 >
-       System check), and Ask my files (type your questions; Joe
+       Setup > Start here), and Ask my files (type your questions; Joe
        answers only from your documents and shows the excerpts).
        Picture and sound tools (run in ComfyUI, each needs its
        model once; the form offers it): Remove background and
@@ -1042,10 +1085,10 @@ FORMAT: ...
        Dropped files are copied to Inbox\dropped.
        The mic is open while this screen is up: just talk,
        and Joe answers when you pause (MIC button mutes). Prefer
-       push-to-talk? Setup > Voice & Talk, pick any key. You can always type.
-       (Voice needs a one-time setup: F10 > System check.)
+       push-to-talk? Setup > Voice and Talk, pick any key. You can always type.
+       (Voice needs a one-time setup: F10 > Start here.)
        Joe's face beside the chat shows what he's doing (listening,
-       thinking, talking). Still or Off: Setup > Voice & Talk.
+       thinking, talking). Still or Off: Setup > Voice and Talk.
        After Joe answers with a list (or ask about the report), say
        "read the third one", "next", "go back", "again",
        "skip to the CHECK items", "how many?" or "read the list".
@@ -1133,7 +1176,7 @@ FORMAT: ...
 <div id="packs" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="pk-title"><div class="panel bigger"><h2 id="pk-title">STARTER PACKS</h2>
   <p class="small">Pick one, answer one question, and Joe makes a plan for all of it. You see the plan before anything runs.</p>
   <div id="pk-list" class="pklist"></div>
-  <div id="pk-askrow" hidden><p id="pk-ask" class="small"></p><input id="pk-for" maxlength="200" style="width:100%">
+  <div id="pk-askrow" hidden><p id="pk-ask" class="small"></p><input id="pk-for" aria-labelledby="pk-ask" maxlength="200" style="width:100%">
     <div id="pk-err" class="small warn" role="alert"></div>
     <div class="row buttons"><button type="button" data-act="packs-use" class="primary">[ MAKE THE PLAN ]</button></div></div>
   <div class="row buttons"><button type="button" data-act="packs-close">[ CLOSE ]</button></div></div></div>
@@ -1144,17 +1187,17 @@ FORMAT: ...
     <button type="button" data-act="abilities-close">[ CLOSE ]</button></div></div></div>
 <div id="bigger" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="bg-title"><div class="panel bigger"><h2 id="bg-title">ASK A BIGGER AI</h2>
   <p class="small">1. Copy this message and paste it into any chatbot you like (ChatGPT, Claude, Gemini...). Read it first: nothing leaves your PC unless you paste it. Folder paths and your user name are hidden.</p>
-  <textarea id="bg-msg" readonly spellcheck="false" rows="9"></textarea>
+  <textarea id="bg-msg" aria-label="Message to copy and paste into a chatbot" readonly spellcheck="false" rows="9"></textarea>
   <div class="row buttons"><button type="button" data-act="bigger-copy" class="primary">[ COPY MESSAGE ]</button>
     <label class="inline" title="Adds Joe's last report and the problems from his log, so the AI can fix what went wrong.">Include the last report and problems <input type="checkbox" id="bg-report" checked></label>
     <span id="bg-copied" class="dim"></span></div>
   <p class="small">2. Paste the whole answer here. Joe finds the plan in it and checks it.</p>
-  <textarea id="bg-answer" spellcheck="false" rows="7" placeholder="Paste the AI's answer here"></textarea>
+  <textarea id="bg-answer" aria-label="The AI's answer, pasted here" spellcheck="false" rows="7" placeholder="Paste the AI's answer here"></textarea>
   <div id="bg-err" class="small warn" role="alert"></div>
   <div class="row buttons"><button type="button" data-act="bigger-use" class="primary">[ USE THIS PLAN ]</button>
     <button type="button" data-act="bigger-close">[ CLOSE ]</button></div></div></div>
 <div id="toast" class="toast inv" hidden></div>
-<!-- screen readers only (Setup > Display & sound > Screen reader announcements) -->
+<!-- screen readers only (Setup > Look and sound > Screen reader announcements) -->
 <div id="sr-live" class="sronly" aria-live="polite" aria-atomic="true"></div>
 <div id="sr-alert" class="sronly" role="alert" aria-atomic="true"></div>
 <div id="confirm" class="modal" hidden role="alertdialog" aria-modal="true" aria-labelledby="cf-title" aria-describedby="confirm-text"><div class="panel"><h2 id="cf-title">CONFIRM</h2><p id="confirm-text"></p>

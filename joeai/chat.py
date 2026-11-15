@@ -208,7 +208,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         return {"final": {"ok": True, "say": "I'm busy drawing right now, so I'll keep this short. "
                           + _spoken_status(app), "mission": ""}}
     if not app.services.ensure_ollama():
-        return {"final": {"ok": False, "error": "Ollama isn't running (F10 > System check)."}}
+        return {"final": {"ok": False, "error": "Ollama isn't running (F10 > Start here)."}}
     from .doctor import ollama_models
     model = talk_model(app)
     images = []
@@ -218,7 +218,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         if not vm:
             return {"final": {"ok": True, "mission": "", "say": (
                 "I can't see pictures yet. I need a vision model for that, and Ollama has free ones. "
-                "The System check in Setup can download one for you.")}}
+                "Setup > Start here can download one for you.")}}
         model, images = vm, [f["image_b64"] for f in pics]
     projects = sorted(p.stem for p in app.sb.projects.glob("*.md"))
     # The system prompt stays the same every turn, so Ollama can reuse its cache of the
@@ -285,7 +285,7 @@ def _tools_note() -> str:
 
 
 def talk_model(app) -> str:
-    """Talk can use its own small, quick model (Setup > Voice & Talk); else the writing model."""
+    """Talk can use its own small, quick model (Setup > Voice and Talk); else the writing model."""
     tm = (app.settings.voice.talk_model or "").strip()
     if tm:
         try:

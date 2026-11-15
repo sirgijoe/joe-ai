@@ -1,6 +1,6 @@
 """One-click CONNECT: Joe writes his connector entry into an AI app's own settings file.
 
-Setup > General > USE JOE FROM ANOTHER AI APP lists the apps Joe knows. CONNECT adds (or
+Setup > Other AI apps > USE JOE FROM ANOTHER AI APP lists the apps Joe knows. CONNECT adds (or
 updates) a "joe" entry under mcpServers in that app's settings file; DISCONNECT removes it.
 Joe only ever touches his own entry: the rest of the file is kept as it is, a copy of the old
 file is saved next to it first (<name>.before-joe), and a file Joe can't read as JSON is left

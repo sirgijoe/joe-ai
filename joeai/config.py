@@ -89,16 +89,17 @@ class UISettings:
     jingle: str = "theme"            # theme = Joe's 8-bit intro (ui/sounds/intro.wav) | chime = short tones
     hello_text: str = "Joe is now reporting for duty."
     language: str = "en"             # Joe's own screens (i18n.LANGUAGES); English when a line isn't translated
+    favorite_tools: list = field(default_factory=list)   # tool ids starred on the Tools page (kept at the top)
 
 
 @dataclass
 class VoiceSettings:
-    voice: str = "am_adam"        # Kokoro voice (Setup > Voice & Talk)
+    voice: str = "am_adam"        # Kokoro voice (Setup > Voice and Talk)
     speed: float = 1.0
     stt_model: str = "base.en"       # tiny.en (fastest) | base.en | small.en (most accurate)
     speak_replies: bool = True       # Joe answers out loud in Talk (F4)
     talk_mode: str = "open"          # open: mic listens while Talk (F4) is open | push: hold a key
-    ptt_key: str = "F4"              # push-to-talk key (any key; set in Setup > Voice & Talk)
+    ptt_key: str = "F4"              # push-to-talk key (any key; set in Setup > Voice and Talk)
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
     transcriber: str = "auto"        # auto (whisper.cpp when installed) | faster-whisper | whisper.cpp
@@ -130,14 +131,14 @@ class StatsSettings:
 
 @dataclass
 class WebSettings:
-    enabled: bool = False            # Talk may look things up online (Setup > Voice & Talk)
+    enabled: bool = False            # Talk may look things up online (Setup > Privacy and internet)
     ollama_key: str = ""             # free key from ollama.com/settings/keys; blank = Wikipedia only
     max_results: int = 5
 
 
 @dataclass
 class ScheduleSettings:
-    # Night shift: plans put in Missions/Tonight start at this time (Setup > General). The
+    # Night shift: plans put in Missions/Tonight start at this time (Setup > Night shift and alerts). The
     # computer's own scheduler (Task Scheduler, launchd, cron) starts Joe; Joe keeps nothing running.
     enabled: bool = False
     time: str = "23:00"              # 24-hour clock, the PC's own time zone
@@ -154,7 +155,7 @@ class PhoneSettings:
 
 @dataclass
 class QualitySettings:
-    # Setup > Writing / Images & video: low = fastest, rougher | medium = balanced | high = best, slowest
+    # Setup > Quality and speed: low = fastest, rougher | medium = balanced | high = best, slowest
     # High by default: Joe mostly works overnight, so best results beat speed (change it in Setup).
     writing: str = "high"
     pictures: str = "high"
@@ -192,7 +193,7 @@ class Settings:
     phone: PhoneSettings = field(default_factory=PhoneSettings)
     filing: FilingSettings = field(default_factory=FilingSettings)
     memory: MemorySettings = field(default_factory=MemorySettings)
-    templates: dict = field(default_factory=dict)   # Setup > Writing > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
+    templates: dict = field(default_factory=dict)   # Setup > Templates: {edits: {id: {...}}, defaults: {fmt: id}}
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)
     mcp_apps: list = field(default_factory=list)   # AI apps the person connected Joe to (System check watches them)
@@ -230,6 +231,7 @@ class Settings:
         if s.ui.hello_text == "Hello! Joe here, reporting for duty.":   # old default ran together when spoken
             s.ui.hello_text = UISettings.hello_text
         s.engine.max_retries = max(1, min(int(s.engine.max_retries or 3), 10))   # 0 would never ask the model
+        clean_favorites(s)
         from . import portable
         portable.adjust_settings(s)
         return s
@@ -241,6 +243,15 @@ class Settings:
         atomic_write_text(path, json.dumps(data, indent=2))
         vault.after_write(path, data)
         return path
+
+
+def clean_favorites(s: "Settings") -> None:
+    """Starred tools are a short list of tool ids: drop anything else, repeats, and a runaway list."""
+    seen: list[str] = []
+    for x in getattr(s.ui, "favorite_tools", []) or []:
+        if isinstance(x, str) and 0 < len(x) <= 64 and x not in seen:
+            seen.append(x)
+    s.ui.favorite_tools = seen[:100]
 
 
 def _merge(obj, data: dict) -> None:
@@ -256,8 +267,8 @@ def _merge(obj, data: dict) -> None:
             setattr(obj, f.name, val)
 
 
-# Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state).
-KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows", "templates")
+# Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state, starred tools).
+KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows", "templates", "ui.favorite_tools")
 
 
 def reset_paths(s: "Settings", paths: list[str] | None = None) -> list[str]:

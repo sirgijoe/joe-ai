@@ -2,8 +2,8 @@
 
 A recurring mission is a plan the person saw and chose to repeat (REPEAT ... under a plan on Home).
 It rides on the night shift: when the night shift starts on one of its days, Joe puts a copy into
-Missions/Tonight and it runs with the rest. The night shift has to be on (Setup > General); the
-list in Setup > General > RECURRING MISSIONS says so when it isn't, and lets each one be paused,
+Missions/Tonight and it runs with the rest. The night shift has to be on (Setup > Night shift and alerts); the
+list in Setup > Night shift and alerts > RECURRING MISSIONS says so when it isn't, and lets each one be paused,
 started again or deleted (a deleted one is kept as a .txt in Missions/Recurring/removed).
 
 Which night: a night shift that starts before noon (01:00) counts as the night before (Sunday night).

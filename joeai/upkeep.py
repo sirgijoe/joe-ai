@@ -67,7 +67,7 @@ def _builtin() -> dict:
 
 
 def online() -> bool:
-    """Joe may read public pages for picks and update checks (Setup > Privacy, JOE_OFFLINE=1)."""
+    """Joe may read public pages for picks and update checks (Setup > Privacy and internet, JOE_OFFLINE=1)."""
     import os
     if os.environ.get("JOE_OFFLINE"):
         return False

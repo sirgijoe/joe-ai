@@ -4,7 +4,7 @@ Each template is a set of plain choices: page size, margins, fonts, text size, l
 first-line indent, alignment, space between paragraphs, a new page for each chapter, a title
 page. Joe's built-in ones cover the usual projects (everyday documents, a printed book, a
 manuscript for an editor, a children's picture book, an e-book, a report, a spreadsheet).
-Setup > Writing > TEMPLATES shows every one filled in, with EDIT; your changes are kept in
+Setup > Templates shows every one filled in, with EDIT; your changes are kept in
 settings.json (Settings.templates) and RESET brings Joe's back. A task picks one with
 TEMPLATE: <id>; otherwise each kind of file uses the default set in Setup.
 

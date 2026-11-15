@@ -451,7 +451,7 @@ class Run:
                     "what": "send", "ctx": ""}
         server, topic = self._phone()
         if not topic:
-            return {"status": "failed", "note": "phone pings aren't set up (Setup > Display & sound)", "what": "send", "ctx": ""}
+            return {"status": "failed", "note": "phone pings aren't set up (Setup > Night shift and alerts)", "what": "send", "ctx": ""}
         last = next((m for m in reversed(self.made) if m.lower().endswith(".md")), "")
         if not last:
             return {"status": "failed", "note": "nothing written yet to send", "what": "send", "ctx": ""}
@@ -781,7 +781,7 @@ class Run:
             if "steps" in low or "same step" in low or "work out" in low:
                 L.append("- Say the job more exactly, or split it in two. A higher step limit helps a long job.")
             if "can't run on this pc" in low or "model isn't running" in low:
-                L.append("- Setup (F10) > System check can install what's missing.")
+                L.append("- Setup (F10) > Start here can install what's missing.")
             L += ["- Or run the steps yourself from the Tools tab.", ""]
         L += ["## The plan", ""] + [f"- [{'x' if p['done'] else ' '}] {p['point']}" for p in self.plan] + [""]
         L += ["## Steps", ""]
@@ -794,13 +794,13 @@ class Run:
         L += ["", "## Looked up online", ""]
         if not self.web.on:
             why = ("it's off for this agent" if not agents.ability_on(a, "lookups") else
-                   "Setup > Voice & Talk > Let Joe look things up online is off")
+                   "Setup > Privacy and internet > Let Joe look things up online is off")
             L.append(f"- Nothing: looking things up online is off ({why}). No search or page went out.")
         else:
             L += [f"- '{s['query']}': {len(s['results'])} result(s)" for s in self.web.searches] or ["- No searches were needed."]
             L += [f"- Read the page {u}" for u in self.web.pages]
             if not self.web.key:
-                L.append("- No web search key is saved (Setup > Voice & Talk), so only Wikipedia was searched. "
+                L.append("- No web search key is saved (Setup > Privacy and internet), so only Wikipedia was searched. "
                          "News, prices and most websites are not in it.")
             if self.web.tainted:
                 L.append("- This run read your files, so every search used only words from the job you typed.")

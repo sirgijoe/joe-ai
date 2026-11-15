@@ -243,7 +243,7 @@ def test_pricelist_money_and_totals(tmp_path):
 
 
 def test_custom_templates(tmp_path, monkeypatch):
-    """Your own writing templates (Setup > Writing > Templates > ADD YOUR OWN TEMPLATE)."""
+    """Your own writing templates (Setup > Templates > ADD YOUR OWN TEMPLATE)."""
     monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
     from joeai import doctemplates as dt
     from joeai.config import Settings

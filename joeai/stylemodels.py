@@ -229,7 +229,7 @@ OTHER_FOLDERS = {"vae": "Picture decoder (VAE)", "text_encoders": "Text reader",
 
 
 def inventory(models_dir: Path | None, ollama: list[dict], picks: dict | None = None) -> dict:
-    """What's installed, for Setup > System check > Your models."""
+    """What's installed, for Setup > Models > Your models."""
     from . import comfy
     pics = []
     for m in comfy.scan_models(models_dir):

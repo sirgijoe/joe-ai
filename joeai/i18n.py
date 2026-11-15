@@ -1,4 +1,4 @@
-"""Joe's own screens in other languages (Setup > Display & sound > Language).
+"""Joe's own screens in other languages (Setup > Look and sound > Language).
 
 How it works:
 - The window is written in English. A language file maps English screen text to the other
@@ -124,10 +124,18 @@ def _replace_expr(body: str, ph) -> str:
 
 
 def extract() -> list[str]:
-    """Every English line in Joe's window (index.html and app.js), each once, in order."""
+    """Every English line in Joe's window (index.html and app.js) and the agent window, each once, in order."""
     p = _HTML()
     p.feed((UI / "index.html").read_text(encoding="utf-8"))
     found = p.out + _js_text((UI / "app.js").read_text(encoding="utf-8"))
+    for name in ("agent.html", "agent.js"):               # the agent window (/agent)
+        if (UI / name).is_file():
+            if name.endswith(".html"):
+                p = _HTML()
+                p.feed((UI / name).read_text(encoding="utf-8"))
+                found += p.out
+            else:
+                found += _js_text((UI / name).read_text(encoding="utf-8"))
     seen, out = set(), []
     for t in found:
         if t not in seen:

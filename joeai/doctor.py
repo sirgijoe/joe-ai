@@ -238,7 +238,7 @@ def choices_text(choices: list[dict]) -> str:
     if not others:
         return ""
     names = " or ".join(f"{c['label']} ({role.get(c.get('role'), 'alternative')})" for c in others)
-    return (f" Or pick {names}. Want a different one? Type any model's name in Setup > Writing > Model.")
+    return (f" Or pick {names}. Want a different one? Type any model's name in Setup > Writing program.")
 
 
 def _pick_label(c: dict) -> str:
@@ -259,7 +259,7 @@ def resolve_text_model(settings: Settings, sm: ServiceManager, log: Log) -> str:
         log(f"Using {pick}, the best installed model for this PC." if not want else
             f"Model '{want}' isn't installed; using best fit '{pick}' instead.")
         if not want and jp and pick not in (jp, f"{jp}:latest"):
-            log(f"Tip: Joe's pick for writing on this PC is {jp}; Setup > System check offers it (and the "
+            log(f"Tip: Joe's pick for writing on this PC is {jp}; Setup > Start here offers it (and the "
                 "other choices for this graphics card).")
         return pick
     if hasattr(sm.ollama, "model_rows"):     # other engines: blank = whatever model it has loaded
@@ -412,7 +412,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         t = comfy_mod.WAN_TURBO
         issues.append({"id": "get-video-turbo", "text": f"Faster video: the {t['label']} (under 1 GB, "
                        f"{t['license']}) makes a video in 4 steps instead of 20, several times faster. "
-                       "Used for Low and Medium video quality (Setup > Images & video); High keeps the full model.",
+                       "Used for Low and Medium video quality (Setup > Quality and speed); High keeps the full model.",
                        "action": "download-video-turbo", "optional": True,
                        "what": f"the {t['label']} (under 1 GB)"})
     if (comfy_exe or comfy_up) and mdir:

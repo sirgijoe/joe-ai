@@ -535,7 +535,7 @@ def _dub(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[st
             engine.log(f"  Joe's voice can't speak {name} yet, so {src.name} gets {name} subtitles only.")
             return made
         if not Path(voice_python()).exists() and engine.voice is None:
-            raise RuntimeError("the voice-over needs Joe's voice add-on (Setup > System check)")
+            raise RuntimeError("the voice-over needs Joe's voice add-on (Setup > Start here)")
         from .addons import VoiceWorker
         worker = engine.voice or VoiceWorker(engine.log)
         code, male, female = DUB_VOICES[lang]
@@ -616,7 +616,7 @@ def _memory(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list
     ref = addons.memory_ref(who)
     if not ref:
         have = ", ".join(v["name"] for v in addons.memory_voices()) or "none yet"
-        raise RuntimeError(f"no voice called '{who}' (made so far: {have}). Make one in Setup > Voice & Talk > "
+        raise RuntimeError(f"no voice called '{who}' (made so far: {have}). Make one in Setup > Voice and Talk > "
                            "A voice to remember")
     name = next((v["name"] for v in addons.memory_voices() if v["id"] == addons.memory_slug(who)), who)
     try:
@@ -823,7 +823,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         return st
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg:
-        st.status, st.note = "failed", f"{TOOLS[tid].name.lower()} needs FFmpeg (Setup > System check installs it)"
+        st.status, st.note = "failed", f"{TOOLS[tid].name.lower()} needs FFmpeg (Setup > Start here installs it)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     if tid == "privacy-blur":
@@ -835,13 +835,13 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         engine._vision_model = find_vision_model(engine) or ""
         if not engine._vision_model:
             st.status, st.note = "failed", ("this needs a vision model (one that can look at pictures). "
-                                            "Setup (F10) > System check offers a free one")
+                                            "Setup (F10) > Start here offers a free one")
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
     if tid == "memory-voice":
         from . import addons
         if not addons.clone_ready() and getattr(engine, "clone", None) is None:
-            st.status, st.note = "failed", ("this needs the voice-copy add-on (Setup > System check > \"sound like me\" > "
+            st.status, st.note = "failed", ("this needs the voice-copy add-on (Setup > Start here > \"sound like me\" > "
                                             "SET UP; NVIDIA card)")
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
@@ -864,7 +864,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     if tid in ("tidy-speech", "edit-words", "dub-video", "b-roll"):
         from .tools import hearing_ready
         if not hearing_ready(engine.s) and engine.voice is None:
-            st.status, st.note = "failed", "this needs Joe's hearing (Setup > System check > voice add-on)"
+            st.status, st.note = "failed", "this needs Joe's hearing (Setup > Start here > voice add-on)"
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
     folder = tool_dir(engine, job, st)
@@ -987,7 +987,7 @@ def _blur(engine, job, st, ffmpeg, src: Path, stem: str, folder: Path) -> list[s
             ask_model.remove("faces")
         else:
             getattr(engine, "log", print)("  Faces are looked for by the vision model, which misses some: "
-                                          "Setup > System check offers the face finder (small, free).")
+                                          "Setup > Start here offers the face finder (small, free).")
     if not ask_model:
         img = ""
     for k in ask_model:                                 # one kind per question: small models miss less

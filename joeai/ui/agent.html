@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent - Joe</title>
+<link rel="stylesheet" href="/app.css">
+</head>
+<body class="agentwin">
+<main class="aw">
+  <h1 id="aw-title" class="aw-h" data-t>AGENT</h1>
+  <!-- A spot is kept here for a small picture of the agent later. Nothing is drawn in version 1. -->
+  <div id="aw-sprite" class="aw-sprite" aria-hidden="true" hidden></div>
+  <p id="aw-status" class="aw-status" tabindex="-1" data-t>Waiting for an agent to start…</p>
+  <div class="asbar aw-bar" aria-hidden="true"><i id="aw-bar"></i></div>
+  <section id="aw-planbox" hidden>
+    <h2 class="aw-h2" data-t>THE PLAN</h2>
+    <ul id="aw-plan" class="aw-list"></ul>
+    <h2 class="aw-h2" data-t>STEPS</h2>
+    <ul id="aw-steps" class="aw-list"></ul>
+  </section>
+  <section id="aw-end" class="aw-end" hidden>
+    <h2 id="aw-end-h" class="aw-h2"></h2>
+    <p id="aw-end-text"></p>
+  </section>
+  <div class="aw-btns">
+    <button type="button" id="aw-stop" data-t hidden>[ STOP ]</button>
+    <button type="button" id="aw-close" data-t>[ CLOSE THIS WINDOW ]</button>
+  </div>
+  <div id="aw-live" class="sronly" role="status" aria-live="polite"></div>
+  <p id="aw-err" class="warn small" role="alert" hidden></p>
+</main>
+<div id="aw-confirm" class="aw-confirm" role="alertdialog" aria-modal="true" aria-labelledby="aw-confirm-t" hidden>
+  <div class="aw-confirm-box">
+    <p id="aw-confirm-t"><span data-t>Stop the agent?</span><br><span data-t>What it has done so far is kept, with its report.</span></p>
+    <button type="button" id="aw-no" data-t>[ NO, KEEP GOING ]</button>
+    <button type="button" id="aw-yes" data-t>[ YES, STOP IT ]</button>
+  </div>
+</div>
+<script src="/agent.js"></script>
+</body>
+</html>

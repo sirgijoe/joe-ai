@@ -692,7 +692,7 @@ def run_pdf_tools(engine: "Engine", mission: "Mission", job: "Job", st: "JobStat
     exe = qpdf_exe(getattr(engine.s, "qpdf", ""))
     if not exe:
         return _fail(engine, job, st, "the PDF toolkit needs qpdf, a free program (Apache license). "
-                     "Setup (F10) > System check > \"qpdf\" installs it")
+                     "Setup (F10) > Start here > \"qpdf\" installs it")
     got = _begin(engine, job, st, "PDF files")
     if not isinstance(got, tuple):
         return got
@@ -953,7 +953,7 @@ def _letter_text(engine: "Engine", job: "Job", st: "JobState", src: Path, i: int
         return _read_doc(engine, src)
     model = find_vision_model(engine)
     if not model:
-        raise ValueError("reading a photo of a letter needs a vision model (Setup > System check offers a "
+        raise ValueError("reading a photo of a letter needs a vision model (Setup > Start here offers a "
                          "free one), or type or scan it to a document")
     from .doctor import ffmpeg_exe
     img = picture_b64(ffmpeg_exe(engine.s.comfy.ffmpeg), src, engine.meta / "tmp" / f"look-{job.job_id}.jpg", 2000)
@@ -1493,7 +1493,7 @@ def run_meeting_minutes(engine: "Engine", mission: "Mission", job: "Job", st: "J
     sound = [f for f in files if f.suffix.lower() not in TRANSCRIPT_EXT]
     if sound and not hearing_ready(engine.s) and engine.voice is None:
         return _fail(engine, job, st, "turning a recording into minutes needs Joe's voice add-on or whisper.cpp "
-                     "(Setup > System check). A transcript (.txt, .srt) works without it")
+                     "(Setup > Start here). A transcript (.txt, .srt) works without it")
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     lang = option_value(job, "language") or "english"
     if lang not in WHISPER_CODES and lang != "auto":
@@ -2160,7 +2160,7 @@ def run_resume_tailor(engine: "Engine", mission: "Mission", job: "Job", st: "Job
                 except Exception as e:                  # noqa: BLE001 (the .md is still there)
                     engine.log(f"  Word copy of {md} skipped: {e}")
         else:
-            engine.log("  Word copies skipped: Pandoc isn't installed (Setup > System check).")
+            engine.log("  Word copies skipped: Pandoc isn't installed (Setup > Start here).")
     st.titles.append("resume")
     st.items += 1
     engine.log(f"  {cv.name} -> {', '.join(made)}")
@@ -2575,7 +2575,7 @@ def run_duplicate_photos(engine: "Engine", mission: "Mission", job: "Job", st: "
     level = option_value(job, "how") or "close"
     opts = chosen_options(job)
     if not ffmpeg and level != "exact":
-        engine.log("  FFmpeg isn't installed, so only exact copies can be found (Setup > System check installs it).")
+        engine.log("  FFmpeg isn't installed, so only exact copies can be found (Setup > Start here installs it).")
         level = "exact"
     infos: list[dict] = []
     failed: list[str] = []

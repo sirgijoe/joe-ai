@@ -346,7 +346,7 @@ def folder_size(p: Path | None, skip: tuple[str, ...] = ()) -> int:
 
 
 def info(settings=None) -> dict:
-    """For Setup > General: is this portable, and what lives where."""
+    """For Setup > This PC and backup: is this portable, and what lives where."""
     if not active():
         return {"active": False}
     fs = filesystem(root())
@@ -476,7 +476,7 @@ def install_ollama(log: Log, fetch=None, download=None) -> bool:
     ollama_models_dir().mkdir(parents=True, exist_ok=True)
     apply_env()
     log(f"Ollama is on the drive. Joe starts it on port {OLLAMA_PORT}, with its models kept on the drive. "
-        "Restart Joe, then get a writing model from System check.")
+        "Restart Joe, then get a writing model from Setup > Start here.")
     return True
 
 
@@ -739,5 +739,5 @@ def make(settings, target: Path, opts: dict, log: Log, job: Job | None = None) -
             log("Copying the picture and video models (ComfyUI)…")
             _copy_tree(src, data / "data" / "addons" / "comfyui" / "ComfyUI" / "models", job)
     log(f"Portable Joe is ready in {target}. Start him there with 'Start Joe' "
-        "(on another computer: put Ollama and ComfyUI on the drive from System check).")
+        "(on another computer: put Ollama and ComfyUI on the drive from Setup > Start here).")
     return target

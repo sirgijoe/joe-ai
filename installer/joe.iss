@@ -67,7 +67,7 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\Joe.pyw"""; WorkingDi
 [UninstallRun]
 ; take Joe out of every AI app's settings (Claude Desktop, Cursor...) so none keeps starting a Joe that's gone
 Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\Joe.pyw"" disconnect-all"; WorkingDir: "{app}"; Flags: runhidden waituntilterminated; RunOnceId: "JoeDisconnectApps"
-; the night shift's Task Scheduler entry (Setup > General), if it was ever turned on
+; the night shift's Task Scheduler entry (Setup > Night shift and alerts), if it was ever turned on
 Filename: "{sys}\schtasks.exe"; Parameters: "/Delete /F /TN ""Joe night shift"""; Flags: runhidden; RunOnceId: "JoeNightShift"
 
 [UninstallDelete]

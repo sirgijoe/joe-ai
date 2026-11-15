@@ -675,7 +675,7 @@ def run_true_restore(engine, job, st, files, keys):
     from .mission import slug
     ffmpeg = ffmpeg_exe(engine.s.comfy.ffmpeg)
     if not ffmpeg:
-        st.status, st.note = "failed", "needs FFmpeg (Setup > System check installs it)"
+        st.status, st.note = "failed", "needs FFmpeg (Setup > Start here installs it)"
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     up = option_value(job, "upscale") or "none"
@@ -806,7 +806,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     if missing:
         st.status = "failed"
         st.note = ("needs " + " and ".join(pack_offer(p, mdir) for p in missing) +
-                   ": Setup (F10) > System check offers it")
+                   ": Setup (F10) > Start here offers it")
         engine.log(f"'{job.name}' failed: {st.note}")
         return st
     upscale = 0
@@ -814,14 +814,14 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         up = option_value(job, "upscale") or "none"
         upscale = int(up[0]) if up[:1] in ("2", "4") else 0
         if upscale and not pack_ready(mdir, "upscale"):
-            engine.log("  Sharpening skipped: the Real-ESRGAN model isn't installed (System check offers it, 70 MB).")
+            engine.log("  Sharpening skipped: the Real-ESRGAN model isn't installed (Setup > Start here offers it, 70 MB).")
             upscale = 0
     folder = tool_dir(engine, job, st)
     st.status = "running"
     st.started = st.started or datetime.now().isoformat(timespec="seconds")
     engine._save_state(job, st)
     if not engine.services.handoff("image"):
-        st.status, st.note = "failed", "ComfyUI is not running and could not be started (F10 > System check)"
+        st.status, st.note = "failed", "ComfyUI is not running and could not be started (F10 > Start here)"
         engine.log(f"'{job.name}' failed: {st.note}")
         engine._save_state(job, st)
         return st
@@ -1011,7 +1011,7 @@ def _on_white(engine, folder: Path, name: str) -> str:
     ff = ffmpeg_exe(engine.s.comfy.ffmpeg)
     src = folder / name
     if not ff or src.suffix.lower() != ".png":
-        engine.log("  White background needs FFmpeg (System check installs it); kept the see-through PNG.")
+        engine.log("  White background needs FFmpeg (Setup > Start here installs it); kept the see-through PNG.")
         return name
     dest = src.with_suffix(".jpg")
     cmd = [ff, "-y", "-v", "error", "-i", str(src), "-filter_complex",
@@ -1165,7 +1165,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
                 continue
             ff = _ffmpeg(engine)
             if not ff:
-                return [], [], "needs FFmpeg to mark the spot (Setup > System check installs it)"
+                return [], [], "needs FFmpeg to mark the spot (Setup > Start here installs it)"
             orig, f = f, _upright(engine, ff, f)      # phone photos: the mark was painted on the upright view
             marked = media.outline_spot(ff, f, mask, _work_dir(engine) / f"{wkey(orig)}-marked.png")
             if not marked:
@@ -1232,7 +1232,7 @@ def plan_items(engine, job, tid: str, files: list[Path]) -> tuple[list[dict], li
     elif tid == "make-bigger":
         ff = _ffmpeg(engine)
         if not ff:
-            return [], [], "needs FFmpeg (Setup > System check installs it)"
+            return [], [], "needs FFmpeg (Setup > Start here installs it)"
         shape = option_value(job, "shape") or "wider"
         # "Bigger all around" in one go came back with a plain white frame (the editor read the
         # blurry surround as a mat around a print). It's done as wider, then taller, instead:
@@ -1423,7 +1423,7 @@ def find_faces(engine, job, st, files: list[Path]) -> dict:
         return {}
     model = find_vision_model(engine)
     if not model:
-        engine.log("  Keep the real faces needs a vision model (Setup > System check offers one); "
+        engine.log("  Keep the real faces needs a vision model (Setup > Start here offers one); "
                    "the AI repair may change faces.")
         return {}
     ff = _ffmpeg(engine)
