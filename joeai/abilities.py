@@ -112,12 +112,12 @@ OTHER: tuple[Ability, ...] = (
             "Limits: lines not translated yet stay in English. It's a machine translation until someone checks it. Your own words (the log, Talk, files) are never changed.",
             ("language", "languages", "spanish", "español", "translate joe", "in my language", "other language")),
     Ability("addons", "Working for you", "Add-ons from other people",
-            "New tools, starter packs, picture workflows and themes other people made, added in Setup > Add-ons.",
-            "What it does: an add-on plugs new things into Joe without changing his code: tools on the Tools tab, starter packs, picture workflows and themes.\n"
+            "New tools, starter packs, picture workflows, themes and search sources other people made, added in Setup > Add-ons.",
+            "What it does: an add-on plugs new things into Joe without changing his code: tools on the Tools tab, starter packs, picture workflows, themes, and a search source for online lookups.\n"
             "How Joe does it: ADD AN ADD-ON (a .zip) puts it in the Add-ons folder, switched off. READ AND TURN ON shows who made it and, for each tool, the exact program and command it runs; nothing happens until you say yes. Tools run on copies of your files with a time limit, and only what they write into the task's folder is kept. If an add-on's files change later, Joe turns it off until you look again.\n"
             "What to give it: an add-on .zip from someone you trust. Its tools then work like Joe's own (the planner can use them too).\n"
             "Options: TURN OFF or REMOVE any time. Making one: docs/ADDONS.md.\n"
-            "Limits: a tool's program can do anything a program can, so only turn on tools from people you trust. Packs, workflows and themes are data and are checked like Joe's own.",
+            "Limits: a tool's program can do anything a program can, so only turn on tools from people you trust. Packs, workflows and themes are data and are checked like Joe's own. A search source sees your search words and Joe's makers don't control it; Joe says so before you turn it on, and you still tick it under Setup > Privacy and internet > ONLINE LOOKUPS before it's used.",
             ("add-on", "addon", "add-ons", "addons", "plugin", "plugins", "extension", "community tools")),
     Ability("directions", "Working for you", "Directions and shopping",
             "\"Directions to the feed store\" or \"where can I buy an air fryer?\" opens your map or shopping site.",
@@ -149,7 +149,7 @@ OTHER: tuple[Ability, ...] = (
     Ability("research", "Working for you", "Looking things up (research)",
             "Writing tasks can look facts up online first and list their sources (only if you allow it).",
             "What it does: a task with RESEARCH: yes is looked up once before Joe writes it; the text marks facts like [2] and a Sources list is added.\n"
-            "How Joe does it: only the search words go online (Ollama's web search with a free key, or Wikipedia), the results go to the model with the task, and they're cached.\n"
+            "How Joe does it: only the search words go online, to the search sources you turned on, in your order (Ollama's web search with a free key, then Wikipedia, unless you change it). If one can't answer he tries the next and says so. The results go to the model with the task, and they're cached; a task makes 10 searches at most.\n"
             "Options: Setup > Privacy and internet > Let Joe look things up online (off until you turn it on). Asking for current facts in the box adds research by itself.\n"
             "Limits: a search can miss things or find wrong pages: check the sources.",
             ("research", "lookup", "look up", "web search", "internet", "sources", "online")),

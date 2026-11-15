@@ -39,7 +39,7 @@ def test_talk_with_web(env, monkeypatch):  # noqa: F811
     s, sb, fake = env
     app = App(s)
     found = [websearch.Result("Weather", "https://example.org/w", "Sunny, 60F", "ollama")]
-    monkeypatch.setattr(websearch, "search", lambda q, key="", n=5: found)
+    monkeypatch.setattr(websearch, "find", lambda q, settings, n=5, session=None: found)
     # off: nothing goes online, even for a "today" question
     p = chat.prepare(app, [], "what's the weather today?")
     assert p["sources"] == [] and "WEB RESULTS" not in p["msgs"][-1]["content"]

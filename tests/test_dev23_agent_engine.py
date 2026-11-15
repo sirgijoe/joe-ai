@@ -20,19 +20,21 @@ class FakeWeb:
         self.queries, self.reads, self.raw = [], [], []
         monkeypatch.setattr(agentweb, "OFFLINE_ENV", "JOE_AGENT_TEST_NEVER_SET")
         monkeypatch.setattr(websearch, "search", self.search)
+        monkeypatch.setattr(websearch, "find", lambda q, settings, n=None, session=None: self.search(q))
         monkeypatch.setattr(agentweb, "fetch_page", self.fetch)
 
         def no_net(*a, **k):
             self.raw.append(a)
             raise AssertionError("a real network call")
         monkeypatch.setattr(websearch, "request_json", no_net)       # Ollama web search / Wikipedia
-        real_gai = agentweb.socket.getaddrinfo
+        import socket                                                 # (pagereader looks names up with it)
+        real_gai = socket.getaddrinfo
 
         def gai(host, *a, **k):                                       # any page download looks the name up first
             if host in ("127.0.0.1", "localhost", "::1"):              # (the fake Ollama is on this PC)
                 return real_gai(host, *a, **k)
             return no_net(host)
-        monkeypatch.setattr(agentweb.socket, "getaddrinfo", gai)
+        monkeypatch.setattr(socket, "getaddrinfo", gai)
 
     def search(self, q, key="", n=5):
         self.queries.append(q)

@@ -373,6 +373,7 @@ internet. None of them send your files, chats or recordings.
 | Downloading AI models (writing, pictures, video, Turbo, vision, the small search model for Ask my files, and the picture/sound tool models) | Ollama's model library, Hugging Face | Setup, the Tools form, or when you pick a better model | Asks you first, every time |
 | Hearing model for other languages (Transcribe, about 75-480 MB, once) | Hugging Face (only the model, never your recording) | The first time you transcribe a recording that isn't in English | You pick the language on the Tools form; English needs no download |
 | Voice add-ons (Joe's voice, "sound like me") | GitHub, Python's package site (PyPI), PyTorch | When you set up voice | Asks you first, every time |
+| Search add-ons (Setup > Add-ons) | The sites the add-on says it asks, with your search words; Python's package site (PyPI) once, if it needs its own environment | When you turn it on, then when it's ticked as a search source | Off until you read its risk screen, turn it on and tick it |
 | Update check | GitHub (asks for the newest version number) | Each time Joe opens | On by default; Setup > Privacy and internet > Updates |
 | Helper and model update check | GitHub (newest Ollama and ComfyUI versions, Joe's list of recommended models), Ollama's model library (are your models up to date?) | At most once a week, when Setup > Start here runs | Nothing installs until you say yes; off with the update check (Setup > Privacy and internet > Updates) |
 | Installing an update | GitHub (downloads the new installer and its checksum) | Only when you say yes to an update | Asks you first, every time |
@@ -380,7 +381,8 @@ internet. None of them send your files, chats or recordings.
 | Phone ping when done | ntfy.sh (one line like "Joe is done: 3 of 3 tasks") | When a run ends | Off until you type a topic name |
 | Find a book to read aloud | Open Library and Project Gutenberg (only the ISBN or title; the free book text comes back) | When you use that tool | Only with online lookups on |
 | Reminders and lists sent to your phone | ntfy.sh (the reminder text, with the time to deliver it; or the list you asked to send) | When you say "remind me..." or "send my list to my phone" | Off until you type a topic name |
-| Looking things up (Talk, and writing tasks with `RESEARCH: yes`) | Ollama web search (with your key) or Wikipedia: only the search words | When you ask about something current, or a task asks to research | Off until you turn it on |
+| Reading whole result pages (writing tasks with `RESEARCH: yes`) | With the Ollama key, Ollama's web fetch gets the page's address; without it, the page's own site | Only for the top results a search found | Off until you turn it on (Let RESEARCH tasks read whole result pages) |
+| Looking things up (Talk, and writing tasks with `RESEARCH: yes`) | The search sources you turned on, in your order (Ollama web search with your key, then Wikipedia, unless you change it in Setup > Privacy and internet): only the search words | When you ask about something current, or a task asks to research | Off until you turn it on |
 | Model pages | Hugging Face or Civitai, in your browser (for Hugging Face, the browser also starts the download) | When you press GET IT on a recommended picture model | You read its terms; the download is yours |
 
 Ollama and ComfyUI are separate programs with their own update checks and settings; Joe

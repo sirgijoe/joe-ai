@@ -15,6 +15,16 @@ docs/ADDONS.md is the guide for people who make them. The rules that keep you sa
 - If an add-on's files change after you turned it on, Joe turns it off again until you look at it
   and say yes again.
 - AI never turns an add-on on, and plans can only use tools you already turned on.
+
+SEARCH ADD-ONS (2.3, docs/ADDONS.md "Search sources"): an add-on may bring one search source. It is a
+small program that gets the search words (JSON on its input) and prints results in Joe's fixed shape
+(JSON on its output). Joe runs it like a tool, never inside his own code: no command shell, a time
+limit, a fresh empty folder to run in, and none of Joe's settings, keys or files (a bare environment).
+It runs on Joe's own Python (standard library only) or in the add-on's OWN environment ("env:python",
+built with uv from exact package versions, wheels only, in Add-ons/_envs/<id>, like the voice add-ons).
+Before it's turned on the person reads a plain risk screen: the add-on sees your search words and
+Joe's makers don't control it. Turned on, it is still off as a search source until the person ticks
+it under Setup > Privacy and internet > ONLINE LOOKUPS.
 """
 from __future__ import annotations
 
@@ -40,6 +50,13 @@ MAX_FILES = 2000
 PLACEHOLDER = re.compile(r"\{(input|output|outdir|stem|ext|name|text|addon|option:[a-z0-9-]+|flag:[a-z0-9-]+:[^{}]*)\}")
 JOE_PROGRAMS = ("joe:ffmpeg", "joe:python")   # the FFmpeg and the private Python Joe already uses
 TOOL_PREFIX = "x-"              # add-on tools are TYPE: x-<id> so they never clash with Joe's own
+ENVS = "_envs"                  # Add-ons/_envs/<id>: a search add-on's own Python environment
+SEARCH_PROGRAMS = ("joe:python", "env:python")
+SEARCH_OUT = 262_144            # bytes a search add-on may print
+_REQ = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,80}(?:\[[A-Za-z0-9,_-]{1,60}\])?==[0-9][0-9A-Za-z.+!-]{0,40}$")
+SEARCH_RISK = ("This add-on sees your search words, and Joe's makers don't control it. Its program runs on "
+               "this PC with your user's rights and can reach the internet. Only turn it on if you trust "
+               "the person who made it.")
 
 
 class AddonError(ValueError):
@@ -145,9 +162,56 @@ def read(folder: Path) -> dict:
             "accepts": accepts, "options": opts, "program": prog, "args": list(args), "output": out,
             "timeout": max(10, min(int(t.get("timeout") or 600), 6 * 3600)),
             "text": bool(t.get("text")), "text_label": _s(t.get("text_label"), 50)})
-    if not (a["tools"] or a["packs"] or a["workflows"] or a["themes"]):
-        raise AddonError("it doesn't add anything (no tools, packs, workflows or themes)")
+    a["search"] = _read_search(data.get("search"), aid)
+    if a["search"]:
+        script = _inside(folder, a["search"]["args"][0][len("{addon}/"):])
+        if not script.is_file():
+            raise AddonError(f"search: {a['search']['args'][0]} isn't a file in the add-on")
+    if not (a["tools"] or a["packs"] or a["workflows"] or a["themes"] or a["search"]):
+        raise AddonError("it doesn't add anything (no tools, packs, workflows, themes or search)")
     return a
+
+
+def _read_search(s, aid: str) -> dict | None:
+    """The "search" part of addon.json, checked (docs/ADDONS.md, "Search sources")."""
+    if s is None:
+        return None
+    if not isinstance(s, dict):
+        raise AddonError("search must be one JSON object")
+    prog = str(s.get("program") or "joe:python").strip()
+    if prog not in SEARCH_PROGRAMS:
+        raise AddonError("search: program must be joe:python or env:python (its own environment)")
+    args = s.get("args") or []
+    if not isinstance(args, list) or not args or not all(isinstance(x, str) for x in args):
+        raise AddonError("search: needs an args list of words, like [\"{addon}/search.py\"]")
+    for x in args:
+        for m in re.finditer(r"\{[^{}]*\}", x):
+            if m.group(0) != "{addon}":
+                raise AddonError(f"search: {m.group(0)} isn't allowed (only {{addon}}; the search words come on the input)")
+        if ".." in re.split(r"[\\/]", x):
+            raise AddonError("search: args can't point outside the add-on (no ..)")
+    if not args[0].startswith("{addon}/"):
+        raise AddonError("search: the first arg must be the add-on's own script, like {addon}/search.py")
+    reqs = s.get("requirements") or []
+    if not isinstance(reqs, list) or len(reqs) > 10 or not all(isinstance(r, str) and _REQ.match(r.strip()) for r in reqs):
+        raise AddonError("search: requirements must be up to 10 exact package versions, like \"ddgs==9.16.0\"")
+    if prog == "env:python" and not reqs:
+        raise AddonError("search: env:python needs its requirements")
+    if prog == "joe:python" and reqs:
+        raise AddonError("search: requirements need program env:python (its own environment)")
+    py = str(s.get("python") or "3.12").strip()
+    if not re.fullmatch(r"3\.(1[0-4])", py):
+        raise AddonError("search: python must be 3.10 to 3.14")
+
+    def num(key, default, lo, hi):
+        try:
+            return max(lo, min(float(s.get(key, default)), hi))
+        except (TypeError, ValueError):
+            return default
+    return {"name": _s(s.get("name") or aid, 50), "about": _s(s.get("about"), 300),
+            "goes_to": _s(s.get("goes_to") or "the sites the add-on asks", 120),
+            "program": prog, "args": list(args), "requirements": [r.strip() for r in reqs], "python": py,
+            "timeout": num("timeout", 20, 5, 60), "pace": num("pace", 1, 0, 10)}
 
 
 def program_path(a: dict, tool: dict) -> tuple[Path | None, bool]:
@@ -212,10 +276,17 @@ def describe(a: dict) -> dict:
         tools.append({"name": t["name"], "type": t["type"], "blurb": t["blurb"], "accepts": list(t["accepts"]),
                       "program": str(p) if p else t["program"], "installed": bool(p), "inside": inside,
                       "command": " ".join([t["program"]] + t["args"])})
+    s = a.get("search")
+    search = None
+    if s:
+        search = {"name": s["name"], "about": s["about"], "goes_to": s["goes_to"], "program": s["program"],
+                  "command": " ".join([s["program"]] + s["args"]), "requirements": s["requirements"],
+                  "python": s["python"], "timeout": s["timeout"], "risk": SEARCH_RISK,
+                  "id": f"addon:{a['id']}"}
     return {"id": a["id"], "name": a["name"], "version": a["version"], "author": a["author"], "about": a["about"],
             "homepage": a["homepage"], "license": a["license"], "state": a["state"], "tools": tools,
             "packs": [p.name for p in a["packs"]], "workflows": [p.name for p in a["workflows"]],
-            "themes": [p.name for p in a["themes"]]}
+            "themes": [p.name for p in a["themes"]], "search": search}
 
 
 # --------------------------------------------------------------------------- turning on and off
@@ -254,6 +325,12 @@ def enable(sb, aid: str, on: bool, log=print) -> dict:
             problem = _check_workflow(p)
             if problem:
                 return {"ok": False, "error": f"A picture workflow in it didn't pass Joe's check: {problem}"}
+        s = a.get("search")
+        if s and s["program"] == "env:python" and not env_ready(sb, a):
+            log(f"Setting up {a['name']}'s own Python environment ({', '.join(s['requirements'])})...")
+            if not build_env(sb, a, log):
+                return {"ok": False, "error": "Its own Python environment couldn't be set up (see the log). "
+                                              "It stays off."}
         for src, dst in pairs:
             dst.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(src, dst)
@@ -280,6 +357,9 @@ def remove(sb, aid: str, log=print) -> dict:
     folder = root(sb) / aid
     if folder.is_dir():
         shutil.rmtree(folder, ignore_errors=True)
+    env = root(sb) / ENVS / aid
+    if env.is_dir():
+        shutil.rmtree(env, ignore_errors=True)
     st = _state(sb)
     st.pop(aid, None)
     _save_state(sb, st)
@@ -377,6 +457,206 @@ def refresh(sb) -> None:
 
 def is_addon_tool(typ: str) -> bool:
     return typ in _by_type
+
+
+# --------------------------------------------------------------------------- search add-ons
+def env_dir(sb, a: dict) -> Path:
+    return root(sb) / ENVS / a["id"]
+
+
+def env_python(folder: Path) -> Path:
+    import sys
+    return folder / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
+
+
+def _env_mark(a: dict) -> str:
+    s = a["search"]
+    return hashlib.sha256(json.dumps([s["python"], sorted(s["requirements"])]).encode()).hexdigest()
+
+
+def env_ready(sb, a: dict) -> bool:
+    d = env_dir(sb, a)
+    try:
+        return env_python(d).exists() and (d / ".joe-ready").read_text(encoding="utf-8").strip() == _env_mark(a)
+    except OSError:
+        return False
+
+
+def build_env(sb, a: dict, log=print) -> bool:
+    """The add-on's own Python with exactly its listed package versions (wheels only: no package
+    gets to run its own setup program while installing). Only when the person turns it on."""
+    from . import addons
+    s, d = a["search"], env_dir(sb, a)
+    uv = addons.get_uv(log)
+    if not uv:
+        return False
+    if d.exists():
+        shutil.rmtree(d, ignore_errors=True)
+    d.parent.mkdir(parents=True, exist_ok=True)
+    if not addons._run([uv, "venv", "--python", s["python"], str(d)], log, timeout=900):
+        return False
+    if not addons._run([uv, "pip", "install", "--python", str(env_python(d)), "--no-build", *s["requirements"]],
+                       log, timeout=900):
+        return False
+    (d / ".joe-ready").write_text(_env_mark(a), encoding="utf-8")
+    log(f"  {a['name']}'s own environment is ready.")
+    return True
+
+
+def _addons_root(settings) -> Path | None:
+    ws = getattr(settings, "workspace_path", None)
+    if ws is None:
+        return None
+    p = Path(ws) / FOLDER
+    return p if p.is_dir() else None
+
+
+def search_sources(settings) -> list:
+    """The search sources of add-ons that are ON (and unchanged since). websearch asks for these."""
+    from . import websearch
+    base = _addons_root(settings)
+    if base is None:
+        return []
+    sb = type("SB", (), {"root": base.parent})()
+    out = []
+    for a in scan(sb):
+        s = a.get("search") if a.get("state") == "on" else None
+        if not s:
+            continue
+        out.append(websearch.Provider(
+            f"addon:{a['id']}", s["name"], (s["about"] + " " if s["about"] else "") + f"An add-on by {a['author'] or 'someone else'}.",
+            s["goes_to"], _runner(sb, a)))
+    return out
+
+
+_last_run: dict[str, float] = {}
+
+
+def _runner(sb, a: dict):
+    def run(query: str, n: int, ctx: dict) -> list:
+        return run_search(sb, a, query, n)
+    return run
+
+
+def _bare_env(tmp: str) -> dict:
+    """What the add-on's program gets from Joe's environment: almost nothing (no keys, no Joe settings)."""
+    keep = ("SYSTEMROOT", "WINDIR", "PATH", "PATHEXT", "COMSPEC", "LANG", "LC_ALL",
+            "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+            "SSL_CERT_FILE", "REQUESTS_CA_BUNDLE")
+    env = {k: os.environ[k] for k in keep if k in os.environ}
+    env.update({"TEMP": tmp, "TMP": tmp, "TMPDIR": tmp, "HOME": tmp, "USERPROFILE": tmp,
+                "PYTHONIOENCODING": "utf-8", "PYTHONNOUSERSITE": "1", "PYTHONDONTWRITEBYTECODE": "1"})
+    return env
+
+
+def _stop(p) -> None:
+    """Stop the program and anything it started."""
+    from . import addons
+    if os.name != "nt":
+        try:
+            import signal
+            os.killpg(p.pid, signal.SIGKILL)
+        except (OSError, AttributeError):
+            pass
+    addons._kill_tree(p)
+
+
+def _talk(p, data: bytes, timeout: float) -> tuple[bytes, bytes, bool]:
+    """Give the program its input and read what it prints, but never more than SEARCH_OUT (+1) bytes
+    of output or 4 KB of errors, and never past the time limit. (out, err, took too long?)"""
+    import threading
+    out, err = bytearray(), bytearray()
+
+    def pump(stream, buf, cap):
+        try:
+            while True:
+                chunk = stream.read(65536)
+                if not chunk:
+                    break
+                if len(buf) <= cap:
+                    buf += chunk[: cap + 1 - len(buf)]
+                    if len(buf) > cap:
+                        _stop(p)                   # far too much: stop it now, don't wait for the time limit
+        except (OSError, ValueError):
+            pass
+    t1 = threading.Thread(target=pump, args=(p.stdout, out, SEARCH_OUT), daemon=True)
+    t2 = threading.Thread(target=pump, args=(p.stderr, err, 4096), daemon=True)
+    t1.start()
+    t2.start()
+    try:
+        p.stdin.write(data)
+        p.stdin.close()
+    except OSError:
+        pass
+    late = False
+    try:
+        p.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        late = True
+        _stop(p)
+        try:
+            p.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+    t1.join(5)
+    t2.join(5)
+    return bytes(out), bytes(err[-4096:]), late
+
+
+def run_search(sb, a: dict, query: str, n: int) -> list:
+    """Run the add-on's search program once. Returns websearch.Result list; raises websearch.SourceError."""
+    import sys
+    import time
+    from . import websearch
+    s = a["search"]
+    wait = s["pace"] - (time.monotonic() - _last_run.get(a["id"], -1e9))
+    if wait > 0:                                    # pace: never faster than the add-on asked for
+        time.sleep(min(wait, 10))
+    _last_run[a["id"]] = time.monotonic()
+    if s["program"] == "env:python":
+        py = env_python(env_dir(sb, a))
+        if not env_ready(sb, a):
+            raise websearch.SourceError("its own Python isn't set up; turn it off and on again in Setup > Add-ons", 0)
+    else:
+        py = Path(sys.executable)
+    args = [x.replace("{addon}", str(a["folder"])) for x in s["args"]]
+    payload = json.dumps({"query": query, "max_results": int(n)})
+    with tempfile.TemporaryDirectory(prefix="joe-search-", ignore_cleanup_errors=True) as tmp:
+        try:
+            p = subprocess.Popen([str(py), "-I", *args], stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+                                 stderr=subprocess.PIPE, cwd=tmp, env=_bare_env(tmp),
+                                 creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+                                 start_new_session=(os.name != "nt"))     # its own group: stopped together
+        except OSError as e:
+            raise websearch.SourceError(f"its program couldn't start ({e.__class__.__name__})") from None
+        out, err, late = _talk(p, payload.encode("utf-8"), s["timeout"])
+    if late:
+        raise websearch.SourceError(f"it took longer than {int(s['timeout'])} seconds")
+    if len(out) > SEARCH_OUT:
+        raise websearch.SourceError("it printed far too much")
+    try:
+        d = json.loads(out.decode("utf-8", "replace") or "null")
+    except ValueError:
+        d = None
+    if p.returncode != 0 or not isinstance(d, dict):
+        last = (err or b"").decode("utf-8", "replace").strip().splitlines()[-1:] or [""]
+        why = (d or {}).get("error") if isinstance(d, dict) else ""
+        raise websearch.SourceError(_s(why or last[0] or f"its program stopped (exit code {p.returncode})", 160))
+    if d.get("blocked") or d.get("rate_limited"):
+        raise websearch.SourceError(_s(d.get("error") or "it says it is blocked or asked to slow down for now", 160),
+                                    websearch.COOL_LIMIT)
+    if d.get("error"):
+        raise websearch.SourceError(_s(d["error"], 160))
+    res = []
+    for x in (d.get("results") or [])[: max(1, n)]:
+        if not isinstance(x, dict):
+            continue
+        url = str(x.get("url") or "").strip()
+        if not url.startswith(("https://", "http://")) or len(url) > 2000 or any(c in url for c in " \r\n<>\""):
+            continue
+        res.append(websearch.Result(_s(websearch._clean(str(x.get("title") or "")), 200), url,
+                                    websearch._clean(str(x.get("text") or ""))[:websearch.SNIPPET], f"addon:{a['id']}"))
+    return res
 
 
 _JOE_PATH = re.compile(r"^\{(?:input|outdir|output|addon)\}")

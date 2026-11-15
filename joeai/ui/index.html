@@ -628,11 +628,13 @@ FORMAT: ...
                 <ul class="netlist small">
                   <li><b>Installing programs and downloading models</b> (Setup &gt; Start here, setup helper): only after you say yes.</li>
                   <li><b>Voice add-ons</b> (Joe's voice, "sound like me"): only after you say yes.</li>
+                  <li><b>Search add-ons</b> (Setup &gt; Add-ons): the sites the add-on asks, with your search words, only after you read its risk screen, turn it on and tick it under ONLINE LOOKUPS. Turning on one that needs packages downloads them once from Python's package site.</li>
                   <li><b>Hearing model for other languages</b>: the first time you transcribe a recording that isn't in English, Whisper's all-languages model (75-480 MB) comes once from Hugging Face. Only the model, never your recording.</li>
                   <li><b>Update check</b>: asks GitHub for the newest version number when Joe opens. About once a week he also checks for newer Ollama, ComfyUI (the copy he set up) and newer copies of your installed models (GitHub and the Ollama model registry), and reads his list of suggested models from GitHub. Only version numbers and model names come back; nothing installs until you say yes. Turn all of it off under UPDATES, further down this page.</li>
                   <li><b>whisper.cpp</b> (optional, Setup &gt; Start here): the small program from GitHub (Windows) or Homebrew (Mac), and its hearing model from Hugging Face, once. Never your recordings.</li>
                   <li><b>Phone ping</b>: one short line to ntfy.sh, only if you set a topic (General).</li>
-                  <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Setup &gt; Privacy and internet &gt; Let Joe look things up online).</li>
+                  <li><b>Talk lookups and RESEARCH tasks</b>: only the search words, only if you turn it on (Setup &gt; Privacy and internet &gt; Let Joe look things up online), and only to the search sources you tick under ONLINE LOOKUPS. Joe says which one answered.</li>
+                  <li><b>Reading whole result pages</b> (RESEARCH tasks): only if you turn it on under ONLINE LOOKUPS, and only pages a search found. With the Ollama key, Ollama reads the page for Joe.</li>
                   <li><b>Model pages</b>: GET IT on a recommended picture model opens its page (Hugging Face or Civitai) in your browser, and on Hugging Face starts the download there. You read its terms; the download is yours.</li>
                 </ul>
                 <div class="dim small">Ollama and ComfyUI have their own update checks and settings. Once everything is installed, overnight runs work without internet.</div>
@@ -642,7 +644,13 @@ FORMAT: ...
                 <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
                 <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
                   For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
-                <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim"></span></div>
+                <div id="web-prov-head" class="small"><b>Where Joe searches</b>, in this order. He asks the first one; if it can't answer he tries the next and tells you. Each one only gets the search words.</div>
+                <ul id="web-prov" class="provlist small" aria-labelledby="web-prov-head"></ul>
+                <input type="hidden" data-path="web.providers" id="web-prov-order">
+                <label title="The most searches one task may make: one question in Talk, or one overnight task. Stops a task from searching over and over.">Searches per task, at most <input type="number" min="1" max="50" data-path="web.max_searches"></label>
+                <label title="Only for the source 'Your own SearXNG': the address of a SearXNG you run yourself, like http://192.168.1.20:8888. Its JSON answers must be switched on in its settings.yml.">Your SearXNG address <input type="text" data-path="web.searxng_url" placeholder="optional: like http://192.168.1.20:8888" autocomplete="off" spellcheck="false"></label>
+                <label title="Off unless you turn it on. A RESEARCH task then reads the whole page of its top two results instead of only the short bit the search shows. Only pages a search found, never anything on this PC or your home network. With the Ollama key, Ollama reads the page for Joe (so ollama.com sees its address); without it, Joe reads it himself, text only.">Let RESEARCH tasks read whole result pages <input type="checkbox" data-path="web.read_pages"></label>
+                <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim" role="status" aria-live="polite"></span></div>
               </fieldset>
               <fieldset><legend>UPDATES</legend>
                 <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
@@ -805,7 +813,7 @@ FORMAT: ...
                 <div class="row"><input type="file" id="addon-file" accept=".zip" hidden>
                   <button type="button" data-act="addon-add" title="Pick an add-on .zip you downloaded.">[ ADD AN ADD-ON (.zip) ]</button>
                   <button type="button" data-act="addon-reload" title="Look in the Add-ons folder again (for add-ons you copied in by hand).">[ LOOK AGAIN ]</button></div>
-                <div id="addon-msg" class="small"></div>
+                <div id="addon-msg" class="small" role="status" aria-live="polite"></div>
                 <div class="dim small" id="addon-folder"></div>
               </fieldset>
               <fieldset><legend>YOUR ADD-ONS</legend>
@@ -1029,7 +1037,9 @@ FORMAT: ...
     (all off with Setup > Privacy and internet > Updates)
   - send a phone ping, if you set one up (one short line)
   - look things up in Talk and RESEARCH tasks, if you turn it on
-    (search words only)
+    (search words only, to the search sources you pick)
+  - read the top result pages of a RESEARCH task, if you turn it on
+  - run a search add-on you turned on and ticked (it sees the search words)
   - open a model's page in your browser when you press GET IT
  Ollama and ComfyUI have their own update checks and settings.
 </pre>

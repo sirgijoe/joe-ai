@@ -910,7 +910,7 @@ async function chatOpen(id) {
   talkStop();
   const r = await api("/api/chats/open", { id });
   if (!r.ok) { toast(r.error); return loadChats(); }
-  talkLog = r.chat.messages.map((m) => ({ ...m, mission: m.mission || "", sources: m.sources || [] }));
+  talkLog = r.chat.messages.map((m) => ({ ...m, mission: m.mission || "", sources: m.sources || [], via: m.via || "" }));
   renderTalk(); loadChats();
   $("#talk-in").focus();
 }
@@ -1186,7 +1186,7 @@ async function loadSetup() {
       el.add(new Option(String(v), String(v)));          // a choice whose list isn't loaded yet (e.g. the language)
     if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
   });
-  qualityHelp(); engineHelp();
+  qualityHelp(); engineHelp(); loadWebProviders();
   $("#setup-msg").textContent = "";
   $("#set-dirty").hidden = true;
 }
@@ -1215,6 +1215,7 @@ async function saveSetup(ev) {
   }
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
   if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500);
+    if (setupPageName === "privacy") loadWebProviders();
     if ((out.ui || {}).language !== I18N.code) i18nStart(); }
 }
 $("#setup").addEventListener("submit", saveSetup);
@@ -1533,7 +1534,59 @@ function setupPage(name) {
   if (name === "phone") loadPhone();
   if (name === "addons") loadAddons();
   if (name === "display") loadLangChoices();
+  if (name === "privacy") loadWebProviders();
 }
+// --- Setup > Privacy and internet > ONLINE LOOKUPS: which search sources are on, and their order ---
+let webProv = [];
+async function loadWebProviders() {
+  const r = await api("/api/web/providers", {}).catch(() => null);
+  if (!r || !r.ok) return;
+  // The ticks and order on screen always match what SAVE will save (the hidden box), also when the
+  // list is loaded again with changes not saved yet: a source never looks unticked but saves ticked.
+  const box = $("#web-prov-order");
+  const want = box && $("#set-dirty") && !$("#set-dirty").hidden ? box.value.split(",").map((x) => x.trim()).filter(Boolean) : null;
+  if (want) {
+    const by = new Map(r.providers.map((p) => [p.id, p]));
+    webProv = [...want.filter((id) => by.has(id)).map((id) => ({ ...by.get(id), on: true })),
+      ...r.providers.filter((p) => !want.includes(p.id)).map((p) => ({ ...p, on: false }))];
+  } else webProv = r.providers;
+  renderWebProviders();
+}
+function webProvNeeds(p) {
+  if (p.ready) return "";
+  return p.needs === "key" ? " (needs the key above)" : p.needs === "address" ? " (needs your SearXNG address)" : "";
+}
+function renderWebProviders() {
+  const ul = $("#web-prov"); if (!ul) return;
+  ul.innerHTML = webProv.map((p, i) => `<li class="prov"><label><input type="checkbox" data-provon="${i}"${p.on ? " checked" : ""}> <b>${esc(p.label)}</b></label>` +
+    ` <span class="dim">${esc(p.about)} Search words go to ${esc(p.goes_to)}.${esc(webProvNeeds(p))}</span>` +
+    ` <span class="provbtns"><button type="button" data-provmove="${i}" data-dir="-1" aria-label="Move ${esc(p.label)} up"${i ? "" : " disabled"}>[ UP ]</button>` +
+    `<button type="button" data-provmove="${i}" data-dir="1" aria-label="Move ${esc(p.label)} down"${i < webProv.length - 1 ? "" : " disabled"}>[ DOWN ]</button></span></li>`).join("");
+}
+function webProvForget(addonId) {
+  // An add-on turned off or removed is unticked as a search source too (Joe's settings already did it).
+  const id = "addon:" + addonId, box = $("#web-prov-order");
+  if (box) box.value = box.value.split(",").filter((x) => x.trim() !== id).join(",");
+  webProv = webProv.filter((p) => p.id !== id); renderWebProviders();
+}
+function webProvSync() {
+  $("#web-prov-order").value = webProv.filter((p) => p.on).map((p) => p.id).join(",");
+  $("#set-dirty").hidden = false;
+}
+$("#web-prov").addEventListener("change", (ev) => {
+  const i = ev.target.dataset.provon; if (i == null) return;
+  webProv[+i].on = ev.target.checked; webProvSync();
+});
+$("#web-prov").addEventListener("click", (ev) => {
+  const b = ev.target.closest("[data-provmove]"); if (!b) return;
+  const i = +b.dataset.provmove, j = i + Number(b.dataset.dir);
+  if (j < 0 || j >= webProv.length) return;
+  [webProv[i], webProv[j]] = [webProv[j], webProv[i]];
+  webProvSync(); renderWebProviders();
+  const same = document.querySelector(`#web-prov [data-provmove="${j}"][data-dir="${b.dataset.dir}"]`);
+  (same && !same.disabled ? same : document.querySelector(`#web-prov [data-provon="${j}"]`)).focus();
+  $("#web-msg").textContent = `${webProv[j].label} is now number ${j + 1}. Save to keep it.`;
+});
 // --- Setup > Add-ons -----------------------------------------------------------------------------
 let addonList = [];
 async function loadAddons() {
@@ -1542,7 +1595,8 @@ async function loadAddons() {
   addonList = r.addons || [];
   $("#addon-folder").textContent = r.folder ? `Add-ons folder: ${r.folder}` : "";
   const what = (a) => [a.tools.length ? `${a.tools.length} tool${a.tools.length > 1 ? "s" : ""}` : "", a.packs.length ? `${a.packs.length} pack(s)` : "",
-    a.workflows.length ? `${a.workflows.length} workflow(s)` : "", a.themes.length ? `${a.themes.length} theme(s)` : ""].filter(Boolean).join(", ");
+    a.workflows.length ? `${a.workflows.length} workflow(s)` : "", a.themes.length ? `${a.themes.length} theme(s)` : "",
+    a.search ? "a search source" : ""].filter(Boolean).join(", ");
   $("#addon-list").innerHTML = addonList.map((a) => {
     if (a.state === "broken") return `<div class="row"><span><b>${esc(a.name)}</b> <span class="bad">can't be used: ${esc(a.problem)}</span></span>` +
       `<button type="button" data-act="addon-remove" data-id="${esc(a.id)}">[ REMOVE ]</button></div>`;
@@ -1569,8 +1623,15 @@ function addonDetails(a) {
   if (a.packs.length) L.push("", "STARTER PACKS: " + a.packs.join(", "));
   if (a.workflows.length) L.push("", "PICTURE WORKFLOWS (checked by Joe first): " + a.workflows.join(", "));
   if (a.themes.length) L.push("", "THEMES: " + a.themes.join(", "));
+  if (a.search) {
+    const s = a.search;
+    L.push("", `SEARCH SOURCE: ${s.name}`, s.about ? `  ${s.about}` : "", `  your search words go to: ${s.goes_to}`,
+      `  runs: ${s.command}   (stopped after ${s.timeout} seconds)`);
+    if (s.requirements.length) L.push(`  turning it on downloads these Python packages into its own folder (Python ${s.python}): ${s.requirements.join(", ")}`);
+    L.push("", s.risk, "After you turn it on, tick it under Setup > Privacy and internet > ONLINE LOOKUPS to use it.");
+  }
   if (a.tools.length) L.push("", "A tool's program can do anything a program can. Only turn this on if you trust the person who made it.");
-  return L.join("\n");
+  return L.filter((x, i) => x !== "" || L[i - 1] !== "").join("\n");
 }
 
 // --- Setup > Phone: on/off, pairing QR code, paired phones -------------------------------------
@@ -1923,16 +1984,18 @@ document.addEventListener("click", async (ev) => {
     if (act === "addon-on") {
       const a = addonList.find((x) => x.id === b.dataset.id); if (!a) return;
       confirmBox(addonDetails(a) + "\n\nTurn it on?", async () => {
+        if (a.search && a.search.requirements.length) $("#addon-msg").textContent = "Setting up its own Python environment. This can take a few minutes…";
         const r = await api("/api/addons/enable", { id: a.id, on: true });
-        $("#addon-msg").textContent = r.ok ? `${a.name} is on.${a.tools.length ? " Its tools are on the Tools tab (F3)." : ""}` : "ERROR: " + r.error;
+        $("#addon-msg").textContent = r.ok ? `${a.name} is on.${a.tools.length ? " Its tools are on the Tools tab (F3)." : ""}` +
+          (a.search ? " Tick its search source under Setup > Privacy and internet > ONLINE LOOKUPS to use it." : "") : "ERROR: " + r.error;
         loadAddons(); toolCat = null;          // the Tools tab picks up the add-on's tools
-      }, null, a.tools.length ? "[ YES, I TRUST IT ]" : false);
+      }, null, (a.tools.length || a.search) ? "[ YES, I TRUST IT ]" : false);
       return;
     }
-    if (act === "addon-off") { await api("/api/addons/enable", { id: b.dataset.id, on: false }); toolCat = null; loadAddons(); return; }
+    if (act === "addon-off") { await api("/api/addons/enable", { id: b.dataset.id, on: false }); webProvForget(b.dataset.id); toolCat = null; loadAddons(); return; }
     if (act === "addon-remove") {
       confirmBox("Remove this add-on? Its folder is deleted (things it already made stay).", async () => {
-        await api("/api/addons/remove", { id: b.dataset.id }); toolCat = null; loadAddons();
+        await api("/api/addons/remove", { id: b.dataset.id }); webProvForget(b.dataset.id); toolCat = null; loadAddons();
       });
       return;
     }
@@ -2539,6 +2602,7 @@ function talkExtra(m, i) {            // plans, runs and results saved in the ch
 function renderTalk() {
   $("#talk-log").innerHTML = talkLog.length ? talkLog.map((m, i) => `<div class="msg ${m.who}${m.kind ? " k-" + m.kind : ""}"><span class="who">${m.who === "joe" ? "JOE>" : "YOU>"}</span>${esc(m.text)}` +
     talkExtra(m, i) +
+    (m.via ? `<div class="sources dim">${esc(m.via)}</div>` : "") +
     (m.sources && m.sources.length ? `<div class="sources">Sources: ${m.sources.map((s, k) =>
       `<a href="${esc(s.url)}" target="_blank" rel="noopener noreferrer" title="${esc(s.url)}">[${k + 1}] ${esc(s.title)}</a>`).join(" ")}</div>` : "") + `</div>`).join("")
     : '<div class="dim">Joe: "What can I help you with?"</div>';
@@ -2629,7 +2693,7 @@ async function talkSend(textArg) {
   if (final.ok) {
     if (!raw) raw = final.say;                  // read-aloud / status replies come in one piece
     feed(true);
-    msg.text = final.say; msg.mission = final.mission; msg.sources = final.sources || [];
+    msg.text = final.say; msg.mission = final.mission; msg.sources = final.sources || []; msg.via = final.via || "";
   } else { msg.text = "(" + final.error + ")"; if (typeof JoeFace !== "undefined") JoeFace.mood("worried"); }
   renderTalk();
   loadChats();                                   // a new chat appears in the list after its first reply

@@ -198,6 +198,46 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       - Known and left as is: in a run that has read files, the choice and order of the owner's own job
         words in a search could carry a few bits; a mission the Talk model writes and the owner starts
         counts as the owner's words.
+- [ ] Online lookups redo (2.3, overnight 2026-11-15; NEEDS A FABLE REVIEW BEFORE MERGING):
+      - **Search sources** (`websearch.py`): only the search words go to each source; sources are off
+        until ticked (default list = the old Ollama-then-Wikipedia); a refused key / 429 / failure rests the
+        source; per-task cap; results are data (`as_context`). `tests/test_lookups.py`.
+      - **Page reader** (`pagereader.py`, used only when "read whole result pages" is on): http(s) only, no
+        user:pw, usual ports only (80/443/8080/8443), names like localhost/*.local/one-word refused, number
+        tricks (127.1, 0x7f.1, 2130706433) refused, every resolved address must be public, Joe connects to
+        the checked address and checks the socket's peer again, redirects re-checked (3 at most), text
+        types only, packed answers refused, 2 MB / 20 s hard limits (a timer closes a dripping socket),
+        HTML parsed for words only (script/style/svg/iframe... dropped), odd charsets fall back to UTF-8,
+        no cookies/Referer/auth sent, never raises. Ollama's web_fetch never gets a home address either.
+        `tests/test_pagereader.py`. Try: IPv6 tricks, DNS rebinding, redirect chains, slow drips, a huge
+        page, a page that pretends to be HTML but is a program.
+      - **Search add-ons** (`community.py` "search"): program is joe:python or env:python only (no other
+        programs), first arg must be the add-on's own script, no `..`, only `{addon}` filled in; the
+        search words go on stdin as JSON, never on the command line; bare environment (no keys, no JOE_*
+        variables, HOME/TEMP = a fresh empty folder), no shell, `-I`, its own process group, time limit
+        (5-60 s) stops it and its children, output read with a 256 KB cap (stopped at once past it),
+        stderr 4 KB, results cleaned (http(s) addresses only), pace between searches, a 429-style answer
+        rests it. Own environment: uv, exact versions only, `--no-build` (wheels only), built only when
+        turned on, removed with the add-on. Risk screen before turning on; still unticked as a source
+        after. Changed files = turned off (fingerprint). `tests/test_search_addons.py`.
+        Known and left as is: its program can reach the internet and anything the user's account can;
+        transitive dependencies of an env:python add-on are not pinned (uv picks them).
+      - **Agents** call `websearch.agent_find` (the one line changed in `agentweb.py`): same sources, a
+        session per run, and no lookups at all when the run reads e-mail (e-mail files in the agent's
+        folder, or an ability/tool named for mail).
+      - **Fable review 2026-11-15** (found and fixed, each with a test): the page reader took IPv4
+        written the old ways inside IPv6 (`::127.0.0.1`, `::ffff:0:127.0.0.1`) and the old site-local
+        block (`fec0::/10`) for internet addresses (now IPv6 must be in `2000::/3`); a page claiming
+        `charset=punycode` kept Joe busy for minutes, past the time limit (now only real web character
+        sets are honoured); picking the words out of a page had no time limit (now 5 s); `<embed>` or a
+        page-wide `<form>` lost the page's words; parts marked hidden (`hidden`, `aria-hidden`,
+        `display:none`) were kept though the notes said dropped (now dropped). Ollama search results
+        kept non-web addresses (now http(s) only, titles cleaned). The Setup list could show a source
+        unticked that SAVE still turned on (list reloaded with unsaved ticks). A search add-on turned
+        off or removed stayed ticked in the saved list. Agents: an e-mail that started the run (or one
+        in a sub-folder) didn't switch lookups off; agents now read pages with `pagereader.py` (the
+        older reader in `agentweb.py` is gone); the report names the sources really asked.
+        Still open (Joseph): see the review entry at the top of NEXT_STEPS.md.
 - [ ] Daily restart (`dailyrestart.py`): starts a new Joe the same way as RESTART JOE (`app.restart`,
       `joe_command("restart")`, no shell); never while a run, the queue, a plan being written, a
       download or an install is going (`busy`); a failed start leaves this Joe running. Tests:

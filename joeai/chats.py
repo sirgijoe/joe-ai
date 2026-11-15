@@ -65,7 +65,7 @@ class Chats:
         self._write(d)
         return True
 
-    def add(self, you: str, joe: str, mission: str = "", sources: list | None = None) -> None:
+    def add(self, you: str, joe: str, mission: str = "", sources: list | None = None, via: str = "") -> None:
         now = datetime.now()
         self._ensure(you)
         ts = now.isoformat(timespec="seconds")
@@ -75,6 +75,8 @@ class Chats:
             joe_msg["mission"] = mission
         if sources:
             joe_msg["sources"] = sources
+        if via:
+            joe_msg["via"] = str(via)[:300]          # where an online lookup's results came from
         self.current["messages"].append(joe_msg)
         self.current["updated"] = now.isoformat(timespec="milliseconds")   # fine enough to sort by
         self._write(self.current)

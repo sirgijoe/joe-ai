@@ -134,6 +134,11 @@ class WebSettings:
     enabled: bool = False            # Talk may look things up online (Setup > Privacy and internet)
     ollama_key: str = ""             # free key from ollama.com/settings/keys; blank = Wikipedia only
     max_results: int = 5
+    providers: str = "ollama,wikipedia"   # search sources that are on, in order (websearch.py); Ollama
+                                     # is skipped without a key
+    max_searches: int = 10           # searches one task may make (a Talk question, one overnight task)
+    searxng_url: str = ""            # the person's own SearXNG (the "searxng" search source), e.g. http://192.168.1.20:8888
+    read_pages: bool = False         # RESEARCH tasks may read whole result pages (only addresses a search returned)
 
 
 @dataclass
@@ -232,6 +237,7 @@ class Settings:
             s.ui.hello_text = UISettings.hello_text
         s.engine.max_retries = max(1, min(int(s.engine.max_retries or 3), 10))   # 0 would never ask the model
         clean_favorites(s)
+        clean_web(s)
         from . import portable
         portable.adjust_settings(s)
         return s
@@ -252,6 +258,17 @@ def clean_favorites(s: "Settings") -> None:
         if isinstance(x, str) and 0 < len(x) <= 64 and x not in seen:
             seen.append(x)
     s.ui.favorite_tools = seen[:100]
+
+
+def clean_web(s: "Settings") -> None:
+    """Search sources are known ids only (websearch.py); the per-task cap stays between 1 and 50."""
+    from .websearch import clean_order, searxng_base
+    s.web.providers = clean_order(s.web.providers)
+    s.web.searxng_url = searxng_base(s.web.searxng_url) if s.web.searxng_url else ""
+    try:
+        s.web.max_searches = max(1, min(int(s.web.max_searches or 10), 50))
+    except (TypeError, ValueError):
+        s.web.max_searches = 10
 
 
 def _merge(obj, data: dict) -> None:

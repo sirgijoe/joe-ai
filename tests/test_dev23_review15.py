@@ -193,12 +193,17 @@ def test_a_name_that_turns_to_this_pc_after_the_check_is_refused(monkeypatch):
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     try:
         url = f"http://127.0.0.1:{srv.server_address[1]}/"
-        monkeypatch.setattr(agentweb, "public_url", lambda u: True)          # the checks before were fooled
-        monkeypatch.setattr(agentweb, "_resolves_public", lambda u: True)
+        import urllib.parse
+        from joeai import pagereader                                         # agents read pages with Joe's safe reader
+        assert agentweb.fetch_page(url) is None                              # this PC: refused before anything
+        monkeypatch.setattr(pagereader, "PORTS", pagereader.PORTS | {srv.server_address[1]})
+        monkeypatch.setattr(pagereader, "check_url", urllib.parse.urlsplit)  # the checks before were fooled
+        monkeypatch.setattr(pagereader, "_resolve", lambda host, port: "127.0.0.1")
         assert agentweb.fetch_page(url) is None                              # the connection's own address isn't
-        monkeypatch.setattr(agentweb, "_global_ip", lambda a: True)          # (the same download does work
+        assert "reached this PC" in pagereader.last_refusal
+        monkeypatch.setattr(pagereader, "public_ip", lambda a: True)         # (the same download does work
         page = agentweb.fetch_page(url)                                      #  when the address is a public one)
-        assert page and "hunter2" in page["text"]
+        assert page and "hunter2" in page["text"] and page["title"] == "Router"
     finally:
         srv.shutdown()
         srv.server_close()
@@ -209,6 +214,10 @@ def test_addresses_of_this_pc_written_the_long_way_are_private():
         assert not agentweb._global_ip(a), a
     assert agentweb._global_ip("8.8.8.8") and agentweb._global_ip("2606:4700:4700::1111")
     assert not agentweb.public_url("http://[::ffff:127.0.0.1]/") and not agentweb.public_url("http://user:pw@example.com/")
+    for a in ("::127.0.0.1", "fec0::1", "::ffff:0:7f00:1"):                  # Fable review 2026-11-15: old spellings
+        assert not agentweb._global_ip(a), a
+    for bad in ("http://127.1/", "http://2130706433/", "http://example.com:22/", "http://[::127.0.0.1]/"):
+        assert not agentweb.public_url(bad), bad
 
 
 # ------------------------------------------------------------------ the clerk's folder
@@ -236,6 +245,7 @@ def test_with_no_web_key_the_report_says_only_wikipedia_was_searched(env, monkey
     app, fake, script, calls = env
     FakeWeb(monkeypatch)
     monkeypatch.setattr(websearch, "search", lambda q, key="", n=5: [])       # Wikipedia had nothing
+    monkeypatch.setattr(websearch, "find", lambda q, settings, n=None, session=None: [])
     _on(app)
     assert not app.settings.web.ollama_key
     aid = make({"name": "R", "template": "researcher", "job": "What does propane cost?", "abilities": {"lookups": True}})
@@ -245,6 +255,23 @@ def test_with_no_web_key_the_report_says_only_wikipedia_was_searched(env, monkey
     rep = _report(folder)
     assert "only Wikipedia was searched" in rep and "not found (couldn't confirm it): detail detail" in rep
     assert "None of these could be confirmed. Treat them as unchecked." in rep
+    assert "No web search key is saved" in rep and "(no web search key is saved)" in rep
+
+
+def test_the_report_names_the_search_sources_that_were_really_asked(env, monkeypatch):
+    """Fable review 2026-11-15: "only Wikipedia was searched" was wrong with another source ticked."""
+    app, fake, script, calls = env
+    FakeWeb(monkeypatch)
+    monkeypatch.setattr(websearch, "find", lambda q, settings, n=None, session=None: [])
+    _on(app)
+    app.settings.web.providers = "duckduckgo,wikipedia"
+    aid = make({"name": "R2", "template": "researcher", "job": "What does propane cost?", "abilities": {"lookups": True}})
+    script["pick"] = [{"action": "write", "instruction": "the answer"}]
+    script["claims"] = [{"claims": [{"claim": "detail detail", "search": "propane price"}]}]
+    last, folder = run(app, aid)
+    rep = _report(folder)
+    assert "Wikipedia was searched" not in rep
+    assert "- Searched with: DuckDuckGo Instant Answers, then Wikipedia (Setup > Privacy and internet > ONLINE LOOKUPS)." in rep
 
 
 def test_a_made_up_yes_to_a_screen_doesnt_turn_an_ability_on(env):

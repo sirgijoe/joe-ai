@@ -1,0 +1,17 @@
+{
+  "id": "wikipedia-es",
+  "name": "Wikipedia en español",
+  "version": "1.0",
+  "author": "Joe-ai example",
+  "license": "GPL-3.0-or-later",
+  "about": "An example search add-on: looks things up on the Spanish Wikipedia. Standard library only.",
+  "search": {
+    "name": "Wikipedia en español",
+    "about": "Encyclopedia facts from the Spanish Wikipedia (es.wikipedia.org).",
+    "goes_to": "es.wikipedia.org",
+    "program": "joe:python",
+    "args": ["{addon}/search.py"],
+    "timeout": 20,
+    "pace": 1
+  }
+}

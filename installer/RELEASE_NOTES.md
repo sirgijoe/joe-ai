@@ -61,6 +61,24 @@
   items", "how many are there?". See ACCESSIBILITY.md for what works and what doesn't yet.
 - **Quicker Talk:** when the Talk model is blank (so the big writing model answers, 10-20 seconds),
   Setup > Start here offers a small model you already have, or a small one to download.
+- **Online lookups, more than one search source:** Setup > Privacy and internet > ONLINE LOOKUPS now
+  lists where Joe searches, in your order (tick, untick, UP, DOWN). Out of the box it's Ollama web
+  search (with your key) and then Wikipedia, exactly as before. When the first source can't answer,
+  Joe tries the next and tells you which one answered and why ("Found with Wikipedia, because Ollama
+  web search didn't answer (the key was refused)"), under the reply and in Talk out loud; it used to
+  fall back without a word. A source that fails rests for a few minutes, a task makes 10 searches at
+  most (Searches per task), and TEST A SEARCH checks each source on its own.
+  New sources, each off until you tick it: **DuckDuckGo Instant Answers** (DuckDuckGo's official free
+  answer box; short summaries only, not a list of pages) and **Your own SearXNG** (type its address).
+  **Let RESEARCH tasks read whole result pages** (off until you turn it on) reads the top two pages a
+  search found instead of only their short snippets; with the Ollama key, Ollama's web fetch reads them,
+  and without it Joe's own careful page reader does (text only, never this PC or the home network,
+  size and time limits, no scripts).
+  **Search add-ons:** an add-on can now bring a search source (a small program that gets only the
+  search words, runs with a time limit, without Joe's keys or files, and in its own Python environment
+  when it needs packages). Before you turn one on, Joe says plainly that it sees your search words and
+  that Joe's makers don't control it; then it waits, unticked, in the search list. See docs/ADDONS.md.
+  Agents search through the same list, and an agent run that reads e-mail never looks anything up.
 
 ## What's new in 2.2
 

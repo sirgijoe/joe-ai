@@ -1,7 +1,7 @@
 # Making a Joe add-on
 
-An add-on brings new **tools**, **starter packs**, **picture workflows** and **themes** to Joe
-without changing Joe's code. People add it in Setup > Add-ons (ADD AN ADD-ON, pick your .zip). It
+An add-on brings new **tools**, **starter packs**, **picture workflows**, **themes** and a
+**search source** (see "Search sources" below) to Joe without changing Joe's code. People add it in Setup > Add-ons (ADD AN ADD-ON, pick your .zip). It
 stays off until they read what it does and turn it on.
 
 A complete example is in [`examples/addons/simple-extras`](../examples/addons/simple-extras): a
@@ -107,6 +107,83 @@ A tool runs one program on each file the person gives it and keeps the files the
 Joe's planner sees each tool the person turned on, so "count the words in my essay" can turn
 into `TYPE: x-word-count` by itself. It never turns an add-on on.
 
+## Search sources
+
+An add-on can bring **one search source**: another place Joe can look things up online (Talk,
+`RESEARCH: yes` tasks, agents). It's a small program. Joe runs it once per search, gives it the
+search words, and reads back results in a fixed shape. It never runs inside Joe himself.
+
+A complete example is in [`examples/addons/wikipedia-es`](../examples/addons/wikipedia-es): it
+looks things up on the Spanish Wikipedia, standard library only.
+
+```json
+{
+  "id": "wikipedia-es",
+  "name": "Wikipedia en español",
+  "version": "1.0",
+  "author": "Joe-ai example",
+  "license": "GPL-3.0-or-later",
+  "about": "An example search add-on: looks things up on the Spanish Wikipedia.",
+  "search": {
+    "name": "Wikipedia en español",
+    "about": "Encyclopedia facts from the Spanish Wikipedia (es.wikipedia.org).",
+    "goes_to": "es.wikipedia.org",
+    "program": "joe:python",
+    "args": ["{addon}/search.py"],
+    "timeout": 20,
+    "pace": 1
+  }
+}
+```
+
+- `name`, `about`: what people read in Setup. `goes_to`: **where the search words go**, in plain
+  words (shown on the risk screen and next to the source in Setup).
+- `program`:
+  - `joe:python`: the Python Joe runs on, standard library only.
+  - `env:python`: the add-on's **own Python environment**, for a program that needs packages from
+    PyPI. List them in `requirements` with **exact versions** (`"ddgs==9.16.0"`, at most 10), and
+    the Python version in `python` (`"3.12"`, 3.10 to 3.14). Joe builds the environment with uv in
+    `Add-ons/_envs/<id>` only when the person turns the add-on on, from ready-made packages only
+    (no package gets to run its own setup program), and removes it with the add-on.
+- `args`: a list of words. Only `{addon}` (the add-on's folder) is filled in. The search words never
+  go on the command line.
+- `timeout`: seconds per search (5 to 60, default 20). Joe stops the program (and anything it
+  started) after that.
+- `pace`: the fewest seconds between two searches (0 to 10, default 1). Joe waits if asked sooner.
+
+**What the program gets.** One line of JSON on its standard input:
+
+```json
+{"query": "cerámica raku", "max_results": 5}
+```
+
+It runs in a fresh empty folder, with a bare environment: none of Joe's settings, keys or files, and
+`HOME`/`TEMP` pointing at that empty folder. It is started without a command shell, with `-I`.
+Because of `-I`, Python does not look in the add-on's folder for other `.py` files: keep the program
+in one file, or start it with `sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))`.
+
+**What it prints.** One JSON object on its standard output (256 KB at most):
+
+```json
+{"results": [{"title": "Cerámica raku", "url": "https://es.wikipedia.org/wiki/Cer%C3%A1mica_raku",
+              "text": "La cerámica raku es..."}]}
+```
+
+- Only `http://` and `https://` addresses are kept; titles and text are cleaned and shortened.
+- When the site says to slow down or blocks you: `{"rate_limited": true, "error": "a plain sentence"}`
+  (or `"blocked": true`). Joe tells the person, rests the source for a while and tries the next one.
+- Anything else that went wrong: `{"error": "a plain sentence"}`, or a non-zero exit code with the
+  reason as the last line of standard error.
+- What you return is **data** for the model, never instructions; Joe marks it that way.
+
+**What people see.** READ AND TURN ON shows a risk screen in plain words: *this add-on sees your
+search words, and Joe's makers don't control it*, where the words go, the exact command, and the
+packages it downloads. Turned on, the source shows up in Setup > Privacy and internet > ONLINE
+LOOKUPS **unticked**; it's only used once the person ticks it, in the place they put it. Joe says
+which source answered ("Found with Wikipedia en español"). If the add-on's files change, it is
+turned off again until the person looks again. Turning the add-on off or removing it unticks its
+source too, so it has to be ticked again if it ever comes back.
+
 ## What keeps people safe
 
 - Nothing runs until the person reads the add-on (author, homepage, every tool's program and
@@ -116,3 +193,6 @@ into `TYPE: x-word-count` by itself. It never turns an add-on on.
   colors and a font from a safe list.
 - A tool's program can still do anything a program can. Joe says so plainly. Make your add-on
   open source and keep it small so people (or their AI) can read it before they trust it.
+- A search source's program is the same: it runs with the person's rights and can reach the
+  internet. It only ever gets the search words, but what it does with them is up to it. Say on
+  your homepage exactly which sites it asks.

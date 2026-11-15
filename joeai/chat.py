@@ -139,11 +139,13 @@ def web_on(app) -> bool:
 
 
 def look_up(app, query: str) -> list:
+    """One Talk lookup through the person's search sources (websearch.find). The answer says which
+    source answered and, when one didn't, why (Found.via)."""
     from . import websearch
     w = app.settings.web
     app.log(f"Looking it up online: {query[:80]}")
-    res = websearch.search(query, w.ollama_key.strip(), w.max_results)
-    app.log(f"  {len(res)} result(s)" + (f" from {res[0].source}" if res else ""))
+    res = websearch.find(query, app.settings, w.max_results, websearch.Session(getattr(w, "max_searches", 10)))
+    app.log(f"  {len(res)} result(s). {websearch.via(res)}")
     return res
 
 
@@ -244,15 +246,20 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if waiting:
         content += "\n[Files waiting in Joe's Inbox (exact names for INPUT): " + ", ".join(waiting[:40]) + "]"
     sources: list[dict] = []
+    via = ""
     if web_on(app) and not pics:
         from . import websearch
         if web_results is None and websearch.needs_web(text):
             web_results = look_up(app, text)
+        via = websearch.via(web_results) if web_results is not None else ""
         if web_results:
             sources = websearch.sources(web_results)
             content += ("\n\n" + websearch.as_context(web_results) + "\n\n[Answer from these results in "
                         "plain spoken sentences. Don't read web addresses aloud; they're shown under your reply. "
                         "If the results don't answer it, say so.]")
+            if getattr(web_results, "fell_back", False):
+                content += (f"\n[Start with a few words saying where you looked: {web_results.label}, "
+                            f"because the first choice didn't answer.]")
         elif web_results is None:
             content += ("\n\n[Online lookups are ON. If answering needs facts you don't have or that may "
                         "have changed, reply with ONLY one line: LOOKUP: <a few search words>]")
@@ -270,7 +277,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     if images:
         user["images"] = images
     msgs.append(user)
-    return {"msgs": msgs, "model": model, "sources": sources, "searched": web_results is not None}
+    return {"msgs": msgs, "model": model, "sources": sources, "searched": web_results is not None, "via": via}
 
 
 def _tools_note() -> str:
@@ -432,7 +439,7 @@ def picture_mission(app, text: str, pics: list[dict]) -> dict | None:
             "say": f"I'll use {tool.name} on {names}. The plan is below: press RUN IT, or OPEN IN BUILDER to change it."}
 
 
-def finish(raw: str, sources: list | None = None) -> dict:
+def finish(raw: str, sources: list | None = None, via: str = "") -> dict:
     say, mission = split_reply(raw)
     if mission:
         from .mission import MissionError, parse
@@ -441,7 +448,7 @@ def finish(raw: str, sources: list | None = None) -> dict:
         except MissionError as e:
             say += f" (The mission I wrote has a problem: {e}. Fix it in the Builder.)"
     return {"ok": True, "say": say or "Hmm, I lost my train of thought. Try again?",
-            "mission": mission, "raw": raw, "sources": sources or []}
+            "mission": mission, "raw": raw, "sources": sources or [], "via": via or ""}
 
 
 def reply(app, history: list[dict], text: str) -> dict:
@@ -459,7 +466,7 @@ def reply(app, history: list[dict], text: str) -> dict:
             r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
     except Exception as e:
         return {"ok": False, "error": f"Joe couldn't think: {e}"}
-    return finish(r.text, p.get("sources"))
+    return finish(r.text, p.get("sources"), p.get("via", ""))
 
 
 def _spoken_status(app) -> str:

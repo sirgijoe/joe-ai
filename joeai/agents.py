@@ -63,14 +63,15 @@ EXCERPT = 600
 # screen is shown again before the ability is used.
 ABILITIES = {
     "lookups": {
-        "version": 1,
+        "version": 2,
         "title": "Look things up online",
         "can": "Search the web and read the pages it finds, to answer with current facts and to check its "
                "own answers. The sources are listed in what it makes.",
         "wrong": "Web pages can be wrong, out of date or written to fool AI. Joe treats them as information, "
-                 "never as orders, and marks facts the sources disagree with [CHECK]. Searches go through "
-                 "Ollama's web search (with your free key) or Wikipedia, so they see the search words; the "
-                 "sites of the pages it reads see that this PC visited.",
+                 "never as orders, and marks facts the sources disagree with [CHECK]. Searches go to the "
+                 "search sources you ticked in Setup (Ollama's web search and Wikipedia unless you change "
+                 "it), so they see the search words; the sites of the pages it reads see that this PC "
+                 "visited.",
         "worst": "A wrong fact ends up in the answer and you act on it. Check anything important against "
                  "the sources listed.",
         "never": "Its searches are about the job you typed. Once it has read one of your files, only words "

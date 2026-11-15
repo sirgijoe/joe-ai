@@ -1415,7 +1415,7 @@ class App:
 
     def save_chat(self, you: str, r: dict) -> None:
         try:
-            self.chats.add(you, r.get("say", ""), r.get("mission", ""), r.get("sources"))
+            self.chats.add(you, r.get("say", ""), r.get("mission", ""), r.get("sources"), r.get("via", ""))
         except OSError as e:
             self.log(f"Couldn't save this chat: {e}")
 
@@ -1609,12 +1609,24 @@ class App:
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         old_daily = (self.settings.engine.daily_restart, self.settings.engine.restart_time)
         _merge(self.settings, data)
-        from .config import clean_favorites
+        from .config import clean_favorites, clean_web
         clean_favorites(self.settings)
+        clean_web(self.settings)
+        from . import websearch
+        websearch.reset_cooldowns()                 # a changed key, address or order gets a fresh try
         if (self.settings.engine.daily_restart, self.settings.engine.restart_time) != old_daily:
             self.daily.reset(self.settings)           # a new daily restart time counts from now (starring a tool
                                                       # or any other save leaves a restart that is waiting alone)
         return self._settings_changed(old_ws, old_sched)
+
+    def forget_search_addon(self, aid: str) -> None:
+        """An add-on the person turned off or removed is unticked as a search source too."""
+        from . import websearch
+        try:
+            if websearch.forget_source(self.settings, f"addon:{aid.strip().lower()}"):
+                self.settings.save()
+        except Exception as e:                       # noqa: BLE001 (never stops turning an add-on off)
+            self.log(f"  (couldn't untick the add-on's search source: {e})")
 
     def reset_settings(self, paths: list[str] | None) -> dict:
         """Setup > RESET THIS PAGE (the page's settings) or RESET ALL SETTINGS (paths None)."""
@@ -2171,13 +2183,18 @@ def make_handler(app: App):
                 if u.path == "/api/web/test":
                     from . import websearch
                     w = app.settings.web
-                    res = websearch.search("ceramic glaze", w.ollama_key.strip(), 3)
-                    if not res:
-                        return self._json({"ok": False, "error": "no results (check the internet connection"
-                                           + (" and the key)" if w.ollama_key else ")")})
-                    via = "Ollama web search" if res[0].source == "ollama" else "Wikipedia (no key, or the key didn't work)"
-                    return self._json({"ok": True, "text": f"Works: {len(res)} results from {via}."
-                                       + ("" if w.enabled else " Tick the box above to let Talk use it.")})
+                    each = websearch.try_each(app.settings)       # every source that is on, one by one
+                    if not each:
+                        return self._json({"ok": False, "error": "no search source is turned on (tick one in the list above)"})
+                    line = " ".join(f"{x['label']}: {x['text']}." for x in each)
+                    if not any(x["ok"] for x in each):
+                        return self._json({"ok": False, "error": line + " Check the internet connection"
+                                           + (" and the key." if w.ollama_key else ".")})
+                    return self._json({"ok": True, "text": line
+                                       + ("" if w.enabled else " Tick the box above to let Joe use it.")})
+                if u.path == "/api/web/providers":
+                    from . import websearch
+                    return self._json({"ok": True, "providers": websearch.providers_for_setup(app.settings)})
                 if u.path == "/api/chats/open":
                     d = app.open_chat(str(b.get("id", "")))
                     return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
@@ -2237,10 +2254,16 @@ def make_handler(app: App):
                     return self._json(r)
                 if u.path == "/api/addons/enable":         # turn an add-on on (after the person read it) or off
                     from . import community
-                    return self._json(community.enable(app.sb, str(b.get("id", "")), bool(b.get("on")), log=app.log))
+                    r = community.enable(app.sb, str(b.get("id", "")), bool(b.get("on")), log=app.log)
+                    if r.get("ok") and not b.get("on"):
+                        app.forget_search_addon(str(b.get("id", "")))
+                    return self._json(r)
                 if u.path == "/api/addons/remove":
                     from . import community
-                    return self._json(community.remove(app.sb, str(b.get("id", "")), log=app.log))
+                    r = community.remove(app.sb, str(b.get("id", "")), log=app.log)
+                    if r.get("ok"):
+                        app.forget_search_addon(str(b.get("id", "")))
+                    return self._json(r)
                 if u.path == "/api/phone/pair":            # a one-time QR code for a new phone
                     return self._json(app.phone.new_pairing())
                 if u.path == "/api/phone/remove":
@@ -2808,7 +2831,7 @@ def make_handler(app: App):
                             if held:
                                 send({"t": "delta", "text": held})
                             break
-                        r = p["final"] if "final" in p else chat_mod.finish(raw, p.get("sources"))
+                        r = p["final"] if "final" in p else chat_mod.finish(raw, p.get("sources"), p.get("via", ""))
                         if "final" not in p and r.get("ok"):
                             r["say"] = brief.trim(r["say"])
                         app.debug(f"Talk timing: setup {t_prep:.1f}s, first words {first:.1f}s, "

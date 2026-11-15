@@ -1161,7 +1161,50 @@ for is listed in the README under "When Joe uses the internet" and in Setup > Pr
   into **Ollama web search key**): searches the whole web.
 - **Without a key**: Joe looks things up on Wikipedia only (encyclopedia facts, no news or prices).
 
-**TEST A SEARCH** checks it works and says which one answered.
+**Where Joe searches** (the list under the key) holds every search source, the ones that are on
+first, in the order Joe asks them. Tick or untick a source and move it with **UP** and **DOWN**,
+then SAVE. Joe asks the first source; if it can't answer (a refused key, too many searches, no
+internet) or finds nothing, he tries the next one and **tells you**: the line under his reply says
+where the results came from and why ("Found with Wikipedia, because Ollama web search didn't
+answer (the key was refused - check it in Setup)"); in Talk he says it too. A source that failed
+rests for a few minutes so Joe doesn't keep knocking (saving Setup gives it a fresh try). Ollama
+web search is skipped without a key. Out of the box the list is Ollama web search, then Wikipedia,
+which is exactly how Joe searched before.
+
+The sources Joe knows:
+
+- **Ollama web search**: the whole web (news, prices, how-tos). Needs the free key above.
+- **Wikipedia**: encyclopedia facts only. No account.
+- **DuckDuckGo Instant Answers** (off until you tick it): DuckDuckGo's official free answer box.
+  It only gives **short summaries and definitions**, not a list of web pages (DuckDuckGo has no
+  free way to get those), so it's about as limited as Wikipedia. Its results say "(DuckDuckGo)".
+- **Your own SearXNG** (off until you tick it and type **Your SearXNG address**): a search engine
+  you run yourself, for example on another computer at home (`http://192.168.1.20:8888`). Its
+  JSON answers must be switched on (SearXNG's `settings.yml`, under `search:` `formats:` add
+  `json`). Public SearXNG sites usually switch that off, so your own is the dependable one.
+- **Search add-ons** you installed and turned on (Setup > Add-ons) show here too.
+
+**Let RESEARCH tasks read whole result pages** (off until you turn it on): a `RESEARCH: yes`
+task then reads the whole page of its top two results instead of only the short bit the search
+shows (4 pages per task at most). Only pages a search found. With the Ollama key, Ollama's web
+fetch reads the page for Joe, so ollama.com sees the page's address. Without the key (or when
+Ollama can't), Joe reads the page himself with his own careful page reader: web pages only
+(http and https), never anything on this PC or your home network (checked again after every
+redirect, 3 redirects at most), text pages only (no pictures, PDFs or programs), 2 MB and 20
+seconds at most, and scripts never run: Joe only keeps the words (menus and parts a page marks as
+hidden are left out). What a page says is treated as information, never as instructions.
+
+**Searches per task, at most** (10 unless you change it) stops one question or one overnight task
+from searching over and over; a task never searches the same words twice.
+
+**TEST A SEARCH** tries every source that is on, one by one, and says how each did.
+
+`RESEARCH: yes` tasks and agents with the "Look things up online" ability search straight away
+(they don't wait for words like "today" or "latest", which only Talk uses), through the same
+sources in the same order, and their log says when one didn't answer. **An agent run that reads
+e-mail never looks anything up**: if an e-mail file (`.eml`, `.msg`, `.mbox`...) started the run,
+or there are e-mail files in the agent's folder, that run makes no searches at all, so nothing from
+a letter can leave in a search.
 
 ### Microphone permission
 

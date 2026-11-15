@@ -147,6 +147,7 @@ class Run:
         if "tool" in self.actions and not [t for t in self.tools if t != "text"]:
             self.actions.remove("tool")
         self.web = Lookups(engine.s, agent, self.request, self.log)
+        self.web.inputs = list(job.inputs or [])      # an e-mail that started the run turns its lookups off
         if "search" in self.actions and not self.web.on:
             self.actions = [a for a in self.actions if a != "search"]
         self.outside = self._outside_files()
@@ -183,6 +184,20 @@ class Run:
                         steps=[f"{x['n']}. {x['what']}: {x['status']}" for x in self.steps[-12:]])
         self.st.note = f"step {n} of {self.agent['steps']}: {doing}" if n else doing
         self.engine._save_state(self.job, self.st)
+
+    # -- which search sources this run could ask (for the report) ---------
+    def _search_sources(self) -> list[str]:
+        from . import websearch
+        try:
+            return websearch.ready_labels(self.engine.s)
+        except Exception:                             # noqa: BLE001 (the report is never stopped for it)
+            return []
+
+    def _only_wikipedia(self) -> bool:
+        return self._search_sources() == ["Wikipedia"]
+
+    def _why_only_wikipedia(self) -> str:
+        return "no web search key is saved" if not self.web.key else "Wikipedia is the only search source that is ticked"
 
     # -- what a run may read ----------------------------------------------
     def _outside_files(self) -> list[str]:
@@ -799,9 +814,12 @@ class Run:
         else:
             L += [f"- '{s['query']}': {len(s['results'])} result(s)" for s in self.web.searches] or ["- No searches were needed."]
             L += [f"- Read the page {u}" for u in self.web.pages]
-            if not self.web.key:
-                L.append("- No web search key is saved (Setup > Privacy and internet), so only Wikipedia was searched. "
-                         "News, prices and most websites are not in it.")
+            if self._only_wikipedia():
+                L.append(f"- {self._why_only_wikipedia()[0].upper()}{self._why_only_wikipedia()[1:]} (Setup > Privacy "
+                         "and internet), so only Wikipedia was searched. News, prices and most websites are not in it.")
+            elif self.web.searches:
+                L.append("- Searched with: " + (", then ".join(self._search_sources()) or "no search source (none is ticked)")
+                         + " (Setup > Privacy and internet > ONLINE LOOKUPS).")
             if self.web.tainted:
                 L.append("- This run read your files, so every search used only words from the job you typed.")
         if self.sources:
@@ -821,10 +839,10 @@ class Run:
             if not any(f["verdict"] == "confirmed" for f in self.facts):
                 L.append("")
                 L.append("None of these could be confirmed. Treat them as unchecked.")
-            if not self.web.key:
+            if self._only_wikipedia():
                 L.append("")
-                L.append("Only Wikipedia was searched (no web search key is saved), so 'not found' often just means "
-                         "Wikipedia doesn't cover it.")
+                L.append(f"Only Wikipedia was searched ({self._why_only_wikipedia()}), so 'not found' often just "
+                         "means Wikipedia doesn't cover it.")
         if self.proposed:
             L += ["", "## Waiting for your OK", "", f"{len(self.proposed)} suggested name(s) or folder(s): see PROPOSED "
                   "CHANGES.md. Nothing has changed yet. Tools > AGENTS > APPLY does them (it asks first; UNDO puts them back)."]

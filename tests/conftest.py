@@ -7,6 +7,15 @@ os.environ.setdefault("JOE_VAULT", "file")     # tests never touch this computer
 
 
 @pytest.fixture(autouse=True)
+def _search_sources_rested():
+    """A search source resting after a failure in one test (websearch.py) never carries into the next."""
+    from joeai import websearch
+    websearch.reset_cooldowns()
+    yield
+    websearch.reset_cooldowns()
+
+
+@pytest.fixture(autouse=True)
 def _no_real_graphics_card(request, monkeypatch):
     """Tests behave the same on every machine: the test PC's own graphics card (an Apple chip on
     the Mac runner, an NVIDIA card on a developer's PC) is never seen. Tests that need a card

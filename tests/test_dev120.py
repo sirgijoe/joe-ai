@@ -149,7 +149,7 @@ def test_research_adds_sources(app, monkeypatch):
     monkeypatch.delenv("JOE_OFFLINE", raising=False)
     app.settings.web.enabled = True
     seen = []
-    monkeypatch.setattr(websearch, "search", lambda q, key="", max_results=5: seen.append(q) or [
+    monkeypatch.setattr(websearch, "find", lambda q, settings, max_results=None, session=None: seen.append(q) or [
         websearch.Result("Town history", "https://example.org/town", "Founded in 1850.", "wikipedia")])
     m = parse("TASK: Local history\nRESEARCH: yes\nPART: ## Start. When the town began.\nPART: ## Later. What came next.")
     st = Engine(app.settings, app.sb, log=lambda *_: None).run_mission(m)[0]

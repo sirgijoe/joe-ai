@@ -686,13 +686,15 @@ class Engine:
         else:
             from . import websearch
             query = research_query(job)
-            try:
-                found = websearch.search(query, w.ollama_key, max(3, min(8, w.max_results)))
+            try:                                       # straight to the person's search sources, in their order
+                sess = websearch.Session(getattr(w, "max_searches", 10))
+                found = websearch.find(query, self.s, max(3, min(8, w.max_results)), sess)
+                read = websearch.read_top(found, self.s, sess)     # only when "read whole result pages" is on
+                if read:
+                    self.log(f"  Read {read} whole result page(s).")
             except Exception as e:                     # noqa: BLE001 (never stop the run for it)
                 self.log(f"  lookup failed: {e}")
-            if websearch.last_error:
-                self.log(f"  Ollama web search didn't answer ({websearch.last_error}); used Wikipedia instead.")
-            self.log(f"  Looked up '{query[:80]}': {len(found)} source(s)")
+            self.log(f"  Looked up '{query[:80]}': {len(found)} source(s). {websearch.via(found)}".rstrip())
         cache[job.job_id] = found
         return found
 
@@ -705,7 +707,8 @@ class Engine:
                 text = drop_made_up_sources(out.read_text(encoding="utf-8", errors="replace"))
                 atomic_write_text(out, text.rstrip() + "\n\n## Sources\n\n" + NO_SOURCES_NOTE + "\n")
             return
-        lines = ["", "## Sources", "", "Joe looked these up online while writing. Check facts against them."]
+        lines = ["", "## Sources", "", "Joe looked these up online while writing. Check facts against them."
+                 + (" " + websearch.via(found) if websearch.via(found) else "")]
         lines += [f"{i}. [{x['title']}]({x['url']})" for i, x in enumerate(src, 1)]
         target = out if not job.is_csv else out.with_name(out.stem + "-sources.md")
         if job.is_csv:
