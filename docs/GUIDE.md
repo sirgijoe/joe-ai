@@ -1197,7 +1197,12 @@ hidden are left out). What a page says is treated as information, never as instr
 **Searches per task, at most** (10 unless you change it) stops one question or one overnight task
 from searching over and over; a task never searches the same words twice.
 
-**TEST A SEARCH** tries every source that is on, one by one, and says how each did.
+**TEST A SEARCH** tries every source that is on, one by one, and says how each did. When a source
+didn't answer, Joe says what kind of trouble it was: "this PC didn't accept its security certificate"
+(see **Secure connections** under Updates and getting help), "the connection was cut off on the way",
+"it took too long to answer", or "its address couldn't be found (is the internet connected?)".
+DuckDuckGo drops a connection now and then, so Joe gives it one more try before moving on; when it
+answers "busy" (it asked Joe to wait), Joe leaves it alone for a minute.
 
 `RESEARCH: yes` tasks and agents with the "Look things up online" ability search straight away
 (they don't wait for words like "today" or "latest", which only Talk uses), through the same
@@ -1506,6 +1511,42 @@ downloads the installer for your system, checks it against the release's `SHA256
 refuses it if the checksum is missing or wrong), then on Windows runs it quietly and opens again,
 on a Mac opens it for you to drag onto Applications, and on Linux swaps the AppImage and restarts.
 Not while a run is going. A copy run from source (git) just gets the release page.
+
+### Secure connections (when a site "didn't accept its security certificate")
+
+Every site Joe talks to (search sources, GitHub for updates, model downloads) is reached over a
+secure connection, and Joe checks the site's security certificate against the list of certificates
+this computer trusts. When that check fails, Joe doesn't connect, and he now says so plainly instead
+of "it couldn't be reached": **"this PC didn't accept its security certificate"**. **System check**
+has a **SECURE** line: "no certificate trouble since Joe started", or the site that was refused and
+why. Joe looks at nothing online for that line; it only reports what already happened.
+
+**Out-of-date certificates in Windows' list.** Windows keeps every certificate it ever picked up and
+never clears the ones that ran out. Web browsers skip them, but the Python that Joe runs on followed
+them and then refused a perfectly good site (this made Wikipedia unreachable on a real PC: an old
+"ISRG Root X2" that ran out in September 2025). Joe now **skips every out-of-date certificate** when
+he reads Windows' list; the SECURE line says how many. A certificate that has run out can never make
+a connection pass, so skipping it can't let anything through that wasn't let through before. Joe
+never changes or deletes anything in Windows' list: he only decides what he reads.
+
+**If the SECURE line still shows trouble**, the usual causes, most likely first:
+
+1. **The PC's date and time are wrong.** Right-click the clock > Adjust date and time > Sync now.
+2. **An antivirus or firewall is checking secure web traffic** ("HTTPS scanning", "web shield").
+   It swaps in its own certificate, which Python may not trust. Turn that one feature off, or add
+   Joe (and Python) to its exceptions.
+3. **The computer is missing newer certificates.** Run Windows Update (or your system's updates).
+4. **The site's own certificate ran out.** Nothing to fix on your side; try again later.
+
+Close Joe completely and start him again after fixing it: a running Joe keeps the list he read
+when he started. UPDATE has its own way around certificate trouble (it falls back to the computer's
+own `curl`, and the download's checksum and signature are checked as always).
+
+*For whoever helps:* `certmgr.msc` shows the current user's certificates; the out-of-date ones Joe
+skips are usually under **Intermediate Certification Authorities > Certificates** (sort by
+Expiration Date). Removing an out-of-date one there is safe, but with Joe 2.3 it isn't needed.
+Programs that don't skip them (plain Python scripts, some command-line tools) show
+`CERTIFICATE_VERIFY_FAILED ... certificate has expired` for a site whose own certificate is fine.
 
 **MAKE A HELP FILE** (Setup > Start here) saves `Joe-help-<date>.zip` in Output and shows it: Joe's
 version and install type, the system and graphics, what Joe found on this PC, settings with every

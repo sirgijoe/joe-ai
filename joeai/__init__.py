@@ -14,3 +14,6 @@ SIGN_PUBLIC_KEY = "NiFrANeudk/ZEKEfrVGzSJPw2hpurAiqK8gL7sFIG0c="
 
 from . import ffguard as _ffguard        # every FFmpeg run reads local files only (ffguard.py)
 _ffguard.install()
+
+from . import http as _http              # secure connections skip out-of-date Windows certificates (http.py)
+_http.install()

@@ -10,6 +10,13 @@
   **Advanced settings**. No setting was removed or changed, only moved, and the find box still knows the
   old page names (type "General" or "System check"). START OVER has its own box on This PC and backup,
   asks first, and keeps your starred tools.
+- **Good sites no longer fail over an old Windows certificate.** Windows keeps out-of-date certificates
+  forever, and one of them could make Joe refuse a perfectly good site (Wikipedia lookups "couldn't be
+  reached" on a real PC). Joe now skips out-of-date certificates when he reads Windows' list (he never
+  changes the list itself), and every connection is still fully checked. When a site doesn't answer, Joe
+  says why in plain words (a certificate this PC didn't accept, a connection cut off, too slow, no
+  internet), **System check** has a **SECURE** line, and DuckDuckGo gets one more try when it drops a
+  connection. The guide explains what to do: "Secure connections".
 - **Daily restart** (Setup > Night shift and alerts): a Joe left running closes and opens again once a day (6am unless
   you pick another time), to free memory, the graphics card and the voice programs. Never in the
   middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.

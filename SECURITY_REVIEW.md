@@ -251,4 +251,14 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       process started from Joe's Python (subprocess.Popen is wrapped).
 - [ ] Pinned downloads: uv 0.13.7 and whisper.cpp 1.9.2 with SHA-256 (`addons.UV_SHA256`,
       `whispercpp.WIN_ZIP_SHA256`): cross-check the sums with the release pages.
-
+- [ ] Secure connections (`http.py`, 2026-11-15): on Windows Joe builds his own trusted list for https:
+      the same certificates Python loads (Windows' ROOT and CA lists, the same "trusted for web sites"
+      rule) minus the ones that have run out (`trusted_certs`, `cert_facts` reads the end date with a
+      small reader of Joe's own; one Joe can't read is kept and left to OpenSSL). Everything else is
+      `ssl.create_default_context` (certificate required, name checked). Nothing is ever added to the
+      list and Windows' own list is never changed. `http.install()` (from `joeai/__init__.py`) puts it
+      under every `urllib` request; the page reader uses the same `tls_context()`. Any trouble reading
+      the list falls back to Python's own. Check: no path turns checking off (`CERT_NONE`,
+      `check_hostname = False`, `_create_unverified_context` appear nowhere), and a site no trusted
+      certificate vouches for is still refused. Tests: `tests/test_secure_connections.py` (pretend
+      certificates in `tests/pretend_certs.py`; its one private key only answers as "localhost").

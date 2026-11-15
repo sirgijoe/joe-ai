@@ -286,6 +286,22 @@ def addons_mod_voice_ready() -> bool:
 
 
 # --------------------------------------------------------------------------- report
+def secure_line() -> dict:
+    """System check's SECURE line: whether this PC has refused a site's security certificate since
+    Joe started (http.py notes it), in plain words. Looks at nothing online."""
+    from . import http as _http
+    t = _http.cert_trouble()
+    if t:
+        return {"ok": False, "text": (
+            f"this PC didn't accept the security certificate of {t['site']} ({t['why']}). Usual causes: "
+            "the PC's date and time are wrong; an antivirus or firewall is checking secure web traffic; "
+            "the computer is missing newer certificates (run Windows Update, or your system's updates). "
+            "The steps are in the GUIDE under \"Secure connections\".")}
+    n = len(_http.skipped_certs())
+    return {"ok": True, "text": "no certificate trouble since Joe started"
+            + (f" (Joe skips {n} out-of-date certificate{'s' if n != 1 else ''} in Windows' list)" if n else "")}
+
+
 def _recommend(settings: Settings, issues: list[dict], vram: float) -> list[dict]:
     """Offers Joe has seen a reason for (suggest.py) first, marked RECOMMENDED; too-big ones say so."""
     try:
@@ -555,6 +571,7 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
         "ffmpeg": ffmpeg_exe(settings.comfy.ffmpeg) or "",
         "voice": addons_mod.voice_ready(), "pandoc": addons_mod.pandoc_exe(settings.pandoc) or "",
         "issues": _recommend(settings, issues, vram),
+        "secure": secure_line(),
     }
 
 

@@ -31,6 +31,8 @@ import threading
 import time
 import urllib.parse
 
+from . import http as _http
+
 AGENT = "Joe-ai/2 (open-source desktop assistant; reads one page as text)"
 MAX_BYTES = 2_000_000          # downloaded
 MAX_PARSE = 1_000_000          # characters of HTML looked at (a huge page can't keep the parser busy)
@@ -140,7 +142,7 @@ class _Conn(http.client.HTTPConnection):
 
 class _TLSConn(http.client.HTTPSConnection):
     def __init__(self, host, port, ip, timeout):
-        super().__init__(host, port, timeout=timeout, context=ssl.create_default_context())
+        super().__init__(host, port, timeout=timeout, context=_http.tls_context())
         self._ip = ip
 
     def connect(self):

@@ -1045,7 +1045,8 @@ async function loadDoctor() {
     (c.found ? `         found: ${c.found.label}  ${c.found.command}\n         models folder: ${c.found.models_dir || "not found"}\n` : "") +
     `         models: ${c.models.length} (${[...new Set(c.models.map((m) => m.family))].join(", ") || "none"})  best image: ${c.best_image || "-"}  best video: ${c.best_video || "-"}\n` +
     `FFMPEG   ${d.ffmpeg || "not found"}\n` +
-    `PANDOC   ${d.pandoc || "not found"}`;
+    `PANDOC   ${d.pandoc || "not found"}` +
+    (d.secure ? `\nSECURE   ${d.secure.ok ? "" : "! "}${d.secure.text}` : "");
   if (typeof qualityHelp === "function") setTimeout(qualityHelp, 0);
   const issueRow = (it, i) =>
     `<div class="issue"><span class="t">${it.optional ? "·" : "!"} ${esc(it.text)}${choicePicker(it, "sc")}</span>${it.action ? `<button type="button" data-fix="${i}">[ ${{ install: "INSTALL", update: "UPDATE", start: "START", use: "USE IT", "install-voice": "SET UP", "install-pandoc": "INSTALL", "install-clone": "SET UP", "install-faces": "SET UP", "import-models": "GET IT", "share-models": "SHARE THEM", "install-whispercpp": "INSTALL", "get-engine": "GET IT", "use-ollama": "USE OLLAMA", "mcp-fix": "RECONNECT" }[it.action] || "DOWNLOAD"} ]</button>` : ""}</div>`;

@@ -29,7 +29,7 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Callable
 
-from .http import HttpError, request_json
+from .http import HttpError, request_json, request_json_status
 
 OLLAMA_SEARCH = "https://ollama.com/api/web_search"
 OLLAMA_FETCH = "https://ollama.com/api/web_fetch"
@@ -42,6 +42,13 @@ MAX_PER_TASK = 10        # searches one task (a Talk question, one overnight tas
 COOL_LIMIT = 600         # seconds a source rests after "too many requests" (HTTP 429)
 COOL_REFUSED = 600       # ... after the key or address was refused (401/403)
 COOL_FAIL = 120          # ... after it couldn't be reached or answered strangely
+COOL_BUSY = 60           # ... after it asked Joe to wait (DuckDuckGo's "202")
+RETRY_PAUSE = 1.0        # seconds before the one extra try after a dropped connection (DuckDuckGo)
+# Why a site couldn't be reached, in plain words (http.py says which kind of trouble it was).
+REASONS = {"cert": "this PC didn't accept its security certificate (System check > SECURE says more)",
+           "dropped": "the connection was cut off on the way",
+           "timeout": "it took too long to answer",
+           "name": "its address couldn't be found (is the internet connected?)"}
 last_error = ""          # why Ollama web search failed last ("" when it worked or wasn't tried)
 
 # Questions that are about the world right now, or that ask to look something up.
@@ -152,7 +159,7 @@ def _http_problem(e: Exception, refused: str = "it refused Joe") -> SourceError:
         return SourceError(f"it answered with an error ({code})", COOL_FAIL)
     if "bad JSON" in str(e):
         return SourceError("its answer wasn't readable", COOL_FAIL)
-    return SourceError("it couldn't be reached", COOL_FAIL)
+    return SourceError(REASONS.get(getattr(e, "kind", ""), "it couldn't be reached"), COOL_FAIL)
 
 
 # --------------------------------------------------------------------------- the sources
@@ -199,10 +206,15 @@ def _duckduckgo(query: str, n: int, ctx: dict) -> list[Result]:
     Their terms ask for attribution, so every result says it came from DuckDuckGo."""
     q = urllib.parse.urlencode({"q": query, "format": "json", "no_html": 1, "skip_disambig": 1,
                                 "no_redirect": 1, "t": "joe-ai"})
-    try:
-        d = request_json("GET", f"{DDG_API}?{q}", timeout=15, headers=AGENT)
-    except HttpError as e:
-        raise _http_problem(e) from None
+    status, d = 0, None
+    for attempt in (1, 2):                           # its connections drop now and then: one more try
+        try:
+            status, d = request_json_status("GET", f"{DDG_API}?{q}", timeout=15, headers=AGENT)
+            break
+        except HttpError as e:
+            if attempt == 2 or getattr(e, "kind", "") not in ("dropped", "timeout"):
+                raise _http_problem(e) from None
+            time.sleep(RETRY_PAUSE)
     if not isinstance(d, dict):
         raise SourceError("its answer wasn't readable")
     page = "https://duckduckgo.com/?" + urllib.parse.urlencode({"q": query})
@@ -225,6 +237,8 @@ def _duckduckgo(query: str, n: int, ctx: dict) -> list[Result]:
             topics.extend(x for x in (t.get("Topics") or [t]) if isinstance(x, dict))
     for t in topics:
         add(str(t.get("Text") or "").split(" - ")[0], t.get("FirstURL"), t.get("Text"))
+    if not out and status == 202:                    # "accepted", with nothing in it: it wants Joe to wait
+        raise SourceError("it is busy right now (it asked Joe to wait); try again in a minute", COOL_BUSY)
     return out
 
 
