@@ -5,21 +5,30 @@ Results are DATA for the model to read, never instructions to follow.
 
 SEARCH SOURCES ("providers"). Every source returns the same Result shape. The person picks which
 sources are on and their order (Setup > Privacy and internet > ONLINE LOOKUPS, saved as the
-web.providers setting, "ollama,wikipedia" unless they change it). Joe asks the first source that
+web.providers setting, "wikipedia" unless they change it: Wikipedia is the one source that is on
+out of the box, the others are listed in Setup and are off until ticked). Joe asks the first source that
 can answer; if it fails or finds nothing he goes on to the next, and says so (Found.via()).
-  - ollama:     Ollama's web search, needs a free Ollama account key (news, prices, how-tos, anything).
-                Without a key it's simply skipped, so someone with no key gets Wikipedia, as before.
+  - ollama:     Ollama's web search, needs an Ollama account key (news, prices, how-tos, anything). Since
+                late October 2026 Ollama asks for paid usage credits for it (HTTP 402 without them).
+                Off until ticked. Without a key it's simply skipped.
   - wikipedia:  no account; encyclopedia facts only.
   - duckduckgo: DuckDuckGo's official Instant Answer API, no account; short summaries only, no list
                 of web pages (DuckDuckGo has no free API for that).
-  - searxng:    the person's own SearXNG address (a search engine they run themselves).
+  - searxng:    the person's own SearXNG address (a search engine they run themselves; searxng.py
+                helps set one up and checks it).
+  - langsearch: LangSearch's web search, needs a LangSearch account key (the whole web; a no-cost plan
+                with a usage limit when this was written, November 2026). Skipped without its key.
+  - custom:     "your own search source": any search address the person typed in Setup, with {query}
+                where the search words go, and the names of the result fields in its JSON answer.
   - addon:<id>: a search add-on the person installed and turned on (community.py, docs/ADDONS.md).
 A source that fails or is rate-limited is skipped for a while (COOL_*). A Session caps the
 searches of one task and remembers what it already found.
 """
 from __future__ import annotations
 
+import dataclasses
 import hashlib
+import json
 import re
 import threading
 import time
@@ -33,11 +42,17 @@ from .http import HttpError, request_json, request_json_status
 
 OLLAMA_SEARCH = "https://ollama.com/api/web_search"
 OLLAMA_FETCH = "https://ollama.com/api/web_fetch"
+# What Joe says when Ollama answers 402 (first seen 2026-11-15: "Add usage credits to use web search, or subscribe").
+OLLAMA_PAID = "Ollama now asks for paid usage credits for web search (it used to be free): ollama.com/plans"
+LANGSEARCH = "https://api.langsearch.com/v1/web-search"
+LANGSEARCH_PAID = "LangSearch now asks for payment (it had a no-cost plan): langsearch.com"
 WIKI_API = "https://en.wikipedia.org/w/api.php"
 DDG_API = "https://api.duckduckgo.com/"
 AGENT = {"User-Agent": "Joe-ai/2 (open-source desktop assistant)"}
 SNIPPET = 1200           # characters of each result shown to the model
-DEFAULT_ORDER = "ollama,wikipedia"
+DEFAULT_ORDER = "wikipedia"          # Wikipedia first and alone out of the box (Joseph, 2026-11-21: Ollama's search
+                                     # went paid, so it lost the first spot); the person adds and orders the rest
+OLD_ORDER = "ollama,wikipedia"       # the default before that: still what search(key) below asks
 MAX_PER_TASK = 10        # searches one task (a Talk question, one overnight task) may make
 COOL_LIMIT = 600         # seconds a source rests after "too many requests" (HTTP 429)
 COOL_REFUSED = 600       # ... after the key or address was refused (401/403)
@@ -66,7 +81,8 @@ class Result:
     title: str
     url: str
     text: str
-    source: str              # the provider id: "ollama" | "wikipedia" | "duckduckgo" | "searxng" | "addon:<id>"
+    source: str              # the provider id: "ollama" | "wikipedia" | "duckduckgo" | "searxng" |
+                             # "langsearch" | "custom" | "addon:<id>"
 
 
 class SourceError(Exception):
@@ -84,7 +100,8 @@ class Provider:
     about: str               # one plain sentence for Setup
     goes_to: str             # where the search words go ("wikipedia.org")
     run: Callable            # (query, n, ctx) -> list[Result]; raises SourceError
-    needs: str = ""          # "" | "key" (Ollama key) | "address" (SearXNG address)
+    needs: str = ""          # "" | "key" (Ollama key) | "address" (SearXNG address) |
+                             # "langkey" (LangSearch key) | "custom" (the person's own source's address)
     most: int = 10           # most results it is asked for
 
 
@@ -126,7 +143,9 @@ _lock = threading.Lock()
 
 def _cool_key(pid: str, ctx: dict) -> str:
     """A new key or address gets a fresh try (it isn't the one that was refused)."""
-    cred = ctx.get("key", "") if pid == "ollama" else ctx.get("searxng", "") if pid == "searxng" else ""
+    own = ctx.get("custom") or {}
+    cred = {"ollama": ctx.get("key", ""), "searxng": ctx.get("searxng", ""), "langsearch": ctx.get("langsearch", ""),
+            "custom": f"{own.get('url', '')}|{own.get('key', '')}"}.get(pid, "")
     return pid + "|" + hashlib.sha256(cred.encode()).hexdigest()[:8]
 
 
@@ -147,12 +166,14 @@ def reset_cooldowns() -> None:
         _cool.clear()
 
 
-def _http_problem(e: Exception, refused: str = "it refused Joe") -> SourceError:
+def _http_problem(e: Exception, refused: str = "it refused Joe", paid: str = "it asks for payment") -> SourceError:
     """An HttpError as a plain reason, with how long to rest the source."""
     m = re.match(r"HTTP (\d{3})\b", str(e))
     code = int(m.group(1)) if m else 0
     if code == 429:
         return SourceError("it says too many searches, so Joe gives it a rest", COOL_LIMIT)
+    if code == 402:                                  # "payment required": asking again won't change it
+        return SourceError(paid, COOL_REFUSED)
     if code in (401, 403):
         return SourceError(refused, COOL_REFUSED)
     if code:
@@ -168,7 +189,7 @@ def _ollama(query: str, n: int, ctx: dict) -> list[Result]:
         r = request_json("POST", OLLAMA_SEARCH, {"query": query, "max_results": max(1, min(10, n))},
                          timeout=20, headers={"Authorization": f"Bearer {ctx['key']}", **AGENT})
     except HttpError as e:
-        raise _http_problem(e, "the key was refused - check it in Setup") from None
+        raise _http_problem(e, "the key was refused - check it in Setup", OLLAMA_PAID) from None
     if not isinstance(r, dict):
         raise SourceError("its answer wasn't readable")
     return [Result(_clean(str(x.get("title", "")))[:200], str(x.get("url", "")).strip(),
@@ -269,9 +290,129 @@ def _searxng(query: str, n: int, ctx: dict) -> list[Result]:
             if isinstance(x, dict) and str(x.get("url", "")).startswith(("http://", "https://"))]
 
 
+def _langsearch(query: str, n: int, ctx: dict) -> list[Result]:
+    """LangSearch's web search (langsearch.com): the whole web, with its own account key."""
+    try:
+        r = request_json("POST", LANGSEARCH, {"query": query, "freshness": "noLimit", "summary": True,
+                                              "count": max(1, min(10, n))},
+                         timeout=20, headers={"Authorization": f"Bearer {ctx['langsearch']}", **AGENT})
+    except HttpError as e:
+        raise _http_problem(e, "the LangSearch key was refused - check it in Setup", LANGSEARCH_PAID) from None
+    if not isinstance(r, dict):
+        raise SourceError("its answer wasn't readable")
+    code = r.get("code", 200)
+    if code not in (200, "200", None):               # it answers "OK" and puts the trouble inside
+        said = _clean(str(r.get("msg") or f"error {code}"))[:120]
+        raise SourceError(f"it said: {said}", COOL_LIMIT if str(code) == "429" else COOL_FAIL)
+    pages = _dig(r, "data.webPages.value")
+    return [Result(_clean(str(x.get("name", "")))[:200], str(x.get("url", "")).strip(),
+                   _clean(str(x.get("summary") or x.get("snippet") or ""))[:SNIPPET], "langsearch")
+            for x in (pages if isinstance(pages, list) else [])
+            if isinstance(x, dict) and str(x.get("url", "")).strip().startswith(("https://", "http://"))]
+
+
+# ----- "your own search source": an address the person typed, and where the results are in its answer
+CUSTOM_LABEL = "Your own search source"
+CUSTOM_FIELDS = {"custom_list": "results", "custom_title": "title", "custom_link": "url", "custom_text": "content"}
+_FIELD = re.compile(r"[A-Za-z0-9_\-]+(?:\.[A-Za-z0-9_\-]+)*")
+_HEADER = re.compile(r"[A-Za-z][A-Za-z0-9\-]{0,39}")
+
+
+def custom_base(address: str) -> str:
+    """The person's own search address: http(s) only, no name and password in it. "" when it isn't one."""
+    a = (address or "").strip()
+    try:
+        u = urllib.parse.urlparse(a)
+        host = u.hostname
+    except ValueError:
+        return ""
+    if u.scheme not in ("http", "https") or not host or u.username or u.password \
+            or len(a) > 500 or any(c in a for c in " <>\"\\\r\n\t"):
+        return ""
+    return a
+
+
+def clean_custom(w) -> None:
+    """What may be saved for the person's own search source (config.clean_web)."""
+    w.custom_name = _clean(str(w.custom_name or ""))[:40].strip()
+    w.custom_url = custom_base(w.custom_url)
+    w.custom_key = str(w.custom_key or "").strip()
+    w.langsearch_key = str(w.langsearch_key or "").strip()
+    if not _HEADER.fullmatch(str(w.custom_key_header or "")):
+        w.custom_key_header = "Authorization"
+    body = str(w.custom_body or "").strip()
+    w.custom_body = body if len(body) <= 2000 else ""
+    for name, usual in CUSTOM_FIELDS.items():
+        v = str(getattr(w, name, "") or "").strip()
+        setattr(w, name, v if len(v) <= 80 and _FIELD.fullmatch(v) else usual)
+
+
+def _custom_spec(w) -> dict:
+    g = lambda name, usual="": str(getattr(w, name, usual) or usual).strip()      # noqa: E731
+    return {"name": g("custom_name"), "url": custom_base(g("custom_url")), "key": g("custom_key"),
+            "header": g("custom_key_header", "Authorization"), "body": g("custom_body"),
+            **{k[7:]: g(k, usual) for k, usual in CUSTOM_FIELDS.items()}}
+
+
+def _custom_ready(c: dict) -> bool:
+    return bool(c.get("url")) and ("{query}" in c["url"] or "{query}" in c.get("body", ""))
+
+
+def _dig(d, path: str):
+    """The value at a dotted path in a JSON answer ("data.webPages.value"), or None."""
+    for part in str(path or "").split("."):
+        if isinstance(d, dict):
+            d = d.get(part)
+        elif isinstance(d, list) and part.isdigit() and int(part) < len(d):
+            d = d[int(part)]
+        else:
+            return None
+    return d
+
+
+def _custom(query: str, n: int, ctx: dict) -> list[Result]:
+    c = ctx.get("custom") or {}
+    if not _custom_ready(c):
+        raise SourceError(NEEDS["custom"], 0)
+    key = c.get("key", "")
+    url = c["url"].replace("{query}", urllib.parse.quote(query, safe=""))
+    headers = dict(AGENT)
+    if "{key}" in url:                               # some services want the key in the address
+        url = url.replace("{key}", urllib.parse.quote(key, safe=""))
+    elif key:
+        headers[c["header"]] = f"Bearer {key}" if c["header"].lower() == "authorization" else key
+    body = None
+    if c.get("body"):                                # something to send: Joe posts it, the words put in safely
+        try:
+            body = json.loads(c["body"].replace("{query}", json.dumps(query)[1:-1]))
+        except ValueError:
+            body = None
+        if not isinstance(body, dict):
+            raise SourceError("what Joe should send isn't valid JSON (Setup: Send this)", 0)
+    try:
+        d = request_json("POST" if body is not None else "GET", url, body, timeout=20, headers=headers)
+    except HttpError as e:
+        raise _http_problem(e, "it refused Joe - check its key in Setup") from None
+    items = _dig(d, c["list"])
+    if not isinstance(items, list):
+        raise SourceError(f"its answer has no list called '{c['list']}' (Setup: Where the results are)", 0)
+    out = []
+    for x in items[:n]:
+        link = str(_dig(x, c["link"]) or "").strip()
+        if isinstance(x, dict) and link.startswith(("https://", "http://")):
+            out.append(Result(_clean(str(_dig(x, c["title"]) or ""))[:200], link,
+                              _clean(str(_dig(x, c["text"]) or ""))[:SNIPPET], "custom"))
+    return out
+
+
+# What a source that isn't ready is missing (TEST A SEARCH says it).
+NEEDS = {"key": "needs the key", "address": "needs your SearXNG address", "langkey": "needs the LangSearch key",
+         "custom": "needs its address, with {query} where the search words go"}
+
 BUILT_IN: dict[str, Provider] = {
     "ollama": Provider("ollama", "Ollama web search",
-                       "The whole web: news, prices, how-tos. Needs a free Ollama account key.",
+                       "The whole web: news, prices, how-tos. Needs an Ollama account key, and Ollama now asks "
+                       "for paid usage credits for it (it used to be free).",
                        "ollama.com", _ollama, needs="key"),
     "wikipedia": Provider("wikipedia", "Wikipedia", "Encyclopedia facts only. No account needed.",
                           "wikipedia.org", _wikipedia, most=3),
@@ -282,7 +423,16 @@ BUILT_IN: dict[str, Provider] = {
     "searxng": Provider("searxng", "Your own SearXNG",
                         "A search engine you run yourself (or one you trust). Type its address below.",
                         "the SearXNG address you typed", _searxng, needs="address"),
+    "langsearch": Provider("langsearch", "LangSearch",
+                           "The whole web: news, prices, how-tos. Needs a LangSearch account key "
+                           "(langsearch.com). It had a no-cost plan with a usage limit in November 2026; "
+                           "that can change, as it did with Ollama.",
+                           "langsearch.com", _langsearch, needs="langkey"),
+    "custom": Provider("custom", CUSTOM_LABEL,
+                       "Any search service you choose, or one you run. Fill in YOUR OWN SEARCH SOURCE below.",
+                       "the address you typed", _custom, needs="custom"),
 }
+ADDON_MARK = " (add-on)"
 _extra: list[Callable] = []          # functions giving more providers (search add-ons, community.py)
 
 
@@ -300,9 +450,18 @@ def all_providers(settings=None) -> dict[str, Provider]:
     for fn in finders:
         try:
             for p in fn(settings) or []:
+                # An add-on names its own source, and could call it "Wikipedia": in the Setup list and in
+                # "Found with ..." it always reads "<its name> (add-on)", so it can't pass for one of Joe's.
+                if str(p.id).startswith("addon:") and not str(p.label).endswith(ADDON_MARK):
+                    p = dataclasses.replace(p, label=f"{str(p.label).strip() or p.id[6:]}{ADDON_MARK}")
                 out.setdefault(p.id, p)
         except Exception:                            # noqa: BLE001 (a broken add-on never stops a lookup)
             pass
+    own = _custom_spec(getattr(settings, "web", None)) if settings is not None else {}
+    if own.get("name") or own.get("url"):            # the person's own source goes by the name they gave it
+        out["custom"] = dataclasses.replace(
+            out["custom"], label=own.get("name") or CUSTOM_LABEL,
+            goes_to=urllib.parse.urlparse(own["url"]).netloc if own.get("url") else "the address you typed")
     return out
 
 
@@ -354,11 +513,15 @@ def _ctx(settings) -> dict:
     w = getattr(settings, "web", None)
     return {"key": (getattr(w, "ollama_key", "") or "").strip(),
             "searxng": (getattr(w, "searxng_url", "") or "").strip(),
+            "langsearch": (getattr(w, "langsearch_key", "") or "").strip(),
+            "custom": _custom_spec(w),
             "settings": settings}
 
 
 def ready(p: Provider, ctx: dict) -> bool:
-    return not ((p.needs == "key" and not ctx["key"]) or (p.needs == "address" and not searxng_base(ctx["searxng"])))
+    return not ((p.needs == "key" and not ctx["key"]) or (p.needs == "address" and not searxng_base(ctx["searxng"]))
+                or (p.needs == "langkey" and not ctx.get("langsearch"))
+                or (p.needs == "custom" and not _custom_ready(ctx.get("custom") or {})))
 
 
 def providers_for_setup(settings) -> list[dict]:
@@ -498,7 +661,7 @@ def try_each(settings, query: str = "ceramic glaze") -> list[dict]:
         p = known[pid]
         if not ready(p, ctx):
             out.append({"id": pid, "label": p.label, "ok": False,
-                        "text": "needs the key" if p.needs == "key" else "needs your SearXNG address"})
+                        "text": NEEDS.get(p.needs, "isn't ready")})
             continue
         try:
             n = len(p.run(query, min(3, p.most), ctx) or [])
@@ -563,8 +726,8 @@ class _Plain:
     """Settings for the old search(): Ollama with the key, then Wikipedia."""
 
     def __init__(self, key: str, n: int):
-        self.web = type("W", (), {"ollama_key": key, "providers": DEFAULT_ORDER, "max_results": n,
-                                  "searxng_url": ""})()
+        self.web = type("W", (), {"ollama_key": key, "providers": OLD_ORDER, "max_results": n,
+                                  "searxng_url": "", "langsearch_key": ""})()
 
 
 def search(query: str, key: str = "", max_results: int = 5) -> Found:

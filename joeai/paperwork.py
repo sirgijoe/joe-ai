@@ -261,10 +261,42 @@ def docx_edit_xml(xml: str, edit: Callable[[str], list[tuple[int, int, str]]]) -
     return "".join(out), changes
 
 
+# Blank grey stand-ins for the pictures inside a Word file (hide-details, OPTIONS: pictures). The file keeps
+# its name and kind, so the document still opens and the page keeps its layout: only what the picture showed
+# is gone. A 16x16 JPEG (made once with FFmpeg), a GIF and a PNG, each a few hundred bytes.
+_BLANK_JPEG = ("/9j/4AAQSkZJRgABAgAAAQABAAD//gAQTGF2YzYwLjMxLjEwMgD/2wBDAAgUFBcUFxsbGxsbGyAeICEhISAgICAhISEkJCQqKiok"
+               "JCQhISQkKCgqKi4vLisrKisvLzIyMjw8OTlGRkhWVmf/xABKAAEAAAAAAAAAAAAAAAAAAAAAAQEAAAAAAAAAAAAAAAAAAAAAEAEA"
+               "AAAAAAAAAAAAAAAAAAAAEQEAAAAAAAAAAAAAAAAAAAAA/8AAEQgAEAAQAwEiAAIRAAMRAP/aAAwDAQACEQMRAD8AAA//2Q==")
+_BLANK_GIF = b"GIF89a\x01\x00\x01\x00\x80\x00\x00\x80\x80\x80\x00\x00\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02D\x01\x00;"
+
+
+def blank_picture(name: str) -> bytes | None:
+    """A blank grey picture of the same kind as `name` (.png, .jpg/.jpeg, .gif), or None for a kind Joe
+    can't make (.emf, .wmf, .tiff, .bmp, .svg...): those are left in and said in the report."""
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    if ext == "png":
+        import struct
+        import zlib
+
+        def chunk(kind: bytes, data: bytes) -> bytes:
+            return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+        raw = (b"\x00" + b"\x80" * 16) * 16                           # 16x16, 8-bit grey
+        return (b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 16, 16, 8, 0, 0, 0, 0))
+                + chunk(b"IDAT", zlib.compress(raw, 9)) + chunk(b"IEND", b""))
+    if ext in ("jpg", "jpeg"):
+        import base64
+        return base64.b64decode(_BLANK_JPEG)
+    if ext == "gif":
+        return _BLANK_GIF
+    return None
+
+
 def docx_rewrite(src: Path, dest: Path, edit: Callable[[str], list[tuple[int, int, str]]],
-                 extra: Callable[[str, str], str] | None = None) -> int:
+                 extra: Callable[[str, str], str] | None = None,
+                 media: Callable[[str, bytes], bytes | None] | None = None) -> int:
     """A changed copy of a Word file: text parts edited with `edit`; extra(name, xml) may change any
-    other XML part (like the author's name). The original is only read."""
+    other XML part (like the author's name); media(name, data) may give new bytes for a picture
+    inside it (None = leave it). The original is only read."""
     changes = 0
     with zipfile.ZipFile(src) as zin:
         infos = zin.infolist()
@@ -286,6 +318,10 @@ def docx_rewrite(src: Path, dest: Path, edit: Callable[[str], list[tuple[int, in
                         new = extra(info.filename, new)
                     if new != xml:
                         data = new.encode("utf-8")
+                elif media and info.filename.startswith("word/media/"):
+                    swapped = media(info.filename, data)
+                    if swapped is not None:
+                        data = swapped
                 zout.writestr(info, data)
         tmp.replace(dest)
     return changes
@@ -1261,8 +1297,15 @@ def run_hide_details(engine: "Engine", mission: "Mission", job: "Job", st: "JobS
 
                 if ext == ".docx":
                     name = f"{stem}-cleaned.docx"
+                    blanked, kept = [], []
+
+                    def blank(part: str, data: bytes):
+                        new = blank_picture(part)
+                        (blanked if new is not None else kept).append(part.rsplit("/", 1)[-1])
+                        return new
                     docx_rewrite(src, folder / name, edit,
-                                 lambda part, xml: docx_hidden_places(part, _scrub_docx_people(part, xml), edit))
+                                 lambda part, xml: docx_hidden_places(part, _scrub_docx_people(part, xml), edit),
+                                 media=blank if "pictures" in opts else None)
                 else:
                     name = f"{stem}-cleaned{ext if ext in ('.txt', '.md', '.markdown', '.csv') else '.txt'}"
                     new, last = [], 0
@@ -1281,8 +1324,17 @@ def run_hide_details(engine: "Engine", mission: "Mission", job: "Job", st: "JobS
                 (" (as plain text: blacking out a PDF by drawing boxes leaves the words underneath, so Joe "
                  "gives you a clean text copy instead)" if ext == ".pdf" else " (as plain text)")
             report.append(f"- **{src.name}** -> {name}{note}: {counts}")
-            if ext == ".docx":
-                report += [f"  - [CHECK] {c}" for c in docx_carries(src)]
+            if ext == ".docx" and "pictures" in opts:
+                if blanked:
+                    report.append(f"  - {len(blanked)} picture(s) inside it replaced with blank grey boxes (logos, "
+                                  "signatures and scanned pages are gone from the copy)")
+                if kept:
+                    report.append(f"  - [CHECK] {len(kept)} picture(s) of a kind Joe can't blank were left in: "
+                                  + ", ".join(kept[:8]))
+                report += [f"  - [CHECK] {c}" for c in docx_carries(src) if "picture(s) inside" not in c]
+            elif ext == ".docx":
+                report += [f"  - [CHECK] {c}" + (" (tick 'Blank out the pictures inside Word files' to take them out)"
+                                                if "picture(s) inside" in c else "") for c in docx_carries(src)]
             if label.key:
                 key_lines += [f"## {src.name}", ""] + [f"- {lab} = {orig}" for lab, orig in label.key] + [""]
             st.media_files.append(name)

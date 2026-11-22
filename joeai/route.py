@@ -176,10 +176,24 @@ _ASK = re.compile(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:
                   r"(assistant|(?:.{1,40}?)\s+agent)(?:\s*[,:]\s*|\s+to\s+|\s+)(?!agent\b)(.{3,})$", re.I)
 
 
+# Joe-AiGent, the one agent (2.4), by his own name: "ask Joe agent to write me a ...", "Joe agent, research ...",
+# "start Joe agent". It is said "Joe agent"; speech-to-text also writes "Joe AI gent", "Joe-aigent", "Joe A.I. gent".
+_AIGENT_NAME = r"joe[\s-]*(?:a\.?\s?i\.?[\s-]?gent|agent)"
+_AIGENT_ASK = re.compile(r"^\s*(?:(?:hey|ok|okay)[,!]?\s+)?(?:please\s+)?(?:(?:ask|tell|have|get|let)\s+)?(?:the\s+)?" + _AIGENT_NAME +
+                         r"(?:\s*[,:]\s*|\s+to\s+|\s+)(.{3,})$", re.I)
+_AIGENT_START = re.compile(r"^\s*(?:(?:hey|ok|okay)[,!]?\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:start|run|wake(?:\s+up)?)\s+(?:the\s+)?" +
+                           _AIGENT_NAME + r"\s*[.!]*$", re.I)
+
+
 def classify(text: str) -> dict:
     raw = (text or "").strip()
     if not raw:
         return {"kind": "unclear", "say": "Tell Joe what you need, in your own words."}
+    if _AIGENT_START.match(raw):
+        return {"kind": "command", "cmd": "agent-start", "name": "joe aigent"}
+    al = _AIGENT_ASK.match(raw)
+    if al and not re.match(r"^(?:is|was|are|isn't|still|has|does|can|will)\b", al.group(1).strip(), re.I):   # "Joe agent is cool" is chat
+        return {"kind": "command", "cmd": "agent-start", "name": "joe aigent", "request": al.group(1).strip(" .!")}
     ak = _ASK.match(raw) if not _AGENT.match(raw) else None
     if ak:
         verb = re.match(r"^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+)?(?:ask|tell|have|get)\b", raw, re.I)

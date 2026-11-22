@@ -43,7 +43,10 @@ function show(name, page) {
   if (name === "report") loadReport();
   if (name === "builder") loadBuilder();
   if (name === "tools") loadTools();
-  if (name === "talk") loadTalk(); else if (typeof openMicStop === "function") openMicStop();
+  if (name === "talk") loadTalk();
+  else if (typeof openMicStop === "function") {          // leaving Talk: the mic closes, unless the wake word is on
+    try { wakeApply(); } catch (e) { try { openMicStop(); } catch (e2) { /* the window is still starting */ } }
+  }
   if (name === "projects") loadProjects();
   if (name === "agents") loadAgents();
 }
@@ -173,7 +176,7 @@ function renderGallery(m) {
     : `<img class="gbig" src="${rawSrc(viewing)}" alt="" data-open="${esc(viewing)}">`;
   const thumbs = m.map((p) => isVid(p)
     ? `<span class="gvid${p === viewing ? " on" : ""}" data-view="${esc(p)}"><video class="gth" src="${rawSrc(p)}#t=0.5" muted preload="metadata"></video><b>▶</b></span>`
-    : `<img class="gth${p === viewing ? " on" : ""}" src="${rawSrc(p)}" alt="" loading="lazy" data-view="${esc(p)}">`).join("");
+    : `<img class="gth${p === viewing ? " on" : ""}" src="${thumbSrc(p)}" alt="" loading="lazy" data-view="${esc(p)}">`).join("");
   $("#gallery").innerHTML = `<div class="gmain">${big}</div><div class="gname dim">${esc(viewing.split("/").pop())}</div>` +
     mediaButtons(viewing) + `<div class="gstrip">${thumbs}</div>`;
   watchVideoErrors($("#gallery"));
@@ -645,6 +648,8 @@ document.addEventListener("click", (ev) => {
 try { grid = localStorage.getItem("nr-grid") === "1"; } catch (e) {}
 const RV = { keep: "√", reject: "×", star: "★" };
 const rawSrc = (p) => "/raw?t=" + encodeURIComponent(TOKEN) + "&path=" + encodeURIComponent(p);
+// A small preview copy for lists (thumbs.py): big pictures (wallpapers) no longer load in full just to show a thumbnail.
+const thumbSrc = (p) => "/thumb?t=" + encodeURIComponent(TOKEN) + "&path=" + encodeURIComponent(p);
 function fmtDate(t) {
   const d = new Date(t * 1000);
   const p = (n) => String(n).padStart(2, "0");
@@ -673,7 +678,7 @@ async function loadDir(path, keepSel) {
 function thumb(e) {
   if (e.dir) return `<div class="th ph">${e.up ? ".." : "DIR"}</div>`;
   const p = join(dirPath, e.name);
-  if (e.kind === "image") return `<img class="th" loading="lazy" src="${rawSrc(p)}" alt="">`;
+  if (e.kind === "image") return `<img class="th" loading="lazy" src="${thumbSrc(p)}" alt="">`;
   if (e.kind === "video") return `<span class="gvid"><video class="th" preload="metadata" muted src="${rawSrc(p)}#t=0.5"></video><b>▶</b></span>`;
   return `<div class="th ph">${esc((e.name.split(".").pop() || "").toUpperCase().slice(0, 4))}</div>`;
 }
@@ -1175,6 +1180,8 @@ async function loadSetup() {
   try {
     const v = await api("/api/voice/status");
     voiceReady = v.voice; talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
+    turnPause = TURN_PAUSE[v.settings.turn_pause] || TURN_PAUSE.quick;
+    wakeOn = !!v.settings.wake; wakeWords = v.settings.wake_words || "hey joe";
     $("#voice-select").innerHTML = Object.entries(v.voices).map(([id, n]) => `<option value="${id}">${esc(n)}</option>`).join("");
   } catch (e) {}
   setTimeout(loadMyVoice, 0);
@@ -1215,7 +1222,7 @@ async function saveSetup(ev) {
     return;
   }
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
-  if (r.ok) { toast("Settings saved"); voiceSettings(); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500);
+  if (r.ok) { toast("Settings saved"); voiceSettings().then(wakeApply); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500);
     if (setupPageName === "privacy") loadWebProviders();
     if ((out.ui || {}).language !== I18N.code) i18nStart(); }
 }
@@ -1555,7 +1562,8 @@ async function loadWebProviders() {
 }
 function webProvNeeds(p) {
   if (p.ready) return "";
-  return p.needs === "key" ? " (needs the key above)" : p.needs === "address" ? " (needs your SearXNG address)" : "";
+  return p.needs === "key" ? " (needs the key above)" : p.needs === "address" ? " (needs your SearXNG address)"
+    : p.needs === "langkey" ? " (needs the LangSearch key above)" : p.needs === "custom" ? " (needs its address below)" : "";
 }
 function renderWebProviders() {
   const ul = $("#web-prov"); if (!ul) return;
@@ -2005,6 +2013,28 @@ document.addEventListener("click", async (ev) => {
       await saveSetup(); $("#web-msg").textContent = "Searching…";
       const r = await api("/api/web/test", {}).catch((e) => ({ ok: false, error: e.message }));
       $("#web-msg").textContent = r.ok ? r.text : "Didn't work: " + r.error;
+      return;
+    }
+    if (act === "searxng-check") {                       // the address in the box, saved or not
+      $("#sx-msg").textContent = "Checking…";
+      const box = document.querySelector('[data-path="web.searxng_url"]');
+      const r = await api("/api/web/searxng-check", { address: box ? box.value : "" }).catch((e) => ({ ok: false, text: e.message }));
+      $("#sx-msg").textContent = r.text || "";
+      return;
+    }
+    if (act === "searxng-make") {
+      const r = await api("/api/web/searxng-make", {}).catch((e) => ({ ok: false, text: e.message }));
+      $("#sx-make-msg").textContent = r.text || "";
+      if (r.ok) {
+        $("#sx-cmd").textContent = r.command; $("#sx-cmd").hidden = false; $("#sx-copy").hidden = false;
+        const box = document.querySelector('[data-path="web.searxng_url"]');
+        if (box && !box.value.trim()) { box.value = r.address; $("#set-dirty").hidden = false; }
+      }
+      return;
+    }
+    if (act === "searxng-copy") {
+      try { await navigator.clipboard.writeText($("#sx-cmd").textContent); $("#sx-make-msg").textContent = "Copied."; }
+      catch { $("#sx-make-msg").textContent = "Select the command above and copy it."; }
       return;
     }
     if (act === "test-hello") { await saveSetup(); startupSound(); return; }
@@ -2543,6 +2573,7 @@ async function loadTalk() {
   await voiceSettings();
   pttLabel();
   $("#talk-note").textContent = voiceReady ? (talkMode === "push" ? `Voice is on. Hold ${keyName(pttKey)} anywhere and speak; let go to send.`
+    : wakeOn ? `Voice is on. On this screen just talk; on any other screen say "${wakeSay(wakeWords)}" first and Joe comes here to answer.`
     : "Voice is on and the mic is open while this screen is up. Just talk; Joe answers when you pause.")
     : "Typing works now. For voice, set it up once in F10 > Start here (\"Joe's voice\").";
   renderTalk();
@@ -2555,6 +2586,8 @@ async function voiceSettings() {
     voiceReady = v.voice; speakReplies = v.settings.speak_replies;
     talkMode = v.settings.talk_mode === "push" ? "push" : "open"; pttKey = (v.settings.ptt_key === "F6" ? "F4" : v.settings.ptt_key) || "F4";   // Talk moved from F6 to F4
     faceMode = v.settings.face || "on";
+    turnPause = TURN_PAUSE[v.settings.turn_pause] || TURN_PAUSE.quick;
+    wakeOn = !!v.settings.wake; wakeWords = v.settings.wake_words || "hey joe";
   } catch (e) {}
   if (typeof JoeFace !== "undefined") JoeFace.setMode(faceMode);
 }
@@ -2806,6 +2839,106 @@ function storyText() {
 // mic closes when you leave Talk or press MIC OFF. "push": hold your chosen key anywhere.
 let talkMode = "open", pttKey = "F4", micMuted = false, micStream = null, micCtx = null, micLoop = null;
 let busyTalking = false, settingKey = false, micGen = 0;
+// How long you may pause before Joe takes his turn (Setup > Voice and Talk > Wait before Joe answers).
+const TURN_PAUSE = { quick: 850, normal: 1200, patient: 2000 };
+let turnPause = TURN_PAUSE.quick;
+// >>> mic-step
+// The open mic's "are you talking?" check: one look at the sound every 80 ms. Plain functions (no page,
+// no microphone) so the tests can run them (tests/test_open_mic.py).
+const MIC_START = 0.015;      // how loud starts your turn (or 3x the room's own steady noise, if that is more)
+const MIC_KEEP = 0.005;       // once you've started, quieter words still count (or 2x the room's noise)
+function micState() { return { floor: 0.01, talking: false, start: 0, lastLoud: 0, loudest: 0, low: 1 }; }
+function micBars(st) { return { start: Math.max(MIC_START, st.floor * 3), keep: Math.max(MIC_KEEP, st.floor * 2) }; }
+function micStep(st, rms, now, pause, joeBusy) {      // -> "start" (you began talking) | "stop" (your turn is over) | ""
+  const bar = micBars(st);
+  if (!st.talking) {
+    // Learn the room's steady noise: never from Joe's own voice or from you talking over him, and only a
+    // little from one loud moment. (It used to learn from everything, so right after Joe spoke the room
+    // counted as loud and the next thing you said was taken for quiet.)
+    if (!joeBusy) st.floor += (Math.min(rms, st.floor * 2 + 0.002) - st.floor) * 0.03;
+    if (rms > bar.start && !joeBusy) {
+      st.talking = true; st.start = st.lastLoud = now; st.loudest = st.low = rms;
+      return "start";
+    }
+    return "";
+  }
+  st.loudest = Math.max(st.loudest, rms); st.low = Math.min(st.low, rms);
+  if (rms > bar.keep) st.lastLoud = now;              // a lower bar than the one that starts a turn
+  if (now - st.start > 30000) {                       // half a minute without one pause: that's the room, not you
+    st.floor = Math.max(st.floor, st.low); st.talking = false;
+    return "stop";
+  }
+  if (now - st.lastLoud > pause) { st.talking = false; return "stop"; }   // you paused: Joe's turn
+  return "";
+}
+// <<< mic-step
+// >>> wake-word
+// The wake word ("Hey Joe"): with it on, the open mic also listens when Talk isn't on screen. What it hears there
+// is turned into words on this PC like any Talk question, and then this function decides: was Joe spoken to?
+// Only then does anything happen. Everything else is dropped at once: not shown, not kept, not sent anywhere.
+// Plain function (no page, no microphone) so the tests can run it (tests/test_wake_word.py).
+const WAKE_HELLO = ["hey", "hay", "hi", "hello", "ok", "okay", "yo", "a", "eh", "hej"];       // how "hey" gets heard
+const WAKE_FILLER = ["um", "uh", "so", "well", "oh", "and", "alright", "right", "now"];
+function wakeTokens(text) {
+  return String(text || "").toLowerCase().replace(/[\u2019']/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+}
+function wakeName(word, name) {                // "joe" is also heard as jo, joel, joey, joes, joseph: same start, a little longer
+  if (word === name) return true;
+  if (name.length < 3) return false;
+  if (name === "joe" && ["jo", "joel", "joey", "joes", "joseph", "joh", "joan", "jow"].includes(word)) return true;
+  return word.length >= name.length && word.length <= name.length + 1 && word.startsWith(name);    // "joes", "computers"
+}
+function wakeSplit(text, phrase) {             // -> null (not said to Joe) | the question after the wake words ("" = only the wake words)
+  const want = wakeTokens(phrase || "hey joe");
+  if (!want.length) return null;
+  const said = wakeTokens(text);
+  const raw = String(text || "");
+  for (let skip = 0; skip <= 2 && skip < said.length; skip++) {         // "um, hey Joe ..." counts; a "hey Joe" mid-sentence doesn't
+    if (skip && !WAKE_FILLER.includes(said[skip - 1])) break;
+    let i = skip, ok = true;
+    for (let w = 0; w < want.length; w++, i++) {
+      const got = said[i], need = want[w], last = w === want.length - 1;
+      if (got === undefined) { ok = false; break; }
+      const hello = WAKE_HELLO.includes(need) && WAKE_HELLO.includes(got);
+      if (!(got === need || hello || (last && wakeName(got, need)))) { ok = false; break; }
+    }
+    if (!ok) continue;
+    // the rest, in the person's own words and capitals: cut the first i words off the original text
+    let rest = raw.trim(), cut = i;
+    while (cut > 0) {
+      const m = rest.match(/^[^A-Za-z0-9]*[A-Za-z0-9\u2019']+/);
+      if (!m) break;
+      rest = rest.slice(m[0].length); cut--;
+    }
+    return rest.replace(/^[\s,.!?;:\u2014-]+/, "").trim();
+  }
+  return null;
+}
+function wakeSay(phrase) {                     // "hey joe" -> "Hey Joe" for the screen
+  return wakeTokens(phrase || "hey joe").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+// <<< wake-word
+function wakeApply() {                          // after settings load or change: open or close the mic to match
+  if (current === "talk") return;
+  if (wakeOn && talkMode === "open" && !micMuted && voiceReady) { if (micStream) wakeBadge(); else openMicStart(); }
+  else openMicStop();
+}
+// A window that just opened may not run sound until it's clicked or typed in once: wake the listener up then.
+["pointerdown", "keydown"].forEach((e) => window.addEventListener(e, () => {
+  if (micCtx && micCtx.state === "suspended") micCtx.resume().catch(() => {});
+}, { passive: true }));
+setTimeout(() => { voiceSettings().then(wakeApply).catch(() => {}); }, 1500);      // when Joe's window opens
+let wakeOn = false, wakeWords = "hey joe", wakeUntil = 0;     // wakeUntil: after a bare "Hey Joe", the next thing said is the question
+function wakeBadge() { badge(current === "talk" ? " \u25cf MIC ON \u2014 just talk " : ` \u25cf MIC ON \u2014 say "${wakeSay(wakeWords)}" `); }
+function micReport(st, now) {                   // one recording's levels, kept for MAKE A HELP FILE
+  const bar = micBars(st), t = micStream && micStream.getAudioTracks()[0];
+  return { clip: (now - st.start) / 1000, quiet: st.floor, loudest: st.loudest, start: bar.start, keep: bar.keep,
+    pause: turnPause / 1000, mic: (t && t.label) || "" };
+}
+function micName(stream) {                    // which microphone Joe hears you through (the system's default one)
+  const t = stream && stream.getAudioTracks()[0], el = $("#mic-name");
+  if (el) el.textContent = t && t.label ? `Listening through: ${t.label}` : "";
+}
 const keyName = (k) => (k || "").replace(/^Key|^Digit/, "");
 function pttLabel() {
   if (!voiceReady) { $("#ptt").textContent = "[ SET UP VOICE ]"; return; }
@@ -2817,16 +2950,36 @@ function badge(text) {
   if (!text) return;
   const b = document.createElement("div"); b.className = "rec-badge"; b.textContent = text; document.body.appendChild(b);
 }
-async function sendAudio(chunks) {
+async function sendAudio(chunks, report, wake) {
   if (!chunks.length) return;
   let blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
   try { blob = await toWav(blob, 16000); } catch (e) {}   // plain 16 kHz WAV: no decoder needed
   busyTalking = true;
-  const r = await fetch("/api/voice/listen", { method: "POST", headers: { "X-NR-Token": TOKEN, "Content-Type": blob.type }, body: blob })
+  const heads = { "X-NR-Token": TOKEN, "Content-Type": blob.type };
+  if (report && !wake) heads["X-Joe-Mic"] = encodeURIComponent(JSON.stringify(report));   // levels only, for the help file
+  if (wake) heads["X-Joe-Wake"] = "1";          // heard while waiting for the wake words: nothing about it is logged
+  const r = await fetch("/api/voice/listen", { method: "POST", headers: heads, body: blob })
     .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
   if (!r.ok || !r.text || r.text.replace(/[^a-z]/gi, "").length < 2) {
     busyTalking = false;
-    if (!r.ok) { talkLog.push({ who: "joe", text: "(I couldn't hear that: " + (r.error || "unknown problem") + ")" }); renderTalk(); }
+    if (!r.ok && !wake) { talkLog.push({ who: "joe", text: "(I couldn't hear that: " + (r.error || "unknown problem") + ")" }); renderTalk(); }
+    return;
+  }
+  if (wake) {                                    // Talk isn't on screen: only words said to Joe count
+    const armed = performance.now() < wakeUntil;
+    const rest = armed ? (wakeSplit(r.text, wakeWords) ?? r.text) : wakeSplit(r.text, wakeWords);
+    if (rest === null) { busyTalking = false; return; }       // not said to Joe: dropped, nothing shown or kept
+    wakeUntil = 0;
+    if (current !== "talk") show("talk");
+    if (rest.replace(/[^a-z0-9]/gi, "").length < 2) {         // just "Hey Joe": he answers and takes the next thing said
+      wakeUntil = performance.now() + 12000;
+      talkLog.push({ who: "joe", text: "Yes? I'm listening." }); renderTalk();
+      if (speakReplies && typeof say === "function") { try { await say("Yes?"); } catch (e) {} }
+      busyTalking = false;
+      return;
+    }
+    await talkSend(rest);
+    busyTalking = false;
     return;
   }
   if (talkMode === "push" && current !== "talk") show("talk");   // push-to-talk works from any screen
@@ -2835,39 +2988,43 @@ async function sendAudio(chunks) {
 }
 // --- open mic -------------------------------------------------------------------
 async function openMicStart() {
-  if (micStream || talkMode !== "open" || micMuted || !voiceReady || current !== "talk") return;
+  if (micStream || talkMode !== "open" || micMuted || !voiceReady || (current !== "talk" && !wakeOn)) return;
   try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
   catch (e) { toast("Joe can't hear you: allow the microphone for this window"); micMuted = true; pttLabel(); return; }
-  if (current !== "talk" || micMuted) { openMicStop(); return; }
+  if ((current !== "talk" && !wakeOn) || micMuted) { openMicStop(); return; }
+  micName(micStream);
   micCtx = new AudioContext();
   if (micCtx.state === "suspended") await micCtx.resume().catch(() => {});
-  const an = micCtx.createAnalyser(); an.fftSize = 1024;
+  const an = micCtx.createAnalyser(); an.fftSize = 4096;   // 85 ms of sound at each look (every 80 ms): no gaps between looks
   micCtx.createMediaStreamSource(micStream).connect(an);
   const buf = new Float32Array(an.fftSize);
-  let floor = 0.01, utter = null, chunks = [], start = 0, lastLoud = 0;
+  const st = micState();
+  let utter = null, chunks = [], closing = false;
   const gen = ++micGen;                       // anything recorded after leaving Talk is thrown away
-  badge(" ● MIC ON — just talk ");
+  wakeBadge();
   micLoop = setInterval(() => {
     an.getFloatTimeDomainData(buf);
     let sum = 0; for (const v of buf) sum += v * v;
     const rms = Math.sqrt(sum / buf.length), now = performance.now();
     meter(rms);
+    if (closing) return;                                              // the last recording is still being wrapped up
     const joeBusy = busyTalking || speaking || (audioEl && !audioEl.paused);
-    if (!utter) floor = floor * 0.97 + rms * 0.03;                   // learn the room's background noise
-    const loud = rms > Math.max(0.015, floor * 3);
-    if (!utter && loud && !joeBusy) {                                 // you started talking
+    const ev = micStep(st, rms, now, turnPause, joeBusy);
+    if (ev === "start") {                                             // you started talking
       chunks = []; utter = new MediaRecorder(micStream);
       utter.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      utter.onstop = () => {
-        const c = chunks, long = lastLoud - start > 500; utter = null;
+      utter.start(); badge(" ● LISTENING… ");
+    } else if (ev === "stop" && utter) {                              // you paused: Joe's turn
+      const long = st.lastLoud - st.start > 500, report = micReport(st, now), rec1 = utter;
+      closing = true;
+      rec1.onstop = () => {
+        const c = chunks; utter = null; closing = false;
         if (gen !== micGen) return;
-        badge(" ● MIC ON — just talk ");
-        if (long) sendAudio(c);
+        wakeBadge();
+        // Talk on screen: everything said is for Joe. Any other screen (wake word on): only what starts with the wake words.
+        if (long) sendAudio(c, report, current !== "talk" || performance.now() < wakeUntil);
       };
-      utter.start(); start = lastLoud = now; badge(" ● LISTENING… ");
-    } else if (utter) {
-      if (loud) lastLoud = now;
-      if (now - lastLoud > 850 || now - start > 30000) utter.stop();   // you paused: Joe's turn
+      rec1.stop();
     }
   }, 80);
 }
@@ -2891,6 +3048,7 @@ async function recStartFn() {
   let stream;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch (e) { toast("Joe can't hear you: allow the microphone for this window"); return; }
+  micName(stream);
   const chunks = [];
   rec = new MediaRecorder(stream);
   rec.ondataavailable = (e) => e.data.size && chunks.push(e.data);
@@ -3169,6 +3327,7 @@ const W_TEXT = {
   "get-video-turbo": ["The Turbo add-on makes videos several times faster (under 1 GB).", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
   "pull-talk-model": ["A small, quick model just for talking, so Joe answers faster.", "YES, DOWNLOAD IT", ""],
   "use-talk-model": [null, "YES, USE IT FOR TALK", "Setup > Voice and Talk can change it back."],
+  "swap-talk-model": [null, "YES, USE IT FOR TALK", "Setup > Voice and Talk can change it back."],
   "install-comfyui": ["For pictures and video, Joe uses ComfyUI: a free drawing program.", "YES, INSTALL COMFYUI", "Your computer may ask for permission. Skip this if you only want writing."],
   "get-image-model": ["ComfyUI needs a picture model to draw with.", "YES, DOWNLOAD ONE", ""],
   "get-video-model": ["For short video clips, Joe can get a video model. It's big: about 18 GB, an hour or more to download.", "YES, DOWNLOAD IT", "Restart ComfyUI when it's done."],
@@ -3610,13 +3769,14 @@ async function loadTools() {
     api("/api/tools").then((r) => { toolHave = r.have || {}; toolBadge(r.status); if (toolOpen) toolNeeds(); else renderToolGrid(); }).catch(() => {});
   }
   if (!toolOpen) renderToolGrid();
-  api("/api/agents").then((r) => { agCount = r.agents.length; const c = $("#ag-count"); if (c) c.textContent = agCountText(); else if (agCount > 0 && $("#toolgrid")) $("#toolgrid").insertAdjacentHTML("afterbegin", agRow()); }).catch(() => {});
+  api("/api/agents").then((r) => { agCount = r.agents.length; const c = $("#ag-count"); if (c) c.textContent = agCountText(); }).catch(() => {});
 }
 let agCount = null;
-const agCountText = () => agCount === null ? "" : agCount ? `${agCount} set up` : "none set up yet";
-const agRow = () => `<div class="tgroup agentsrow"><h3 class="tgname">Agents</h3><div class="row">
-      <span>Give Joe a whole job: he plans it, looks things up, checks his own answers and works until each point is done.</span>
-      <button type="button" data-act="agents-open" class="primary">[ OPEN AGENTS ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>`;
+const agCountText = () => agCount === null ? "" : agCount ? `${agCount} job${agCount === 1 ? "" : "s"} set up` : "no job set up yet";
+// Joe-AiGent, the one agent (2.4): his own section at the top of Tools, always there.
+const agRow = () => `<div class="tgroup agentsrow"><h3 class="tgname">Joe-AiGent (the agent)</h3><div class="row">
+      <span>Give Joe a whole job and go to bed: he plans it, does it step by step, writes and tests code in a sealed box, checks his own work and keeps going until each point is done.</span>
+      <button type="button" data-act="agents-open" class="primary">[ OPEN JOE-AIGENT ]</button><span id="ag-count" class="dim small">${agCountText()}</span></div></div>`;
 const TOOL_CATS = [      // [name, label shown, parent box ("" = top level), the tool ids in it]
   ["Write and edit", "Write and edit", "", ["ai-search", "brainstorm", "joe-language", "meal-plan", "proofread", "resume-tailor", "rewrite", "translate"]],
   ["Read and understand", "Read and understand", "", ["ask-files", "ask-sheet", "code-review", "compare-docs", "explain-letter", "read-scans", "study", "summarize"]],
@@ -3686,8 +3846,8 @@ function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting 
       `<span class="tgname">${esc(c.label)}</span><span class="tcount">${cnt}</span></button>` + inner(id, open) + `</div>`;
   };
   const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
-  // Agents are NOT offered in 2.3 (Joseph, 2026-11-12: they are being rebuilt as one agent, Joe-AlIve, with
-  // helpers; five kinds now would only confuse people). The row shows only where an agent already exists.
+  // 2.3 held agents back (Joseph, 2026-11-12: five kinds would only confuse people, the rebuild as ONE agent
+  // was planned). That agent, Joe-AiGent, is built now (2.4), so his row is always at the top of Tools.
   let html = "";
   cats.filter((c) => !c.parent).forEach((c) => {
     const ks = kids(c);
@@ -3710,7 +3870,7 @@ function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting 
   const found = cats.reduce((a, c) => a + c.tools.length, 0), msg = $("#tool-find-msg");
   if (words.length && !found) html = `<p class="dim">No tool matches "${esc(q)}". Try one word, like "photo" or "pdf".</p>`;
   if (msg) msg.textContent = words.length ? (found ? `${found} tool${found === 1 ? "" : "s"} found` : "No tools found") : "";
-  $("#toolgrid").innerHTML = (agCount > 0 ? agRow() : "") + html;
+  $("#toolgrid").innerHTML = agRow() + html;
   $("#toolgrid").hidden = false; $("#toolform").hidden = true; $("#toolfind").hidden = false;
 }
 if ($("#tool-find")) {
@@ -4418,23 +4578,28 @@ let agAcks = {};                       // abilities said yes to on their screen,
 async function loadAgents() {
   agData = await api("/api/agents");
   const T = agData.templates || {};
-  $("#ag-tpls").innerHTML = Object.entries(T).map(([id, t]) =>
-    `<button type="button" data-ag-tpl="${id}" title="${esc(t.blurb)}">[ ${esc(t.name.toUpperCase())} ]</button>`).join("");
+  // Joe-AiGent is the one agent offered (2.4). The five kinds from 2.3 are retired: an agent made from one still
+  // shows below and can be started, changed or deleted, but no new one is made.
+  $("#ag-tpls").innerHTML = Object.entries(T).filter(([, t]) => !t.retired).map(([id, t]) =>
+    `<button type="button" class="primary" data-ag-tpl="${id}" title="${esc(t.blurb)}">[ + A JOB FOR ${esc(t.name.toUpperCase())} ]</button>`).join("");
   $("#ag-list").innerHTML = agData.agents.length ? agData.agents.map((a) => {
     const lr = a.last_run || {}, t = T[a.template] || { name: a.template };
-    const starts = [a.start.schedule ? "nights: " + a.start.days.map((d) => DAYNAMES[d]).join(" ") : "", a.start.watch ? "its folder" : "", a.start.remote ? "phone / apps" : ""].filter(Boolean).join(", ") || "START NOW or Talk";
+    const starts = [a.start.schedule ? "nights: " + a.start.days.map((d) => DAYNAMES[d]).join(" ") : "", a.start.watch ? "its folder" : "", a.start.remote ? "phone / apps" : ""].filter(Boolean).join(", ") || "its START button or Talk";
+    // Each row's buttons say whose they are (Joseph, 2026-11-21: two rows with the same start button and
+    // he started the wrong agent). The start button shows the name; the others carry it for screen readers.
+    const nm = esc((a.name.length > 28 ? a.name.slice(0, 27) + "\u2026" : a.name).toUpperCase()), full = esc(a.name);   // capitals first, then made safe
     const ab = Object.keys(a.abilities || {}).filter((k) => a.abilities[k]).map((k) => (agData.abilities[k] || {}).title || k);
     const pend = (a.pending || {}).changes || [];
-    return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b> <span class="dim">· ${esc(t.name)}</span>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
+    return `<div role="listitem" class="issue"><span class="t"><b>${esc(a.name)}</b> <span class="dim">· ${esc(t.name)}${t.retired ? " (an earlier kind of agent)" : ""}</span>${a.paused ? " (paused)" : ""} — ${esc(a.job)}<br>
       ${a.paused && a.paused_why ? `<span class="warn small">PAUSED BY JOE: ${esc(a.paused_why)}</span><br>` : ""}<span class="dim small">May: ${ab.length ? esc(ab.join(", ")) : "nothing risky"} · starts: ${esc(starts)} · up to ${a.steps} steps, ${a.minutes} min${lr.status ? ` · last run ${esc(lr.status)}${lr.plan ? ` (${lr.done || 0} of ${lr.plan.length} points done)` : ""}: ${esc(lr.note || "")}` : ""}</span>
       ${pend.length ? `<br><span class="warn small">${pend.length} suggested name(s) or folder(s) wait for your OK.</span> <button type="button" data-ag-apply="${esc(a.id)}" data-n="${pend.length}">[ APPLY ]</button>` : ""}
       ${a.undo ? `<button type="button" data-ag-undo="${esc(a.id)}">[ UNDO THE LAST CHANGES ]</button>` : ""}</span>
-      <button type="button" data-ag-start="${esc(a.id)}">[ START NOW ]</button><button type="button" data-ag-edit="${esc(a.id)}">[ EDIT ]</button>
-      <button type="button" data-ag-copy="${esc(a.id)}" title="Build your own: start from a copy of this one.">[ COPY ]</button>
-      <button type="button" data-ag-pause="${esc(a.id)}" data-paused="${a.paused ? 1 : ""}">[ ${a.paused ? "START AGAIN" : "PAUSE"} ]</button>
-      <button type="button" data-ag-del="${esc(a.id)}" data-name="${esc(a.name)}">[ DELETE ]</button>${lr.folder ? `<button type="button" data-ag-open="${esc("Output/" + lr.folder)}">[ ITS LAST RUN ]</button>` : ""}</div>`;
-  }).join("") : `<div class="dim small">No agents yet. Start from one of the five below.</div>`;
-  $("#ag-blocked").textContent = "Never offered to agents: " + Object.entries(agData.blocked || {}).map(([k, v]) => `${k} (${v})`).join("; ") + "; add-on tools; code.";
+      <button type="button" class="primary" data-ag-start="${esc(a.id)}" title="Start ${full} now, on this job.">[ START ${nm} ]</button><button type="button" data-ag-edit="${esc(a.id)}" aria-label="Edit ${full}">[ EDIT ]</button>
+      <button type="button" data-ag-copy="${esc(a.id)}" aria-label="Copy ${full}" title="Build your own: start from a copy of this one.">[ COPY ]</button>
+      <button type="button" data-ag-pause="${esc(a.id)}" data-paused="${a.paused ? 1 : ""}" aria-label="${a.paused ? "Start again" : "Pause"} ${full}">[ ${a.paused ? "START AGAIN" : "PAUSE"} ]</button>
+      <button type="button" data-ag-del="${esc(a.id)}" data-name="${esc(a.name)}" aria-label="Delete ${full}">[ DELETE ]</button>${lr.folder ? `<button type="button" data-ag-open="${esc("Output/" + lr.folder)}">[ ITS LAST RUN ]</button>` : ""}</div>`;
+  }).join("") : `<div class="dim small">No jobs yet. Press the button below, say the job in your own words, and Joe-AiGent takes it from there.</div>`;
+  $("#ag-blocked").textContent = "Never offered to agents: " + Object.entries(agData.blocked || {}).map(([k, v]) => `${k} (${v})`).join("; ") + "; add-on tools. Code only runs in the box, and only when you turned that ability on.";
   agLive(agData.live);
 }
 function agLive(lv) {
@@ -4478,6 +4643,7 @@ function agAbilities(tpl, a) {
     const ab = agData.abilities[k];
     return `<label><input type="checkbox" data-agab="${k}"${on[k] ? " checked" : ""}> ${esc(ab.title)} <span class="dim small">· ${esc(ab.can)}</span></label>`;
   }).join("") || `<div class="dim small">Nothing risky: this kind of agent only reads, writes and uses the tools you tick.</div>`;
+  if ((tpl.abilities || []).includes("code")) $("#ag-abilities").insertAdjacentHTML("beforeend", `<div class="dim small">Without "Write code and test it in the box" he still writes, researches and makes pictures; he just never writes or runs a program.</div>`);
   const warn = [];
   if ((tpl.abilities || []).includes("lookups") && !agData.lookups_setting) warn.push("Looking things up also needs Setup > Privacy and internet > Let Joe look things up online.");
   if ((tpl.abilities || []).includes("phone") && !agData.phone_setting) warn.push("Sending to your phone needs phone pings (Setup > Night shift and alerts).");
@@ -4494,10 +4660,16 @@ function agForm(a, tplId) {
   agAcks = Object.assign({}, (a && a.acks) || {});
   $("#ag-form").hidden = false; $("#ag-form-msg").textContent = "";
   $("#ag-id").value = a ? a.id : ""; $("#ag-tpl").value = tplId;
-  $("#ag-form-title").textContent = (a ? "CHANGE: " + a.name : "NEW " + tpl.name.toUpperCase());
+  $("#ag-form-title").textContent = (a ? "CHANGE: " + a.name : tpl.retired ? "NEW " + tpl.name.toUpperCase() : "A JOB FOR " + tpl.name.toUpperCase());
   $("#ag-tpl-blurb").textContent = tpl.blurb;
   $("#ag-name").value = a ? a.name : ""; $("#ag-job").value = a ? a.job : ""; $("#ag-job").placeholder = tpl.hint;
   $("#ag-steps").value = a ? a.steps : tpl.steps; $("#ag-mins").value = a ? a.minutes : tpl.minutes;
+  const maxSteps = tpl.max_steps || 30, maxMins = tpl.max_minutes || 240;        // Joe-AiGent may work all night
+  $("#ag-steps").max = maxSteps; $("#ag-steps").parentElement.title = `The most steps it may take (1-${maxSteps}).`;
+  $("#ag-mins").max = maxMins; $("#ag-mins").parentElement.title = `It stops between steps after this many minutes (5-${maxMins}); a step that's going finishes first.`;
+  $("#ag-code-limits").hidden = !tpl.code;
+  $("#ag-tries").value = a && a.tries ? a.tries : 4; $("#ag-improve").value = a && a.improve !== undefined ? a.improve : 2;
+  if (!a && !tpl.retired && !$("#ag-name").value) $("#ag-name").value = agData.agents.some((x) => x.name === tpl.name) ? "" : tpl.name;
   $("#ag-fails").value = a ? (a.max_fails || 10) : 10;
   const st = a ? a.start : { schedule: false, days: [], watch: !!tpl.watch, remote: false };
   $("#ag-sched").checked = st.schedule; $("#ag-watch").checked = st.watch; $("#ag-remote").checked = st.remote;
@@ -4541,7 +4713,8 @@ document.addEventListener("click", async (ev) => {
         tools: $("#ag-tools-box").hidden ? [] : tools, abilities, acks: agAcks,
         days: [...document.querySelectorAll("[data-agday]:checked")].map((x) => +x.dataset.agday),
         schedule: $("#ag-sched").checked, watch: $("#ag-watch").checked, remote: $("#ag-remote").checked,
-        steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value, max_fails: +$("#ag-fails").value };
+        steps: +$("#ag-steps").value, minutes: +$("#ag-mins").value, max_fails: +$("#ag-fails").value,
+        tries: +$("#ag-tries").value, improve: $("#ag-improve").value === "" ? 2 : +$("#ag-improve").value };
       const r = await api("/api/agents/save", body);
       $("#ag-msg").textContent = r.ok ? "Saved." + (r.note ? " " + r.note : "") : r.error;
       $("#ag-form-msg").textContent = r.ok ? "" : "Not saved: " + (r.error || "something went wrong.");   // beside the button

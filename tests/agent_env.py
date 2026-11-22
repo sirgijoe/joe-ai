@@ -14,9 +14,11 @@ from fake_ollama import FakeOllama
 
 KINDS = {"plan": agentrun.PLAN_SYS, "pick": agentrun.PICK_SYS, "tick": agentrun.TICK_SYS,
          "review": agentrun.REVIEW_SYS, "claims": agentrun.CLAIMS_SYS, "verdict": agentrun.VERDICT_SYS,
-         "check": "You check finished work"}
+         "check": "You check finished work",
+         "tester": agentrun.TESTER_SYS, "coder": agentrun.CODER_SYS, "improver": agentrun.IMPROVER_SYS}
 DEFAULT = {"plan": {"points": ["Do the job"]}, "pick": {"done": True}, "tick": "all", "review": {"on_track": True},
-           "claims": {"claims": []}, "verdict": {"verdict": "confirmed", "source": 1}, "check": {"ok": True}}
+           "claims": {"claims": []}, "verdict": {"verdict": "confirmed", "source": 1}, "check": {"ok": True},
+           "tester": "def test_nothing():\n    assert True\n", "coder": "x = 1\n", "improver": "NOTHING"}
 
 
 @pytest.fixture

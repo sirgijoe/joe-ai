@@ -47,6 +47,8 @@ def test_talk_with_web(env, monkeypatch):  # noqa: F811
     p = chat.prepare(app, [], "what's the weather today?")       # obvious: searched right away
     assert p["searched"] and "Sunny, 60F" in p["msgs"][-1]["content"] and p["sources"][0]["url"].endswith("/w")
     p = chat.prepare(app, [], "how hot does a kiln get for cone 6")
+    assert p["searched"] and "Sunny, 60F" in p["msgs"][-1]["content"]       # a question of fact: looked up first (2.3)
+    p = chat.prepare(app, [], "I wonder how hot a kiln gets for cone 6")
     assert not p["searched"] and "LOOKUP:" in p["msgs"][-1]["content"]      # Joe may ask to look it up
     # Joe asks to look it up -> search -> second answer, with sources
     answers = iter(["LOOKUP: cone 6 kiln temperature", "About 2232 F, says [1]."])
@@ -54,7 +56,7 @@ def test_talk_with_web(env, monkeypatch):  # noqa: F811
     class R:
         def __init__(self, t): self.text = t
     monkeypatch.setattr(app.services.ollama, "chat", lambda *a, **k: R(next(answers)))
-    r = chat.reply(app, [], "how hot does a kiln get for cone 6")
+    r = chat.reply(app, [], "I wonder how hot a kiln gets for cone 6")
     assert r["say"].startswith("About 2232") and r["sources"][0]["title"] == "Weather"
 
 

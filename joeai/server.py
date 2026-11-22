@@ -1609,9 +1609,10 @@ class App:
         old_sched = (self.settings.schedule.enabled, self.settings.schedule.time, self.settings.schedule.stop)
         old_daily = (self.settings.engine.daily_restart, self.settings.engine.restart_time)
         _merge(self.settings, data)
-        from .config import clean_favorites, clean_web
+        from .config import clean_favorites, clean_voice, clean_web
         clean_favorites(self.settings)
         clean_web(self.settings)
+        clean_voice(self.settings)
         from . import websearch
         websearch.reset_cooldowns()                 # a changed key, address or order gets a fresh try
         if (self.settings.engine.daily_restart, self.settings.engine.restart_time) != old_daily:
@@ -1671,6 +1672,25 @@ class App:
 
 
 # ---------------------------------------------------------------------------
+def mic_line(raw) -> str:
+    """The open mic's report on one recording (how long, how loud, where its bars for "talking" stood), as a
+    "Talk timing:" line for MAKE A HELP FILE. Numbers and the microphone's name only; "" for anything else."""
+    if not isinstance(raw, str) or not raw or len(raw) > 2000:
+        return ""
+    try:
+        from urllib.parse import unquote
+        d = json.loads(unquote(raw))
+        n = {k: float(d.get(k, 0) or 0) for k in ("clip", "quiet", "loudest", "start", "keep", "pause")}
+    except (ValueError, TypeError, AttributeError):
+        return ""
+    if not all(0 <= v < 1000 for v in n.values()):
+        return ""
+    mic = re.sub(r"\s+", " ", re.sub(r"[^\w .,()+:#/-]", " ", str(d.get("mic", "") or ""))).strip()[:80]
+    return (f"Talk timing: open mic recorded {n['clip']:.1f}s (room {n['quiet']:.4f}, loudest {n['loudest']:.4f}, "
+            f"talking starts above {n['start']:.4f} and goes on above {n['keep']:.4f}, turn ends after "
+            f"{n['pause']:.2f}s of quiet" + (f"; {mic}" if mic else "") + ")")
+
+
 def disk_need(m, sb) -> int:
     """A rough upper guess of the bytes a mission makes: text is tiny, pictures a few MB, video
     clips tens of MB, tools about twice their input files (copies, cut-outs, frames)."""
@@ -1785,7 +1805,7 @@ def make_handler(app: App):
                 return self._send(200, (UI_DIR / "joe.svg").read_bytes(), "image/svg+xml",
                                   {"X-Content-Type-Options": "nosniff",
                                    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
-            if not self._authed(q, link_ok=u.path in ("/raw", "/player")):
+            if not self._authed(q, link_ok=u.path in ("/raw", "/player", "/thumb")):
                 return self._json({"error": "bad token"}, 401)
             arg = (q.get("path") or [""])[0]
             try:
@@ -1922,26 +1942,19 @@ def make_handler(app: App):
                     return self._json(doctor.check(app.settings, app.services))
                 if u.path == "/raw":
                     return self._raw(app.rel_path(arg))
+                if u.path == "/thumb":                   # a small preview copy for the lists (thumbs.py)
+                    from . import thumbs
+                    p = app.rel_path(arg)
+                    small = thumbs.make(p, doctor.ffmpeg_exe(app.settings.comfy.ffmpeg)) if p.is_file() else None
+                    thumbs.sweep()
+                    return self._raw(small or p)
                 if u.path == "/player":                  # a picture or video in its own window
                     p = app.rel_path(arg)
                     if not p.is_file():
                         return self._json({"error": "not a file"}, 404)
-                    from html import escape
-                    from urllib.parse import quote
-                    src = f"/raw?t={quote(app.token)}&path={quote(arg)}"
-                    vid = p.suffix.lower() in VIDEO_TYPES
-                    tag = (f'<video src="{escape(src)}" controls autoplay loop playsinline></video>' if vid
-                           else f'<img src="{escape(src)}" alt="">')
-                    page = (f"<!doctype html><meta charset=utf-8><title>{escape(p.name)} - Joe</title>"
-                            "<style>html,body{margin:0;height:100%;background:#000;color:#39ff6a;"
-                            "font:14px Consolas,monospace}body{display:grid;place-items:center}"
-                            "video,img{max-width:100vw;max-height:calc(100vh - 24px)}"
-                            "p{position:fixed;bottom:0;left:0;right:0;margin:0;padding:3px 8px;"
-                            "background:#000c}</style>" + tag +
-                            f"<p>AI-GENERATED · {escape(p.name)}</p>")
+                    page, csp = player_page(app, p, arg)
                     return self._send(200, page.encode(), "text/html; charset=utf-8",
-                                      {"Content-Security-Policy": "default-src 'none'; img-src 'self'; "
-                                       "media-src 'self'; style-src 'unsafe-inline'"})
+                                      {"Content-Security-Policy": csp})
             except (SandboxError, OSError) as e:
                 return self._json({"error": str(e)}, 400)
             self._json({"error": "not found"}, 404)
@@ -2141,6 +2154,9 @@ def make_handler(app: App):
                     return self._json({"ok": False, "error": "recording too long"})
                 ctype = (self.headers.get("Content-Type") or "").lower()
                 ext = "ogg" if "ogg" in ctype else "wav" if "wav" in ctype else "mp4" if "mp4" in ctype else "webm"
+                note = mic_line(self.headers.get("X-Joe-Mic"))      # the open mic's levels (numbers only)
+                if note:
+                    app.debug(note)
                 return self._json(app.listen(self.rfile.read(n), ext))
             b = self._body()
             try:
@@ -2195,6 +2211,12 @@ def make_handler(app: App):
                 if u.path == "/api/web/providers":
                     from . import websearch
                     return self._json({"ok": True, "providers": websearch.providers_for_setup(app.settings)})
+                if u.path == "/api/web/searxng-make":              # the folder and settings file for your own SearXNG
+                    from . import searxng
+                    return self._json(searxng.make_folder(app.settings.workspace_path))
+                if u.path == "/api/web/searxng-check":             # one search at the address in the box
+                    from . import searxng
+                    return self._json(searxng.check(str(b.get("address") or app.settings.web.searxng_url or "")))
                 if u.path == "/api/chats/open":
                     d = app.open_chat(str(b.get("id", "")))
                     return self._json({"ok": bool(d), "chat": d, "error": "" if d else "That chat is gone."})
@@ -2631,6 +2653,9 @@ def make_handler(app: App):
                         return self._json(agents.delete(str(b.get("id", ""))))
                     if act == "start":
                         a = agents.get(str(b.get("id", "") or b.get("name", "")))
+                        if not a and str(b.get("name", "")).strip().lower() == "joe aigent":
+                            return self._json({"ok": False, "error": "Joe-AiGent has no job set up yet (or it's paused). "
+                                               "Set one up once in Tools > OPEN JOE-AIGENT; after that you can ask him here."})
                         if not a:
                             return self._json({"ok": False, "error": "There's no agent by that name."})
                         r = app.enqueue(agents.mission_text(a, None, str(b.get("request", ""))))
@@ -2771,7 +2796,7 @@ def make_handler(app: App):
                 else:
                     raw, first = "", 0.0
                     try:
-                        looked = not chat_mod.web_on(app) or bool(p.get("searched"))
+                        left = chat_mod.lookups_left(app, p)     # searches this question may still make
                         brief = chat_mod.Brief(text)     # spoken replies stay short unless asked
                         while True:
                             raw, held, asked = "", "", ""
@@ -2790,11 +2815,12 @@ def make_handler(app: App):
                                 if not thinker and chat_mod.thinking_aloud(raw):
                                     leaked = True                 # it reasons in plain text: ask again,
                                     break                         # with its thinking kept out of the reply
-                                if not looked and chat_mod.lookup_request(raw):
-                                    if "\n" in raw.strip():
-                                        asked = chat_mod.lookup_request(raw)
+                                if chat_mod.lookup_request(raw):
+                                    if left and "\n" in raw.strip():
+                                        asked = chat_mod.lookup_words(chat_mod.lookup_request(raw),
+                                                                      app.chat_history, text, files)
                                         break
-                                    continue
+                                    continue                      # a LOOKUP line is never said out loud
                                 if held:
                                     held, piece = "", held + piece
                                 out = brief.feed(piece)
@@ -2818,16 +2844,29 @@ def make_handler(app: App):
                                 if out:
                                     send({"t": "delta", "text": out})
                                 break
-                            if not looked and not asked:
-                                asked = chat_mod.lookup_request(raw)
-                            if asked and not looked:
-                                looked = True
+                            if left and not asked:
+                                asked = chat_mod.lookup_words(chat_mod.lookup_request(raw),
+                                                              app.chat_history, text, files)
+                            if left and not asked and chat_mod.promises_search(raw):   # "I'll search again", not done
+                                asked = chat_mod.search_words(
+                                    app, app.chat_history, text, p["model"],
+                                    typed_only=any(f["kind"] == "text" for f in files),
+                                    different=getattr(app, "talk_words", "") if p.get("searched") else "")
+                            if asked and left:
+                                left -= 1                         # the first search, or one more try
                                 send({"t": "status", "text": "Looking it up online…"})
                                 p = chat_mod.prepare(app, app.chat_history, text, files,
-                                                     web_results=chat_mod.look_up(app, asked) or [])
+                                                     web_results=chat_mod.look_up(app, asked) or [],
+                                                     may_retry=left > 0)
                                 if "final" in p:
                                     break
                                 continue
+                            plain = chat_mod.settle(app, raw)     # still "LOOKUP: ..." with no searches left
+                            if plain != raw:
+                                raw = held = plain
+                            if chat_mod.promises_search(raw):     # a search he said he'd make and can't
+                                raw = chat_mod.drop_promise(raw)
+                                held = raw if held else held
                             if held:
                                 send({"t": "delta", "text": held})
                             break
@@ -2878,6 +2917,62 @@ def make_handler(app: App):
             self._send(206 if rng else 200, data, ctype, extra)
 
     return H
+
+
+def player_neighbours(p: Path) -> tuple[list[Path], int]:
+    """The pictures and videos in the same folder as `p`, in name order, and where `p` is among them."""
+    try:
+        files = sorted((f for f in p.parent.iterdir()
+                        if f.is_file() and f.suffix.lower() in (IMAGE_TYPES | VIDEO_TYPES)),
+                       key=lambda f: f.name.lower())
+    except OSError:
+        files = [p]
+    if p not in files:
+        files = [p]
+    return files, files.index(p)
+
+
+def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
+    """The BIG WINDOW: one picture or video, with PREVIOUS / NEXT through the others in its folder
+    (buttons, or the left and right arrow keys). Returns (page, Content-Security-Policy)."""
+    import secrets as _sec
+    from html import escape
+    from urllib.parse import quote
+    files, i = player_neighbours(p)
+    folder = arg.replace("\\", "/").strip("/").rpartition("/")[0]
+
+    def link(f: Path) -> str:
+        rel = f"{folder}/{f.name}" if folder else f.name
+        return f"/player?t={quote(app.token)}&path={quote(rel)}"
+
+    src = f"/raw?t={quote(app.token)}&path={quote(arg)}"
+    vid = p.suffix.lower() in VIDEO_TYPES
+    tag = (f'<video src="{escape(src)}" controls autoplay loop playsinline></video>' if vid
+           else f'<img src="{escape(src)}" alt="{escape(p.name)}">')
+    many = len(files) > 1
+    prev = link(files[i - 1]) if many else ""
+    nxt = link(files[(i + 1) % len(files)]) if many else ""
+    nav = (f'<a id="prev" href="{escape(prev)}" aria-label="Previous: {escape(files[i - 1].name)}">[ &lt; PREVIOUS ]</a> '
+           f'<a id="next" href="{escape(nxt)}" aria-label="Next: {escape(files[(i + 1) % len(files)].name)}">[ NEXT &gt; ]</a> '
+           f'<span>{i + 1} of {len(files)} in this folder · left and right arrow keys work too</span>') if many else ""
+    nonce = _sec.token_urlsafe(12)
+    script = (f'<script nonce="{nonce}">addEventListener("keydown",function(e){{'
+              'if(e.altKey||e.ctrlKey||e.metaKey)return;var t=e.target&&e.target.tagName;'
+              'if(t==="VIDEO")return;'                      # a video's own arrow keys seek
+              'var a=e.key==="ArrowLeft"?"prev":e.key==="ArrowRight"?"next":"";'
+              'var l=a&&document.getElementById(a);if(l){e.preventDefault();location.replace(l.href);}});</script>'
+              ) if many else ""
+    page = (f"<!doctype html><html lang=en><meta charset=utf-8><title>{escape(p.name)} - Joe</title>"
+            "<style>html,body{margin:0;height:100%;background:#000;color:#39ff6a;"
+            "font:14px Consolas,monospace}body{display:grid;place-items:center}"
+            "video,img{max-width:100vw;max-height:calc(100vh - 28px)}"
+            "p{position:fixed;bottom:0;left:0;right:0;margin:0;padding:3px 8px;"
+            "background:#000c}a{color:#39ff6a;text-decoration:none;padding:0 4px}"
+            "a:hover,a:focus{background:#39ff6a;color:#000;outline:none}</style>" + tag +
+            f"<p>{nav}{' · ' if nav else ''}AI-GENERATED · {escape(p.name)}</p>{script}</html>")
+    csp = ("default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
+           + (f"; script-src 'nonce-{nonce}'" if many else ""))
+    return page, csp
 
 
 def serve(app: App, port: int = 0) -> ThreadingHTTPServer:

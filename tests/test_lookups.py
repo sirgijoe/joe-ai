@@ -35,8 +35,7 @@ def web(monkeypatch):
 def _s(key="", providers=None, **kw):
     s = Settings()
     s.web.ollama_key = key
-    if providers is not None:
-        s.web.providers = providers
+    s.web.providers = "ollama,wikipedia" if providers is None else providers   # these tests are about the fall-through
     for k, v in kw.items():
         setattr(s.web, k, v)
     return s
@@ -47,9 +46,12 @@ def _paths(web):
 
 
 # --------------------------------------------------------------------------- unchanged for key / no key
-def test_default_order_is_the_old_behaviour(web):
-    assert Settings().web.providers == "ollama,wikipedia" and websearch.DEFAULT_ORDER == "ollama,wikipedia"
-    f = websearch.find("cone 6", _s(key="abc"))                       # the key: Ollama answers
+def test_default_order_is_wikipedia_and_the_old_order_still_works(web):
+    assert Settings().web.providers == "wikipedia" and websearch.DEFAULT_ORDER == "wikipedia"
+    assert websearch.order(Settings()) == ["wikipedia"]               # Ollama is listed in Setup but not on
+    rows = {r["id"]: r for r in websearch.providers_for_setup(Settings())}
+    assert rows["wikipedia"]["on"] and not rows["ollama"]["on"]
+    f = websearch.find("cone 6", _s(key="abc", providers="ollama,wikipedia"))                       # the key: Ollama answers
     assert [r.source for r in f] == ["ollama"] and f[0].text == "2232 F" and not f.notes
     assert web.hits[0][3].get("Authorization") == "Bearer abc"
     assert f.via() == "Found with Ollama web search."
@@ -128,7 +130,7 @@ def test_settings_keep_the_order_clean(tmp_path):
     assert s.web.providers == "wikipedia,ollama" and s.web.max_searches == 50
     p.write_text(json.dumps({"web": {"enabled": True}}))              # an old settings file
     s = Settings.load(p)
-    assert s.web.providers == "ollama,wikipedia" and s.web.max_searches == 10
+    assert s.web.providers == "wikipedia" and s.web.max_searches == 10
 
 
 def test_setup_lists_every_source_on_ones_first(web):
@@ -168,6 +170,7 @@ def test_talk_shows_where_results_came_from(env, monkeypatch, web):  # noqa: F81
     app = App(s)
     s.web.enabled = True
     s.web.ollama_key = "bad"
+    s.web.providers = "ollama,wikipedia"                              # the person ticked Ollama and put it first
     web.route("/api/web_search", {"error": "unauthorized"}, status=401)
     p = chat.prepare(app, [], "what's the news today about pottery?")
     assert p["searched"] and "Pottery is the process" in p["msgs"][-1]["content"]

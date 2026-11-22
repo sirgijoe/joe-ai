@@ -989,11 +989,15 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
                   Option("style", "Hide them as", choices=(("labels", "Labels: [NAME 1], [PHONE 1]"),
                                                            ("blocks", "Black blocks: ██████")), value="labels"),
                   Option("key", "Save a private key of the labels", False,
-                         "A separate file saying what each label stands for. Keep it to yourself.")),
+                         "A separate file saying what each label stands for. Keep it to yourself."),
+                  Option("pictures", "Blank out the pictures inside Word files", False,
+                         "Joe can't read words inside a picture (a signature, a logo, a scanned page), so he "
+                         "can't hide them. Ticked: every picture in the copy becomes a blank grey box.")),
          needs=("ollama",), ready=True,
          help="Makes a cleaned copy; your file is never changed. Word files stay Word files (the author's name, "
               "reviewer names, the links behind email addresses and picture descriptions are cleaned too; "
-              "pictures inside the file, like a signature or a scanned page, are not looked at); text and CSV stay as they are; PDFs and web pages "
+              "pictures inside the file, like a signature or a scanned page, are not looked at: tick 'Blank out "
+              "the pictures' to replace them with grey boxes); text and CSV stay as they are; PDFs and web pages "
               "come back as plain text (blacking out a PDF by drawing boxes leaves the words underneath). The "
               "same person always gets the same label, so the copy still reads well. Type extra words to hide "
               "in the box (one per line), or 'keep: Acme Bakery' for words to leave. Joe can miss things: read "
@@ -1001,7 +1005,7 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
          plan_hint="Hide / black out / remove personal details (names, addresses, phone numbers, account numbers) "
                    "from documents before sharing: TYPE: hide-details, INPUT: the document(s), OPTIONS: names "
                    "(unless they say patterns only), style labels|blocks (blocks if they say black out), key (only "
-                   "if they want a key), FORMAT: extra words to hide or 'keep: ...' words, word for word. No CHUNKS.",
+                   "if they want a key), pictures (only if they ask to remove signatures, logos or pictures), FORMAT: extra words to hide or 'keep: ...' words, word for word. No CHUNKS.",
          examples=("Black out the names and account numbers in this statement before I send it",
                    "Remove personal details from my medical letter", "Hide everyone's phone numbers in this list"),
          extra_label="Extra words to hide, or keep: words (optional)",

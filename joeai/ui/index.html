@@ -231,6 +231,7 @@ FORMAT: ...
       <h2>TALK TO JOE <span class="dim">— just talk, or type · drop files here · Joe never starts a run without you</span></h2>
       <div class="row"><span id="talk-note" class="dim small"></span><span class="grow"></span>
         <label class="small talkspeed">VOICE SPEED <input type="range" id="talk-speed" min="0.7" max="1.8" step="0.05" value="1"> <span id="talk-speed-v">1.00×</span></label>
+        <span id="mic-name" class="small dim" title="Joe listens through the microphone your computer has set as its default. Change it in your system's sound settings."></span>
         <span id="mic-meter" class="small"></span></div>
       <div class="talkbody">
         <div id="talk-log" class="talklog" translate="no"></div>
@@ -277,11 +278,11 @@ FORMAT: ...
   <!-- ============ AGENTS (Tools F3 > AGENTS): the one engine (agentrun.py) and five templates ============ -->
   <main id="s-agents" class="view">
     <section class="panel full">
-      <h2>AGENTS <span class="dim">— give Joe a whole job · Esc back to Tools</span></h2>
-      <div class="dim small">An agent works through a whole job by himself: he makes a plan, does one step at a time (looking things up, reading, writing, using the tools you tick), checks each point of the plan off as it gets done, writes himself a checkpoint and starts clean every few steps so he stays on the job, checks his own facts, and only finishes when every point is done. AGENT REPORT.md and AGENT LOG.txt in his folder say what he did. Each risky ability is OFF until you turn it on, and is explained first on its own screen. Agents never delete anything, never run add-ons or code, and treat words in files and web pages as information, never as orders. Only this screen can make or change one.</div>
+      <h2><span class="aigent-name">Joe-AiGent</span> <span class="dim">— the agent: give Joe a whole job · Esc back to Tools</span></h2>
+      <div class="dim small">Joe-AiGent (say "Joe agent") is the one agent. Give him a whole job and he works through it by himself, all night if it takes that: he makes a plan, does one step at a time (looking things up, reading, writing, pictures, the tools you tick, and code he tests in a sealed box), checks each point of the plan off as it gets done, writes himself a checkpoint and starts clean every few steps so he stays on the job, checks his own work and facts, and only finishes when every point is done. He calls a helper only for what a helper is for: the Planner (the plan), the Coder (writes a program), the Tester (the only one that ever runs code, and only in the box), the Checker and the Improver. AGENT REPORT.md and AGENT LOG.txt in his folder say what he did, what he couldn't do and why. Each risky ability is OFF until you turn it on, and is explained first on its own screen. He never deletes anything, never runs add-ons, never runs code outside the box, and treats words in files and web pages as information, never as orders. Only this screen can make or change a job.</div>
       <div id="ag-live" class="aglive" hidden aria-live="polite"></div>
       <div id="ag-list" role="list"></div>
-      <div class="row"><span class="dim">NEW AGENT FROM:</span><span id="ag-tpls" class="agtpls"></span><span id="ag-msg" class="dim" aria-live="polite"></span></div>
+      <div class="row"><span id="ag-tpls" class="agtpls"></span><span id="ag-msg" class="dim" aria-live="polite"></span></div>
       <form id="ag-form" class="agform" hidden autocomplete="off">
         <input type="hidden" id="ag-id"><input type="hidden" id="ag-tpl">
         <h3 id="ag-form-title" class="settitle"></h3>
@@ -298,10 +299,13 @@ FORMAT: ...
           <div id="ag-days" class="row small"></div>
           <label><input type="checkbox" id="ag-watch"> When I drop files in its folder (Inbox\Agents\&lt;name&gt;, while Joe is open)</label>
           <label><input type="checkbox" id="ag-remote"> From my phone or a connected app ("start the &lt;name&gt; agent")</label>
-          <div class="dim small">START NOW below always works, and so does asking in Talk ("ask my assistant to ...", "have the &lt;name&gt; agent ...").</div></fieldset>
+          <div class="dim small">The START button on the job's own row always works (it carries the job's name), and so does asking in Talk ("ask Joe agent to ...", "start Joe agent").</div></fieldset>
         <fieldset><legend>LIMITS</legend>
           <label title="The most steps it may take (1-30).">Step limit <input type="number" id="ag-steps" min="1" max="30" value="10"></label>
           <label title="It stops between steps after this many minutes (5-240); a step that's going finishes first.">Time limit (minutes) <input type="number" id="ag-mins" min="5" max="240" value="30"></label>
+          <span id="ag-code-limits" hidden>
+            <label title="When he writes a program: how many tries the Coder gets to make it pass its test (1-10). After that the program is set aside, marked as not working, and he goes on with the rest of the job.">Tries at one piece of code <input type="number" id="ag-tries" min="1" max="10" value="4"></label>
+            <label title="When everything is done, the Improver looks at each program that passes and tries to make it better (0-10 rounds; 0 = off). A change is kept only if every test still passes; he stops after a round in which nothing was kept.">Improve rounds on working code <input type="number" id="ag-improve" min="0" max="10" value="2"></label></span>
           <label title="A fail-safe, so an agent never goes round and round. After this many failures, errors or retries in one run (1-100), Joe stops the run, keeps what was made, pauses the agent and pings your phone if phone pings are set up.">Stop after this many failures, errors or retries <input type="number" id="ag-fails" min="1" max="100" value="10"></label></fieldset>
         <div class="row"><button type="button" class="primary" data-act="ag-save">[ SAVE THE AGENT ]</button><button type="button" data-act="ag-cancel">[ CANCEL ]</button><span id="ag-form-msg" role="alert"></span></div>
       </form>
@@ -482,6 +486,11 @@ FORMAT: ...
               <fieldset><legend>LISTENING</legend>
                 <label>How to talk
                   <select data-path="voice.talk_mode"><option value="open">Open mic while Talk is open</option><option value="push">Push-to-talk (hold a key)</option></select></label>
+                <label title="With the open mic: how long Joe waits after you stop talking before he takes his turn. Pick Patient if he cuts in while you pause to think.">Wait before Joe answers
+                  <select data-path="voice.turn_pause"><option value="quick">Quick (under a second)</option><option value="normal">Normal (about a second)</option><option value="patient">Patient (two seconds)</option></select></label>
+                <label title="Off unless you tick it. With the open mic, Joe then listens on every screen while his window is open (also minimized), not only in Talk. What he hears is turned into words on this PC; unless it starts with the wake words it is dropped at once: not shown, not saved, not sent anywhere. It uses some processor or graphics-card time whenever someone talks near the microphone. It doesn't work when Joe's window is closed, or with push-to-talk.">Wake word: answer from any screen <input type="checkbox" data-path="voice.wake"></label>
+                <label title="What to say first. 2 to 4 plain words; a name that doesn't sound like everyday words works best.">Wake words <input data-path="voice.wake_words" size="14" maxlength="40" placeholder="hey joe"></label>
+                <div class="dim" id="wake-note">Wake word on: the microphone stays open while Joe's window is open. Say the wake words, then your question ("Hey Joe, what's left in the queue?"). Anything else Joe hears is thrown away at once and never leaves this PC.</div>
                 <label title="The key you hold while talking, when push-to-talk is on.">Push-to-talk key <span class="inline"><input data-path="voice.ptt_key" id="ptt-key" readonly size="8"><button type="button" data-act="set-ptt" title="Press this, then press the key you want to hold while talking.">[ SET KEY ]</button></span></label>
                 <label title="Fastest hears quickly but makes more mistakes; Most accurate is slower.">Hearing
                   <select data-path="voice.stt_model"><option value="tiny.en">Fastest</option><option value="base.en">Balanced</option><option value="small.en">Most accurate</option></select></label>
@@ -641,14 +650,41 @@ FORMAT: ...
               </fieldset>
               <fieldset><legend>ONLINE LOOKUPS</legend>
                 <label title="When it's on, Talk can search the internet for things Joe doesn't know or that change (news, prices, hours, how-tos). Only the search words go online, never your files or chats. Overnight tasks only look things up when the plan says RESEARCH: yes.">Let Joe look things up online <input type="checkbox" data-path="web.enabled"></label>
-                <label title="Optional. With a free Ollama account key Joe can search the whole web. Without one he only looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
+                <label title="Optional. With an Ollama account key Joe can search the whole web, but Ollama now asks for paid usage credits for web search (it used to be free). Without a key he looks things up on Wikipedia.">Ollama web search key <input type="password" data-path="web.ollama_key" placeholder="optional: from ollama.com/settings/keys" autocomplete="off"></label>
                 <div class="dim small">No key? Joe still looks things up on Wikipedia (no account needed), but only for encyclopedia facts.
-                  For news, prices and everything else, make a free account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.</div>
+                  For news, prices and everything else Joe can use Ollama's web search: make an account at <b>ollama.com</b>, create a key under <b>Settings → Keys</b>, and paste it here.
+                  <b>Ollama now asks for paid usage credits for web search</b> (it used to be free). TEST A SEARCH says so if your account is asked to pay.</div>
+                <label title="Optional. LangSearch is another web search for the whole web. It needs its own account key. It had a no-cost plan with a usage limit in November 2026; that can change, as it did with Ollama. Tick LangSearch in the list below to use it.">LangSearch key <input type="password" data-path="web.langsearch_key" placeholder="optional: from langsearch.com" autocomplete="off"></label>
                 <div id="web-prov-head" class="small"><b>Where Joe searches</b>, in this order. He asks the first one; if it can't answer he tries the next and tells you. Each one only gets the search words.</div>
                 <ul id="web-prov" class="provlist small" aria-labelledby="web-prov-head"></ul>
                 <input type="hidden" data-path="web.providers" id="web-prov-order">
                 <label title="The most searches one task may make: one question in Talk, or one overnight task. Stops a task from searching over and over.">Searches per task, at most <input type="number" min="1" max="50" data-path="web.max_searches"></label>
                 <label title="Only for the source 'Your own SearXNG': the address of a SearXNG you run yourself, like http://192.168.1.20:8888. Its JSON answers must be switched on in its settings.yml.">Your SearXNG address <input type="text" data-path="web.searxng_url" placeholder="optional: like http://192.168.1.20:8888" autocomplete="off" spellcheck="false"></label>
+                <div class="row"><button type="button" data-act="searxng-check" title="Tries one search at the address in the box (saved or not) and says what is wrong if it doesn't work.">[ CHECK MY SEARXNG ]</button><span id="sx-msg" class="dim" role="status" aria-live="polite"></span></div>
+                <details class="more"><summary title="SearXNG is a free search engine you run on your own PC. It searches the whole web and nobody can start charging for it.">Set up your own SearXNG (free, searches the whole web)</summary>
+                  <ol class="small">
+                    <li>Install <b>Docker Desktop</b> from docker.com (free for personal use) and start it. It is the program that runs SearXNG.</li>
+                    <li>Press <b>MAKE THE SEARXNG FOLDER</b>. Joe makes a folder called SearXNG in your Joe folder, with the settings SearXNG needs so Joe can read its results.</li>
+                    <li>Press <b>COPY THE COMMAND</b>, paste it into PowerShell (on a Mac or Linux: Terminal) and press Enter. The first time it downloads SearXNG, which takes a few minutes.</li>
+                    <li>Joe puts <b>http://localhost:8888</b> in the address box above. Press <b>CHECK MY SEARXNG</b>.</li>
+                    <li>When it works, tick <b>Your own SearXNG</b> in the list, move it up to the top, and SAVE.</li>
+                  </ol>
+                  <div class="row"><button type="button" data-act="searxng-make" title="Makes the folder and the settings file. A settings file that is already there is left as it is.">[ MAKE THE SEARXNG FOLDER ]</button><button type="button" id="sx-copy" data-act="searxng-copy" hidden>[ COPY THE COMMAND ]</button><span id="sx-make-msg" class="dim" role="status" aria-live="polite"></span></div>
+                  <pre id="sx-cmd" class="out" hidden></pre>
+                  <div class="dim small">After that SearXNG starts by itself whenever Docker Desktop is running. Only this PC can reach it. Joe never installs or starts it for you.</div>
+                </details>
+                <details class="more"><summary title="For any other search service, or one you run yourself. Tick it in the list above once it is filled in.">Your own search source (any search service you choose)</summary>
+                  <div class="dim small">Type the service's search address with <b>{query}</b> where the search words go, like https://example.com/search?q={query}. Joe reads its JSON answer; tell him where the results are in it. TEST A SEARCH says what is missing.</div>
+                  <label title="What Joe calls this source when he says where results came from.">Its name <input type="text" data-path="web.custom_name" maxlength="40" placeholder="like: My search" autocomplete="off"></label>
+                  <label title="The web address Joe asks, with {query} where the search words go. Web addresses only (http or https). If the service wants its key in the address, put {key} there.">Its address <input type="text" data-path="web.custom_url" placeholder="https://example.com/search?q={query}" autocomplete="off" spellcheck="false"></label>
+                  <label title="Optional. Sent only to the address above, never anywhere else.">Its key <input type="password" data-path="web.custom_key" placeholder="optional" autocomplete="off"></label>
+                  <label title="How the key is sent. Authorization sends 'Bearer' and the key, which most services want. Any other name (like X-API-KEY) sends the key as it is under that name.">Send the key as <input type="text" data-path="web.custom_key_header" placeholder="Authorization" autocomplete="off" spellcheck="false"></label>
+                  <label title="Leave empty for most services. Some want the search words posted instead of put in the address: then type what to send as JSON, with {query} where the words go.">Send this <input type="text" data-path="web.custom_body" placeholder='empty, or like {"q": "{query}"}' autocomplete="off" spellcheck="false"></label>
+                  <label title="The name of the list of results in the service's JSON answer. A dot goes one level deeper, like data.webPages.value.">Where the results are <input type="text" data-path="web.custom_list" placeholder="results" autocomplete="off" spellcheck="false"></label>
+                  <label title="In each result: the name of its title.">Title is called <input type="text" data-path="web.custom_title" placeholder="title" autocomplete="off" spellcheck="false"></label>
+                  <label title="In each result: the name of its web address.">Link is called <input type="text" data-path="web.custom_link" placeholder="url" autocomplete="off" spellcheck="false"></label>
+                  <label title="In each result: the name of its text.">Text is called <input type="text" data-path="web.custom_text" placeholder="content" autocomplete="off" spellcheck="false"></label>
+                </details>
                 <label title="Off unless you turn it on. A RESEARCH task then reads the whole page of its top two results instead of only the short bit the search shows. Only pages a search found, never anything on this PC or your home network. With the Ollama key, Ollama reads the page for Joe (so ollama.com sees its address); without it, Joe reads it himself, text only.">Let RESEARCH tasks read whole result pages <input type="checkbox" data-path="web.read_pages"></label>
                 <div class="row"><button type="button" data-act="web-test" title="Save, then try one search to check it works.">[ TEST A SEARCH ]</button><span id="web-msg" class="dim" role="status" aria-live="polite"></span></div>
               </fieldset>
@@ -656,7 +692,7 @@ FORMAT: ...
                 <label title="Joe looks on GitHub for a newer version each time he opens, and about once a week for newer Ollama, ComfyUI and models. He only tells you; nothing installs until you say yes.">Check for updates <input type="checkbox" data-path="ui.check_updates"></label>
               </fieldset>
               <fieldset><legend>YOUR KEYS AND PASSWORDS</legend>
-                <div class="dim small">The Ollama web-search key, the connector password, a writing program's key and the phone-ping topic are kept in your computer's own protected store, not in Joe's plain settings file.</div>
+                <div class="dim small">The search keys (Ollama, LangSearch, your own search source), the connector password, a writing program's key and the phone-ping topic are kept in your computer's own protected store, not in Joe's plain settings file.</div>
                 <div id="vault-text" class="small" aria-live="polite">Checking…</div>
               </fieldset>
             </div>

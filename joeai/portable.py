@@ -695,6 +695,8 @@ def portable_settings(settings) -> dict:
     d["schedule"]["enabled"] = False
     d["mcp_key"] = ""                        # keys and the phone-ping topic stay off a drive that's easy to lose
     d["web"]["ollama_key"] = ""
+    d["web"]["langsearch_key"] = ""
+    d["web"]["custom_key"] = ""
     d["comfort"]["ntfy_topic"] = ""
     if d["ollama"]["url"].rstrip("/") == ollama_url():
         d["ollama"]["url"] = "http://127.0.0.1:11434"

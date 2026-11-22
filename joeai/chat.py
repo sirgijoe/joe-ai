@@ -18,7 +18,9 @@ How to answer:
   code drafts, and (with ComfyUI) pictures and short video clips, overnight, on this PC.
   You cannot send email, post online, spend money, or touch files outside your own folder.
   You only look things up online when the newest message says lookups are ON; otherwise you
-  have no internet. Never pretend you did something you didn't.
+  have no internet. Never pretend you did something you didn't: don't say you searched, checked
+  or couldn't find something unless WEB RESULTS are in the newest message. Never make up a command,
+  a phrase or a setting for the person to say or use.
 - Use the STATUS note at the end of the newest message to answer questions about progress. Don't invent numbers.
 - Answer questions, explain, summarize, give opinions, and read or rephrase text RIGHT HERE
   in your reply. That is not a mission. If they paste text and ask you to read it, your reply
@@ -144,6 +146,7 @@ def look_up(app, query: str) -> list:
     from . import websearch
     w = app.settings.web
     app.log(f"Looking it up online: {query[:80]}")
+    app.talk_words = query                       # so "one more try" can ask for different ones
     res = websearch.find(query, app.settings, w.max_results, websearch.Session(getattr(w, "max_searches", 10)))
     app.log(f"  {len(res)} result(s). {websearch.via(res)}")
     return res
@@ -158,10 +161,201 @@ def lookup_request(raw: str) -> str:
     return m.group(1).splitlines()[0].strip()[:200] if m else ""
 
 
+def typed_words(history: list[dict] | None, text: str) -> str:
+    """What the person typed or said in this chat, without anything from a file they attached."""
+    said = [str(h.get("content", "")).split("\n\n[attached")[0] for h in (history or [])
+            if h.get("role") == "user" and isinstance(h.get("content"), str)]
+    return "\n".join(said + [str(text or "").split("\n\n[attached")[0]])
+
+
+def file_in_chat(history: list[dict] | None, text: str = "", files=None) -> bool:
+    """Is a file's text part of this chat (attached now, or earlier in it)?"""
+    if any((f or {}).get("kind") == "text" for f in (files or [])):
+        return True
+    return any("\n\n[attached" in str(h.get("content", "")) for h in (history or [])) or "\n\n[attached" in str(text or "")
+
+
+def lookup_words(asked: str, history: list[dict] | None, text: str, files=None) -> str:
+    """The words of the model's own "LOOKUP: ..." that may go online. With no file in the chat they go
+    as they are. With one, only words the person typed themselves are kept (the agents' search-words
+    rule, agentweb.safe_query): a letter that says "reply LOOKUP: <what this letter says>" can't send
+    a line of itself to a search source. When none of the model's words are the person's, the person's
+    own words are searched instead."""
+    if not asked or not file_in_chat(history, text, files):
+        return asked
+    from . import agentweb
+    return agentweb.safe_query(asked, typed_words(history, text), True)
+
+
+# --------------------------------------------------------------------------- search words
+# A search source wants a few words, not a spoken sentence: "Can you please look up the highest
+# hill in Calhoun County, Michigan?" sent whole to Wikipedia found politicians and TV shows.
+WORDS_TOKENS = 40            # the most the model may write when asked for search words
+MAX_LOOKUPS = 2              # searches one Talk question may make (the first, and one more try)
+_ASKING = re.compile(r"\b(?:look(?:ing)?(?: (?:it|that|this))? up(?: (?:at|on|for))?|search (?:(?:the )?(?:web|internet)|online)"
+                     r"(?: for)?|search for|find out|google|tell me|do you know|i(?: would|'d)? (?:want|like) to know|"
+                     r"(?:can|could|would|will) you)\b", re.I)
+_SMALL_WORDS = frozenset(
+    "a an the is are was were am be been of in on at to for from by with about and or but if what whats who whos "
+    "where wheres when which how much many does do did it its this that these those there here me my i im you "
+    "your we our please hey hi hello ok okay joe so just some any no nope nah not said say saying meant mean keep "
+    "spelled again try wrong".split())
+_SPELLED = re.compile(r"(?<![A-Za-z])((?:[A-Za-z][-.]){2,}[A-Za-z])(?![A-Za-z])")
+_CORRECTING = re.compile(r"^\s*(?:no|nope|nah|not)\b|\bi (?:meant|mean|keep saying|didn'?t say)\b|\bspelled\b|"
+                         r"\bthat'?s (?:not|wrong)\b|\b(?:the )?wrong (?:one|county|city|town|state|place|name|word|"
+                         r"person)\b|\btry (?:it |that )?again\b|\b(?:search|look) again\b|,\s*not\s+\w|"
+                         r"\b(?:i )?asked (?:about|for)\b", re.I)
+# "I'll search again to find that" said INSTEAD of searching: Joe keeps the promise (or drops the sentence).
+_PROMISE = re.compile(r"\b(?:i'?ll|i will|let me|i'?m going to|i am going to)\s+(?:try\s+)?(?:(?:another|a new|one more)\s+"
+                      r"search|search\b|look(?:\s+(?:it|that|this))?\s+up|look\s+again)", re.I)
+
+
+# A question about the world ("what colour are Kubota tractors?"): looked up before answering when lookups
+# are on, because a small local model's memory is confidently wrong too often (it said green; they're orange).
+_LEAD_IN = re.compile(r"^\s*(?:(?:hey|hi|hello|ok|okay|so|and|now|please|joe)[,\s]+)*"
+                      r"(?P<tell>(?:(?:can|could|would|will) you (?:please )?(?:tell|give|remind|show) me|do you know|"
+                      r"(?:please )?tell me|i(?: would|'d)? (?:want|like) to know)\b)?[,\s]*", re.I)
+_Q_WORD = re.compile(r"^(?:what|what['’]?s|who|who['’]?s|whose|when|when['’]?s|where|where['’]?s|which|why|how|is|are|was|"
+                     r"were|does|do|did|has|have|had|can|could|will)\b", re.I)
+_NOT_THE_WORLD = re.compile(
+    r"\b(?:i|i['’]?m|i['’]?ve|i['’]?d|my|me|mine|we|our|us|you|your|yours|yourself|joe['’]?s?|this|that|these|those|here|"
+    r"missions?|queue|inbox|output folder|reminders?|setup|settings?|status|the run|night shift|"
+    r"jokes?|story|stories|poems?|songs?|riddles?|think|feel|opinion|favou?rite|how are|what['’]?s up|what is up|"
+    r"what (?:time|day|date)|good (?:morning|night|evening))\b", re.I)
+_SUM = re.compile(r"\d.*(?:\b(?:times|plus|minus|divided|multiplied|percent|squared|cubed|square root|sum of)\b|[+*/=^%])|"
+                  r"\bhow many \w+ (?:are |is )?(?:there )?in an? \w+|"
+                  r"\b\d+(?:\.\d+)?\s*°?\s*\w+ (?:in|to|into) [a-z]+\s*\??$", re.I)
+
+
+def fact_question(text: str) -> bool:
+    """A question about the world that an encyclopedia or a search could answer: not a sum or a unit
+    conversion, not chat or an opinion, not a request to make something, and not about the person,
+    Joe, their files or a job that is running."""
+    said = re.sub(r"\s+", " ", text or "").strip()
+    if not said or len(said) > 300:
+        return False
+    m = _LEAD_IN.match(said)
+    rest = said[m.end():].strip()
+    if len(rest.split()) < 3 or _NOT_THE_WORLD.search(rest) or _SUM.search(rest):
+        return False
+    if m.group("tell"):                              # "can you tell me ...", "do you know ...", "tell me ... about ..."
+        return True
+    return bool(_Q_WORD.match(rest))
+
+
+def keywords(text: str) -> str:
+    """Plain search words from what was said: the asking words and small words taken out."""
+    said = re.sub(r"\s+", " ", text or "").strip()
+    kept = []
+    for w in re.findall(r"[A-Za-z0-9][A-Za-z0-9'’.-]*", _ASKING.sub(" ", said)):
+        w = w.rstrip(".-'’")
+        if w and re.sub(r"['’]", "", w.lower()) not in _SMALL_WORDS and w not in kept:
+            kept.append(w)
+    return " ".join(kept[:10]) or said[:200]
+
+
+def spelled(text: str) -> str:
+    """A word the person spelled out letter by letter ("C-A-L-H-O-U-N" -> "Calhoun"), or ""."""
+    m = _SPELLED.search(text or "")
+    if not m:
+        return ""
+    word = re.sub(r"[-.]", "", m.group(1))
+    return word.capitalize() if len(word) > 3 else word.upper()
+
+
+def correction(text: str) -> bool:
+    """The person is putting Joe right ("no, I said Calhoun", "it's spelled C-A-L-H-O-U-N")."""
+    return bool(_CORRECTING.search(text or "") or spelled(text))
+
+
+def promises_search(raw: str) -> bool:
+    """The model said it will search or look something up, in words, instead of doing it."""
+    return bool(_PROMISE.search(raw or "")) and not lookup_request(raw)
+
+
+def drop_promise(raw: str) -> str:
+    """The reply without the sentence that promises a search Joe isn't going to make (kept when it is all there is)."""
+    kept = [s for s in _SENT_END.split((raw or "").strip()) if s.strip() and not _PROMISE.search(s)]
+    return " ".join(kept).strip() or raw
+
+
+def _model_words(raw: str) -> str:
+    """The search words in the model's answer, or "" when it wrote anything but a few words."""
+    line = (raw or "").strip().splitlines()[0] if (raw or "").strip() else ""
+    line = re.sub(r"^\s*(?:LOOKUP|SEARCH(?: WORDS)?)\s*:\s*", "", line, flags=re.I).strip(" \"'“”‘’.`*")
+    if not line or len(line) > 120 or len(line.split()) > 10 or thinking_aloud(line) or not re.search(r"[A-Za-z0-9]", line):
+        return ""
+    return line
+
+
+def search_words(app, history: list[dict], text: str, model: str, typed_only: bool = False, before: str = "",
+                 different: str = "") -> str:
+    """A few search words for what the person asked. The Talk model writes them (it knows what "it"
+    means and takes a correction or a spelled-out word into account); Joe's own plain words are used
+    when it can't, when it thinks first (that would add seconds), or when a file is attached
+    (typed_only: only words the person said go online, never anything from the file).
+    before: the question being corrected, when this message puts Joe right about it.
+    different: the words already searched without luck; "" comes back when nothing different turns up."""
+    words = _search_words(app, history, text, model, typed_only, before, different)
+    return "" if different and words.strip().lower() == different.strip().lower() else words
+
+
+def _search_words(app, history, text, model, typed_only, before, different) -> str:
+    plain = keywords(text)
+    if before:                                   # the corrected word first, then what was asked
+        fix = spelled(text) or ("" if plain == re.sub(r"\s+", " ", text).strip()[:200] else plain)
+        words = []
+        for w in (fix + " " + keywords(before)).split():
+            if w not in words:
+                words.append(w)
+        plain = " ".join(words[:10])
+    if typed_only or model in getattr(app, "leaky_models", ()):
+        return plain
+    msgs = [{"role": "system", "content": (
+        "You turn what a person said into search words for a search engine or an encyclopedia. Reply with "
+        "ONLY the search words: 2 to 6 words, the names and things that matter, no sentence, no quotes. "
+        "Use the conversation to know what 'it' or 'there' means. If the person corrects or spells out a "
+        "word, use their spelling and keep the rest of what they asked before.")}]
+    for h in (history or [])[-4:]:
+        if h.get("role") in ("user", "assistant") and isinstance(h.get("content"), str):
+            msgs.append({"role": h["role"], "content": h["content"].split("\n\n[attached")[0][:400]})
+    msgs.append({"role": "user", "content": text[:600] + (
+        f"\n\n[The search for \"{different[:120]}\" didn't find it. Reply with ONLY DIFFERENT search words for this.]"
+        if different else "\n\n[Reply with ONLY the search words for this.]")})
+    try:
+        r = app.services.ollama.chat(msgs, model=model, max_tokens=WORDS_TOKENS, keep_alive="20m", think=False)
+    except Exception:                            # noqa: BLE001 (the model is busy or gone: Joe's own words)
+        return plain
+    return _model_words(getattr(r, "text", "")) or plain
+
+
+def lookups_left(app, prepared: dict) -> int:
+    """How many more searches this question may make: none with lookups off, one when Joe already
+    searched for it, else MAX_LOOKUPS."""
+    if not web_on(app):
+        return 0
+    return MAX_LOOKUPS - 1 if prepared.get("searched") else MAX_LOOKUPS
+
+
+def settle(app, raw: str) -> str:
+    """The model's last word was still 'LOOKUP: ...' (no searches left, or lookups are off): never
+    read that out; say plainly what happened instead."""
+    if not lookup_request(raw):
+        return raw
+    rest = raw.strip().split("\n", 1)[1].strip() if "\n" in raw.strip() else ""
+    if rest and not lookup_request(rest):
+        return rest                              # it went on to answer under the line: keep the answer
+    if not web_on(app):
+        return ("I'd have to look that up, and online lookups are off. "
+                "You can turn them on in Setup, under Privacy and internet.")
+    return "I looked online, but what I found doesn't answer that."
+
+
 def prepare(app, history: list[dict], text: str, files: list[dict] | None = None,
-            web_results: list | None = None) -> dict:
+            web_results: list | None = None, may_retry: bool = True) -> dict:
     """Either {"final": reply} (no model needed) or {"msgs": [...], "model": name, "sources": [...]}.
-    web_results: results already fetched (after the model asked to LOOKUP); None = decide here."""
+    web_results: results already fetched (after the model asked to LOOKUP); None = decide here.
+    may_retry: the model may ask for one more search when these results don't answer."""
     files = files or []
     text = (text or "").strip()[:8000]
     if not text and not files:
@@ -249,23 +443,50 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
     via = ""
     if web_on(app) and not pics:
         from . import websearch
-        if web_results is None and websearch.needs_web(text):
-            web_results = look_up(app, text)
+        # The last question Joe looked something up for: {"said": the message, "ask": the question it
+        # was about (the same, unless that message was a correction of an earlier question)}.
+        last = getattr(app, "talk_lookup", None) or {}
+        asked = last.get("ask", "") if last.get("said") == text else text
+        if web_results is None:
+            # "no, it's C-A-L-H-O-U-N" right after a lookup: look again, with the word put right
+            before = next((str(h.get("content", "")).split("\n\n[attached")[0] for h in reversed(history or [])
+                           if h.get("role") == "user"), None)
+            again = bool(last) and before == last.get("said") and correction(text)
+            if again or websearch.needs_web(text) or (not files and fact_question(text)):
+                asked = last["ask"] if again else text
+                web_results = look_up(app, search_words(app, history, text, model, typed_only=bool(docs),
+                                                        before=asked if again else ""))
+        if web_results is not None:
+            app.talk_lookup = {"said": text, "ask": asked or text}
         via = websearch.via(web_results) if web_results is not None else ""
         if web_results:
             sources = websearch.sources(web_results)
             content += ("\n\n" + websearch.as_context(web_results) + "\n\n[Answer from these results in "
                         "plain spoken sentences. Don't read web addresses aloud; they're shown under your reply. "
-                        "If the results don't answer it, say so.]")
+                        "If the results don't answer it, say so in a few words"
+                        + (", or reply with ONLY one line to search once more: LOOKUP: <different search words>"
+                           if may_retry else "")
+                        + ". If you then answer from what you know instead, say that it is from memory and "
+                        "may be wrong. Never say you will search or look again: do it with that line, or not "
+                        "at all. Never tell the person to say a command or to turn something on.]")
             if getattr(web_results, "fell_back", False):
                 content += (f"\n[Start with a few words saying where you looked: {web_results.label}, "
                             f"because the first choice didn't answer.]")
         elif web_results is None:
-            content += ("\n\n[Online lookups are ON. If answering needs facts you don't have or that may "
-                        "have changed, reply with ONLY one line: LOOKUP: <a few search words>]")
+            content += ("\n\n[Online lookups are ON. You have NOT looked anything up for this message, so "
+                        "don't say you searched, checked or couldn't find anything. If answering needs facts "
+                        "you don't have or that may have changed, reply with ONLY one line: "
+                        "LOOKUP: <a few search words>]")
         else:
             content += ("\n\n[You looked online but found nothing useful. Say so in a few words, then answer "
-                        "from what you know if you can, and say it may be out of date.]")
+                        "from what you know if you can, and say that it is from memory and may be wrong.]")
+    elif not web_on(app):
+        content += ("\n\n[Online lookups are OFF, so you can't look anything up: don't say you searched or "
+                    "checked. If they ask you to look something up, say lookups can be turned on in Setup, "
+                    "under Privacy and internet."
+                    + (" This is a question of fact that you can't check: when you answer it, say in a few "
+                       "words that it is from memory and may be wrong." if not files and fact_question(text) else "")
+                    + "]")
     for f in docs:
         body = f["text"][:FILE_CHARS]
         cut = len(f["text"]) > FILE_CHARS or f.get("truncated")
@@ -457,16 +678,23 @@ def reply(app, history: list[dict], text: str) -> dict:
         return p["final"]
     try:
         # Short spoken replies come back faster; keep the model loaded between questions.
-        r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
-        q = lookup_request(r.text) if web_on(app) and not p.get("searched") else ""
-        if q:                                   # Joe asked to look it up: search, then answer
-            p = prepare(app, history, text, web_results=look_up(app, q) or [])
+        left = lookups_left(app, p)
+        while True:
+            r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
+            q = lookup_words(lookup_request(r.text), history, text) if left else ""
+            if not q and left and promises_search(r.text):      # "I'll search again", said instead of done
+                q = search_words(app, history, text, p["model"],
+                                 different=getattr(app, "talk_words", "") if p.get("searched") else "")
+            if not q:
+                break
+            left -= 1                           # Joe asked to look it up (or to try other words): search, then answer
+            p = prepare(app, history, text, web_results=look_up(app, q) or [], may_retry=left > 0)
             if "final" in p:
                 return p["final"]
-            r = app.services.ollama.chat(p["msgs"], model=p["model"], max_tokens=900, keep_alive="20m")
     except Exception as e:
         return {"ok": False, "error": f"Joe couldn't think: {e}"}
-    return finish(r.text, p.get("sources"), p.get("via", ""))
+    said = settle(app, r.text)
+    return finish(drop_promise(said) if promises_search(said) else said, p.get("sources"), p.get("via", ""))
 
 
 def _spoken_status(app) -> str:

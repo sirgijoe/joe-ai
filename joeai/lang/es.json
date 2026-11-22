@@ -558,6 +558,14 @@
  "[ DOWN ]": "[ BAJAR ]",
  "(needs the key above)": "(necesita la clave de arriba)",
  "(needs your SearXNG address)": "(necesita tu dirección de SearXNG)",
+ "(needs the LangSearch key above)": "(necesita la clave de LangSearch de arriba)",
+ "(needs its address below)": "(necesita su dirección, más abajo)",
+ "LangSearch key": "Clave de LangSearch",
+ "[ CHECK MY SEARXNG ]": "[ COMPROBAR MI SEARXNG ]",
+ "[ MAKE THE SEARXNG FOLDER ]": "[ CREAR LA CARPETA DE SEARXNG ]",
+ "[ COPY THE COMMAND ]": "[ COPIAR EL COMANDO ]",
+ "Set up your own SearXNG (free, searches the whole web)": "Configura tu propio SearXNG (gratis, busca en toda la web)",
+ "Your own search source (any search service you choose)": "Tu propia fuente de búsqueda (el servicio de búsqueda que elijas)",
  ", in this order. He asks the first one; if it can't answer he tries the next and tells you. Each one only gets the search words.": ", en este orden. Pregunta al primero; si no puede responder, prueba el siguiente y te lo dice. Cada uno solo recibe las palabras de búsqueda.",
  "Your SearXNG address": "Tu dirección de SearXNG",
  "Let RESEARCH tasks read whole result pages": "Dejar que las tareas RESEARCH lean las páginas completas de los resultados",
@@ -572,5 +580,12 @@
  "a search source": "una fuente de búsqueda",
  "optional: like http://192.168.1.20:8888": "opcional: como http://192.168.1.20:8888",
  "runs: {1} (stopped after {2} seconds)": "ejecuta: {1} (se detiene después de {2} segundos)",
- "{1} is now number {2}. Save to keep it.": "{1} ahora es el número {2}. Guarda para conservarlo."
+ "{1} is now number {2}. Save to keep it.": "{1} ahora es el número {2}. Guarda para conservarlo.",
+ "Listening through: {1}": "Escuchando por: {1}",
+ "Joe listens through the microphone your computer has set as its default. Change it in your system's sound settings.": "Joe escucha por el micrófono que tu computadora tiene como predeterminado. Cámbialo en la configuración de sonido de tu sistema.",
+ "Wait before Joe answers": "Espera antes de que Joe responda",
+ "With the open mic: how long Joe waits after you stop talking before he takes his turn. Pick Patient if he cuts in while you pause to think.": "Con el micrófono abierto: cuánto espera Joe después de que dejas de hablar antes de tomar su turno. Elige Paciente si te interrumpe cuando haces una pausa para pensar.",
+ "Quick (under a second)": "Rápida (menos de un segundo)",
+ "Normal (about a second)": "Normal (alrededor de un segundo)",
+ "Patient (two seconds)": "Paciente (dos segundos)"
 }

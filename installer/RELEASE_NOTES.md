@@ -1,5 +1,34 @@
 ## What's new in 2.3 (in development)
 
+- **Joe-AiGent, the agent** (Tools > OPEN JOE-AIGENT). Give Joe a whole job and go to bed: he makes a plan,
+  does it step by step with Joe's own tools, ticks each point off, checks his own work, and leaves a report
+  of what is done, what isn't and why. New: he can **write small Python programs and prove they work**. The
+  test is written first; the code is run only in a sealed box (its own empty folder, no network, no other
+  programs, time and memory limits); code that passes is kept with its test, code that never passes is set
+  aside and marked; working code may be improved, and a change is kept only if every test still passes.
+  `Code/ASK A BIGGER AI.md` is a ready message to have a bigger AI check it. Every risky ability is off until
+  you have read its screen and said yes. The box is a strong fence, not a vault: the guide says exactly what
+  it does and doesn't stop.
+- **Wake word** (Setup > Voice and Talk, off unless you tick it): with the open mic, say "Hey Joe" from any
+  screen and Joe comes to Talk to answer. Anything else he hears is dropped at once and never leaves the PC.
+- **Wikipedia is the search source that's on out of the box.** Ollama's web search went paid, so it is no
+  longer first: it is in the list, unticked, with the others. Tick what you want and move it up or down. A
+  list you already saved is left as it is.
+- **Big pictures no longer slow the picture lists down.** The picture strip on Home and the Files list show
+  small preview copies (wallpaper-size pictures used to load in full before any showed). The BIG WINDOW has
+  PREVIOUS and NEXT (or the left and right arrow keys) through the pictures and videos in that folder.
+- **Hide personal details: blank out the pictures in a Word file.** Joe can't read words inside a picture (a
+  signature, a logo, a scanned page). Tick "Blank out the pictures inside Word files" and every picture in
+  the cleaned copy becomes a blank grey box.
+- **Picture styles.** Anime and Manga now use the leave-out list Animagine's makers publish, at prompt
+  strength 6 with a gentler detail pass. Mascot leans harder on the mascot look. Watercolor no longer adds
+  trigger words that were never checked against a real add-on. A "product shot" whose subject is a person
+  uses the Photo style (the product look made faces waxy); write `STYLE: product` to keep the product look.
+- **Talk with a file attached:** when Joe's model asks to look something up, only words you typed can go
+  into the search, never words from the file.
+- **Search add-ons are marked:** an add-on's source reads "<its name> (add-on)" in the list and in "Found
+  with ...", so it can't pass for one of Joe's own.
+
 - **Tools page: find things faster.** The tools now sit in six closed boxes named for what you want to do
   (Write and edit, Read and understand, Files and spreadsheets, Pictures, Video, Sound and voice); click a
   box to open it. A **Find a tool** box searches names, descriptions and examples as you type. Click the
@@ -17,6 +46,28 @@
   says why in plain words (a certificate this PC didn't accept, a connection cut off, too slow, no
   internet), **System check** has a **SECURE** line, and DuckDuckGo gets one more try when it drops a
   connection. The guide explains what to do: "Secure connections".
+- **Ollama's web search is no longer free, and Joe says so.** Since late October 2026 Ollama asks for paid
+  usage credits for web search. Joe used to report "an error (402)"; now he says "Ollama now asks for paid
+  usage credits for web search" and moves on to your next source. Setup and the guide no longer call the key
+  free. Wikipedia and DuckDuckGo's answer box stay free; your own SearXNG is the free way to search everything.
+- **Three ways to search the whole web again.** (1) **Your own SearXNG, with Joe's help**: Setup makes
+  the folder and settings file SearXNG needs and shows the one command that starts it (you install Docker
+  Desktop yourself); **CHECK MY SEARXNG** says what is wrong in plain words. (2) **LangSearch**, a new
+  search source with its own key (a no-cost plan with a usage limit in November 2026). (3) **Your own
+  search source**: type any search service's address and where its results are. All three are off until
+  you tick them; what Joe asks out of the box is unchanged.
+- **Talk looks facts up instead of remembering them.** With online lookups on, a question of fact ("what
+  colour are Kubota tractors?") is searched before Joe answers; sums, chat, and questions about you or
+  your files are not. When he has to answer from the model's memory, he says so.
+- **Talk: quicker, and better at looking things up.** Joe now searches with a few search words instead
+  of your whole spoken sentence (which found the wrong things), may search once more when the first
+  results don't answer, searches again when you put him right or spell a word out ("C-A-L-H-O-U-N"),
+  and never says he looked when he didn't. System check no longer offers a Talk model that thinks for
+  seconds before every answer, and says so if yours does. The open mic no longer ends your turn while
+  you're still talking (the softer half of a sentence, or anything said right after Joe spoke, could be
+  taken for silence). New: **Wait before Joe answers** (Setup > Voice and Talk: how much quiet is allowed
+  inside your question; 0.85 seconds as before unless you change it), and the Talk screen shows which
+  microphone Joe is listening through.
 - **Daily restart** (Setup > Night shift and alerts): a Joe left running closes and opens again once a day (6am unless
   you pick another time), to free memory, the graphics card and the voice programs. Never in the
   middle of a job: he waits until it's done, and the queue, missions on hold and the night shift carry on.

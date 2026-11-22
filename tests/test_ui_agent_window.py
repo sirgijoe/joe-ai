@@ -35,7 +35,7 @@ def test_server_serves_the_page_and_script_without_a_key():
 
 def test_strip_button_uses_a_new_action_and_old_agent_code_is_untouched():
     assert 'data-act="agent-window"' in INDEX and 'act === "agent-window"' in APP
-    assert "(agCount > 0 ? agRow() : \"\")" in APP
+    assert '$("#toolgrid").innerHTML = agRow() + html;' in APP        # Joe-AiGent's row is always there (2.4)
     assert 'data-act="agent-stop"' in INDEX
 
 

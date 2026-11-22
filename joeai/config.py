@@ -99,11 +99,15 @@ class VoiceSettings:
     stt_model: str = "base.en"       # tiny.en (fastest) | base.en | small.en (most accurate)
     speak_replies: bool = True       # Joe answers out loud in Talk (F4)
     talk_mode: str = "open"          # open: mic listens while Talk (F4) is open | push: hold a key
+    turn_pause: str = "quick"        # open mic: quiet allowed inside your question: quick (0.85 s) | normal (1.2 s) | patient (2 s)
     ptt_key: str = "F4"              # push-to-talk key (any key; set in Setup > Voice and Talk)
     talk_model: str = ""             # a small, quick model just for Talk (blank = the writing model)
     chat_keep_days: int = 30         # past Talk chats older than this are deleted (0 = keep them)
     transcriber: str = "auto"        # auto (whisper.cpp when installed) | faster-whisper | whisper.cpp
     face: str = "on"                 # Joe's face in Talk: on (moving) | still (no blinking/flapping) | off
+    wake: bool = False               # wake word: with the open mic, Joe listens on every screen and answers to
+                                     # "Hey Joe" (off until ticked: the mic then stays open while Joe's window is)
+    wake_words: str = "hey joe"      # what to say first (2-4 plain words)
 
 
 @dataclass
@@ -132,13 +136,24 @@ class StatsSettings:
 @dataclass
 class WebSettings:
     enabled: bool = False            # Talk may look things up online (Setup > Privacy and internet)
-    ollama_key: str = ""             # free key from ollama.com/settings/keys; blank = Wikipedia only
+    ollama_key: str = ""             # key from ollama.com/settings/keys (Ollama now charges credits for web search); blank = Wikipedia only
     max_results: int = 5
-    providers: str = "ollama,wikipedia"   # search sources that are on, in order (websearch.py); Ollama
-                                     # is skipped without a key
+    providers: str = "wikipedia"     # search sources that are on, in order (websearch.py). Wikipedia alone out
+                                     # of the box; the others (Ollama web search too) are off until ticked
     max_searches: int = 10           # searches one task may make (a Talk question, one overnight task)
     searxng_url: str = ""            # the person's own SearXNG (the "searxng" search source), e.g. http://192.168.1.20:8888
     read_pages: bool = False         # RESEARCH tasks may read whole result pages (only addresses a search returned)
+    langsearch_key: str = ""         # key from langsearch.com (the "langsearch" search source); blank = skipped
+    # "Your own search source" (the "custom" search source, websearch.py): any search address the person types.
+    custom_name: str = ""            # what Joe calls it ("Found with ...")
+    custom_url: str = ""             # its address, {query} where the search words go ({key} too, if it wants the key there)
+    custom_key: str = ""             # optional key, sent only to that address
+    custom_key_header: str = "Authorization"   # how the key is sent: "Authorization" sends "Bearer <key>", any other name sends the key as it is
+    custom_body: str = ""            # blank = Joe asks with GET; JSON with {query} in it = Joe posts that
+    custom_list: str = "results"     # where the list of results is in its JSON answer ("data.webPages.value")
+    custom_title: str = "title"      # ... and in each result: its title,
+    custom_link: str = "url"         # its link,
+    custom_text: str = "content"     # and its text
 
 
 @dataclass
@@ -238,6 +253,7 @@ class Settings:
         s.engine.max_retries = max(1, min(int(s.engine.max_retries or 3), 10))   # 0 would never ask the model
         clean_favorites(s)
         clean_web(s)
+        clean_voice(s)
         from . import portable
         portable.adjust_settings(s)
         return s
@@ -260,10 +276,28 @@ def clean_favorites(s: "Settings") -> None:
     s.ui.favorite_tools = seen[:100]
 
 
+def clean_voice(s: "Settings") -> None:
+    """The pause before Joe's turn is one of the three choices."""
+    if s.voice.turn_pause not in ("quick", "normal", "patient"):
+        s.voice.turn_pause = "quick"
+    s.voice.wake = s.voice.wake is True
+    s.voice.wake_words = clean_wake_words(s.voice.wake_words)
+
+
+def clean_wake_words(text) -> str:
+    """The wake words: 2 to 4 plain words in small letters ("hey joe" when what was typed doesn't fit).
+    One word alone would fire on everyday talk; more than four is never heard whole."""
+    import re
+    words = re.sub(r"[^a-z0-9 ]+", " ", str(text or "").lower().replace("'", "").replace("\u2019", "")).split()
+    words = [w for w in words if len(w) <= 16][:4]
+    return " ".join(words) if len(words) >= 2 and len(words[-1]) >= 2 else "hey joe"
+
+
 def clean_web(s: "Settings") -> None:
     """Search sources are known ids only (websearch.py); the per-task cap stays between 1 and 50."""
-    from .websearch import clean_order, searxng_base
+    from .websearch import clean_custom, clean_order, searxng_base
     s.web.providers = clean_order(s.web.providers)
+    clean_custom(s.web)
     s.web.searxng_url = searxng_base(s.web.searxng_url) if s.web.searxng_url else ""
     try:
         s.web.max_searches = max(1, min(int(s.web.max_searches or 10), 50))
@@ -285,7 +319,7 @@ def _merge(obj, data: dict) -> None:
 
 
 # Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state, starred tools).
-KEEP_ON_RESET = ("workspace", "web.ollama_key", "ui.welcomed", "mcp_key", "workflows", "templates", "ui.favorite_tools")
+KEEP_ON_RESET = ("workspace", "web.ollama_key", "web.langsearch_key", "web.custom_key", "ui.welcomed", "mcp_key", "workflows", "templates", "ui.favorite_tools")
 
 
 def reset_paths(s: "Settings", paths: list[str] | None = None) -> list[str]:

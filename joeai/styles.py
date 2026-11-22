@@ -47,6 +47,12 @@ PHOTO_NOTE = ("STYLE: real photograph. In every prompt name the lens (85mm portr
 NEG_PHOTO = ("cartoon, illustration, painting, drawing, anime, 3d render, cgi, plastic skin, waxy skin, airbrushed, "
              "overly smooth, oversaturated, doll, cloned faces, identical twins, merged bodies, brand logo")
 NEG_ART = "photo, photograph, photorealistic, realistic skin, 3d render, cgi, film grain, lens blur"
+# Anime and manga (Animagine XL): the model's own leave-out list, as its makers publish it, then the photo words.
+# Agreed with Joseph 2026-11-13 after the 11-12 overnight test (was NEG_ART + score words at prompt strength 7):
+# with it, prompt strength 6 and a 0.3 detail pass. Joe's general anatomy list stays off for these two styles.
+NEG_ANIMAGINE = ("lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, "
+                 "worst quality, low quality, low score, bad score, average score, signature, watermark, username, "
+                 "blurry, photo, photorealistic, 3d render")
 
 
 @dataclass(frozen=True)
@@ -78,8 +84,8 @@ STYLES = {
     "anime": Style("anime", "Anime",
                    "STYLE: anime illustration. Cel shading, clean dynamic line work, expressive eyes and "
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
-                   "anime style, cel shaded, clean line art", NEG_ART + ", western cartoon, low score, bad score, average score", cfg=1.0,
-                   sampler="euler_ancestral"),
+                   "anime style, cel shaded, clean line art", NEG_ANIMAGINE, cfg=0.0,
+                   sampler="euler_ancestral", denoise=0.3),
     "painting": Style("painting", "Painting (oil, watercolor...)",
                       "STYLE: traditional painting. Name the medium (oil on canvas, watercolor on paper, ink "
                       "wash, gouache) and describe brush strokes, paper or canvas texture and the color mixing. "
@@ -116,8 +122,8 @@ STYLES = {
                    "STYLE: black-and-white manga panel art. Crisp ink lines, screentone dot shading, speed lines "
                    "for motion, expressive faces, strong blacks. No color. No camera or lens words.",
                    "manga style, black and white, ink lines, screentone",
-                   NEG_ART + ", color, colored, western cartoon, low score, bad score, average score",
-                   sampler="euler_ancestral", cfg=1.0),
+                   NEG_ANIMAGINE + ", color, colored",
+                   sampler="euler_ancestral", cfg=0.0, denoise=0.3),
     "watercolor": Style("watercolor", "Watercolor",
                         "STYLE: watercolor painting on textured paper. Soft wet edges, colors bleeding into each "
                         "other, light washes, white paper showing through, a few fine pencil lines. No camera words.",
@@ -156,8 +162,10 @@ STYLES = {
                        "colors, plain light background. Not an icon, badge, logo or head-only avatar. If the "
                        "task asks for a character sheet or turnaround, show the same character three times "
                        "side by side: front, side and back view. No camera or lens words.",
-                       "mascot character, full body, dynamic pose, expressive, cartoon",
-                       NEG_ART + ", busy background, crowd, icon, badge, logo, emblem, avatar, head only, "
+                       "mascot character, full body, dynamic pose, expressive, cartoon, "
+                       "(mascot character, cartoon, chibi, simple shapes, flat cel shading:1.4)",
+                       NEG_ART + ", realistic, line art, sketch, uncolored, lineart only, monochrome line drawing, "
+                       "busy background, crowd, icon, badge, logo, emblem, avatar, head only, "
                        "portrait crop, circle frame"),
     "product": Style("product", "Product shot",
                      "STYLE: studio product photo. The item alone, centered, on a clean seamless background, "
@@ -266,8 +274,35 @@ def valid(name: str) -> bool:
     return (name or "").strip().lower() in NAMES
 
 
+# Product shot on a person (Joseph's 2026-11-14 baseline): the product look (RealVisXL, studio-catalog words,
+# "hands, people" in the leave-out list) makes faces waxy and smudged. A product shot is of a thing.
+_PRODUCT_WORDS = r"(?:studio |product |listing )?(?:shot|photos?|pictures?|packshot|images?)"
+_PERSON_SUBJECT = re.compile(
+    r"\b(?:portrait|headshot|selfie)\b|"
+    r"(?:^|\bof |\bshowing )(?:a |an |the |my |our |his |her |two |three )?(?:[\w'-]+ ){0,3}"
+    r"(?:man|woman|girl|boy|kid|child|baby|toddler|teen(?:ager)?|lady|guy|person|people|couple|family|"
+    r"mother|father|mom|dad|son|daughter|brother|sister|grandma|grandpa|grand(?:mother|father)|model|"
+    r"men|women|children|friends|bride|groom)\b", re.I | re.M)
+PRODUCT_PERSON_NOTE = ("this is mostly a person, and the Product shot style is made for things (it leaves people and "
+                       "hands out and can make faces look waxy)")
+
+
+def product_person(job) -> bool:
+    """A product-shot task whose subject is a person (not a thing a person happens to hold)."""
+    text = f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}"
+    text = re.sub(_PRODUCT_WORDS + r"(?= of\b)", "", text, flags=re.I)
+    return bool(_PERSON_SUBJECT.search(text))
+
+
 def pick(job) -> Style:
     """The task's STYLE, else a guess from its name and brief (general when nothing fits)."""
+    st = _pick(job)
+    if st.id == "product" and (getattr(job, "style", "") or "").strip().lower() != "product" and product_person(job):
+        return STYLES["photo"]         # Joe guessed "product" from the words: a person gets the Photo style
+    return st
+
+
+def _pick(job) -> Style:
     s = (getattr(job, "style", "") or "").strip().lower()
     if s in STYLES:
         return STYLES[s]

@@ -1109,6 +1109,78 @@ itself):
   it in Setup > Workflows > Pictures (or for one style only). Style add-ons (LoRAs) and the High
   quality second pass are for SDXL models, so they're skipped with it.
 
+## Joe-AiGent, the agent (Tools F3 > OPEN JOE-AIGENT)
+
+Everything else in Joe runs a plan you (or Joe) wrote and then stops. **Joe-AiGent** (say "Joe agent": AI and
+agent in one word) is different: you give him a whole job in your
+own words and he decides the next step himself from what just happened, and keeps going until the job
+is done. He can work all night.
+
+**What he does with a job**
+
+1. **A plan first.** The Planner breaks the job into points that must each be done (2 for a small job,
+   up to 20 for a big one). The plan is in his window and in AGENT REPORT.md, with a tick beside each
+   point as it gets done.
+2. **One step at a time.** He does the work himself with Joe's own tools: writing, pictures, the tools
+   you ticked, looking things up (if you allowed it), and code (if you allowed it). After every step Joe
+   checks the plan against what was really made, and ticks points off himself.
+3. **A clean start every few steps.** He writes himself a checkpoint (the job, the plan, what's done,
+   what's left), throws his working notes away and carries on from the checkpoint, so a wrong turn
+   doesn't grow.
+4. **His own work checked.** When every point is done the Checker reads the result against the job, and
+   with lookups on the checkable facts are looked up and marked confirmed, not found or contradicted.
+5. **A report.** AGENT REPORT.md says what is done, what isn't and why, and what would help. AGENT
+   LOG.txt lists every step.
+
+**Code, and the box.** With "Write code and test it in the box" turned on, he can write small Python
+programs:
+
+- **Test first.** The Tester writes the test from the task before there is any code.
+- **The Coder** writes the program to pass that test. If it fails, he gets what the box said and tries
+  again (4 tries unless you change it). The test is never changed to make the code pass.
+- **Only the Tester runs code, and only in the box**: a second Python started for that one test and
+  thrown away afterwards. Its own empty folder (never the Joe folder or your files), no network, no
+  other programs, no system libraries, a time limit, a memory limit, and almost nothing of your
+  environment (no keys). On Linux and Mac the system itself also cuts its network.
+- **Code that passes** goes in the run's `Code` folder with its test. **Code that never passes** is set
+  aside in `Code/not working` with what the test said, the report marks it [CHECK], and he goes on with
+  the rest of the job. A run with a program that never passed is never called "done".
+- **The Improver** runs last, only on code that passes. A change is kept only if every test still passes;
+  he stops after a round in which nothing was kept (2 rounds unless you change it; 0 turns it off).
+- **`Code/ASK A BIGGER AI.md`** is a ready message with every program and test in it. Paste it into
+  whichever bigger AI you use and read what it says.
+
+**Say it straight: what the box is and isn't.** The box is a strong fence against code that goes wrong
+or does something it shouldn't, which is what a local AI's code does. It is not a vault against code
+written on purpose to break out of it, so only code Joe's own Coder wrote for your job ever goes in,
+never code from a web page or a file. And a passing test only means the code did what its own test
+asked: the same local model wrote both. **Read the code, or have a bigger AI check it, before you run
+it yourself on anything that matters.** Python only, standard library only (nothing is ever installed).
+
+**Risky abilities are off until you say yes.** Looking things up online, writing and testing code,
+sending to your phone, and suggesting new names for files in his folder each have their own short
+screen: what it can do, what could go wrong, the worst case, what it never does. Nothing is on until you
+have read that screen and said yes.
+
+**Limits (you set them, there is always one):** steps (up to 300), minutes (up to 720, twelve hours),
+tries at one piece of code (1-10), improve rounds (0-10), and "stop after this many failures, errors or
+retries" (1-100): after that Joe stops the run, keeps what was made, pauses the job and pings your phone
+if pings are set up. He also stops by himself after six steps that got no point of the plan done.
+
+**While he works** a strip under the tabs shows the step, and [ OPEN WINDOW ] gives him a small window
+of his own: the plan, the steps, [ STOP ], and Joe's face (thinking while he plans, pleased on a pass,
+worried on a fail; the same on / still / off switch as Talk's). STOP always asks first, and what he did
+so far is kept with its report.
+
+**What starts him:** the START button on the job's own row (it carries the job's name), a schedule with the night shift, files dropped in his folder
+(Inbox\Agents\<name>), or your phone or a connected app if you allow it.
+
+**He never** deletes anything, runs add-ons, runs code outside the box, installs anything, connects to
+an inbox or clicks around websites. Words in files and web pages are information to him, never orders.
+
+Agents made in an earlier test version (Researcher, Maker and the other kinds) still show on the page
+and still run; new jobs are for Joe-AiGent.
+
 ## Talking to Joe (F4)
 
 Press **F4** to open Talk. The mic is open while that screen is up (MIC ON / MIC OFF button):
@@ -1123,8 +1195,47 @@ Ask how the run is going, what failed, or tell him what you need done. If he wri
 it shows up with OPEN IN BUILDER and RUN IT buttons: Joe never starts work on his own.
 Setup > Voice and Talk picks his voice, speed, and how carefully he listens. **Talk model** lets a small,
 quick model (3-4B) answer in Talk while the big one keeps writing missions overnight; blank uses
-the writing model. The F2 log shows "Talk timing:" lines to see where the wait is. The report screen has
+the writing model. MAKE A HELP FILE (Setup > Start here) holds "Talk timing:" lines (in `logs/debug.txt`)
+that show where the wait is: hearing, the model's first words, speaking. The report screen has
 READ IT TO ME; the About page has HEAR JOE TELL IT.
+
+**Which microphone Joe hears you through.** Joe doesn't pick a microphone: he uses the one your
+computer has set as its default. The Talk screen shows it ("Listening through: ..."), so you can
+see at a glance when it's the webcam's microphone and not the one you meant. Change it in your
+system's sound settings (Windows: Settings > System > Sound > Input), then open Talk again.
+
+**Wake word** (Setup > Voice and Talk > "Wake word: answer from any screen", off unless you tick it).
+With the open mic, Joe then listens on every screen while his window is open (minimized too), not only
+in Talk. Say the wake words and then your question: "Hey Joe, what's left in the queue?" He switches
+to Talk and answers. Say only "Hey Joe" and he says "Yes?" and takes the next thing you say. You can
+type your own wake words (2 to 4 plain words).
+What it means, plainly: the microphone stays open while Joe's window is open. What Joe hears is turned
+into words on this PC, like any Talk question; unless it starts with the wake words it is dropped at
+once: not shown, not saved, not sent anywhere. It uses some processor or graphics-card time whenever
+someone talks near the microphone. It doesn't work when Joe's window is closed, and not with
+push-to-talk. "Hey Joe" in the middle of a sentence doesn't count, only at the start.
+
+**Wait before Joe answers** (Setup > Voice and Talk, for the open mic): how much quiet Joe allows
+inside your question before he decides you're done. **Quick** (0.85 seconds, how Joe comes),
+**Normal** (1.2 s) or **Patient** (two seconds). It isn't a delay added before his answer: it is the
+room you get to stop and find a word. The same quiet is waited out after your last word, so a longer
+choice also means a slightly later answer.
+
+**How the open mic tells you're talking.** It looks at the sound 12 times a second. Your turn starts
+when the sound is clearly louder than the room; once you've started, quieter words still count, and
+the turn ends after the quiet above. The room's own steady noise (a fan, a hum) is learned and
+ignored, but never from Joe's own voice coming back through the microphone. (Before 2.3 that could
+make Joe miss the start of what you said right after he spoke, or take the softer half of a sentence
+for silence: "Hey Joe, how hot is the sun?" arrived as "Hey Joe.") If the open mic still mishears
+where you start and stop, MAKE A HELP FILE: each recording leaves a "Talk timing: open mic recorded
+..." line with the room's level, your loudest moment and where the bars for "talking" stood.
+Push-to-talk never guesses: it records exactly while you hold the key.
+
+**A Talk model that answers straight away.** Some models (qwen3 and other "thinking" models) reason
+for several seconds before every answer, and in Talk that is silence. Joe no longer offers such a
+model for Talk. If your Talk model is one, System check says so ("Talk is slow: <model>
+thinks before every answer") and offers a quick one you already have, or a small download. On a
+graphics card with 10 GB or more, an 8B model that doesn't think first counts as quick too.
 
 ### Chats
 
@@ -1151,15 +1262,49 @@ opening another one, or deleting the one he's answering in also stops him.
 ### Looking things up online (off unless you turn it on)
 
 Setup > Privacy and internet > **Let Joe look things up online**. When it's on and you ask about
-something current (news, prices, weather, opening hours, "look it up"), Joe searches first; for
-other questions he can decide to search when he isn't sure. He answers in his own words and lists
+something current (news, prices, weather, opening hours, "look it up"), or ask **a question of
+fact** ("what colour are Kubota tractors?", "who is the governor of Michigan?", "can you tell me how
+tall..."), Joe searches first instead of trusting the model's memory; a small local model is too
+often confidently wrong. Sums and unit conversions, chat, opinions, requests to make something, and
+questions about you, Joe, your files or a running job are answered without a search; for anything
+else he can still decide to search when he isn't sure. When a search doesn't answer the question and
+Joe answers from what the model knows, he says it is from memory and may be wrong (with lookups
+off he says the same about questions of fact). He answers in his own words and lists
 his **Sources** under the reply (click one to open it). Only the search words go online, never
 your files or chats, and overnight runs never go online. (Everything Joe uses the internet
 for is listed in the README under "When Joe uses the internet" and in Setup > Privacy and internet.)
 
-- **With a free Ollama key** (make an account at ollama.com, then Settings > Keys, and paste it
-  into **Ollama web search key**): searches the whole web.
+- **With an Ollama key** (make an account at ollama.com, then Settings > Keys, and paste it
+  into **Ollama web search key**): searches the whole web. **This is no longer free.** Since late
+  October 2026 Ollama asks for paid usage credits for web search: a key on an account without credits
+  is answered with "Add usage credits to use web search, or subscribe" (HTTP 402). Joe then says
+  "Ollama now asks for paid usage credits for web search", rests that source for ten minutes and
+  goes on to the next one. (Ollama shows a new key in full only once: copy it when you make it.)
 - **Without a key**: Joe looks things up on Wikipedia only (encyclopedia facts, no news or prices).
+
+**Right now there is no free source for the whole web that works out of the box.** Wikipedia and
+DuckDuckGo's answer box are free but only know encyclopedia-style facts. There are three ways to
+search everything, each with a little setting up:
+
+- **Your own SearXNG**: free for good, because you run it yourself and nobody can start charging
+  for it. Joe helps you set it up (see "Setting up your own SearXNG" below). Public SearXNG sites
+  turn programs away ("too many searches"), because they are meant for people in a browser.
+- **LangSearch**: another company's web search, with its own key. It had a no-cost plan with a
+  usage limit in November 2026. That can change at any time, as it did with Ollama.
+- **Your own search source**: any other search service you choose (see below).
+
+When Joe can't find something he says the answer is from memory and may be wrong.
+
+**How Joe searches in Talk.** A search source wants a few search words, not a spoken sentence, so
+Joe doesn't send what you said as it is: the Talk model turns it into a few search words first
+("Can you please look up the highest hill in Calhoun County, Michigan?" becomes something like
+"Calhoun County Michigan highest point"), and Joe's own plain version is used when the model
+can't. When a file is attached, only words you said yourself are searched, never anything from the
+file. If the results don't answer the question, Joe may search **once more** with different words
+(two searches a question at most), and if that doesn't help he says so. Put him right ("no, I said
+Calhoun", or spell it: "C-A-L-H-O-U-N") straight after a lookup and he searches again with the
+corrected word. He never says he looked something up when he didn't, and never tells you to say a
+command; if he says "I'll search again", he really does.
 
 **Where Joe searches** (the list under the key) holds every search source, the ones that are on
 first, in the order Joe asks them. Tick or untick a source and move it with **UP** and **DOWN**,
@@ -1168,12 +1313,15 @@ internet) or finds nothing, he tries the next one and **tells you**: the line un
 where the results came from and why ("Found with Wikipedia, because Ollama web search didn't
 answer (the key was refused - check it in Setup)"); in Talk he says it too. A source that failed
 rests for a few minutes so Joe doesn't keep knocking (saving Setup gives it a fresh try). Ollama
-web search is skipped without a key. Out of the box the list is Ollama web search, then Wikipedia,
-which is exactly how Joe searched before.
+web search is skipped without a key. Out of the box only Wikipedia is ticked: it is free and needs
+no account. Every other source is in the list, unticked; tick the ones you want and use
+[ UP ] / [ DOWN ] to put them in the order you like (Ollama web search used to be first, until
+Ollama started charging for it).
 
 The sources Joe knows:
 
-- **Ollama web search**: the whole web (news, prices, how-tos). Needs the free key above.
+- **Ollama web search**: the whole web (news, prices, how-tos). Needs the key above, and Ollama's
+  paid usage credits.
 - **Wikipedia**: encyclopedia facts only. No account.
 - **DuckDuckGo Instant Answers** (off until you tick it): DuckDuckGo's official free answer box.
   It only gives **short summaries and definitions**, not a list of web pages (DuckDuckGo has no
@@ -1182,7 +1330,53 @@ The sources Joe knows:
   you run yourself, for example on another computer at home (`http://192.168.1.20:8888`). Its
   JSON answers must be switched on (SearXNG's `settings.yml`, under `search:` `formats:` add
   `json`). Public SearXNG sites usually switch that off, so your own is the dependable one.
+- **LangSearch** (off until you tick it and paste a **LangSearch key**): the whole web. Make an
+  account at langsearch.com, create a key there and paste it into Setup. Only the search words and
+  your key go to langsearch.com. If it refuses the key, says you reached its limit, or starts asking
+  for payment, Joe says so in plain words and goes on to your next source.
+- **Your own search source** (off until you tick it and fill it in): see below.
 - **Search add-ons** you installed and turned on (Setup > Add-ons) show here too.
+
+**Setting up your own SearXNG.** Under the address box, open **Set up your own SearXNG**:
+
+1. Install **Docker Desktop** from docker.com (free for personal use) and start it. It is the
+   program that runs SearXNG. Joe never installs or starts it for you.
+2. Press **MAKE THE SEARXNG FOLDER**. Joe makes a folder called `SearXNG` in your Joe folder with a
+   small settings file in it (`config/settings.yml`): JSON answers switched on so Joe can read the
+   results, a random secret, and no "too many searches" limit. If the file is already there Joe
+   leaves it exactly as it is.
+3. Press **COPY THE COMMAND**, paste it into PowerShell (on a Mac or Linux: Terminal) and press
+   Enter. The first time it downloads SearXNG, which takes a few minutes. The command makes SearXNG
+   answer on this PC only (`127.0.0.1`), and start again by itself whenever Docker Desktop runs.
+4. Joe puts `http://localhost:8888` in **Your SearXNG address**. Press **CHECK MY SEARXNG**.
+5. When it works, tick **Your own SearXNG** in the list, move it to the top with UP, and SAVE.
+
+**CHECK MY SEARXNG** tries one search at the address in the box (saved or not) and says what is
+wrong in plain words: nothing answers there (is Docker Desktop running?), its JSON answers are
+switched off, its limiter is on, the address isn't SearXNG, or its search engines found nothing
+just now. To stop SearXNG: `docker stop searxng`. To remove it: `docker rm -f searxng`, then delete
+the `SearXNG` folder.
+
+**Your own search source.** For any other search service, or one you run. Open **Your own search
+source** and fill in:
+
+- **Its name**: what Joe calls it ("Found with ...").
+- **Its address**: the web address Joe asks, with `{query}` where the search words go, like
+  `https://example.com/search?q={query}`. Web addresses only (http or https).
+- **Its key** (optional) and **Send the key as**: `Authorization` sends "Bearer" and the key, which
+  most services want; any other name (like `X-API-KEY`) sends the key as it is under that name. If
+  the service wants the key in the address, put `{key}` in the address instead. The key is sent
+  only to that address, and is kept in your computer's protected store like Joe's other keys.
+- **Send this** (usually empty): some services want the search words posted. Then type what to send
+  as JSON with `{query}` in it, like `{"q": "{query}"}`.
+- **Where the results are**: the name of the list of results in the service's JSON answer. A dot
+  goes one level deeper (`data.webPages.value`). Then what each result calls its title, its link
+  and its text.
+
+Then tick it in the list and press **TEST A SEARCH**: Joe says what is missing or wrong ("its
+answer has no list called 'results'"). Only the search words (and that key) go to the address you
+typed; Joe's makers don't control what that service does with them. Results are read as
+information, never as instructions, like every other source.
 
 **Let RESEARCH tasks read whole result pages** (off until you turn it on): a `RESEARCH: yes`
 task then reads the whole page of its top two results instead of only the short bit the search

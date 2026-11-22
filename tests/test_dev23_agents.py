@@ -37,9 +37,11 @@ def test_only_allowed_tools_can_be_ticked(env):
 
 
 def test_every_agent_is_one_of_the_five(env):
-    assert set(agents.TEMPLATES) == {"researcher", "clerk", "briefing", "maker", "assistant"}
+    # 2.4: Joe-AiGent ("aigent") is the one agent offered; the five from 2.3 are retired but still run
+    assert set(agents.TEMPLATES) == {"aigent", "researcher", "clerk", "briefing", "maker", "assistant"}
+    assert [k for k, t in agents.TEMPLATES.items() if not t.get("retired")] == ["aigent"]
     r = agents.save({"name": "X", "job": "j", "template": "website-doer"})
-    assert not r["ok"] and "one of the five" in r["error"]
+    assert not r["ok"] and "what kind of agent" in r["error"]
     aid = agents.save({"name": "R", "job": "what is a heat pump", "template": "researcher"})["id"]
     a = agents.get(aid)
     assert a["template"] == "researcher" and a["tools"] == ["text"] and a["steps"] == agents.TEMPLATES["researcher"]["steps"]
@@ -256,16 +258,17 @@ def test_a_watch_folder_starts_a_run_with_the_new_files(env, monkeypatch):
     assert agents.watch_tick(app, now=time.time() + 60) == []
 
 
-def test_agents_are_not_offered_in_2_3_but_the_build_is_kept():
-    """Joseph, 2026-11-12: agents are being rebuilt as ONE agent (Joe-AlIve) with helpers; offering five
-    kinds now would only confuse people. So 2.3 shows no Agents row unless an agent already exists, says
-    nothing about them in the guide, the notes or "what can you do?", and keeps the engine and its tests."""
+def test_the_five_kinds_are_not_offered_and_joe_aigent_is():
+    """Joseph, 2026-11-12: five kinds of agent would only confuse people; ONE agent (Joe-AiGent) with helpers
+    was planned and 2.3 showed no Agents row until then. He is built now (2.4): his row is always at the top
+    of Tools, and the five kinds are never offered for a new agent or named in the guide."""
     root = Path(__file__).parent.parent
     html = (root / "joeai" / "ui" / "index.html").read_text(encoding="utf-8")
     js = (root / "joeai" / "ui" / "app.js").read_text(encoding="utf-8")
     assert 'id="s-agents"' in html and 'id="ag-steps"' in html and 'id="ag-fails"' in html      # the page is kept
     assert 'id="agentstrip"' in html and html.index('id="agentstrip"') < html.index('id="workarea"')
-    assert "(agCount > 0 ? agRow() : \"\")" in js and "agRiskScreen" in js                       # shown only when one exists
+    assert '$("#toolgrid").innerHTML = agRow() + html;' in js and "agRiskScreen" in js and "OPEN JOE-AIGENT" in js
+    assert ".filter(([, t]) => !t.retired)" in js                                              # only he is offered
     for doc in ("docs/GUIDE.md", "README.md", "installer/RELEASE_NOTES.md"):
         text = (root / doc).read_text(encoding="utf-8")
         assert "OPEN AGENTS" not in text and "Paperwork clerk" not in text, doc

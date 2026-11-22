@@ -1397,6 +1397,11 @@ class Engine:
                     "", "wan", f"built-in video ({comfy_mod.WAN_VIDEO['label']}{' Turbo' if vp.turbo else ''})")
         basic = [m for m in models if m.family in ("sdxl", "sd15", "other") and m.folder == "checkpoints"]
         style = styles_mod.pick(job)
+        if style.id == "product" and styles_mod.product_person(job):      # they wrote STYLE: product themselves
+            self.log(f"  Heads-up: {styles_mod.PRODUCT_PERSON_NOTE}. STYLE: photo suits a person better.")
+        elif style.id == "photo" and styles_mod._pick(job).id == "product":
+            self.log(f"  This reads as a product shot, but {styles_mod.PRODUCT_PERSON_NOTE}: using the Photo "
+                     "style. Write STYLE: product in the task to keep the product look.")
         m = None
         from . import workflowprefs as wfp
         wpref = wfp.merged(self.s, [f"style:{style.id}", "pictures"])

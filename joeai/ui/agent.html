@@ -9,8 +9,9 @@
 <body class="agentwin">
 <main class="aw">
   <h1 id="aw-title" class="aw-h" data-t>AGENT</h1>
-  <!-- A spot is kept here for a small picture of the agent later. Nothing is drawn in version 1. -->
-  <div id="aw-sprite" class="aw-sprite" aria-hidden="true" hidden></div>
+  <!-- Joe's face (the same picture as in Talk, ui/joe.js): thinking while he plans, happy on a pass or when
+       he's done, worried on a fail. It is decoration: the words beside it carry the news. -->
+  <div id="aw-sprite" class="aw-sprite joeface" aria-hidden="true" hidden></div>
   <p id="aw-status" class="aw-status" tabindex="-1" data-t>Waiting for an agent to start…</p>
   <div class="asbar aw-bar" aria-hidden="true"><i id="aw-bar"></i></div>
   <section id="aw-planbox" hidden>
@@ -37,6 +38,7 @@
     <button type="button" id="aw-yes" data-t>[ YES, STOP IT ]</button>
   </div>
 </div>
+<script src="/joe.js"></script>
 <script src="/agent.js"></script>
 </body>
 </html>

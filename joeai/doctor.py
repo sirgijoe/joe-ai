@@ -160,6 +160,25 @@ def ollama_models(sm: ServiceManager) -> list[dict]:
     return out
 
 
+_THINKS: dict[str, bool] = {}
+
+
+def thinks_first(sm: ServiceManager, name: str) -> bool:
+    """Ollama says this model reasons before it answers (qwen3, deepseek-r1...). In Talk that is
+    seconds of silence before every reply, so such a model is never Joe's pick for Talk.
+    False when Ollama doesn't say (older Ollama, the model is gone) or another writing program is used."""
+    if hasattr(sm.ollama, "model_rows"):
+        return False
+    key = f"{sm.ollama.base}|{name}"
+    if key not in _THINKS:
+        try:
+            r = request_json("POST", f"{sm.ollama.base}/api/show", {"model": name}, timeout=5)
+            _THINKS[key] = "thinking" in (r.get("capabilities") or [])
+        except (HttpError, AttributeError, TypeError):
+            return False                            # not known: ask again next time
+    return _THINKS[key]
+
+
 def _tag_params(name: str) -> str:
     """'qwen3:14b' -> '14B' when Ollama doesn't say the size."""
     m = re.search(r":(\d+(?:\.\d+)?)([bm])\b", name, re.I)
@@ -366,8 +385,28 @@ def check(settings: Settings, sm: ServiceManager) -> dict:
                            f"({rec['size_gb']} GB download). Your best one now is {best_text}. Bigger writes "
                            f"better drafts.{choices_text(ch)}", "action": "pull", "model": rec["name"],
                            "choices": ch, "optional": True, "what": f"{rec['name']} ({rec['size_gb']} GB)"})
-        small_ones = sorted((m for m in writers if 1 <= _params_b(m["params"]) <= 4.5),
-                            key=lambda m: -_params_b(m["params"]))
+        # Quick enough for Talk: up to 4.5B (up to 9B on a 10+ GB card), and it answers straight away:
+        # a model that thinks first (qwen3...) means seconds of silence before every spoken reply.
+        talk_cap = 9.0 if vram >= 10 else 4.5
+        small_ones = sorted((m for m in writers if 1 <= _params_b(m["params"]) <= talk_cap
+                             and not thinks_first(sm, m["name"])),
+                            key=lambda m: (_params_b(m["params"]) > 4.5, -_params_b(m["params"])))
+        talk_now = (settings.voice.talk_model or "").strip()
+        if talk_now and have(talk_now) and thinks_first(sm, talk_now):
+            slow = f"Talk is slow: {talk_now} thinks before every answer, which adds several seconds of silence. "
+            quick = next((m["name"] for m in small_ones if m["name"] != talk_now), None)
+            if quick:
+                issues.append({"id": "swap-talk-model", "text": slow + f"{quick} is already installed and "
+                               "answers straight away: use it for Talk? (Your writing model stays as it is.)",
+                               "action": "use", "model": quick, "set": "talk", "optional": True})
+            else:
+                from .upkeep import talk_pick
+                tp = talk_pick()
+                if not have(tp["name"]):
+                    issues.append({"id": "swap-talk-model", "text": slow + f"A quick model that answers "
+                                   f"straight away ({tp['name']}, {tp['size_gb']} GB) fixes that: download it "
+                                   "and use it for Talk? (Your writing model stays as it is.)",
+                                   "action": "pull", "model": tp["name"], "set": "talk", "optional": True})
         if not (settings.voice.talk_model or "").strip() and small_ones and \
                 small_ones[0]["name"] != best_text:
             # Talk left blank = the big writing model answers (10-20 s a reply): a quick one is already here.
@@ -810,7 +849,8 @@ MODEL_KINDS = (("writing", "Writing and Talk"), ("pictures", "Pictures and pictu
 def model_kind(issue_id: str) -> str:
     """'' for program issues (System check); a MODEL_KINDS key for model downloads."""
     i = issue_id or ""
-    if i in ("pull-model", "use-model", "upgrade-model", "pull-talk-model", "use-talk-model", "pull-small-model"):
+    if i in ("pull-model", "use-model", "upgrade-model", "pull-talk-model", "use-talk-model", "swap-talk-model",
+             "pull-small-model"):
         return "writing"
     if i in ("pull-vision", "pull-embed"):
         return "helpers"

@@ -46,6 +46,8 @@ MAX_AGENTS = 30
 MAX_STEPS, MAX_MINUTES = 30, 240
 PAUSE_AFTER_FAILS = 3        # runs in a row that failed or got stuck, then the agent pauses itself
 MAX_FAILS, DEFAULT_FAILS = 100, 10   # failures, errors or retries in ONE run before it stops (the owner picks 1-100)
+MAX_TRIES, DEFAULT_TRIES = 10, 4     # Joe-AiGent: tries the Coder gets at one piece of code before it is set aside
+MAX_IMPROVE, DEFAULT_IMPROVE = 10, 2  # Joe-AiGent: rounds the Improver gets on code that passes (0 = off)
 BASIC = {"text": "Writing (a document or a list)", "image": "Pictures", "video": "Short video"}
 # Joe's own tools an agent may never use, and why.
 BLOCKED = {
@@ -63,14 +65,14 @@ EXCERPT = 600
 # screen is shown again before the ability is used.
 ABILITIES = {
     "lookups": {
-        "version": 2,
+        "version": 3,
         "title": "Look things up online",
         "can": "Search the web and read the pages it finds, to answer with current facts and to check its "
                "own answers. The sources are listed in what it makes.",
         "wrong": "Web pages can be wrong, out of date or written to fool AI. Joe treats them as information, "
                  "never as orders, and marks facts the sources disagree with [CHECK]. Searches go to the "
-                 "search sources you ticked in Setup (Ollama's web search and Wikipedia unless you change "
-                 "it), so they see the search words; the sites of the pages it reads see that this PC "
+                 "search sources you ticked in Setup (Wikipedia unless you change it), so they see the "
+                 "search words; the sites of the pages it reads see that this PC "
                  "visited.",
         "worst": "A wrong fact ends up in the answer and you act on it. Check anything important against "
                  "the sources listed.",
@@ -104,12 +106,54 @@ ABILITIES = {
                  "your files is ever sent.",
         "needs": "Phone pings must be set up in Setup > Night shift and alerts.",
     },
+    "code": {
+        "version": 1,
+        "title": "Write code and test it in the box",
+        "can": "Write small Python programs for your job, write a test for each, and run that test in a sealed "
+               "box on this PC. Code that passes is kept; code that never passes is set aside, marked.",
+        "wrong": "Code from a local AI is often wrong, and a test it wrote itself can pass while the code still "
+                 "does the wrong thing. The box (its own empty folder, no network, no other programs, time and "
+                 "memory limits) is a strong fence against code that goes wrong. It is not a vault against "
+                 "code written on purpose to break out.",
+        "worst": "You run a program Joe wrote yourself, outside the box, and it deletes or overwrites "
+                 "something. Read the code, or have a bigger AI check it, before you run it on anything "
+                 "that matters.",
+        "never": "It never runs code outside the box, never installs anything, never runs code from a web "
+                 "page or a file, and never changes a program you already have.",
+        "needs": "",
+    },
 }
 
-# ----------------------------------------------------------------------------- the five templates
+# ----------------------------------------------------------------------------- Joe-AiGent, and the five before him
 # actions: what the planner may pick (agentrun.ACTIONS says what each one is).
+#
+# 2.4 (Joseph, 2026-11-12/14, named 2026-11-21): ONE agent, Joe-AiGent ("AI" + "agent"; said "Joe agent").
+# He is the manager: he owns the plan, the state and every limit, does the work
+# himself with Joe's tools, and calls a helper only for what a helper is for (agentrun.HELPERS): the
+# Planner (the plan), the Coder (writes code and its test), the Tester (the only one that runs code, in
+# the box: codebox.py), the Checker (quality and facts) and the Improver (only on work that passes; a
+# change is kept only if every test still passes). The five kinds built for 2.3 are "retired": an agent
+# made from one still shows, runs, and can be changed or deleted, but new agents are Joe-AiGent.
+ONE = "aigent"
 TEMPLATES = {
+    ONE: {
+        "name": "Joe-AiGent",
+        "blurb": "The one agent. Give him a whole job and go to bed: he makes a detailed plan, does it step by "
+                 "step with Joe's tools (looking things up, reading, writing, pictures, your ticked tools, and "
+                 "code that he tests in a sealed box), checks every point off, checks his own work, and leaves "
+                 "a report of what is done, what isn't and why.",
+        "hint": "e.g. Write a small Python program that turns my bank's CSV export into a monthly summary by "
+                "category, with tests. Or: research heat pumps for a 1,500 sq ft Michigan house and write me "
+                "a two-page comparison with sources and a cover picture.",
+        "actions": ["search", "read", "write", "tool", "code", "calendar", "list", "remind", "send", "propose"],
+        "tools": ["text", "image", "summarize", "rewrite", "proofread", "translate", "explain-letter",
+                  "read-scans", "read-aloud", "calendar-file", "pdf-tools"],
+        "abilities": ["lookups", "code", "phone", "files"],
+        "steps": 60, "minutes": 480, "watch": False,
+        "max_steps": 300, "max_minutes": 720, "points": 20, "code": True,
+    },
     "researcher": {
+        "retired": True,
         "name": "Researcher",
         "blurb": "A question in; several sources read online; an answer with its sources, every fact checked.",
         "hint": "e.g. What's the cheapest way to heat a 1,500 sq ft house in Michigan: heat pump, propane or wood?",
@@ -117,6 +161,7 @@ TEMPLATES = {
         "steps": 12, "minutes": 40, "watch": False,
     },
     "clerk": {
+        "retired": True,
         "name": "Paperwork clerk",
         "blurb": "Watches a folder: sorts, renames, summarizes, converts, explains letters. Asks before "
                  "changing a file; keeps an undo list.",
@@ -127,6 +172,7 @@ TEMPLATES = {
         "abilities": ["files"], "steps": 12, "minutes": 60, "watch": True,
     },
     "briefing": {
+        "retired": True,
         "name": "Daily briefing",
         "blurb": "On a schedule: news on your topics, the weather, a price, a page that changed. One digest "
                  "to your phone.",
@@ -136,6 +182,7 @@ TEMPLATES = {
         "steps": 12, "minutes": 30, "watch": False,
     },
     "maker": {
+        "retired": True,
         "name": "Maker",
         "blurb": "An idea carried through to finished pieces: the writing, the pictures or video, the exports.",
         "hint": "e.g. A short story for a 4-year-old about a dog who learns to swim, with 4 pictures and a "
@@ -145,6 +192,7 @@ TEMPLATES = {
         "abilities": ["lookups"], "steps": 14, "minutes": 90, "watch": False,
     },
     "assistant": {
+        "retired": True,
         "name": "Personal assistant",
         "blurb": "In Talk: reminders, lists, calendar entries, quick lookups, drafted replies, and starting the "
                  "other four. Drafts are safe; sending always asks.",
@@ -204,6 +252,8 @@ def get(key: str) -> dict | None:
     tpl = next((t for t, v in TEMPLATES.items() if k in (t, v["name"].lower())), "")
     if not tpl and k == "assistant":
         tpl = "assistant"
+    if not tpl and k.replace("-", " ") in ("joe aigent", "aigent", "joe agent", "joe ai gent", "joe", "agent", "joe ai"):
+        tpl = ONE
     return next((a for a in items if a.get("template") == tpl and not a.get("paused")), None) if tpl else None
 
 
@@ -245,7 +295,7 @@ def save(data: dict, sb=None) -> dict:
     if not tpl_id and cur:
         tpl_id = cur.get("template", "")
     if tpl_id not in TEMPLATES:
-        return {"ok": False, "error": "Pick what kind of agent this is (one of the five)."}
+        return {"ok": False, "error": "Pick what kind of agent this is."}
     tpl = TEMPLATES[tpl_id]
     if not name or not job:
         return {"ok": False, "error": "Give the agent a name and say its job in your own words."}
@@ -272,9 +322,12 @@ def save(data: dict, sb=None) -> dict:
                                           "before turning it on."}
         abilities[k] = True
     try:
-        steps = max(1, min(MAX_STEPS, int(data.get("steps") or tpl["steps"])))
-        minutes = max(5, min(MAX_MINUTES, int(data.get("minutes") or tpl["minutes"])))
+        steps = max(1, min(int(tpl.get("max_steps") or MAX_STEPS), int(data.get("steps") or tpl["steps"])))
+        minutes = max(5, min(int(tpl.get("max_minutes") or MAX_MINUTES), int(data.get("minutes") or tpl["minutes"])))
         max_fails = max(1, min(MAX_FAILS, int(data.get("max_fails") or DEFAULT_FAILS)))     # never without a limit
+        tries = max(1, min(MAX_TRIES, int(data.get("tries") or (cur or {}).get("tries") or DEFAULT_TRIES)))
+        improve = max(0, min(MAX_IMPROVE, int(data["improve"] if data.get("improve") not in (None, "")
+                                              else (cur or {}).get("improve", DEFAULT_IMPROVE))))
         days = sorted({int(d) for d in (data.get("days") or []) if 0 <= int(d) <= 6})
     except (TypeError, ValueError):
         return {"ok": False, "error": "The limits and days must be numbers."}
@@ -290,6 +343,8 @@ def save(data: dict, sb=None) -> dict:
         items.append(cur)
     cur.update({"name": name, "job": job, "template": tpl_id, "tools": tools, "steps": steps, "minutes": minutes,
                 "max_fails": max_fails, "start": start, "abilities": abilities, "acks": acks})
+    if tpl.get("code"):
+        cur.update({"tries": tries, "improve": improve})
     cur.pop("options", None)
     _save_all(items)
     if sb is not None and start["watch"]:

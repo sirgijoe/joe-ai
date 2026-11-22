@@ -26,6 +26,22 @@ about a goal, plans the steps, acts with tools and keeps going until the goal is
   6. A PLAIN LOG (AGENT LOG.txt) of everything Joe did, and the live status for the strip on every tab.
 
 Safety (tests/test_dev23_agent_engine.py has one test per rule): see agents.py and agentweb.py.
+
+2.4, JOE-AIGENT (agents.TEMPLATES["aigent"]): the same engine is the MANAGER. He is the only thing that
+stays on for the length of the job; he owns the plan, the state and every limit, and does the work
+himself with the actions above. He calls a HELPER only for what a helper is for (HELPERS below). A
+helper gets one task card, starts clean, gives back a result and holds nothing:
+  - Planner:  the plan (up to 20 points for a big job).
+  - Coder:    writes one small program for a task card, and fixes it when its test fails.
+  - Tester:   writes the test from the task card BEFORE there is any code, then runs it. The ONLY
+              helper that runs code, and only in the box (codebox.py). A task is done when its test
+              passes in the box; after the tries are used up the code is set aside, noted, and the
+              manager moves on (Joseph: skip, note it, move on).
+  - Checker:  the quality check and the fact check (points 5 above).
+  - Improver: runs last, only on code that passes. A change is kept only if every test still passes;
+              it stops after a round in which nothing was kept.
+Hand-offs are files in the run folder (Code/...), so the log is plain, a restart loses nothing, and a
+bigger AI can read it all in the morning (Code/ASK A BIGGER AI.md).
 """
 from __future__ import annotations
 
@@ -51,6 +67,17 @@ MAX_CLAIMS = 6
 #     or retries in one run, the run stops, the agent is paused and the phone is pinged (if pings are set up)
 NO_PROGRESS_STEPS = 6        # steps that worked but ticked no point of the plan, then it stops
 MAX_REMINDERS = 3            # reminders one run may make (never the same one twice)
+
+CODE_SECONDS = 60            # one test run in the box
+CODE_CHARS = 60_000          # of one code file the Coder may hand back
+HELPERS = {"planner": "Planner", "coder": "Coder", "tester": "Tester", "checker": "Checker", "improver": "Improver"}
+BOX_RULES = ("The code runs in a sealed box: Python standard library only (no pip packages), no network, no "
+             "other programs, no input() and no command-line arguments, files only in its own folder (relative "
+             "names), and it must finish in under a minute.")
+TESTER_SYS = "You are the Tester inside Joe's agent."
+CODER_SYS = "You are the Coder inside Joe's agent."
+IMPROVER_SYS = "You are the Improver inside Joe's agent."
+_FILE_MARK = re.compile(r"^=== ?FILE: ?([A-Za-z_][A-Za-z0-9_]*\.py) ?===\s*$", re.M)
 
 PLAN_SYS = "You make the plan for one of Joe's agents."
 PICK_SYS = "You are the planner inside one of Joe's agents."
@@ -81,6 +108,10 @@ ACTIONS = {
              '{"action": "list", "list": "<list name>", "things": "milk, eggs"}', ""),
     "calendar": ("make a calendar entry (.ics file) from the request",
                  '{"action": "calendar", "instruction": "<the date, time and what>"}', ""),
+    "code": ("write a small Python program and prove it works (the Coder writes it, the Tester tests it in a "
+             "sealed box; it only counts when its test passes)",
+             '{"action": "code", "name": "<a_short_file_name>", "instruction": "<exactly what the program must do: '
+             'its inputs, its outputs, and one example>"}', "code"),
     "start": ("start another of the owner's agents that exists",
               '{"action": "start", "agent": "<its name>", "request": "<what it should do this time>"}', ""),
 }
@@ -166,6 +197,8 @@ class Run:
         self.troubles = 0                              # failures, errors and retries so far in this run
         self.limit_hit = False
         self.started: set[str] = set()                 # other agents this run started (once each)
+        self.code: list[dict] = []                     # every piece of code: {"name", "status", "tests", "tries", ...}
+        self.max_points = max(1, min(int(self.tpl.get("points") or MAX_POINTS), 40))
         self.reminded: set[str] = set()
 
     # -- the plain log -----------------------------------------------------
@@ -226,15 +259,20 @@ class Run:
     def make_plan(self) -> None:
         d = None
         try:
-            d = self.ask(PLAN_SYS + " Break the owner's job into the 2 to 6 points that must each be done for "
-                         "the job to be finished, in order. Each point is one short sentence about a result, "
-                         'not a tool. Reply with ONLY JSON: {"points": ["...", "..."]}',
+            big = self.max_points > MAX_POINTS
+            d = self.ask(PLAN_SYS + " Break the owner's job into the " +
+                         (f"points (2 for a small job, up to {self.max_points} for a big one)" if big else "2 to 6 points") +
+                         " that must each be done for the job to be finished, in order. Each point is one short "
+                         "sentence about a result, not a tool." +
+                         (" A piece of code is its own point (one small program per point), and so is each "
+                          "document or picture." if big else "") +
+                         ' Reply with ONLY JSON: {"points": ["...", "..."]}',
                          f"The owner's job:\n{self.request}\n\nWhat this agent can do: " +
-                         "; ".join(ACTIONS[a][0] for a in self.actions), 300)
+                         "; ".join(ACTIONS[a][0] for a in self.actions), 900 if big else 300)
         except Exception as e:                         # noqa: BLE001
             self.log(f"  Couldn't make a plan with the model ({e}); the job itself is the plan.")
         pts = [" ".join(str(x).split())[:200] for x in ((d or {}).get("points") or []) if str(x).strip()]
-        self.plan = [{"point": p, "done": False} for p in pts[:MAX_POINTS]] or [{"point": " ".join(self.request.split())[:200], "done": False}]
+        self.plan = [{"point": p, "done": False} for p in pts[:self.max_points]] or [{"point": " ".join(self.request.split())[:200], "done": False}]
         self.log("Plan:\n" + self.plan_text())
         self.write_notes()
 
@@ -414,6 +452,222 @@ class Run:
                                     self.run_rel, self.job.name, title=str(step.get("title") or ""))
         return self._run_step(n, text, self.names.get(tool, tool))
 
+    # -- code: the Coder writes, the Tester tests in the box --------------------
+    def helper(self, system: str, user: str, tokens: int = 1800) -> str:
+        """One helper, one task card, a clean start: plain text back."""
+        r = self.engine.services.ollama.chat([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                                             model=getattr(self.engine, "text_model", None), max_tokens=tokens,
+                                             keep_alive="20m", think=False)
+        return r.text or ""
+
+    def _code_name(self, raw: str) -> str:
+        name = re.sub(r"\.py$", "", str(raw or "").strip().lower())
+        name = re.sub(r"[^a-z0-9_]+", "_", name).strip("_")[:40]
+        if not name or name[0].isdigit() or name.startswith("test"):
+            name = "program" if not name or name.startswith("test") else "p_" + name
+        from . import codebox
+        if name in codebox.RESERVED or codebox.shadows_python(name):     # never "json.py" or "random.py"
+            name += "_code"
+        taken = {c["name"] for c in self.code}
+        base, k = name, 2
+        while name in taken:
+            name, k = f"{base}_{k}", k + 1
+        return name
+
+    def _box(self, files: dict, test: str):
+        from . import codebox
+        left = self.deadline - time.monotonic()
+        return codebox.run(files, test, timeout=max(5.0, min(CODE_SECONDS, left)))
+
+    def do_code(self, n, step):
+        from .engine import Stopped
+        try:
+            return self._do_code(n, step)
+        except (Stopped, Stuck):
+            raise
+        except Exception as e:                         # noqa: BLE001 (the writing model went away mid-task)
+            item = self.code[-1] if self.code and self.code[-1].get("status") != "passes" else None
+            if item is None or item.get("files"):
+                raise
+            item["why"] = f"the writing model couldn't be reached ({str(e)[:120]})"
+            return self._code_result(n, item, "", "", None)
+
+    def _do_code(self, n, step):
+        from . import codebox
+        from .engine import Stopped
+        name = self._code_name(step.get("name"))
+        task = " ".join(str(step.get("instruction") or self.request).split())[:1500]
+        mod, test = f"{name}.py", f"test_{name}.py"
+        tries = max(1, min(agents.MAX_TRIES, int(self.agent.get("tries") or agents.DEFAULT_TRIES)))
+        card = (f"TASK CARD\nThe program file: {mod}\nWhat it must do: {task}\n\n{BOX_RULES}")
+        item = {"name": name, "task": task, "status": "set aside", "tests": 0, "tries": 0, "improved": 0,
+                "fence": [], "files": []}
+        self.code.append(item)
+        # 1. TEST FIRST: the Tester writes the test from the task card, before there is any code.
+        self.live(f"Tester: writing the test for {mod}", n)
+        test_text = clean_code(self.helper(
+            TESTER_SYS + " You write the test for a program that doesn't exist yet. Write ONLY the Python "
+            f"test file {test}: it starts with 'from {name} import ...', then 3 to 8 functions named "
+            "test_something() that check the task with plain assert lines (ordinary cases, an edge case, "
+            "wrong input). No pytest, no fixtures, no printing, no reading of files that the test didn't "
+            "write itself. " + BOX_RULES + " Reply with the file's contents only.", card))
+        if not codebox.has_real_test(test_text):
+            self.log(f"  Tester: the test for {mod} had no test in it; asked once more.")
+            test_text = clean_code(self.helper(
+                TESTER_SYS + f" Write ONLY the Python test file {test} for the task: 'from {name} import ...', "
+                "then functions named test_something() with assert lines. Reply with the file's contents only.", card))
+        if not codebox.has_real_test(test_text):
+            item["why"] = "the Tester couldn't write a test for it"
+            return self._code_result(n, item, "", test_text, None)
+        # 2. THE CODER writes; THE TESTER runs it in the box; the Coder fixes what failed. The test stays as it is.
+        code, res, feedback = "", None, ""
+        for k in range(1, tries + 1):
+            if self.engine.stop.is_set():
+                raise Stopped()
+            if time.monotonic() > self.deadline:
+                item["why"] = "the time ran out"
+                break
+            item["tries"] = k
+            self.live(f"Coder: writing {mod} (try {k} of {tries})", n)
+            ask = card + f"\n\nIt must pass this test ({test}):\n{test_text[:6000]}"
+            if feedback:
+                ask += (f"\n\nYour last version of {mod}:\n{code[:8000]}\n\nWhat the Tester's box said about "
+                        f"it:\n{feedback}\n\nFix {mod} so every test passes. Don't change what the task asks for.")
+            code = clean_code(self.helper(
+                CODER_SYS + f" You write ONE Python file, {mod}, that does the task card and passes the test. "
+                "Clear, plain code with short comments; functions the test can import; nothing runs when the "
+                "file is imported (put a demo under if __name__ == '__main__':). Reply with the file's "
+                "contents only: no explanation, no second file.", ask, 3000))[:CODE_CHARS]
+            if not code.strip():
+                feedback = "You sent no code."
+                continue
+            self.live(f"Tester: running {test} in the box (try {k} of {tries})", n)
+            res = self._box({mod: code, test: test_text}, test)
+            item["fence"] = res.fence or item["fence"]
+            self.log(f"  Code {mod}, try {k} of {tries}: {res.summary()}")
+            if res.passed:
+                item["status"], item["tests"] = "passes", res.counts[0]
+                break
+            feedback = res.failures() or res.why
+            item["why"] = res.why or "its test fails"
+        return self._code_result(n, item, code, test_text, res)
+
+    def _code_result(self, n: int, item: dict, code: str, test_text: str, res) -> dict:
+        """Hand-offs are files: what passed goes in Code/, what didn't in Code/not working/."""
+        name, ok = item["name"], item["status"] == "passes"
+        sub = self.folder / "Code" if ok else self.folder / "Code" / "not working"
+        made = []
+        try:
+            sub.mkdir(parents=True, exist_ok=True)
+            pairs = [(f"{name}.py", code), (f"test_{name}.py", test_text)]
+            if not ok:
+                said = (res.failures() if res is not None else "") or item.get("why", "")
+                pairs.append((f"{name} - what the test said.txt",
+                              f"{name}.py did not pass its test after {item['tries']} tries, so Joe set it aside.\n"
+                              f"Task: {item['task']}\n\n{said}\n"))
+            for fname, text in pairs:
+                if text and text.strip():
+                    atomic_write_text(sub / fname, text if text.endswith("\n") else text + "\n")
+                    made.append(str((sub / fname).relative_to(self.sb.output)).replace("\\", "/"))
+        except OSError as e:
+            self.log(f"  Couldn't save the code files ({e}).")
+        item["files"] = made
+        self.made += [m for m in made if m not in self.made]
+        if ok:
+            note = f"{name}.py passes its {item['tests']} test(s) in the box (try {item['tries']})"
+        else:
+            note = (f"{name}.py is NOT working: {item.get('why', 'its test fails')} (after {item['tries']} "
+                    f"tries); set aside in Code/not working, moving on")
+            self.troubles += 1                         # one trouble for the piece, however many tries it had
+        self.log(f"  {note}.")
+        return {"status": "done" if ok else "set aside", "note": note[:200], "what": f"code {name}.py", "made": made,
+                "ctx": f"Step {n}: code: {note}." + ("" if ok else " Don't write this same program again; go on with "
+                                                    "the other points.")}
+
+    def improve_code(self) -> None:
+        """THE IMPROVER: last, only on code that passes; a change is kept only if every test still passes;
+        it stops after a round in which nothing was kept."""
+        rounds = max(0, min(agents.MAX_IMPROVE, int(self.agent.get("improve", agents.DEFAULT_IMPROVE) or 0)))
+        good = [c for c in self.code if c["status"] == "passes"]
+        if not rounds or not good:
+            return
+        from .engine import Stopped
+        for r in range(1, rounds + 1):
+            kept = 0
+            for c in good:
+                if self.engine.stop.is_set():
+                    raise Stopped()
+                if self.deadline - time.monotonic() < 90:        # never start a round the time can't finish
+                    self.log("  Improver: not enough time left for another round.")
+                    return
+                mod, test = f"{c['name']}.py", f"test_{c['name']}.py"
+                try:
+                    code = (self.folder / "Code" / mod).read_text(encoding="utf-8")
+                    test_text = (self.folder / "Code" / test).read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                self.live(f"Improver: looking at {mod} (round {r} of {rounds})")
+                try:
+                    new = clean_code(self.helper(
+                        IMPROVER_SYS + f" You make ONE working Python file, {mod}, better without changing what it "
+                        "does: a real bug or a missed edge case fixed, clearer names and comments, simpler code. "
+                        "It must still pass the same test. " + BOX_RULES + " Reply with the whole improved file "
+                        "only. If it is already good, reply with the single word NOTHING.",
+                        f"The task: {c['task']}\n\n{mod}:\n{code[:8000]}\n\nIts test ({test}):\n{test_text[:5000]}", 3000))
+                except Exception as e:                 # noqa: BLE001 (the working version stays)
+                    self.log(f"  Improver: couldn't reach the writing model ({e}); the working code stays as it is.")
+                    return
+                if not new.strip() or new.strip().upper().startswith("NOTHING") or new.strip() == code.strip():
+                    continue
+                res = self._box({mod: new[:CODE_CHARS], test: test_text}, test)
+                if res.passed and res.counts[0] >= c["tests"]:
+                    atomic_write_text(self.folder / "Code" / mod, new if new.endswith("\n") else new + "\n")
+                    c["improved"] += 1
+                    kept += 1
+                    self.log(f"  Improver: a better {mod} still passes its {res.counts[0]} test(s); kept.")
+                else:
+                    self.log(f"  Improver: its change to {mod} broke a test ({res.summary()}); thrown away, "
+                             "the working version stays.")
+            if not kept:
+                self.log(f"  Improver: nothing worth keeping in round {r}; done.")
+                return
+
+    def bigger_ai_file(self) -> None:
+        """Code/ASK A BIGGER AI.md: one message to paste into any bigger AI, with every program and its test."""
+        if not self.code:
+            return
+        L = ["# Ask a bigger AI to check this code", "",
+             "Joe wrote and tested this code on your PC with a local AI model. A local model's code and its own "
+             "tests can both be wrong in the same way, so before you rely on it, paste everything below the line "
+             "into a bigger AI (Claude, ChatGPT, Gemini, Grok: whichever you use) and read what it says.", "", "---", "",
+             "Please review this Python code. It was written and tested by a small local AI model, so check it "
+             "carefully: (1) does each program do what its task says, (2) do the tests really check that, or would "
+             "they pass with wrong code, (3) bugs, missed edge cases, anything unsafe to run on a real PC "
+             "(deleting or overwriting files, for example). For the ones marked NOT WORKING, say what is wrong "
+             "and give a corrected version. Be specific: file name, line, what to change.", ""]
+        for c in self.code:
+            ok = c["status"] == "passes"
+            L += [f"## {c['name']}.py — " + (f"passes its {c['tests']} test(s)" if ok else "NOT WORKING (set aside)"), "",
+                  f"Task: {c['task']}", ""]
+            for rel in c["files"]:
+                p = self.sb.output / rel
+                if p.suffix != ".py" and ok:
+                    continue
+                try:
+                    text = p.read_text(encoding="utf-8")
+                except OSError:
+                    continue
+                fence = "```python" if p.suffix == ".py" else "```"
+                L += [f"### {p.name}", "", fence, text.rstrip()[:20000], "```", ""]
+        try:
+            (self.folder / "Code").mkdir(parents=True, exist_ok=True)
+            atomic_write_text(self.folder / "Code" / "ASK A BIGGER AI.md", "\n".join(L) + "\n")
+            rel = str((self.folder / "Code" / "ASK A BIGGER AI.md").relative_to(self.sb.output)).replace("\\", "/")
+            if rel not in self.made:
+                self.made.append(rel)
+        except OSError:
+            pass
+
     def do_calendar(self, n, step):
         return self._run_step(n, agents._step_mission(self.agent, n, "calendar-file", [], [], str(step.get("instruction") or self.request),
                                                       self.run_rel, self.job.name, title="Calendar"), "calendar entry") \
@@ -528,6 +782,9 @@ class Run:
         found = [f"- searched '{s['query']}' ({len(s['results'])} results)" for s in self.web.searches]
         found += [f"- read [S{s['n']}] {s['title']}" for s in self.sources.values() if s["url"] in self.web.pages]
         found += [f"- {x['what']}: {x['status']} ({x['note'][:120]})" for x in self.steps if x["action"] in ("send", "remind", "list", "start", "propose")]
+        found += [f"- code {c['name']}.py: " + (f"WORKS, it passes its {c['tests']} test(s) in the box" if c["status"] == "passes"
+                                               else "does NOT work (set aside after " + str(c["tries"]) + " tries)")
+                  for c in self.code]
         ex = agents._excerpt(self.sb, [m for m in self.made if m.lower().endswith((".md", ".txt", ".csv"))][-3:])
         d = None
         try:
@@ -660,7 +917,10 @@ class Run:
         self.timecut = TimeCut(orig)
         self.engine.stop = self.timecut
         try:
-            return self._go()
+            stuck = self._go()
+            if not stuck and self.code:
+                self.improve_code()                    # the Improver runs last, and only when the job is done
+            return stuck
         finally:
             self.engine.stop = orig
 
@@ -843,14 +1103,43 @@ class Run:
                 L.append("")
                 L.append(f"Only Wikipedia was searched ({self._why_only_wikipedia()}), so 'not found' often just "
                          "means Wikipedia doesn't cover it.")
+        if self.code:
+            from . import codebox
+            good = [c for c in self.code if c["status"] == "passes"]
+            L += ["", "## Code", "",
+                  f"{len(good)} of {len(self.code)} program(s) pass their tests. Every test ran in the box, never on "
+                  "your PC itself (the box for this run: " +
+                  codebox.describe(next((c["fence"] for c in self.code if c["fence"]), [])) + ").", ""]
+            for c in self.code:
+                if c["status"] == "passes":
+                    L.append(f"- WORKS: Code/{c['name']}.py passes its {c['tests']} test(s) (try {c['tries']}"
+                             + (f", then improved {c['improved']} time(s), tests still passing" if c["improved"] else "") + ").")
+                else:
+                    L.append(f"- [CHECK] NOT WORKING: {c['name']}.py, {c.get('why', 'its test fails')} after {c['tries']} "
+                             f"tries. Set aside in Code/not working, with what the test said.")
+            L += ["", "A passing test means the code did what ITS OWN test asked, in the box. The test was written by "
+                  "the same local model, so read the code or have a bigger AI check it before you run it on anything "
+                  "that matters: Code/ASK A BIGGER AI.md is a ready message with every program and test in it."]
         if self.proposed:
             L += ["", "## Waiting for your OK", "", f"{len(self.proposed)} suggested name(s) or folder(s): see PROPOSED "
                   "CHANGES.md. Nothing has changed yet. Tools > AGENTS > APPLY does them (it asks first; UNDO puts them back)."]
         L += ["", f"Files made: {len(self.made)}. Nothing was deleted; everything is in this folder. "
                   "AGENT LOG.txt lists every step Joe took.", ""]
+        self.bigger_ai_file()
         rep = self.folder / "AGENT REPORT.md"
         atomic_write_text(rep, "\n".join(L))
         return rep
+
+
+def clean_code(text: str) -> str:
+    """The file a helper handed back: without the ``` fence or a '=== FILE: ===' line around it, and
+    without chat before or after a fenced block."""
+    text = (text or "").replace("\r\n", "\n")
+    m = re.search(r"```(?:python|py)?[ \t]*\n(.*?)(?:\n```|\Z)", text, re.S | re.I)
+    if m:
+        text = m.group(1)
+    text = _FILE_MARK.sub("", text)
+    return text.strip("\n") + ("\n" if text.strip() else "")
 
 
 def clean_target(to: str, ext: str) -> str:
@@ -926,7 +1215,11 @@ def run(engine, mission, job, st):
     st.status = "failed" if (stuck and not r.made) or (failed_all and not r.made) else ("partial" if stuck else "done")
     if stuck and not r.made and r.steps and any(x["status"] == "done" for x in r.steps):
         st.status = "partial"
-    st.note = (f"I got stuck: {stuck}" if stuck else f"{len(r.made)} file(s) made") + f" (see {report.name})"
+    st.note = (f"I got stuck: {stuck}" if stuck else f"{len(r.made)} file(s) made") + \
+        (f"; code: {sum(c['status'] == 'passes' for c in r.code)} of {len(r.code)} program(s) pass their tests" if r.code else "") + \
+        f" (see {report.name})"
+    if st.status == "done" and any(c["status"] != "passes" for c in r.code):
+        st.status = "partial"                           # a program that never passed is never called done
     st.items = len(r.made)
     st.titles = [Path(m).name for m in r.made[:200]]
     st.finished = datetime.now().isoformat(timespec="seconds")

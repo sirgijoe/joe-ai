@@ -202,6 +202,16 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       - **Search sources** (`websearch.py`): only the search words go to each source; sources are off
         until ticked (default list = the old Ollama-then-Wikipedia); a refused key / 429 / failure rests the
         source; per-task cap; results are data (`as_context`). `tests/test_lookups.py`.
+      - **LangSearch and "your own search source"** (`websearch.py`, 2026-11-15; NOT YET REVIEWED): two more
+        sources, off until ticked. LangSearch: search words + its key to `api.langsearch.com` only. Own
+        source: the address the person typed (http(s) only, no user:pw, may be on the home network like
+        SearXNG), `{query}` percent-encoded into the address or JSON-escaped into the posted body; the key
+        goes only to that address (header name limited to letters, digits and `-`; `{key}` in the address is
+        percent-encoded); result links must be http(s). Both keys are in `vault.SECRETS`, `backup.KEY_PATHS`,
+        blanked on a portable copy, kept on reset. `tests/test_more_sources.py`.
+      - **SearXNG help** (`searxng.py`): `make_folder` writes only `<Joe folder>/SearXNG/config/settings.yml`
+        (never over an existing file) and makes `data/`; Joe never runs Docker, he only shows the command
+        (bound to 127.0.0.1). `check` asks only the address in the box. `tests/test_searxng_setup.py`.
       - **Page reader** (`pagereader.py`, used only when "read whole result pages" is on): http(s) only, no
         user:pw, usual ports only (80/443/8080/8443), names like localhost/*.local/one-word refused, number
         tricks (127.1, 0x7f.1, 2130706433) refused, every resolved address must be public, Joe connects to
@@ -211,6 +221,35 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         no cookies/Referer/auth sent, never raises. Ollama's web_fetch never gets a home address either.
         `tests/test_pagereader.py`. Try: IPv6 tricks, DNS rebinding, redirect chains, slow drips, a huge
         page, a page that pretends to be HTML but is a program.
+      - **The Tester's box** (`codebox.py`, 2026-11-21; NOT YET REVIEWED): the only place code Joe wrote is
+        run (Joe-AiGent's "code" action, `agentrun.do_code`; ability "code", off until its screen is OK'd).
+        A second Python (`-I -S -B`) per test run: files written to a fresh temp folder outside the Joe
+        folder (plain names only, text only), deleted after; bare environment (no keys, no PATH, HOME/TEMP
+        = the box); an audit hook installed before any task code loads (refuses: opening/changing anything
+        outside the box except reading Python's own library, every `socket.*`/`http.client`/`urllib`
+        event, `subprocess`/`os.system`/`os.exec*`/`os.spawn*`/`os.fork`/`_winapi.CreateProcess`,
+        `ctypes.*`, `winreg.*`, `os.kill`, `mmap`, `fcntl`, raising its own limits); rlimits (memory, CPU,
+        file size) on Linux/Mac; a Windows Job Object (memory, one process, kill-on-close); wall-clock
+        timeout that kills the process group; output cap; Linux `unshare --user --net` / Mac
+        `sandbox-exec (deny network*)` when they work. The verdict line carries a one-time word sent on
+        stdin, so task code can't print its own verdict. KNOWN LIMIT, said in the guide and on the
+        ability's screen: an audit hook is not a security boundary against code written to escape (C
+        extension tricks, bugs in CPython); it is a fence against wrong code. A WebAssembly box is the
+        planned real boundary. `tests/test_codebox.py` tries each fence with real forbidden code;
+        `tests/test_aigent.py::test_code_runs_only_in_the_box`. Try: escapes through `gc`/frames/`pickle`,
+        `os.open` flag tricks, symlinks made inside the box pointing out, `shutil` paths, huge output, fork
+        bombs via threads, reading other users' files through Python's library folders, Windows-only paths
+        (`\\?\`, short names, drive-relative), the Job Object on a PC where Joe already runs in a job.
+      - **Wake word** (`ui/app.js` wakeSplit, 2026-11-21; NOT YET REVIEWED): off unless ticked. The open mic
+        then stays on outside Talk; each utterance goes through the same local `/api/voice/listen` (the
+        recording file is deleted as before; with `X-Joe-Wake` no mic levels are logged) and is dropped in
+        the page unless it starts with the wake words. Nothing is shown, kept or sent for dropped speech.
+        `tests/test_wake_word.py`. Try: a wake phrase inside a played video, very long wake words.
+      - **Preview copies** (`thumbs.py`, `/thumb`): the path goes through the same `app.rel_path` sandbox
+        check as `/raw`; FFmpeg (guarded: local files only) writes a 320 px JPEG into the temp folder
+        `joe-ai-previews` (0700), named by a hash; never into the Joe folder. The BIG WINDOW (`/player`)
+        now carries one inline script behind a per-page nonce (`script-src 'nonce-...'`), only when the
+        folder has more than one picture; file names are escaped. `tests/test_dev2_3_28.py`.
       - **Search add-ons** (`community.py` "search"): program is joe:python or env:python only (no other
         programs), first arg must be the add-on's own script, no `..`, only `{addon}` filled in; the
         search words go on stdin as JSON, never on the command line; bare environment (no keys, no JOE_*

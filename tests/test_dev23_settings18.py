@@ -39,5 +39,6 @@ def test_animagine_score_tags():
 
 
 def test_watercolor_trigger_and_wan_high():
-    assert _looks("watercolor")["trigger"] == "Watercolor, Watercolor on textured paper"
+    # the trigger phrase was never checked against a real watercolor add-on file: taken out again (agreed 2026-11-13)
+    assert "trigger" not in _looks("watercolor")
     assert "VideoPlan((1280, 704), 121, 40, 5.0, False)" in Path(quality.__file__).read_text("utf-8")

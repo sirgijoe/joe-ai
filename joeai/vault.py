@@ -34,7 +34,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-SECRETS = (("web", "ollama_key"), ("mcp_key",), ("ollama", "engine_key"), ("comfort", "ntfy_topic"))
+SECRETS = (("web", "ollama_key"), ("web", "langsearch_key"), ("web", "custom_key"), ("mcp_key",), ("ollama", "engine_key"), ("comfort", "ntfy_topic"))
 SERVICE = "joe-ai"
 LABELS = {"dpapi": "Windows' protected storage (DPAPI, locked to your Windows sign-in)",
           "keychain": "the Mac Keychain",

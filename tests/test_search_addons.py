@@ -84,7 +84,7 @@ def test_off_until_turned_on_and_ticked(ws):
     assert "addon:my-search" in websearch.all_providers(s)                  # on: listed in Setup...
     rows = {r["id"]: r for r in websearch.providers_for_setup(s)}
     assert not rows["addon:my-search"]["on"]                                 # ...but not ticked
-    assert websearch.order(s) == ["ollama", "wikipedia"]
+    assert websearch.order(s) == ["wikipedia"]
 
 
 def test_the_program_gets_only_the_words_and_a_bare_room(ws, monkeypatch):
@@ -97,7 +97,7 @@ def test_the_program_gets_only_the_words_and_a_bare_room(ws, monkeypatch):
     s.web.providers = "addon:my-search,wikipedia"
     s.web.ollama_key = "secret-3"
     f = websearch.find("cone 6 glaze", s, 4)
-    assert f.source == "addon:my-search" and f.label == "My search" and f.via() == "Found with My search."
+    assert f.source == "addon:my-search" and f.label == "My search (add-on)" and f.via() == "Found with My search (add-on)."
     assert [r.url for r in f] == ["https://example.org/a"]                     # file: and javascript: dropped
     assert f[0].title == "You asked: cone 6 glaze" and "n=4 env= " in f[0].text
     assert "secret" not in f[0].text and str(sb.root) not in f[0].text.split("cwd=")[1]

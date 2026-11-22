@@ -63,6 +63,31 @@ function look(ui, vars) {                       // same look as the main window
   if (ui.easy_read) document.body.style.setProperty("--font", '"Atkinson Hyperlegible", system-ui, sans-serif');
 }
 let wasLive = false, lastName = "", lastKey = "", lastLook = "", lastDraw = "", lastT0 = 0, stopAsked = false, ended = null;
+/* Joe's face (ui/joe.js, the picture from Talk; the same on / still / off switch as Talk's). Thinking while he
+   plans or picks a step, plain while a step or a helper works, happy on a pass or when he's done, worried on
+   a fail or when he's stuck. It is aria-hidden: the status line and the polite line carry the news. */
+let faceThinking = false, faceLastStep = "";
+const hasFace = typeof JoeFace !== "undefined";
+async function faceStart() {
+  if (!hasFace) return;
+  let mode = "on";
+  try { mode = ((await api("/api/voice/status")).settings || {}).face || "on"; } catch (e) { /* the moving face */ }
+  const el = $("#aw-sprite");
+  el.hidden = mode === "off";
+  JoeFace.attach(el, mode);
+  JoeFace.watch(() => ({ audio: null, busy: faceThinking, listening: false, sleepy: false }));
+}
+function faceFor(lv, attention) {
+  if (!hasFace) return;
+  faceThinking = !attention && /plan|picking|checkpoint|checking|Planner|Checker/i.test(lv.doing || "");
+  const st = lv.steps || [], last = st.length ? st[st.length - 1] : "";
+  if (last && last !== faceLastStep) {                      // one look per finished step
+    faceLastStep = last;
+    if (/NOT working|failed|set aside|cut off/i.test(last)) JoeFace.mood("worried");
+    else if (/passes its|: done/i.test(last)) JoeFace.mood("happy");
+  }
+  if (attention) JoeFace.mood("worried");
+}
 function say(t) { $("#aw-live").textContent = t; }       // the polite line: step changes, finish, stuck only
 function list(el, items, mark) {
   el.innerHTML = "";
@@ -91,6 +116,7 @@ function showLive(lv, attention) {
   }
   const key = attention ? "attn" : lv.step + "|" + done;
   if (key !== lastKey) { lastKey = key; say(doing); }
+  faceFor(lv, attention);
 }
 async function findEnd(name, t0) {              // how the run ended: done, stuck, stopped, or not known
   let run = null;
@@ -119,6 +145,8 @@ function showEnd() {
   }
   else if (run.status === "stopped") { h = tr("STOPPED"); text = tr("It was stopped. What it did so far is kept, with its report (see Files, F7)."); }
   else { h = tr("STUCK"); text = dot((run.note || tr("It got stuck.")).replace(/\s*\(see [^)]*\)?\s*$/, "")) + " " + tr("Open the report in Files (F7) to see why and what would help."); }
+  faceThinking = false;
+  if (hasFace) JoeFace.mood(run && run.status === "done" ? "happy" : "worried");
   $("#aw-end-h").textContent = h; $("#aw-end-text").textContent = text;
   $("#aw-status").textContent = `${name}: ${h}.`;
   return `${name}: ${h}. ${text}`;
@@ -173,4 +201,4 @@ document.addEventListener("keydown", (ev) => {
     ev.preventDefault(); b[(i + (ev.shiftKey ? b.length - 1 : 1)) % b.length].focus();
   }
 });
-tick(); setInterval(tick, 1500);
+faceStart(); tick(); setInterval(tick, 1500);

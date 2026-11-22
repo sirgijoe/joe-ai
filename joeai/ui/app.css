@@ -762,4 +762,10 @@ body.modern .agentstrip { border-radius: var(--radius); border-color: var(--line
 .aw-confirm[hidden] { display: none; }
 .aw-confirm-box { background: var(--bg, #000); border: 2px solid var(--ph, #39ff6a); padding: 14px; max-width: 24em; }
 .aw-sprite[hidden] { display: none; }
+/* Joe-AiGent: the heading keeps its own capitals (headings are otherwise shown in capitals). */
+.aigent-name { text-transform: none; letter-spacing: 0; }
+.aw-sprite.joeface { float: right; width: clamp(72px, 26vw, 130px); margin: 0 0 6px 10px; flex: none; }
+/* The progress bar stops short of Joe's face instead of running under it (it was 100% wide, which ignores the
+   picture floated beside it). With the face off the bar is full width as before. */
+.aw-sprite.joeface:not([hidden]) ~ .aw-bar { width: auto; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .aw * { transition: none !important; animation: none !important; } }
