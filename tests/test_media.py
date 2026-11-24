@@ -439,3 +439,19 @@ def test_story_pictures_prefer_flux2(env):
     e = Engine(s, sb, log=lambda x: None)
     e._mission = m
     assert e._story_source(m.jobs[1]) and not e._story_source(m.jobs[0])
+
+
+def test_a_kids_picture_never_asks_for_nudity_and_the_record_says_so(env):
+    """2026-11-24 safety check: a kids' task that says "nude" used to send that word to the picture model
+    (only the picture check after it caught the result). Now the word is gone before drawing, and
+    _prompts.md / _media.json show the prompt that was really used."""
+    s, sb, fo, fc = env
+    m = parse("TASK: Study  SAVE: art/study  TYPE: image  PROMPTS: as written\n"
+              "STYLE: painting\nFORMAT: a figure study for my 5th grade art class\n"
+              "PART: an artistic nude figure study of an adult woman, topless, for my 5th grade art class")
+    st = Engine(s, sb, log=lambda x: None).run_mission(m)[0]
+    pos = fc.graphs[-1]["6"]["inputs"]["text"].lower()
+    assert "nude" not in pos and "topless" not in pos and "fully clothed" in pos
+    folder = sb.output / "art" / "study"
+    assert "nude" not in (folder / "_prompts.md").read_text(encoding="utf-8").lower()
+    assert st.prompts and "nude" not in st.prompts[0]["prompt"].lower()

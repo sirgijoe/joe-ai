@@ -1361,6 +1361,10 @@ class Engine:
         st.prompts_ready = True
         st.parts_total = len(st.prompts)
         st.parts_done = 0
+        if job.type == "image" and self._for_kids(mission, job):     # the record shows what is really drawn
+            for p in st.prompts:
+                p["prompt"] = styles_mod.kid_safe(p["prompt"])
+                p["title"] = styles_mod.kid_safe(p["title"]) or "Picture"
         lines = [f"# {job.name} — image prompts", "", media_mod.AI_NOTE, ""]
         for i, p in enumerate(st.prompts, 1):
             lines += [f"## {i:03d}. {p['title']}", "", p["prompt"], ""]
@@ -1923,9 +1927,12 @@ class Engine:
                     except OSError:
                         pass
                 st.media_files = [m for m in st.media_files if not m.endswith("/" + fn)]
-            why = " ".join(str(o.get("why", "")).split())[:80] or "not right for children"
-            st.flags.append({"item": name, "flag": f"[CHECK] held back from the kids' pages ({why}): "
-                                                   f"it's in '{KIDS_HELD}', not in the book."})
+            why = " ".join(str(o.get("why", "")).split())
+            if len(why) > 160:                                   # whole words only, never "partially ex"
+                why = why[:160].rsplit(" ", 1)[0] + "..."
+            why = why.rstrip(" .") or "not right for children"
+            st.flags.append({"item": name, "flag": f"[CHECK] held back from the kids' pictures ({why}): "
+                                                   f"it's in '{KIDS_HELD}', kept apart from the others."})
         self.log(f"  Kids' safety check: {len(names)} picture(s) looked at, {bad} held back"
                  + (f" (in {KIDS_HELD})" if bad else "") + ".")
 

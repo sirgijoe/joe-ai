@@ -249,3 +249,20 @@ def test_a_kids_picture_prompt_loses_every_nudity_word():
     assert "seductive" not in styles.kid_safe("A Seductive mermaid, Erotic pose").lower()
     assert styles.kid_safe("a mermaid, (nude, sexy:1.2), starfish") == "a mermaid, starfish"          # weighted groups
     assert styles.kid_safe("(masterpiece, nude:1.2), a girl reading") == "(masterpiece), a girl reading"
+
+
+
+def test_a_held_back_kids_picture_says_why_in_whole_words(tmp_path, monkeypatch):
+    from joeai import engine as eng, tools
+    (tmp_path / "001_study.png").write_bytes(b"x")
+    why = "The image depicts a woman in a dark, flowing garment with her chest partially exposed by a deep neckline"
+    monkeypatch.setattr(tools, "find_vision_model", lambda e: "qwen2.5vl:7b")
+    monkeypatch.setattr(tools, "picture_b64", lambda ff, f, tmp, n: "x")
+    monkeypatch.setattr(tools, "_look", lambda *a: {"unsafe": True, "why": why})
+    import joeai.doctor as doctor
+    monkeypatch.setattr(doctor, "ffmpeg_exe", lambda c="": None)
+    me = NS(services=NS(handoff=lambda k: True), meta=tmp_path, s=NS(comfy=NS(ffmpeg="")), log=lambda m: None)
+    st = NS(flags=[], media_files=["b/001_study.png"])
+    eng.Engine._kids_check(me, NS(name="Study", job_id="j"), st, tmp_path, ["001_study.png"])
+    flag = st.flags[0]["flag"]
+    assert "partially exposed" in flag and "not in the book" not in flag and "kept apart from the others" in flag
