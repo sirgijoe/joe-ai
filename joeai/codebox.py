@@ -273,6 +273,10 @@ def _main():
         sqlite3.connect = sqlite3.dbapi2.connect = connect
     # shutil.rmtree works through folder handles where it can; the guard refuses those, so it works by name
     shutil._use_fd_functions = False
+    # Python 3.14 picks its way once, when shutil loads (shutil._rmtree_impl), so the switch above no longer
+    # reaches it there: tempfile's own clean-up and shutil.rmtree were refused inside the box on Linux and Mac
+    if hasattr(shutil, "_rmtree_impl") and hasattr(shutil, "_rmtree_unsafe"):
+        shutil._rmtree_impl = shutil._rmtree_unsafe
     NEVER_RAN = ("this test never ran: it is async or a generator (it has 'yield' in it), and the box runs "
                  "plain tests only. Write it as a plain 'def test_...():'")
     def never_runs(fn):

@@ -12,6 +12,15 @@ from joeai.config import Settings
 
 from fake_search import FakeWeb
 
+
+def _only_here(pretend, real):
+    """A pretend socket function for THIS test's own thread only. A background thread another test left
+    running (Joe's own status check asks 127.0.0.1 every few seconds) gets the real one, so it can't
+    show up in what a test here counts. (Seen on GitHub: Windows, Python 3.12, 2026-11-23.)"""
+    import threading
+    me = threading.get_ident()
+    return lambda *a, **k: pretend(*a, **k) if threading.get_ident() == me else real(*a, **k)
+
 PAGE = """<!doctype html><html><head><title>Cone 6 &amp; you</title>
 <script>document.write('SECRET SCRIPT TEXT'); fetch('http://192.168.1.1/')</script>
 <style>body{color:red} .x:before{content:'STYLE TEXT'}</style></head>
@@ -143,9 +152,10 @@ def test_refuses_a_name_that_points_home(monkeypatch):
         table = {"evil.example": ["93.184.216.34", "192.168.1.10"],          # one public, one at home
                  "home.example": ["10.1.2.3"], "v6.example": ["::1"]}
         return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port)) for ip in table[host]]
-    monkeypatch.setattr(socket, "getaddrinfo", fake)
+    monkeypatch.setattr(socket, "getaddrinfo", _only_here(fake, socket.getaddrinfo))
     connected = []
-    monkeypatch.setattr(socket, "create_connection", lambda *a, **k: connected.append(a) or 1 / 0)
+    monkeypatch.setattr(socket, "create_connection",
+                        _only_here(lambda *a, **k: connected.append(a) or 1 / 0, socket.create_connection))
     for host in ("evil.example", "home.example", "v6.example"):
         assert pr.read(f"http://{host}/") is None and "home network" in pr.last_refusal
     assert connected == []                                                 # never even knocked
@@ -155,8 +165,8 @@ def test_connects_to_the_address_it_checked(monkeypatch):
     """A name that changes between the check and the connection (DNS rebinding) can't win: Joe
     connects to the checked address, and checks the connection itself too."""
     answers = iter([["93.184.216.34"], ["127.0.0.1"]])
-    monkeypatch.setattr(socket, "getaddrinfo", lambda host, port, *a, **k: [
-        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port)) for ip in next(answers)])
+    monkeypatch.setattr(socket, "getaddrinfo", _only_here(lambda host, port, *a, **k: [
+        (socket.AF_INET, socket.SOCK_STREAM, 6, "", (ip, port)) for ip in next(answers)], socket.getaddrinfo))
     seen = []
 
     class Sock:
@@ -165,7 +175,8 @@ def test_connects_to_the_address_it_checked(monkeypatch):
 
         def close(self):
             seen.append("closed")
-    monkeypatch.setattr(socket, "create_connection", lambda addr, *a, **k: seen.append(addr[0]) or Sock())
+    monkeypatch.setattr(socket, "create_connection",
+                        _only_here(lambda addr, *a, **k: seen.append(addr[0]) or Sock(), socket.create_connection))
     assert pr.read("http://flip.example/") is None
     assert seen == ["93.184.216.34", "closed"] and "reached this PC" in pr.last_refusal
 
