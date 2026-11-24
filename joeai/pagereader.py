@@ -353,6 +353,6 @@ def extract(page: str) -> tuple[str, str]:
 
 
 def _tidy(t: str) -> str:
-    t = re.sub(r"[\x00-\x08\x0b-\x1f\x7f​-‏‪-‮⁦-⁩]", " ", t)
+    t = re.sub(r"[\x00-\x08\x0b-\x1f\x7f\u200b-\u200f\u202a-\u202e\u2066-\u2069]", " ", t)
     lines = [re.sub(r"[ \t\xa0]+", " ", ln).strip() for ln in t.split("\n")]
     return re.sub(r"\n{3,}", "\n\n", "\n".join(ln for ln in lines if ln) if lines else "").strip()

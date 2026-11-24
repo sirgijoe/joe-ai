@@ -322,8 +322,11 @@ def _search_words(app, history, text, model, typed_only, before, different) -> s
     msgs.append({"role": "user", "content": text[:600] + (
         f"\n\n[The search for \"{different[:120]}\" didn't find it. Reply with ONLY DIFFERENT search words for this.]"
         if different else "\n\n[Reply with ONLY the search words for this.]")})
+    from .ollama import DECIDE_TEMP                  # search words are picked out, not written
+
     try:
-        r = app.services.ollama.chat(msgs, model=model, max_tokens=WORDS_TOKENS, keep_alive="20m", think=False)
+        r = app.services.ollama.chat(msgs, model=model, max_tokens=WORDS_TOKENS, keep_alive="20m", think=False,
+                                     temperature=DECIDE_TEMP)
     except Exception:                            # noqa: BLE001 (the model is busy or gone: Joe's own words)
         return plain
     return _model_words(getattr(r, "text", "")) or plain

@@ -58,7 +58,22 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 - [ ] Size limits: very large CHUNKS, VARIANTS, video counts or file lists (disk-space check is
       `system.room_problem`; is there an upper bound on work?).
 - [ ] MCP (`mcp.py`): which tools can an MCP app call (queue, run tools on Inbox files, read
-      Output files, stop)? `_inside_output()` must keep reads inside Output.
+      Output files, stop)? Two kinds of reads, with different reach:
+      - `joe_read_file` (and `joe_list_files`): Output only, through `_inside_output()`, never a
+        folder whose name starts with a dot (`Output/.joe` = chats and run state); text types only;
+        at most 200,000 characters (`MAX_READ`).
+      - `joe_shrink` / `joe_summarize` (`_shrink_source`): Output only while `Settings.mcp_folders`
+        is off (the default; checked on the resolved path, so a link in Output to the Inbox is
+        refused too, before any model is asked). When the person ticks Setup > Other AI apps > "Apps
+        connected to Joe may read my Inbox and other folders", also Inbox, Projects, Missions,
+        Workflows and Themes (`Sandbox.resolve`, so the person's own dropped files in Inbox are
+        readable). The setting changes only through the window's `/api/settings` route (window
+        token); the phone, the connector and missions have no way to set it, and Setup > Reset turns
+        it off. Never a folder whose name starts with a dot
+        (`check_not_private`); text types only (`SHRINK_EXT`); `joe_shrink` returns at most
+        20,000 characters a call whatever `max_chars` says (`MAX_SHRINK`). `joe_summarize` sends
+        the shrunk text only to Joe's model server when it is on this PC (`shrink.is_local`), and
+        returns the answer with the line numbers it came from.
 - [ ] `connect.py` edits other apps' config files (Claude Desktop and others): it keeps a copy
       of the old file and only touches Joe's own entry. Check the JSON merge and the backup.
 
@@ -69,8 +84,10 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
 - [ ] **Joe's own updates** (`update.py`): `download()` refuses a file without a matching line in
       `SHA256SUMS.txt`; `sign.py` (pure-Python Ed25519) verifies that file once
       `joeai.SIGN_PUBLIC_KEY` is set (it is, since 2.1): an update without a matching
-      signature is refused. The signature covers the checksum list, not the version number
-      (an old signed release could be offered again). Windows Authenticode isn't done yet.
+      signature is refused. The signed list also carries the version (`release.yml` adds
+      `# joe-ai version X` before signing; `update.listed_version` reads it back): Joe installs it
+      only when that version is the one offered and newer than his own, so an older signed release
+      can't be offered as new. Windows Authenticode isn't done yet.
 - [ ] **Third-party files are not pinned:** uv, whisper.cpp and some others use `releases/latest`;
       the Kokoro voice files and the picture/video model packs are fetched by URL without a
       fixed hash. Is pinning a version + SHA-256 worth it (at the cost of manual bumps)?
@@ -229,7 +246,12 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         outside the box except reading Python's own library, every `socket.*`/`http.client`/`urllib`
         event, `subprocess`/`os.system`/`os.exec*`/`os.spawn*`/`os.fork`/`_winapi.CreateProcess`,
         `ctypes.*`, `winreg.*`, `os.kill`, `mmap`, `fcntl`, raising its own limits); rlimits (memory, CPU,
-        file size) on Linux/Mac; a Windows Job Object (memory, one process, kill-on-close); wall-clock
+        file size) on Linux/Mac, EXCEPT memory on a Mac: macOS doesn't keep to the memory rlimit (found on
+        GitHub's Mac run, 2026-11-22), so there `codebox.MemoryWatch` reads the box's process group with
+        `ps` ten times a second from Joe's side and kills the group when it is over (NOT YET REVIEWED, and
+        first proven on GitHub's Mac: a watch is slower than a limit, a quick grab can pass between two
+        looks; no `ps` = no watch and the fence list doesn't claim one); a Windows Job Object (memory,
+        one process, kill-on-close); wall-clock
         timeout that kills the process group; output cap; Linux `unshare --user --net` / Mac
         `sandbox-exec (deny network*)` when they work. The verdict line carries a one-time word sent on
         stdin, so task code can't print its own verdict. KNOWN LIMIT, said in the guide and on the
@@ -240,11 +262,62 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         `os.open` flag tricks, symlinks made inside the box pointing out, `shutil` paths, huge output, fork
         bombs via threads, reading other users' files through Python's library folders, Windows-only paths
         (`\\?\`, short names, drive-relative), the Job Object on a PC where Joe already runs in a job.
+      - **The Tester's box, AFTER THE INDEPENDENT REVIEW of 2026-11-22** (an Opus helper starting cold; 19 findings,
+        the box ones fixed the same day; the fixes themselves are NOT YET REVIEWED). As the code is now: a guard
+        inside the box's Python refuses reading outside the box and Python's own library; writing, deleting or
+        renaming outside the box (the library included); changing folder outside the box; folder handles (dir_fd);
+        SQLite reaching outside (ATTACH, VACUUM INTO, "file:" names, extensions); named pipes; network; other
+        programs; ctypes; the Windows registry. Limits: time (every system); memory (rlimit on Linux, Job Object on
+        Windows, a watch from outside ten times a second on a Mac, no longer claimed if "ps" stops answering);
+        20 MB a file (Linux and Mac only); 200 MB / 5000 files in all, looked at from outside four times a second on
+        every system (a fast writer gets a quarter second's writing past it); output: the box is stopped past 6 MB
+        printed and Joe never holds more than 3 MB of it. Exiting while loading, async or generator tests and
+        exiting with no verdict are failures, never passes. Old box folders are swept after a day.
+        NOT COVERED (code written on purpose to get out): faking the verdict through frames / gc, changing the
+        guard's insides, posix._exit / posix.mkfifo / _sqlite3 called directly, undoing SQLite's fence on its own
+        connection, os.stat seeing whether outside files exist, signalling Joe through a pidfd (Linux), _winapi and
+        UNC paths (Windows: realpath on a UNC path can contact a file server). From the review: a web page or
+        file an agent read can steer what the Coder writes (finding 8), so "code only for the owner's job" was
+        not strictly true. DECIDED by Joseph, 2026-11-23 (NOT YET REVIEWED): text from outside can carry
+        instructions, so once a run has read any, it doesn't write or run code. `agentrun.Run.read_outside` is
+        true from the moment the run took in a file (`web.tainted`: a trigger file, a file in its folder, a tool
+        run on one) or something found online (a search that returned results, a page read), and stays true for
+        the rest of the run; the run's own outputs don't count by themselves. From then on `do_code` is refused
+        before any Coder, Tester or box (`CODE_AFTER_READING` is the reason, in the log and once in the report),
+        and code is no longer offered to the model or listed to the planner. A run that codes first and reads
+        later keeps the code it already made (the Improver still runs on it: its card is the code, its test and
+        the task written before the reading). A run that starts outside-read says so at its start. The "code"
+        ability screen says it (version 1 -> 2, so it is asked again). `tests/test_agent_code_after_reading.py`.
+        Not covered: words the owner pasted into the job, a request handed on by another agent (only words of
+        that agent's own job pass), memory notes and add-on tools. Could not be run on
+        Windows or a Mac: the pipe reader thread, the Job Object order, Python 3.14's shutil inside the box.
       - **Wake word** (`ui/app.js` wakeSplit, 2026-11-21; NOT YET REVIEWED): off unless ticked. The open mic
         then stays on outside Talk; each utterance goes through the same local `/api/voice/listen` (the
         recording file is deleted as before; with `X-Joe-Wake` no mic levels are logged) and is dropped in
         the page unless it starts with the wake words. Nothing is shown, kept or sent for dropped speech.
         `tests/test_wake_word.py`. Try: a wake phrase inside a played video, very long wake words.
+        Rolling second (`ui/app.js` micRing, 2026-11-22; NOT YET REVIEWED): while the open mic listens, the
+        last 1 s of sound is kept in the page's memory only, so the first syllable isn't cut off; never
+        written or sent alone; cleared when a recording starts, while Joe speaks, and in openMicStop; not
+        used by push-to-talk. `tests/test_open_mic.py`. Try: stop the mic mid-sentence, check nothing is sent.
+      - **Wake word and open mic, AFTER THE INDEPENDENT REVIEW of 2026-11-22** (fixed the same day by Joseph's
+        decisions; the fixes are NOT YET REVIEWED and need his microphone). Only words that start with the wake
+        words count, on any screen AND on Talk once "Hey Joe" brought it there: after Joe answers he waits for them
+        again until the person opens Talk themselves (Talk tab, F4, TALK TO JOE, sending typed text, the mic
+        button, a saved chat, a dropped file). Everything else is dropped in the window before it is routed.
+        Only "Joe" as speech-to-text writes it wakes him (joe, jo, joel, joe's, joh, jow); Joseph, Joey and Joan
+        don't; a person's own wake words match exactly or with an s. A TV, video or song can still wake him.
+        Through the wake word Joe ASKS FIRST ("Start the plan now? Say yes or no.") before go / run, any agent
+        start, remember / forget, reminders, changing or sending a list, parking an idea, directions or shopping
+        pages; only a clear yes within 10 seconds after he stops talking (30 at most) does it. A question that
+        wakes him is handled like a Talk question (model, talk log, saved chats, maybe an online lookup).
+        The recording goes in a temporary heard_* file with a unique name and is deleted in a finally; older ones
+        are swept each time Joe listens; wake recordings add no line to MAKE A HELP FILE. Up to 3 words before the
+        wake words are allowed and dropped with them (the rolling second can carry quiet speech said just before).
+        Only one mic start at a time; a start that was stopped or failed lets go of the microphone completely.
+        While the box is ticked the mic comes on by itself every time Joe opens (Joseph: keep, but say so; the
+        note under the tick box says it).
+
       - **Preview copies** (`thumbs.py`, `/thumb`): the path goes through the same `app.rel_path` sandbox
         check as `/raw`; FFmpeg (guarded: local files only) writes a 320 px JPEG into the temp folder
         `joe-ai-previews` (0700), named by a hash; never into the Joe folder. The BIG WINDOW (`/player`)
@@ -276,7 +349,8 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         off or removed stayed ticked in the saved list. Agents: an e-mail that started the run (or one
         in a sub-folder) didn't switch lookups off; agents now read pages with `pagereader.py` (the
         older reader in `agentweb.py` is gone); the report names the sources really asked.
-        Still open (Joseph): see the review entry at the top of NEXT_STEPS.md.
+        Still open (Joseph): see "Open decisions" in NEXT_STEPS.md (the review entry itself is now in
+        NOTES_HISTORY.md, 2026-11-15).
 - [ ] Daily restart (`dailyrestart.py`): starts a new Joe the same way as RESTART JOE (`app.restart`,
       `joe_command("restart")`, no shell); never while a run, the queue, a plan being written, a
       download or an install is going (`busy`); a failed start leaves this Joe running. Tests:
@@ -301,3 +375,35 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       `check_hostname = False`, `_create_unverified_context` appear nowhere), and a site no trusted
       certificate vouches for is still refused. Tests: `tests/test_secure_connections.py` (pretend
       certificates in `tests/pretend_certs.py`; its one private key only answers as "localhost").
+- [ ] Audit fixes, 2026-11-23 (NOT YET REVIEWED; from `AUDIT_2026-11-23.md`):
+      - **Request guards** (`server.py` `H._length`, `_mcp_http`; `phone.py` `_body`): a raw body's
+        `Content-Length` must be a whole number from 0 to the route's limit, else the route gives its
+        usual "empty or too big" answer; the `/mcp` key is compared as bytes, so a key with odd characters
+        gets a 401 answer instead of a dropped connection; a missing window file answers 404. Try: no
+        length, `Content-Length: abc`, a negative or huge length, `Authorization: Bearer é`, on every
+        raw-body route and on Joe Phone.
+      - **Build stamp** (`app.build_stamp`, `App.stamp`): for a copy not made by an installer (no
+        `joeai/_install.json`), a short hash of the names, sizes and change times of `joeai/*.py` and the
+        window's files goes in the lock file and `/api/ping`. A running Joe is reused only when version
+        and stamp match (or he is mid-run); when his files were edited he says "Joe's files changed since
+        this window opened. Restart Joe to use them." Installer builds have no stamp and behave as before.
+      - **Connector cap** (`mcp.py` `MAX_SHRINK`, `Joe.shrink`, `Joe.read_file`): `joe_shrink` returns at
+        most 20,000 characters a call (a `max_chars` that isn't a number means 8,000); `joe_read_file`
+        reads only its 200,000 characters from the file. What each read tool can reach is in section 3.
+      - **Connector folders** (`config.py` `Settings.mcp_folders`, `mcp.py` `Joe._shrink_source`): off by
+        default, so `joe_shrink` / `joe_summarize` read Output only and refuse the Inbox, Projects,
+        Missions, Workflows and Themes with a message telling the app where the person can open them.
+        Changed only by the tick box on Setup > Other AI apps, through window-token routes
+        (`/api/settings`; Setup > Reset puts it back off). The HTTP connector sees a change at once;
+        the stdio connector (`mcp.serve`) reads settings at its first tool call and keeps them until the
+        AI app restarts it, the same as `memory.connector`. Try: Inbox paths with it off, a link in Output
+        pointing into the Inbox, setting it from `/mcp`, Joe Phone or without the token.
+      - **Model-call options** (`ollama.py`, `textengines.py`): a call can ask for a low temperature
+        (`DECIDE_TEMP`, only where the reply is read as a choice, a category or JSON) and a JSON shape
+        (`format` / `response_format`); a server that refuses the shape is asked once more without it, and
+        the old reading of the reply stays as the fallback. Nothing new leaves the PC: these go only to
+        the writing program already in use.
+      - **No code after reading** (`agentrun.py` `Run.read_outside`, `do_code`, `offered`; finding 8 of the
+        2026-11-22 review, decided by Joseph): a run that has read a file, a search result or a web page is
+        refused a code step, isn't offered one, and says why once. See the Tester's box above.
+        `tests/test_agent_code_after_reading.py`. Try: a run that reads in a way that doesn't set the flag.

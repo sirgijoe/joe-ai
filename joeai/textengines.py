@@ -18,7 +18,7 @@ from pathlib import Path
 
 from .config import OllamaSettings
 from .http import HttpError, request_json
-from .ollama import ChatResult, OllamaClient
+from .ollama import _REFUSED, ChatResult, OllamaClient
 from .system import WINDOWS
 
 _THINK = re.compile(r"<think>.*?</think>", re.S)
@@ -302,9 +302,9 @@ class OpenAICompatClient:
         return []
 
     # -- writing ---------------------------------------------------------
-    def _payload(self, messages, model, max_tokens, think, stream):
+    def _payload(self, messages, model, max_tokens, think, stream, temperature=None):
         p = {"model": model or self.cfg.text_model or "", "messages": messages,
-             "temperature": self.cfg.temperature, "stream": stream}
+             "temperature": self.cfg.temperature if temperature is None else temperature, "stream": stream}
         if max_tokens:
             p["max_tokens"] = int(max_tokens)
         want = self.cfg.think if think is None else think
@@ -314,22 +314,32 @@ class OpenAICompatClient:
         return p
 
     def chat(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-             keep_alive: str | None = None, think: bool | None = None) -> ChatResult:
+             keep_alive: str | None = None, think: bool | None = None, temperature: float | None = None,
+             schema: dict | None = None) -> ChatResult:
         t0 = time.monotonic()
-        r = request_json("POST", f"{self.base}/v1/chat/completions",
-                         self._payload(messages, model, max_tokens, think, False),
-                         timeout=self.cfg.request_timeout_s, headers=self.headers)
+        payload = self._payload(messages, model, max_tokens, think, False, temperature)
+        if schema:
+            payload["response_format"] = {"type": "json_schema", "json_schema": {"name": "reply", "schema": schema}}
+        try:
+            r = request_json("POST", f"{self.base}/v1/chat/completions", payload,
+                             timeout=self.cfg.request_timeout_s, headers=self.headers)
+        except HttpError as e:
+            if not (schema and _REFUSED.match(str(e))):
+                raise
+            payload.pop("response_format")            # this server can't keep to a shape: ask plainly
+            r = request_json("POST", f"{self.base}/v1/chat/completions", payload,
+                             timeout=self.cfg.request_timeout_s, headers=self.headers)
         choice = (r.get("choices") or [{}])[0]
         text = _THINK.sub("", (choice.get("message") or {}).get("content") or "").strip()
         u = r.get("usage") or {}
         return ChatResult(text=text, prompt_tokens=int(u.get("prompt_tokens", 0) or 0),
                           output_tokens=int(u.get("completion_tokens", 0) or 0),
-                          seconds=time.monotonic() - t0)
+                          seconds=time.monotonic() - t0)      # window: set in that program, not known here
 
     def chat_stream(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-                    keep_alive: str | None = None, think: bool | None = None):
+                    keep_alive: str | None = None, think: bool | None = None, temperature: float | None = None):
         import urllib.request
-        payload = self._payload(messages, model, max_tokens, None, True)
+        payload = self._payload(messages, model, max_tokens, None, True, temperature)
         req = urllib.request.Request(f"{self.base}/v1/chat/completions", data=json.dumps(payload).encode(),
                                      method="POST", headers={"Content-Type": "application/json", **self.headers})
         in_think = False

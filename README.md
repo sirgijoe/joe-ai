@@ -90,7 +90,12 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Use Joe from another AI app**: Joe is an MCP connector, so Claude Desktop, ChatGPT desktop
   (and Codex), Gemini CLI, Cursor and LM Studio can see what Joe can do, queue plans, run his tools
   and read the results. One-click CONNECT in Setup > Other AI apps (it keeps a copy of that app's
-  settings first and only touches Joe's own entry).
+  settings first and only touches Joe's own entry). A connected app can read the text files Joe
+  made (Output), and a short version (at most 20,000 characters at a time) of a long one. Your
+  Inbox, Projects, Missions, Workflows and Themes folders stay closed to it until you tick "Apps
+  connected to Joe may read my Inbox and other folders" in Setup > Other AI apps; then it can read
+  short versions of the text files there too, including files you drop in the Inbox. Joe's private
+  folders (names starting with a dot, where your chats are kept) always stay closed.
 
 **Talks, and listens** (optional, one-time setup)
 - Open Talk (**F4**) and just say what you need: the mic stays open while that screen is up,

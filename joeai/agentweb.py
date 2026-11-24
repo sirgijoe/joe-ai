@@ -23,7 +23,6 @@ from __future__ import annotations
 import ipaddress
 import os
 import re
-import urllib.parse
 
 from . import pagereader, websearch
 

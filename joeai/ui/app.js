@@ -429,9 +429,13 @@ async function describeIt() {
   if (!text) { $("#describe-msg").textContent = "Type what you need first."; $("#describe").focus(); return; }
   if (describing) return;
   const rt = await routeText(text);
-  if (rt.kind === "command") { $("#describe").value = ""; $("#describe-msg").textContent = await doCommand(rt.cmd, rt); return; }
+  if (rt.kind === "command") {
+    $("#describe").value = ""; $("#describe-msg").textContent = await doCommand(rt.cmd, rt);
+    if (current === "talk") wakeTakeOver();        // you typed "talk": Talk is yours
+    return;
+  }
   if (rt.kind === "unclear") { $("#describe-msg").textContent = rt.say; return; }
-  if (rt.kind === "chat") { $("#describe").value = ""; $("#describe-msg").textContent = ""; show("talk"); await talkSend(text); return; }
+  if (rt.kind === "chat") { $("#describe").value = ""; $("#describe-msg").textContent = ""; show("talk"); wakeTakeOver(); await talkSend(text); return; }
   describing = true;
   $("#btn-describe").disabled = true;
   $("#describe-msg").innerHTML = '<span class="blink">Joe is planning…</span> this takes a few seconds';
@@ -911,6 +915,7 @@ async function loadChats() {
 }
 async function chatOpen(id) {
   if (current !== "talk") show("talk");
+  wakeTakeOver();
   if (id === chatCurrent) return;
   talkStop();
   const r = await api("/api/chats/open", { id });
@@ -2094,7 +2099,7 @@ document.addEventListener("click", async (ev) => {
 
 /* ---------------- keyboard ---------------- */
 function handleKey(key) {
-  if (SCREENS[key]) { show(SCREENS[key]); return true; }
+  if (SCREENS[key]) { show(SCREENS[key]); if (SCREENS[key] === "talk") wakeTakeOver(); return true; }
   if (key === "R") { show("report"); return true; }
   if (key === "F5") { runOrStop().catch((e) => toast(e.message)); return true; }
   if (key === "Escape") {
@@ -2573,11 +2578,12 @@ async function loadTalk() {
   await voiceSettings();
   pttLabel();
   $("#talk-note").textContent = voiceReady ? (talkMode === "push" ? `Voice is on. Hold ${keyName(pttKey)} anywhere and speak; let go to send.`
-    : wakeOn ? `Voice is on. On this screen just talk; on any other screen say "${wakeSay(wakeWords)}" first and Joe comes here to answer.`
+    : wakeOn ? `Voice is on. When you open this screen yourself, just talk. On any other screen say "${wakeSay(wakeWords)}" first: Joe comes here to answer, then waits for "${wakeSay(wakeWords)}" again.`
     : "Voice is on and the mic is open while this screen is up. Just talk; Joe answers when you pause.")
     : "Typing works now. For voice, set it up once in F10 > Start here (\"Joe's voice\").";
   renderTalk();
   if (!(talkMode === "push" && /^(Key|Digit|Space)/.test(pttKey))) setTimeout(() => $("#talk-in").focus(), 50);
+  if (micStream) wakeBadge();                     // already listening: say which way
   openMicStart();
 }
 async function voiceSettings() {
@@ -2658,13 +2664,20 @@ function talkStop() {
 }
 function talkStopBtn() { const b = $("#talk-stop"); if (b) b.hidden = !talkBusy(); }
 setInterval(talkStopBtn, 400);
+// The short commands Talk does right away, no AI ("go", "stop", reminders, lists).
+const TALK_ASSIST = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|remind us|ping me|ping my phone|text me|message me|notify me|alert me|buzz me|send me a|send a ping|set a reminder|set me a reminder|make a reminder|add a reminder|create a reminder|don'?t let me forget|do not let me forget|reminder:|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send |directions|give me directions|get directions|how do i get|how can i get|navigate|take me to|where can i|where do i|where should i|shop for|find me|find the price|look up the price|compare prices)/i;
+function talkRoutes(text) { return text.length <= 40 || TALK_ASSIST.test(text); }
+// Would Talk do this command straight away? (Memory commands always are, also in a long sentence.)
+function wakeRuns(text, rt) {
+  return !!rt && rt.kind === "command" && !["talk", "new"].includes(rt.cmd) && (talkRoutes(text) || rt.cmd === "memory");
+}
 async function talkSend(textArg) {
+  if (textArg === undefined) wakeTakeOver();     // you typed it in Talk: Talk is yours
   const text = (textArg ?? $("#talk-in").value).trim();
   if (talkAbort) talkStop();                     // a new question cuts off the old answer
   const sent = (typeof talkFiles !== "undefined") ? talkFiles.filter((f) => !f.busy) : [];
   if (!text && !sent.length) return;
-  const assist = /^\s*(?:(?:hey|ok|okay)\s+)?(?:joe[,!]?\s+)?(?:please\s+|can you\s+|could you\s+)?(remind me|remind us|ping me|ping my phone|text me|message me|notify me|alert me|buzz me|send me a|send a ping|set a reminder|set me a reminder|make a reminder|add a reminder|create a reminder|don'?t let me forget|do not let me forget|reminder:|add |put |take |cross |remove |delete |check |what'?s on|what is on|read|show|send |directions|give me directions|get directions|how do i get|how can i get|navigate|take me to|where can i|where do i|where should i|shop for|find me|find the price|look up the price|compare prices)/i.test(text);
-  if (text && !sent.length && (text.length <= 40 || assist)) {        // "go", "stop", reminders, lists: do it, no AI
+  if (text && !sent.length && talkRoutes(text)) {        // "go", "stop", reminders, lists: do it, no AI
     const rt = await routeText(text);
     if (rt.kind === "command" && !["talk", "new"].includes(rt.cmd)) {
       $("#talk-in").value = "";
@@ -2838,7 +2851,7 @@ function storyText() {
 // speak and pause, Joe hears it. He doesn't listen while he's talking or thinking, and the
 // mic closes when you leave Talk or press MIC OFF. "push": hold your chosen key anywhere.
 let talkMode = "open", pttKey = "F4", micMuted = false, micStream = null, micCtx = null, micLoop = null;
-let busyTalking = false, settingKey = false, micGen = 0;
+let busyTalking = false, settingKey = false, micGen = 0, micRoll = null;
 // How long you may pause before Joe takes his turn (Setup > Voice and Talk > Wait before Joe answers).
 const TURN_PAUSE = { quick: 850, normal: 1200, patient: 2000 };
 let turnPause = TURN_PAUSE.quick;
@@ -2876,34 +2889,41 @@ function micStep(st, rms, now, pause, joeBusy) {      // -> "start" (you began t
 // The wake word ("Hey Joe"): with it on, the open mic also listens when Talk isn't on screen. What it hears there
 // is turned into words on this PC like any Talk question, and then this function decides: was Joe spoken to?
 // Only then does anything happen. Everything else is dropped at once: not shown, not kept, not sent anywhere.
-// Plain function (no page, no microphone) so the tests can run it (tests/test_wake_word.py).
+// After Joe answers he waits for the wake words again (see wakeMode). Plain functions (no page, no microphone)
+// so the tests can run them (tests/test_wake_word.py).
 const WAKE_HELLO = ["hey", "hay", "hi", "hello", "ok", "okay", "yo", "a", "eh", "hej"];       // how "hey" gets heard
+const WAKE_HELLO_SURE = ["hey", "hay", "hi", "hello", "ok", "okay", "yo", "hej"];       // after other words: not "a" or "eh"
 const WAKE_FILLER = ["um", "uh", "so", "well", "oh", "and", "alright", "right", "now"];
+// How speech-to-text writes "Joe". Only mishearings of the word itself: not other names people use at home
+// (Joey, Joseph, Joan), so calling someone else doesn't wake him.
+const WAKE_JOE = ["joe", "jo", "joel", "joes", "joh", "jow"];
+// Up to this many words may come before the wake words. The rolling second in front of each recording can
+// carry a word or two said just before; those words are dropped together with the wake words.
+const WAKE_LEAD = 3;
 function wakeTokens(text) {
   return String(text || "").toLowerCase().replace(/[\u2019']/g, "").replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
 }
-function wakeName(word, name) {                // "joe" is also heard as jo, joel, joey, joes, joseph: same start, a little longer
+function wakeName(word, name) {                // the last wake word as it gets heard
   if (word === name) return true;
-  if (name.length < 3) return false;
-  if (name === "joe" && ["jo", "joel", "joey", "joes", "joseph", "joh", "joan", "jow"].includes(word)) return true;
-  return word.length >= name.length && word.length <= name.length + 1 && word.startsWith(name);    // "joes", "computers"
+  if (name === "joe") return WAKE_JOE.includes(word);
+  return name.length >= 3 && word === name + "s";        // your own wake words: "computers" for "computer"
 }
 function wakeSplit(text, phrase) {             // -> null (not said to Joe) | the question after the wake words ("" = only the wake words)
   const want = wakeTokens(phrase || "hey joe");
   if (!want.length) return null;
   const said = wakeTokens(text);
   const raw = String(text || "");
-  for (let skip = 0; skip <= 2 && skip < said.length; skip++) {         // "um, hey Joe ..." counts; a "hey Joe" mid-sentence doesn't
-    if (skip && !WAKE_FILLER.includes(said[skip - 1])) break;
+  for (let skip = 0; skip <= WAKE_LEAD && skip < said.length; skip++) {   // "um, hey Joe ..." counts; "hey Joe" late in a sentence doesn't
+    const loose = said.slice(0, skip).every((w) => WAKE_FILLER.includes(w));
     let i = skip, ok = true;
     for (let w = 0; w < want.length; w++, i++) {
       const got = said[i], need = want[w], last = w === want.length - 1;
       if (got === undefined) { ok = false; break; }
-      const hello = WAKE_HELLO.includes(need) && WAKE_HELLO.includes(got);
+      const hello = WAKE_HELLO.includes(need) && (loose ? WAKE_HELLO : WAKE_HELLO_SURE).includes(got);
       if (!(got === need || hello || (last && wakeName(got, need)))) { ok = false; break; }
     }
     if (!ok) continue;
-    // the rest, in the person's own words and capitals: cut the first i words off the original text
+    // the rest, in the person's own words and capitals: cut the first i words (anything before the wake words too)
     let rest = raw.trim(), cut = i;
     while (cut > 0) {
       const m = rest.match(/^[^A-Za-z0-9]*[A-Za-z0-9\u2019']+/);
@@ -2917,9 +2937,58 @@ function wakeSplit(text, phrase) {             // -> null (not said to Joe) | th
 function wakeSay(phrase) {                     // "hey joe" -> "Hey Joe" for the screen
   return wakeTokens(phrase || "hey joe").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
+// Joe asked "...? Say yes or no." Only a clear yes counts; the wake words may come first, nothing else.
+const WAKE_YES = ["yes", "yeah", "yep", "yup", "ya", "yea", "sure", "ok", "okay", "si", "correct", "yes please",
+  "do it", "go ahead", "please do", "yes do it", "yes go ahead", "yeah do it", "yeah go ahead", "ok do it",
+  "okay do it", "ok go ahead", "okay go ahead", "sure go ahead", "yes yes", "yes i do", "thats right"];
+function wakeYes(text, phrase) {
+  const t = String(text || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "");       // "sí" -> "si"
+  let w = wakeTokens(wakeSplit(t, phrase) ?? t);
+  while (w.length && WAKE_FILLER.includes(w[0])) w = w.slice(1);
+  return WAKE_YES.includes(w.join(" "));
+}
+// A command heard through the wake word that starts work, sends, stores or opens something: Joe asks first.
+// rt: what /api/route made of the words. -> the question to ask, or "" (fine to do right away).
+// The full list, with reasons, is WAKE_ASK_FIRST in joeai/route.py (tests/test_wake_word.py keeps them the same).
+function wakeAskFirst(rt) {
+  if (!rt || rt.kind !== "command") return "";
+  const q = (s) => String(s || "").replace(/\s+/g, " ").trim().slice(0, 80);
+  const list = q(rt.list);
+  switch (rt.cmd) {
+    case "run": return "Start the plan now? Say yes or no.";
+    case "agent-start": {
+      const who = rt.name === "joe aigent" ? "" : q(rt.name);
+      if (rt.request) return who ? `Start the ${who} agent on "${q(rt.request)}"? Say yes or no.` : `Start Joe agent on "${q(rt.request)}"? Say yes or no.`;
+      return who ? `Start the ${who} agent? Say yes or no.` : "Start Joe agent? Say yes or no.";
+    }
+    case "memory":
+      if (rt.memory === "add") return `Remember "${q(rt.text)}"? Say yes or no.`;
+      if (rt.memory === "forget") return `Forget "${q(rt.text)}"? Say yes or no.`;
+      return "";                                         // "what do you remember?" only reads
+    case "remind": return `Set a reminder: "${q(rt.text)}"? Say yes or no.`;
+    case "list-add": return list ? `Add "${q(rt.items)}" to the ${list} list? Say yes or no.` : `Add "${q(rt.items)}" to the list? Say yes or no.`;
+    case "list-done": return list ? `Take "${q(rt.items)}" off the ${list} list? Say yes or no.` : `Take "${q(rt.items)}" off the list? Say yes or no.`;
+    case "list-send": return list ? `Send the ${list} list to your phone? Say yes or no.` : "Send the list to your phone? Say yes or no.";
+    case "directions": return `Open directions to "${q(rt.text)}" in your web browser? Say yes or no.`;
+    case "shop": return `Open a shopping search for "${q(rt.text)}" in your web browser? Say yes or no.`;
+    case "park": return `Save this idea for later: "${q(rt.idea)}"? Say yes or no.`;
+    default: return "";
+  }
+}
+// What to do with words heard while Joe waits for the wake words.
+// asking: Joe's yes/no question is open. armed: a bare "Hey Joe" was just said, so the next thing said is the question.
+// -> { do: "drop" } | { do: "yes" } | { do: "no" } | { do: "listening" } | { do: "question", text }
+function wakeTurn(text, phrase, asking, armed) {
+  if (asking) return { do: wakeYes(text, phrase) ? "yes" : "no" };       // the answer; anything else cancels
+  const rest = armed ? (wakeSplit(text, phrase) ?? String(text || "").trim()) : wakeSplit(text, phrase);
+  if (rest === null) return { do: "drop" };                              // not said to Joe
+  if (rest.replace(/[^a-z0-9]/gi, "").length < 2) return { do: "listening" };
+  return { do: "question", text: rest };
+}
 // <<< wake-word
 function wakeApply() {                          // after settings load or change: open or close the mic to match
   if (current === "talk") return;
+  talkMine = false;                             // you left Talk: next time it's yours only if you open it
   if (wakeOn && talkMode === "open" && !micMuted && voiceReady) { if (micStream) wakeBadge(); else openMicStart(); }
   else openMicStop();
 }
@@ -2929,7 +2998,55 @@ function wakeApply() {                          // after settings load or change
 }, { passive: true }));
 setTimeout(() => { voiceSettings().then(wakeApply).catch(() => {}); }, 1500);      // when Joe's window opens
 let wakeOn = false, wakeWords = "hey joe", wakeUntil = 0;     // wakeUntil: after a bare "Hey Joe", the next thing said is the question
-function wakeBadge() { badge(current === "talk" ? " \u25cf MIC ON \u2014 just talk " : ` \u25cf MIC ON \u2014 say "${wakeSay(wakeWords)}" `); }
+// With the wake word on, Talk is wake-gated unless you opened it yourself (talkMine). When "Hey Joe" brings
+// Talk up, Joe answers there and then waits for the wake words again: anything said without them is dropped,
+// like everything else he overhears. Talk is yours (just talk, as always) once you go to it yourself: the Talk
+// tab, F4 or TALK TO JOE, sending something you typed (in Talk or on Home), the mic button, opening a saved chat
+// or dropping a file. Leaving Talk ends that. With the wake word off, Talk always works as it always has.
+let talkMine = false, wakeAsk = null;          // wakeAsk: Joe asked "...? Say yes or no." and waits for the answer
+const WAKE_ASK_MS = 10000;                     // how long he waits for the yes, counted from when he stops talking
+function wakeMode() {                          // true: only words that start with the wake words count
+  return current !== "talk" || (wakeOn && !talkMine) || performance.now() < wakeUntil || !!wakeAsk;
+}
+function wakeTakeOver() {                      // you went to Talk yourself: an ordinary Talk session
+  talkMine = true; wakeUntil = 0;
+  if (wakeAsk) wakeAnswer(false);
+  if (micStream) wakeBadge();
+}
+function wakeBadge() {                         // what the mic is doing right now, in a few words
+  badge(wakeAsk ? " ● MIC ON — say yes or no " : performance.now() < wakeUntil ? " ● MIC ON — go ahead "
+    : wakeMode() ? ` ● MIC ON — say "${wakeSay(wakeWords)}" ` : " ● MIC ON — just talk ");
+}
+// >>> wake-ask
+async function wakeAskStart(question, rt) {    // Joe says what he's about to do and waits for a yes
+  wakeAskEnd();
+  const now = performance.now();
+  wakeAsk = { rt, until: now + WAKE_ASK_MS, cap: now + 3 * WAKE_ASK_MS, timer: setInterval(wakeAskTick, 500) };
+  talkLog.push({ who: "joe", text: question }); renderTalk();
+  if (micStream) wakeBadge();
+  if (voiceReady && speakReplies) { try { await say(question); } catch (e) {} }
+}
+function wakeAskTick() {                       // the question closes by itself: 10 seconds after Joe stops talking
+  if (!wakeAsk) return;
+  const now = performance.now();
+  if ((talkBusy() || busyTalking) && now < wakeAsk.cap) { wakeAsk.until = Math.max(wakeAsk.until, now + WAKE_ASK_MS); return; }
+  if (now >= wakeAsk.until || now >= wakeAsk.cap) wakeAnswer(null);
+}
+function wakeAskEnd() { if (wakeAsk) clearInterval(wakeAsk.timer); wakeAsk = null; }
+async function wakeAnswer(yes) {               // true: do it | false: "no" or anything else | null: no answer in time
+  const a = wakeAsk;
+  wakeAskEnd();
+  if (micStream) wakeBadge();
+  if (!a) return;
+  let said;
+  if (yes === true) {
+    talkLog.push({ who: "you", text: "Yes." });
+    said = await doCommand(a.rt.cmd, a.rt);
+  } else said = yes === false ? "OK, I won't." : "No answer, so I won't.";
+  talkLog.push({ who: "joe", text: said }); renderTalk();
+  if (said && voiceReady && speakReplies) { try { await say(cleanSpeech(said)); } catch (e) {} }
+}
+// <<< wake-ask
 function micReport(st, now) {                   // one recording's levels, kept for MAKE A HELP FILE
   const bar = micBars(st), t = micStream && micStream.getAudioTracks()[0];
   return { clip: (now - st.start) / 1000, quiet: st.floor, loudest: st.loudest, start: bar.start, keep: bar.keep,
@@ -2950,35 +3067,43 @@ function badge(text) {
   if (!text) return;
   const b = document.createElement("div"); b.className = "rec-badge"; b.textContent = text; document.body.appendChild(b);
 }
-async function sendAudio(chunks, report, wake) {
+async function sendAudio(chunks, report, wake, lead, leadRate) {
   if (!chunks.length) return;
   let blob = new Blob(chunks, { type: chunks[0].type || "audio/webm" });
-  try { blob = await toWav(blob, 16000); } catch (e) {}   // plain 16 kHz WAV: no decoder needed
+  try { blob = await toWav(blob, 16000, lead, leadRate); } catch (e) {}   // plain 16 kHz WAV: no decoder needed
   busyTalking = true;
   const heads = { "X-NR-Token": TOKEN, "Content-Type": blob.type };
   if (report && !wake) heads["X-Joe-Mic"] = encodeURIComponent(JSON.stringify(report));   // levels only, for the help file
   if (wake) heads["X-Joe-Wake"] = "1";          // heard while waiting for the wake words: nothing about it is logged
   const r = await fetch("/api/voice/listen", { method: "POST", headers: heads, body: blob })
     .then((x) => x.json()).catch((e) => ({ ok: false, error: e.message }));
-  if (!r.ok || !r.text || r.text.replace(/[^a-z]/gi, "").length < 2) {
+  if (!r.ok || !r.text || r.text.replace(/[^a-z\u00c0-\u024f]/gi, "").length < 2) {   // "Sí" counts as two letters
     busyTalking = false;
     if (!r.ok && !wake) { talkLog.push({ who: "joe", text: "(I couldn't hear that: " + (r.error || "unknown problem") + ")" }); renderTalk(); }
     return;
   }
-  if (wake) {                                    // Talk isn't on screen: only words said to Joe count
-    const armed = performance.now() < wakeUntil;
-    const rest = armed ? (wakeSplit(r.text, wakeWords) ?? r.text) : wakeSplit(r.text, wakeWords);
-    if (rest === null) { busyTalking = false; return; }       // not said to Joe: dropped, nothing shown or kept
+  if (wake) {                                    // waiting for the wake words: only words said to Joe count
+    const asking = !!wakeAsk && performance.now() < wakeAsk.until;      // Joe's yes/no question is still open
+    const t = wakeTurn(r.text, wakeWords, asking, performance.now() < wakeUntil);
+    if (t.do === "drop") { busyTalking = false; return; }     // not said to Joe: dropped, nothing shown or kept
     wakeUntil = 0;
-    if (current !== "talk") show("talk");
-    if (rest.replace(/[^a-z0-9]/gi, "").length < 2) {         // just "Hey Joe": he answers and takes the next thing said
+    if (t.do === "yes" || t.do === "no") { await wakeAnswer(t.do === "yes"); busyTalking = false; return; }
+    if (current !== "talk") show("talk");       // Joe answers in Talk, so you can read it too,
+    talkMine = false;                           // and after that he waits for the wake words again
+    if (t.do === "listening") {                 // just "Hey Joe": he answers and takes the next thing said
       wakeUntil = performance.now() + 12000;
+      setTimeout(() => { if (micStream) wakeBadge(); }, 12100);
+      if (micStream) wakeBadge();
       talkLog.push({ who: "joe", text: "Yes? I'm listening." }); renderTalk();
       if (speakReplies && typeof say === "function") { try { await say("Yes?"); } catch (e) {} }
       busyTalking = false;
       return;
     }
-    await talkSend(rest);
+    if (micStream) wakeBadge();
+    const rt = await routeText(t.text);
+    const ask = wakeRuns(t.text, rt) ? wakeAskFirst(rt) : "";
+    if (ask) { await wakeAskStart(ask, rt); busyTalking = false; return; }    // starts work or changes something: ask first
+    await talkSend(t.text);
     busyTalking = false;
     return;
   }
@@ -2987,46 +3112,98 @@ async function sendAudio(chunks, report, wake) {
   busyTalking = false;
 }
 // --- open mic -------------------------------------------------------------------
+// >>> mic-ring
+// The last second of sound while the open mic listens, in memory only, so the first syllable isn't lost.
+// It is never saved or sent on its own: it only goes in front of a recording, and clear() throws it away.
+function micRing(rate, secs) {
+  const cap = Math.max(1, Math.round(rate * secs)); let parts = [], total = 0;
+  return {
+    push(f) { parts.push(Float32Array.from(f)); total += f.length; while (parts.length > 1 && total - parts[0].length >= cap) total -= parts.shift().length; },
+    take() { const out = new Float32Array(Math.min(total, cap)); let at = out.length;
+      for (let i = parts.length - 1; i >= 0 && at > 0; i--) { const p = parts[i].subarray(Math.max(0, parts[i].length - at)); at -= p.length; out.set(p, at); }
+      return out; },
+    clear() { parts = []; total = 0; },
+    size() { return Math.min(total, cap); },
+  };
+}
+// <<< mic-ring
+// >>> mic-start
+// One open mic at a time. A start waits for the microphone (the first time, for the person to allow it), and
+// during that wait another start (the 1.5-second wake check, a screen change, opening Talk) must not make a
+// second one: that one would never be switched off. micGen counts starts and stops: openMicStop() changes it,
+// so a start that was still waiting lets go of what it got.
+let micStarting = false, micStartAgain = false;
 async function openMicStart() {
   if (micStream || talkMode !== "open" || micMuted || !voiceReady || (current !== "talk" && !wakeOn)) return;
-  try { micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
-  catch (e) { toast("Joe can't hear you: allow the microphone for this window"); micMuted = true; pttLabel(); return; }
-  if ((current !== "talk" && !wakeOn) || micMuted) { openMicStop(); return; }
-  micName(micStream);
-  micCtx = new AudioContext();
-  if (micCtx.state === "suspended") await micCtx.resume().catch(() => {});
-  const an = micCtx.createAnalyser(); an.fftSize = 4096;   // 85 ms of sound at each look (every 80 ms): no gaps between looks
-  micCtx.createMediaStreamSource(micStream).connect(an);
-  const buf = new Float32Array(an.fftSize);
-  const st = micState();
-  let utter = null, chunks = [], closing = false;
+  if (micStarting) { micStartAgain = true; return; }       // one start is already waiting for the microphone
+  micStarting = true; micStartAgain = false;
   const gen = ++micGen;                       // anything recorded after leaving Talk is thrown away
-  wakeBadge();
-  micLoop = setInterval(() => {
-    an.getFloatTimeDomainData(buf);
-    let sum = 0; for (const v of buf) sum += v * v;
-    const rms = Math.sqrt(sum / buf.length), now = performance.now();
-    meter(rms);
-    if (closing) return;                                              // the last recording is still being wrapped up
-    const joeBusy = busyTalking || speaking || (audioEl && !audioEl.paused);
-    const ev = micStep(st, rms, now, turnPause, joeBusy);
-    if (ev === "start") {                                             // you started talking
-      chunks = []; utter = new MediaRecorder(micStream);
-      utter.ondataavailable = (e) => e.data.size && chunks.push(e.data);
-      utter.start(); badge(" ● LISTENING… ");
-    } else if (ev === "stop" && utter) {                              // you paused: Joe's turn
-      const long = st.lastLoud - st.start > 500, report = micReport(st, now), rec1 = utter;
-      closing = true;
-      rec1.onstop = () => {
-        const c = chunks; utter = null; closing = false;
-        if (gen !== micGen) return;
-        wakeBadge();
-        // Talk on screen: everything said is for Joe. Any other screen (wake word on): only what starts with the wake words.
-        if (long) sendAudio(c, report, current !== "talk" || performance.now() < wakeUntil);
-      };
-      rec1.stop();
+  const m = { stream: null, ctx: null, sp: null, ring: null, loop: null };
+  const gone = () => gen !== micGen || micMuted || talkMode !== "open" || (current !== "talk" && !wakeOn);
+  try {
+    try { m.stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true } }); }
+    catch (e) {
+      if (gen === micGen) { toast("Joe can't hear you: allow the microphone for this window"); micMuted = true; pttLabel(); }
+      return;
     }
-  }, 80);
+    if (gone()) { micFree(m); return; }       // stopped or not wanted while we waited: let go at once
+    m.ctx = new AudioContext();
+    if (m.ctx.state === "suspended") await m.ctx.resume().catch(() => {});
+    if (gone()) { micFree(m); return; }
+    micName(m.stream);
+    const an = m.ctx.createAnalyser(); an.fftSize = 4096;   // 85 ms of sound at each look (every 80 ms): no gaps between looks
+    const src = m.ctx.createMediaStreamSource(m.stream); src.connect(an);
+    const ring = m.ring = micRing(m.ctx.sampleRate, 1);
+    let hold = false;                           // true while a recording runs or Joe talks: nothing goes in the rolling second
+    const sp = m.sp = m.ctx.createScriptProcessor(2048, 1, 1), mute = m.ctx.createGain(); mute.gain.value = 0;
+    sp.onaudioprocess = (e) => { if (!hold) ring.push(e.inputBuffer.getChannelData(0)); };
+    src.connect(sp); sp.connect(mute); mute.connect(m.ctx.destination);
+    const buf = new Float32Array(an.fftSize);
+    const st = micState();
+    let utter = null, chunks = [], closing = false, lead = null;
+    m.loop = setInterval(() => {
+      an.getFloatTimeDomainData(buf);
+      let sum = 0; for (const v of buf) sum += v * v;
+      const rms = Math.sqrt(sum / buf.length), now = performance.now();
+      meter(rms);
+      if (closing) return;                                              // the last recording is still being wrapped up
+      const joeBusy = busyTalking || speaking || (audioEl && !audioEl.paused);
+      if (joeBusy && !utter) ring.clear();                              // Joe's own voice is never kept as a lead-in
+      const ev = micStep(st, rms, now, turnPause, joeBusy);
+      if (ev === "start") {                                             // you started talking
+        lead = ring.take(); ring.clear(); hold = true;                  // the second before you spoke goes in front
+        chunks = []; utter = new MediaRecorder(m.stream);
+        utter.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+        utter.start(); badge(" ● LISTENING… ");
+      } else if (ev === "stop" && utter) {                              // you paused: Joe's turn
+        const long = st.lastLoud - st.start > 500, report = micReport(st, now), rec1 = utter;
+        closing = true;
+        rec1.onstop = () => {
+          const c = chunks, ld = lead, lr = m.ctx.sampleRate; utter = null; closing = false; lead = null; hold = false; ring.clear();
+          if (gen !== micGen) return;
+          wakeBadge();
+          // Talk you opened yourself: everything said is for Joe. Otherwise (wake word on): only what starts with the wake words.
+          if (long) sendAudio(c, report, wakeMode(), ld, lr);
+        };
+        rec1.stop();
+      }
+    }, 80);
+    micStream = m.stream; micCtx = m.ctx; micRoll = { ring, sp }; micLoop = m.loop;   // all at once: nothing is awaited in between
+    wakeBadge();
+  } catch (e) {                               // anything else went wrong: let go of all of it
+    micFree(m);
+    if (gen === micGen) { toast("Joe's microphone didn't start. Press [ MIC OFF ] to try again."); micMuted = true; pttLabel(); }
+  } finally {
+    micStarting = false;
+    if (micStartAgain && !micStream) { micStartAgain = false; openMicStart(); }   // asked for again while this one was cancelled
+  }
+}
+function micFree(m) {                          // let go of what one start got: the loop, the rolling second, the sound, the microphone
+  if (m.loop) clearInterval(m.loop);
+  if (m.sp) { m.sp.onaudioprocess = null; try { m.sp.disconnect(); } catch (e) {} }
+  if (m.ring) m.ring.clear();
+  if (m.ctx) { try { m.ctx.close().catch(() => {}); } catch (e) {} }
+  if (m.stream) m.stream.getTracks().forEach((t) => t.stop());
 }
 function meter(rms) {                  // live mic level, so you can see Joe hears you
   const m = $("#mic-meter"); if (!m) return;
@@ -3034,13 +3211,15 @@ function meter(rms) {                  // live mic level, so you can see Joe hea
   m.textContent = "MIC " + "█".repeat(n) + "░".repeat(20 - n);
 }
 function openMicStop() {
-  micGen++;
+  micGen++;                                    // a start still waiting for the microphone lets go of it
   if ($("#mic-meter")) $("#mic-meter").textContent = "";
   if (micLoop) { clearInterval(micLoop); micLoop = null; }
+  if (micRoll) { micRoll.sp.onaudioprocess = null; try { micRoll.sp.disconnect(); } catch (e) {} micRoll.ring.clear(); micRoll = null; }   // the rolling second is thrown away
   if (micCtx) { micCtx.close().catch(() => {}); micCtx = null; }
   if (micStream) { micStream.getTracks().forEach((t) => t.stop()); micStream = null; }
   badge("");
 }
+// <<< mic-start
 // --- push-to-talk -----------------------------------------------------------------
 async function recStartFn() {
   if (rec) return;
@@ -3082,11 +3261,12 @@ window.addEventListener("keydown", (ev) => {
   }
 }, true);
 window.addEventListener("keyup", (ev) => { if (isPtt(ev)) { ev.preventDefault(); recStopFn(); } }, true);
-function f6Down() { show("talk"); }                 // F4 opens Talk (open mic starts there)
+function f6Down() { show("talk"); wakeTakeOver(); }     // F4 opens Talk (open mic starts there); Talk is yours
 $("#ptt").addEventListener("mousedown", (ev) => {
   ev.preventDefault();
   if (!voiceReady) { show("setup", "system"); toast("Press SET UP next to \"Joe's voice\" in Setup > Start here"); return; }
   if (talkMode === "push") { recStartFn(); return; }
+  wakeTakeOver();                               // the mic button: Talk is yours
   micMuted = !micMuted; pttLabel();
   if (micMuted) openMicStop(); else openMicStart();
 });
@@ -3124,12 +3304,17 @@ function wavFromBuffer(buf) {            // mono 16-bit PCM WAV
   return new Blob([out.buffer], { type: "audio/wav" });
 }
 async function mvToWav(blob) { return toWav(blob, 24000); }
-async function toWav(blob, rate) {
+async function toWav(blob, rate, lead, leadRate) {      // lead: sound heard just before the recording began (open mic)
   const ctx = new AudioContext();
   const decoded = await ctx.decodeAudioData(await blob.arrayBuffer());
   ctx.close();
-  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil(decoded.duration * rate)), rate);
-  const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start();
+  const pre = lead && lead.length && leadRate ? lead.length / leadRate : 0;
+  const off = new OfflineAudioContext(1, Math.max(1, Math.ceil((pre + decoded.duration) * rate)), rate);
+  if (pre) {
+    const lb = off.createBuffer(1, lead.length, leadRate); lb.copyToChannel(lead, 0);
+    const ls = off.createBufferSource(); ls.buffer = lb; ls.connect(off.destination); ls.start(0);
+  }
+  const src = off.createBufferSource(); src.buffer = decoded; src.connect(off.destination); src.start(pre);
   return wavFromBuffer(await off.startRendering());
 }
 async function mvRecord() {
@@ -3215,6 +3400,7 @@ function renderFiles() {
 }
 async function attachFiles(list) {
   if (current !== "talk") show("talk");
+  wakeTakeOver();
   for (const file of list) {
     const f = { name: file.name, busy: true };
     talkFiles.push(f); renderFiles();

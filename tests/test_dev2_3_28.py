@@ -154,7 +154,8 @@ def test_big_window_steps_through_the_folder(tmp_path):
         (d / n).write_bytes(b"x")
     app = NS(token="tok&en")
     page, csp = server.player_page(app, d / "b.png", "Output/wall papers/b.png")
-    assert 'id="prev"' in page and 'id="next"' in page and "2 of 3 in this folder" in page
+    assert page.count('id="prev"') == 1 and page.count('id="next"') == 1 and "2 of 3 in this folder" in page
+    assert 'Previous: a.png' in page and 'Next: c.mp4' in page and "[ &lt; PREVIOUS ]" not in page and "[ NEXT" not in page
     assert "path=Output/wall%20papers/a.png" in page and "path=Output/wall%20papers/c.mp4" in page
     assert "notes.txt" not in page and "tok%26en" in page and "tok&en" not in page
     nonce = csp.split("script-src 'nonce-")[1].rstrip("'")
@@ -170,6 +171,7 @@ def test_big_window_alone_in_its_folder_has_no_buttons_and_no_script(tmp_path):
     (tmp_path / "one.png").write_bytes(b"x")
     page, csp = server.player_page(NS(token="t"), tmp_path / "one.png", "one.png")
     assert "PREVIOUS" not in page and "<script" not in page and "script-src" not in csp
+    assert 'id="prev"' not in page and 'id="next"' not in page and "in this folder" not in page
     page, _ = server.player_page(NS(token="t"), tmp_path / "<b>.png", "<b>.png")
     assert "<b>" not in page
 

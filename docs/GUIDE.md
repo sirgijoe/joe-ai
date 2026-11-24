@@ -417,6 +417,20 @@ make, writes and queues the plan, makes pictures, runs Joe's tools on files in h
 the report, reads the results and looks at the pictures, then polishes them for you. It can't
 install anything, change settings, or reach outside Joe's folder.
 
+What a connected app can read, so there are no surprises:
+
+- **Whole files Joe made**, in his Output folder: text files only, up to 200,000 characters of a
+  file at a time.
+- **A short version of a long text file** Joe made, in Output. Joe trims it first (at most
+  20,000 characters at a time), or sums it up with your own writing model on this PC.
+- **Your Inbox, Projects, Missions, Workflows and Themes folders stay closed** until you tick
+  "Apps connected to Joe may read my Inbox and other folders" in Setup > Other AI apps (it's off
+  when Joe comes). Ticked, the app can read short versions of the text files there too, the same
+  way. That includes files you drop in the Inbox, so don't leave anything there you wouldn't show
+  that app. Untick it any time.
+- **Never** Joe's private folders (the ones whose names start with a dot, like `Output\.joe`,
+  where your chats and run notes are kept).
+
 Setup > Other AI apps > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC. Wherever an app has
 its own way to add a connector, Joe uses it, so the app itself asks you and nobody has to open a
 settings file:
@@ -1153,7 +1167,10 @@ programs:
 **Say it straight: what the box is and isn't.** The box is a strong fence against code that goes wrong
 or does something it shouldn't, which is what a local AI's code does. It is not a vault against code
 written on purpose to break out of it, so only code Joe's own Coder wrote for your job ever goes in,
-never code from a web page or a file. And a passing test only means the code did what its own test
+never code from a web page or a file. **No code after reading:** a file or a web page can carry
+instructions written to steer him, so once a run has read one (a file you dropped in, a search result, a
+page), he won't write or run code for the rest of that run, and the report says so. Want code? Give him
+the coding job on its own, typed by you. And a passing test only means the code did what its own test
 asked: the same local model wrote both. **Read the code, or have a bigger AI check it, before you run
 it yourself on anything that matters.** Python only, standard library only (nothing is ever installed).
 
@@ -1204,16 +1221,31 @@ computer has set as its default. The Talk screen shows it ("Listening through: .
 see at a glance when it's the webcam's microphone and not the one you meant. Change it in your
 system's sound settings (Windows: Settings > System > Sound > Input), then open Talk again.
 
-**Wake word** (Setup > Voice and Talk > "Wake word: answer from any screen", off unless you tick it).
+**Wake word** (Setup > Voice and Talk > "Wake word: answer from any screen", off unless you tick it). While it is ticked, the microphone turns on by itself every time Joe opens and stays on until you press [ MIC ON ] in Talk (that lasts until Joe is closed) or untick the box.
 With the open mic, Joe then listens on every screen while his window is open (minimized too), not only
 in Talk. Say the wake words and then your question: "Hey Joe, what's left in the queue?" He switches
 to Talk and answers. Say only "Hey Joe" and he says "Yes?" and takes the next thing you say. You can
 type your own wake words (2 to 4 plain words).
-What it means, plainly: the microphone stays open while Joe's window is open. What Joe hears is turned
-into words on this PC, like any Talk question; unless it starts with the wake words it is dropped at
-once: not shown, not saved, not sent anywhere. It uses some processor or graphics-card time whenever
+After he answers, he waits for the wake words again: the next thing you say must start with "Hey Joe"
+too, even though Talk is now on screen. Talk only becomes yours (just talk, as always) when you go to it
+yourself: the Talk tab, F4 or TALK TO JOE, sending something you typed, the mic button, opening a saved
+chat or dropping a file. The badge at the top of the window says which it is: "MIC ON — say "Hey Joe"" or "MIC ON — just talk".
+He asks first when what you said through the wake word would start work or change something: starting
+the plan ("go"), starting an agent, remembering or forgetting something, a reminder, changing or sending
+a list, parking an idea, or opening directions or a shopping search in your browser. He says what he is
+about to do ("Start the plan now? Say yes or no.") and does it only if you say yes within about 10
+seconds; no, anything else or silence cancels it. The yes needs no "Hey Joe". Reading the time, stop,
+what's on a list and opening a screen need no yes. Typed, or said in a Talk you opened yourself, they
+all work right away as before.
+Only "Joe" wakes him, as speech-to-text writes it ("Joe", "Jo", "Joel", "Joe's"): not other names such
+as Joseph or Joey. A TV, video or song that says "Hey Joe" can still wake him; that is why he asks first.
+What it means, plainly: the microphone stays open while Joe's window is open. What Joe hears goes in a
+temporary file on this PC to be turned into words, like any Talk question, and the file is deleted right
+after (any left behind when Joe was closed mid-way are deleted the next time he listens). Unless it starts
+with the wake words it is dropped at once: not shown, not saved, not sent anywhere, and not in MAKE A HELP
+FILE. To keep your first word from being cut off, Joe holds the last second of sound in memory while the open mic listens; it is never saved or sent anywhere on its own, it is thrown away when the open mic stops, and it only goes in front of a recording when you start talking. That second can also carry a quiet word or two said just before; up to three words before "Hey Joe" are dropped with it, so a "Hey Joe" right after a few words still counts. It uses some processor or graphics-card time whenever
 someone talks near the microphone. It doesn't work when Joe's window is closed, and not with
-push-to-talk. "Hey Joe" in the middle of a sentence doesn't count, only at the start.
+push-to-talk. "Hey Joe" later in a sentence (after more than three words) doesn't count.
 
 **Wait before Joe answers** (Setup > Voice and Talk, for the open mic): how much quiet Joe allows
 inside your question before he decides you're done. **Quick** (0.85 seconds, how Joe comes),

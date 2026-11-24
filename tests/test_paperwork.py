@@ -109,7 +109,7 @@ def _pages_text(p: Path) -> list[str]:
 @need_qpdf
 def test_pdf_join_split_pick_turn_and_shrink(app):  # noqa: F811
     a = make_pdf(app.sb.inbox / "a.pdf", ("Alpha one", "Alpha two", "Alpha three"))
-    b = make_pdf(app.sb.inbox / "b.pdf", ("Bravo one",))
+    make_pdf(app.sb.inbox / "b.pdf", ("Bravo one",))
     before = a.read_bytes()
     st = _run(app, "TASK: Join  TYPE: pdf-tools\nINPUT: b.pdf, a.pdf\nOPTIONS: do merge")
     assert st.status == "done", st.note

@@ -37,6 +37,7 @@ from . import media as media_mod
 from . import storage as storage_mod
 from . import themes as themes_mod
 from . import addons as addons_mod
+from . import app as launcher
 from . import chat as chat_mod
 from .chats import Chats
 from . import notify as notify_mod
@@ -69,6 +70,7 @@ class App:
         self.sb = Sandbox(self.settings.workspace_path).ensure()
         storage_mod.cap_logs(self.sb)
         self.token = secrets.token_urlsafe(24)
+        self.stamp = launcher.build_stamp()       # Joe's files as they were at start ("" when installed)
         self.held_plan: dict = {}                 # a request that waits for the pictures to finish
         self.portable_job = portable_mod.Job()    # MAKE A PORTABLE JOE (one copy at a time)
         self.short_models: set[str] = set()       # last CHECK MY MODEL FILES: files that may be moved
@@ -472,12 +474,30 @@ class App:
                      f"{'were' if kept != 1 else 'was'} kept ON HOLD: press RUN THEM to start "
                      f"{'them' if kept != 1 else 'it'}, or CLEAR.")
 
+    @staticmethod
+    def _folder_sig(files: list[Path]) -> tuple:
+        """(name, mtime_ns, size) of each file: when it's the same, what was read from them still holds."""
+        sig = []
+        for p in files:
+            try:
+                st = p.stat()
+            except OSError:
+                continue
+            sig.append((p.name, st.st_mtime_ns, st.st_size))
+        return tuple(sig)
+
     def held_missions(self) -> list[dict]:
+        """The missions ON HOLD. /api/state asks every second or so: the files are read again only
+        when the folder's list of (name, modification time, size) changed."""
         folder = self.hold_dir()
         try:
             files = sorted(p for p in folder.iterdir() if p.is_file() and p.suffix.lower() in (".txt", ".md"))
         except OSError:
             return []
+        key = (str(folder), self._folder_sig(files))
+        cached = getattr(self, "_held_cache", None)
+        if cached and cached[0] == key:
+            return [dict(h) for h in cached[1]]
         out = []
         for p in files:
             try:
@@ -485,6 +505,7 @@ class App:
             except (MissionError, OSError, ValueError):
                 label = p.stem
             out.append({"file": p.name, "label": label})
+        self._held_cache = (key, [dict(h) for h in out])
         return out
 
     def held_action(self, action: str) -> dict:
@@ -537,7 +558,6 @@ class App:
                 self.mission_text = text
                 self.engine = Engine(self.settings, self.sb, services=self.services,
                                      log=self.log, stop=self.stop, voice=self.tool_voice)
-                last = not self.queue
             self.capture = []
             try:
                 states = self.engine.run_mission(mission, earlier=self.chain, finish=False)
@@ -1268,10 +1288,15 @@ class App:
                 self._disk_version = m.group(1) if m else __version__
             except OSError:
                 self._disk_version = __version__
+            if getattr(self, "stamp", ""):        # an installed Joe has no stamp: nothing to compare
+                self._disk_stamp = launcher.build_stamp()
         disk = getattr(self, "_disk_version", __version__)
         if disk != __version__:
             return (f"A newer Joe ({disk}) is in his folder; this window is still {__version__}. "
                     "Restart Joe to use the new one.")
+        stamp, now_stamp = getattr(self, "stamp", ""), getattr(self, "_disk_stamp", "")
+        if stamp and now_stamp and now_stamp != stamp:
+            return "Joe's files changed since this window opened. Restart Joe to use them."
         return self.restart_hint
 
     # -- Setup > Models > DOWNLOAD ALL: every offered model, one after another -------------
@@ -1331,13 +1356,26 @@ class App:
         return {"ok": True, "started": "downloading every model"}
 
     def theme_vars(self) -> dict | None:
+        """A custom theme's colors, read again only when the Themes folder's files changed."""
         ph = self.settings.ui.phosphor
         if not ph.startswith("custom:"):
             return None
-        for t in themes_mod.list_themes(self.sb.themes):
+        folder = self.sb.themes
+        try:
+            files = sorted(folder.glob("*.json"))
+        except OSError:
+            files = []
+        key = (ph, str(folder), self._folder_sig(files))
+        cached = getattr(self, "_theme_cache", None)
+        if cached and cached[0] == key:
+            return dict(cached[1]) if cached[1] is not None else None
+        found = None
+        for t in themes_mod.list_themes(folder):
             if t["id"] == ph[7:]:
-                return t["vars"]
-        return None
+                found = t["vars"]
+                break
+        self._theme_cache = (key, dict(found) if found is not None else None)
+        return found
 
     def make_saver(self, desc: str) -> dict:
         """CUSTOM SCREEN SAVER: the local model picks an animation, colors, speed and words."""
@@ -1462,23 +1500,34 @@ class App:
                 self.voice.call({"cmd": "warmup", "stt_model": self.settings.voice.stt_model}, timeout=300)
         threading.Thread(target=work, daemon=True, name="joe-warm").start()
 
-    def listen(self, audio: bytes, ext: str) -> dict:
+    def listen(self, audio: bytes, ext: str, wake: bool = False) -> dict:
+        """Speech to text on this PC. The sound goes in a temporary file for the voice helper and is deleted
+        right after. wake: heard while Joe waits for the wake words; most of that is dropped by the window,
+        so nothing about it goes in the help file's lines (not even how long the hearing took)."""
         if not addons_mod.voice_ready():
             return {"ok": False, "error": "Joe's voice isn't set up yet (F10 > Start here)."}
         d = addons_mod.voice_dir() / "tmp"
         d.mkdir(parents=True, exist_ok=True)
-        f = d / f"heard_{int(time.time() * 1000)}.{ext}"
-        f.write_bytes(audio)
+        sweep_heard(d)                               # left behind when Joe or the voice helper was closed mid-way
+        f = None
         try:
+            import os
+            import tempfile
+            fd, name = tempfile.mkstemp(prefix="heard_", suffix="." + ext, dir=d)   # a new name every time
+            f = Path(name)
+            with os.fdopen(fd, "wb") as out:
+                out.write(audio)
             t0 = time.monotonic()
             r = self.voice.call({"cmd": "stt", "audio": str(f), "stt_model": self.settings.voice.stt_model},
                                 timeout=180)
-            self.debug(f"Talk timing: hearing {time.monotonic() - t0:.1f}s ({self.settings.voice.stt_model})")
+            if not wake:
+                self.debug(f"Talk timing: hearing {time.monotonic() - t0:.1f}s ({self.settings.voice.stt_model})")
         finally:
-            try:
-                f.unlink()                           # never keep recordings
-            except OSError:
-                pass
+            if f is not None:
+                try:
+                    f.unlink()                       # never keep recordings
+                except OSError:
+                    pass
         return r
 
     def speak(self, text: str) -> tuple[bytes, str]:
@@ -1672,6 +1721,25 @@ class App:
 
 
 # ---------------------------------------------------------------------------
+HEARD_MAX_AGE = 300           # seconds: a recording older than this was left behind (Joe was closed mid-way)
+
+
+def sweep_heard(d: Path, max_age: float = HEARD_MAX_AGE) -> int:
+    """Delete recordings (heard_*) left in the voice helper's temporary folder. Returns how many."""
+    n, cutoff = 0, time.time() - max_age
+    try:
+        for p in d.glob("heard_*"):
+            try:
+                if p.is_file() and p.stat().st_mtime < cutoff:
+                    p.unlink()
+                    n += 1
+            except OSError:
+                pass
+    except OSError:
+        pass
+    return n
+
+
 def mic_line(raw) -> str:
     """The open mic's report on one recording (how long, how loud, where its bars for "talking" stood), as a
     "Talk timing:" line for MAKE A HELP FILE. Numbers and the microphone's name only; "" for anything else."""
@@ -1739,6 +1807,14 @@ def make_handler(app: App):
         def _json(self, obj, code=200):
             self._send(code, json.dumps(obj).encode(), "application/json")
 
+        def _file(self, f: Path, ctype: str, extra: dict | None = None):
+            """One of Joe's own UI files; 404 when it's missing (a half-copied folder), not a dropped line."""
+            try:
+                body = f.read_bytes()
+            except OSError:
+                return self._send(404, b"not found", "text/plain")
+            return self._send(200, body, ctype, extra)
+
         def _authed(self, q: dict, link_ok: bool = False) -> bool:
             """The window's token: in the X-NR-Token header, or as ?t= only for /raw and /player
             (links to pictures and videos can't carry a header)."""
@@ -1748,12 +1824,18 @@ def make_handler(app: App):
             except (AttributeError, UnicodeError):
                 return False
 
+        def _length(self, limit: int) -> int | None:
+            """The request's Content-Length as a whole number from 0 to limit; None when it's missing,
+            not a number, negative (that would read until the line closes) or over the limit."""
+            raw = (self.headers.get("Content-Length") or "").strip()
+            if not raw.isascii() or not raw.isdigit():
+                return None
+            n = int(raw)
+            return n if n <= limit else None
+
         def _body(self) -> dict:
-            try:
-                n = int(self.headers.get("Content-Length") or 0)
-            except ValueError:
-                return {}
-            if not 0 <= n <= 2_000_000:           # a negative length would read until the line closes
+            n = self._length(2_000_000)
+            if n is None:
                 return {}
             try:
                 b = json.loads(self.rfile.read(n) or b"{}")
@@ -1769,7 +1851,10 @@ def make_handler(app: App):
             q = parse_qs(u.query)
             app.last_seen = time.monotonic()
             if u.path in ("/", "/index.html"):
-                html = (UI_DIR / "index.html").read_text(encoding="utf-8")
+                try:
+                    html = (UI_DIR / "index.html").read_text(encoding="utf-8")
+                except OSError:                           # a half-copied folder: say so, don't drop the line
+                    return self._send(404, b"Joe's window file is missing. Install Joe again.", "text/plain")
                 html = html.replace("__INTRO__", "1" if app.settings.ui.intro else "0")
                 # The page never carries the token: anything on this PC can fetch "/". Joe's own
                 # window gets it in the address's #t=... part (app.py), which is never sent anywhere.
@@ -1783,7 +1868,7 @@ def make_handler(app: App):
             if u.path == "/favicon.ico":
                 return self._send(204, b"", "image/x-icon")
             if u.path == "/sounds/intro.wav":            # Joe's 8-bit intro jingle
-                return self._send(200, (UI_DIR / "sounds" / "intro.wav").read_bytes(), "audio/wav")
+                return self._file(UI_DIR / "sounds" / "intro.wav", "audio/wav")
             if u.path.startswith("/fonts/"):               # fonts shipped with Joe (OFL)
                 name = u.path[len("/fonts/"):]
                 f = UI_DIR / "fonts" / name
@@ -1792,7 +1877,7 @@ def make_handler(app: App):
                                       "font/ttf" if f.suffix == ".ttf" else "text/css; charset=utf-8")
                 return self._send(404, b"not found", "text/plain")
             if u.path == "/agent":                         # the agent window (its key rides in #t=..., like the main window)
-                return self._send(200, (UI_DIR / "agent.html").read_bytes(), "text/html; charset=utf-8",
+                return self._file(UI_DIR / "agent.html", "text/html; charset=utf-8",
                                   {"Content-Security-Policy":
                                    "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; "
                                    "font-src 'self'; script-src 'self'; frame-ancestors 'none'",
@@ -1800,9 +1885,9 @@ def make_handler(app: App):
             if u.path in ("/app.css", "/app.js", "/joe.js", "/agent.js"):
                 f = UI_DIR / u.path.lstrip("/")
                 ctype = "text/css" if f.suffix == ".css" else "text/javascript"
-                return self._send(200, f.read_bytes(), ctype + "; charset=utf-8")
+                return self._file(f, ctype + "; charset=utf-8")
             if u.path == "/joe.svg":                       # Joe's face in Talk (ui/joe.js puts it in the page)
-                return self._send(200, (UI_DIR / "joe.svg").read_bytes(), "image/svg+xml",
+                return self._file(UI_DIR / "joe.svg", "image/svg+xml",
                                   {"X-Content-Type-Options": "nosniff",
                                    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
             if not self._authed(q, link_ok=u.path in ("/raw", "/player", "/thumb")):
@@ -1812,7 +1897,7 @@ def make_handler(app: App):
                 if u.path == "/api/ping":
                     from .update import install_kind
                     return self._json({"ok": True, "version": __version__, "running": app.running,
-                                       "install_kind": install_kind()})
+                                       "install_kind": install_kind(), "stamp": app.stamp})
                 if u.path == "/api/state":
                     return self._json(app.state())
                 if u.path == "/api/mission":
@@ -1967,9 +2052,9 @@ def make_handler(app: App):
             import secrets as _sec
             key = app.settings.mcp_key
             got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
-            if not key or not got or not _sec.compare_digest(got, key):
+            if not key or not got or not _sec.compare_digest(got.encode("utf-8"), key.encode("utf-8")):
                 return self._json({"error": "Joe's connector key is missing or wrong (Setup > Other AI apps)."}, 401)
-            n = int(self.headers.get("Content-Length") or 0)
+            n = self._length(2_000_000) or 0
             if not 0 < n <= 2_000_000:
                 return self._json({"jsonrpc": "2.0", "id": None, "error": {"code": -32600, "message": "empty"}}, 400)
             try:
@@ -1998,12 +2083,12 @@ def make_handler(app: App):
             app.last_seen = time.monotonic()
             if u.path == "/api/addons/upload":          # Setup > Add-ons > ADD AN ADD-ON (.zip body)
                 from . import community
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(100_000_000) or 0
                 if not 0 < n <= 100_000_000:
                     return self._json({"ok": False, "error": "That file is empty or too big (100 MB at most)."})
                 return self._json(community.install_zip(app.sb, self.rfile.read(n), log=app.log))
             if u.path == "/api/voice/myvoice":          # the user's own voice sample (WAV)
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(20_000_000) or 0
                 if not 0 < n <= 20_000_000:
                     return self._json({"ok": False, "error": "recording too long"})
                 err = addons_mod.save_my_voice(self.rfile.read(n), self.headers.get("X-Consent") == "my-own-voice")
@@ -2016,7 +2101,7 @@ def make_handler(app: App):
                 from urllib.parse import unquote
                 from . import avtools
                 from .doctor import ffmpeg_exe
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(500_000_000) or 0
                 if not 0 < n <= 500_000_000:
                     return self._json({"ok": False, "error": "That file is empty or too big (500 MB at most)."})
                 promises = {x.strip() for x in (self.headers.get("X-Promises") or "").split(",")}
@@ -2054,7 +2139,7 @@ def make_handler(app: App):
                 return self._json({"ok": not err, "error": err, "voices": addons_mod.memory_voices()})
             if u.path == "/api/restore":                # RESTORE FROM A BACKUP: the zip itself is the body
                 from . import backup
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(backup.MAX_TOTAL) or 0
                 if not 0 < n <= backup.MAX_TOTAL:
                     return self._json({"ok": False, "error": "That file is empty or far too big for a settings backup."})
                 if app.running:
@@ -2075,7 +2160,7 @@ def make_handler(app: App):
             if u.path == "/api/tools/upload":           # a file for a tool (streamed to Inbox/tools/<id>/)
                 from urllib.parse import unquote
                 from . import tools as tools_mod
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(tools_mod.UPLOAD_MAX_BYTES) or 0
                 tool = (parse_qs(u.query).get("tool") or [""])[0]
                 name = unquote(self.headers.get("X-Filename") or "file")
                 if tool not in tools_mod.TOOLS or not tools_mod.TOOLS[tool].ready:
@@ -2111,8 +2196,13 @@ def make_handler(app: App):
                 return self._json({"ok": True, "input": rel, "name": p.name, "bytes": n})
             if u.path == "/api/tools/mission":          # the Tools form -> a mission (not run yet)
                 from . import tools as tools_mod
-                n = int(self.headers.get("Content-Length") or 0)
-                b = json.loads(self.rfile.read(n) or b"{}") if 0 < n <= 200_000 else {}
+                n = self._length(200_000) or 0
+                try:
+                    b = json.loads(self.rfile.read(n) or b"{}") if 0 < n <= 200_000 else {}
+                except ValueError:                        # not JSON: the same as an empty form
+                    b = {}
+                if not isinstance(b, dict):
+                    b = {}
                 tid = b.get("tool", "")
                 if tid not in tools_mod.TOOLS or not tools_mod.TOOLS[tid].ready:
                     return self._json({"ok": False, "error": "unknown tool"})
@@ -2133,7 +2223,7 @@ def make_handler(app: App):
             if u.path == "/api/talk/attach":            # a file dropped into Talk
                 from urllib.parse import unquote
                 from . import attach
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(attach.MAX_BYTES) or 0
                 name = unquote(self.headers.get("X-Filename") or "file")
                 if not 0 < n <= attach.MAX_BYTES:
                     return self._json({"ok": False, "error": "That file is empty or over 25 MB."})
@@ -2149,15 +2239,16 @@ def make_handler(app: App):
                 return self._json({"ok": True, "id": f["id"], "name": p.name, "kind": f["kind"], "rel": rel,
                                    "chars": len(f.get("text", "")), "truncated": f.get("truncated", False)})
             if u.path == "/api/voice/listen":           # raw audio from the microphone
-                n = int(self.headers.get("Content-Length") or 0)
+                n = self._length(15_000_000) or 0
                 if not 0 < n <= 15_000_000:
                     return self._json({"ok": False, "error": "recording too long"})
                 ctype = (self.headers.get("Content-Type") or "").lower()
                 ext = "ogg" if "ogg" in ctype else "wav" if "wav" in ctype else "mp4" if "mp4" in ctype else "webm"
-                note = mic_line(self.headers.get("X-Joe-Mic"))      # the open mic's levels (numbers only)
+                wake = self.headers.get("X-Joe-Wake") == "1"       # waiting for the wake words: nothing is logged
+                note = "" if wake else mic_line(self.headers.get("X-Joe-Mic"))   # the open mic's levels (numbers only)
                 if note:
                     app.debug(note)
-                return self._json(app.listen(self.rfile.read(n), ext))
+                return self._json(app.listen(self.rfile.read(n), ext, wake=wake))
             b = self._body()
             try:
                 if u.path == "/api/voice/hello":
@@ -2933,8 +3024,8 @@ def player_neighbours(p: Path) -> tuple[list[Path], int]:
 
 
 def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
-    """The BIG WINDOW: one picture or video, with PREVIOUS / NEXT through the others in its folder
-    (buttons, or the left and right arrow keys). Returns (page, Content-Security-Policy)."""
+    """The BIG WINDOW: one picture or video, with big PREVIOUS / NEXT arrows at the sides, through the others in its folder
+    (or the left and right arrow keys). Returns (page, Content-Security-Policy)."""
     import secrets as _sec
     from html import escape
     from urllib.parse import quote
@@ -2952,9 +3043,10 @@ def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
     many = len(files) > 1
     prev = link(files[i - 1]) if many else ""
     nxt = link(files[(i + 1) % len(files)]) if many else ""
-    nav = (f'<a id="prev" href="{escape(prev)}" aria-label="Previous: {escape(files[i - 1].name)}">[ &lt; PREVIOUS ]</a> '
-           f'<a id="next" href="{escape(nxt)}" aria-label="Next: {escape(files[(i + 1) % len(files)].name)}">[ NEXT &gt; ]</a> '
-           f'<span>{i + 1} of {len(files)} in this folder · left and right arrow keys work too</span>') if many else ""
+    nav = (f'<a id="prev" class="side" href="{escape(prev)}" aria-label="Previous: {escape(files[i - 1].name)}">&lt;</a>'
+           f'<a id="next" class="side" href="{escape(nxt)}" aria-label="Next: {escape(files[(i + 1) % len(files)].name)}">&gt;</a>'
+           ) if many else ""
+    count = f"{i + 1} of {len(files)} in this folder · left and right arrow keys work too · " if many else ""
     nonce = _sec.token_urlsafe(12)
     script = (f'<script nonce="{nonce}">addEventListener("keydown",function(e){{'
               'if(e.altKey||e.ctrlKey||e.metaKey)return;var t=e.target&&e.target.tagName;'
@@ -2968,8 +3060,12 @@ def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
             "video,img{max-width:100vw;max-height:calc(100vh - 28px)}"
             "p{position:fixed;bottom:0;left:0;right:0;margin:0;padding:3px 8px;"
             "background:#000c}a{color:#39ff6a;text-decoration:none;padding:0 4px}"
-            "a:hover,a:focus{background:#39ff6a;color:#000;outline:none}</style>" + tag +
-            f"<p>{nav}{' · ' if nav else ''}AI-GENERATED · {escape(p.name)}</p>{script}</html>")
+            "a:hover,a:focus{background:#39ff6a;color:#000;outline:none}"
+            "a.side{position:fixed;top:20%;height:60%;width:72px;display:flex;align-items:center;"
+            "justify-content:center;padding:0;font-size:56px;line-height:1;background:#000a}"
+            "a.side:hover,a.side:focus{background:#39ff6a;color:#000}"
+            "#prev{left:0}#next{right:0}</style>" + tag + nav +
+            f"<p>{count}AI-GENERATED · {escape(p.name)}</p>{script}</html>")
     csp = ("default-src 'none'; img-src 'self'; media-src 'self'; style-src 'unsafe-inline'"
            + (f"; script-src 'nonce-{nonce}'" if many else ""))
     return page, csp

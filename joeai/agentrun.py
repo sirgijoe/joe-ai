@@ -77,6 +77,11 @@ BOX_RULES = ("The code runs in a sealed box: Python standard library only (no pi
 TESTER_SYS = "You are the Tester inside Joe's agent."
 CODER_SYS = "You are the Coder inside Joe's agent."
 IMPROVER_SYS = "You are the Improver inside Joe's agent."
+# NO CODE AFTER READING (Joseph, 2026-11-23; SECURITY_REVIEW.md, the Tester's box, finding 8): text from
+# outside can carry instructions, so once a run has taken in a file, a search result or a page
+# (Run.read_outside), the code step is refused with these words and is no longer offered to the model.
+CODE_AFTER_READING = ("Joe didn't write or run code in this run: it had already read a file or a web page, and "
+                      "those can carry instructions. Give the coding job on its own, typed by you.")
 _FILE_MARK = re.compile(r"^=== ?FILE: ?([A-Za-z_][A-Za-z0-9_]*\.py) ?===\s*$", re.M)
 
 PLAN_SYS = "You make the plan for one of Joe's agents."
@@ -200,6 +205,27 @@ class Run:
         self.code: list[dict] = []                     # every piece of code: {"name", "status", "tests", "tries", ...}
         self.max_points = max(1, min(int(self.tpl.get("points") or MAX_POINTS), 40))
         self.reminded: set[str] = set()
+        self.code_refused = 0                          # code steps refused because the run had read outside text
+        self.code_said = False                         # CODE_AFTER_READING is in the log already
+
+    # -- what this run has taken in from outside ----------------------------
+    @property
+    def read_outside(self) -> bool:
+        """True from the moment the run took in anything neither Joe nor the owner wrote in this run: a
+        file (web.tainted: a file that started it, a file in its folder, a tool run on one) or something
+        found online (a search that returned results, or a page read). Sticky: nothing ever clears it.
+        The run's own outputs don't count by themselves (Output/<this run>/... never sets web.tainted)."""
+        return bool(self.web.tainted or self.web.pages or any(s["results"] for s in self.web.searches))
+
+    def offered(self) -> list[str]:
+        """The actions the model is offered right now: code drops out once the run has read outside text."""
+        return [a for a in self.actions if not (a == "code" and self.read_outside)]
+
+    def say_no_code(self) -> None:
+        """The person is told once, in the log, why this run won't write or run code."""
+        if not self.code_said:
+            self.code_said = True
+            self.log(f"  {CODE_AFTER_READING}")
 
     # -- the plain log -----------------------------------------------------
     def log(self, msg: str) -> None:
@@ -250,8 +276,23 @@ class Run:
         return out
 
     # -- model calls -------------------------------------------------------
-    def ask(self, system: str, user: str, tokens: int = 500) -> dict | None:
-        return agents._ask_json(self.engine, system, user, tokens)
+    def ask(self, system: str, user: str, tokens: int = 500, decide: bool = False) -> dict | None:
+        """A JSON object from the model, or None. decide=True: the answer is a choice, so it is asked
+        with ollama.DECIDE_TEMP (read the same way as agents._ask_json)."""
+        if not decide:
+            return agents._ask_json(self.engine, system, user, tokens)
+        from .ollama import DECIDE_TEMP
+        r = self.engine.services.ollama.chat([{"role": "system", "content": system}, {"role": "user", "content": user}],
+                                             model=getattr(self.engine, "text_model", None), max_tokens=tokens,
+                                             keep_alive="20m", think=False, temperature=DECIDE_TEMP)
+        m = re.search(r"\{.*\}", r.text or "", re.DOTALL)
+        if not m:
+            return None
+        try:
+            d = json.loads(m.group(0))
+        except ValueError:
+            return None
+        return d if isinstance(d, dict) else None
 
     def plan_text(self) -> str:
         return "\n".join(f"{'[x]' if p['done'] else '[ ]'} {i}. {p['point']}" for i, p in enumerate(self.plan, 1))
@@ -268,7 +309,7 @@ class Run:
                           "document or picture." if big else "") +
                          ' Reply with ONLY JSON: {"points": ["...", "..."]}',
                          f"The owner's job:\n{self.request}\n\nWhat this agent can do: " +
-                         "; ".join(ACTIONS[a][0] for a in self.actions), 900 if big else 300)
+                         "; ".join(ACTIONS[a][0] for a in self.offered()), 900 if big else 300)
         except Exception as e:                         # noqa: BLE001
             self.log(f"  Couldn't make a plan with the model ({e}); the job itself is the plan.")
         pts = [" ".join(str(x).split())[:200] for x in ((d or {}).get("points") or []) if str(x).strip()]
@@ -280,7 +321,7 @@ class Run:
         return self.allowed[:60]
 
     def pick(self, fix_note: str) -> dict | None:
-        lines = [f"- {a}: {ACTIONS[a][0]}. Answer: {ACTIONS[a][1]}" for a in self.actions]
+        lines = [f"- {a}: {ACTIONS[a][0]}. Answer: {ACTIONS[a][1]}" for a in self.offered()]
         tool_lines = []
         if "tool" in self.actions:
             from .tools import TOOLS
@@ -296,7 +337,7 @@ class Run:
                 (f"\n\nStill to do: {fix_note}" if fix_note else ""))
         d = self.ask(PICK_SYS + " You pick ONE next step at a time toward the owner's job, using only what is "
                      "listed. " + RULES + ' Reply with ONLY one JSON object (one of the answers listed), or '
-                     '{"done": true} when every point of the plan is done.', user)
+                     '{"done": true} when every point of the plan is done.', user, decide=True)
         if not d:
             return None
         if d.get("done") is True:
@@ -481,6 +522,13 @@ class Run:
 
     def do_code(self, n, step):
         from .engine import Stopped
+        if self.read_outside:                          # NO CODE AFTER READING: no Coder, no Tester, no box
+            self.code_refused += 1
+            self.say_no_code()
+            return {"status": "failed", "note": "not done: this run had already read a file or a web page "
+                    "(the report says why)", "what": "code",
+                    "ctx": f"Step {n}: code: refused, because this run has read a file or a web page. No code "
+                           "can be written in this run; go on with the other points."}
         try:
             return self._do_code(n, step)
         except (Stopped, Stuck):
@@ -1103,6 +1151,8 @@ class Run:
                 L.append("")
                 L.append(f"Only Wikipedia was searched ({self._why_only_wikipedia()}), so 'not found' often just "
                          "means Wikipedia doesn't cover it.")
+        if self.code_said:                             # refused, or said at the start: once
+            L += ["", "## No code in this run", "", CODE_AFTER_READING]
         if self.code:
             from . import codebox
             good = [c for c in self.code if c["status"] == "passes"]
@@ -1192,7 +1242,9 @@ def run(engine, mission, job, st):
     r = Run(engine, mission, job, st, agent)
     engine._save_state(job, st)
     r.log(f"Agent '{agent['name']}' ({r.tpl['name']}): up to {agent['steps']} steps and {agent['minutes']} min. "
-          f"May: {', '.join(r.actions)}. Looking things up: {'on' if r.web.on else 'off'}.")
+          f"May: {', '.join(r.offered())}. Looking things up: {'on' if r.web.on else 'off'}.")
+    if "code" in r.actions and r.read_outside:          # started by a file, or its folder holds files
+        r.say_no_code()
     stuck = ""
     try:
         try:

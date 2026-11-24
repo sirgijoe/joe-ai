@@ -20,7 +20,7 @@ def test_ics_builder():
          {"title": "Fair", "date": "2026-12-02"}, {"title": "x", "date": "tomorrow"}],
         [{"task": "Pay rent", "due": "2026-12-01"}], stamp=datetime(2026, 11, 8))
     assert text.startswith("BEGIN:VCALENDAR\r\n") and text.endswith("END:VCALENDAR\r\n")
-    assert "SUMMARY:Lunch\\, with Ann\; ok" in text
+    assert r"SUMMARY:Lunch\, with Ann\; ok" in text
     assert "DTSTART:20261201T123000" in text and "DTEND:20261201T133000" in text      # end before start: +1 h
     assert "DTSTART;VALUE=DATE:20261202" in text and "DTEND;VALUE=DATE:20261203" in text
     assert "BEGIN:VTODO" in text and "DUE;VALUE=DATE:20261201" in text
@@ -35,7 +35,7 @@ def test_calendar_file_end_to_end(app):  # noqa: F811
     assert st.status == "done", st.note
     out = app.sb.output / st.output
     ics = (out / "calendar.ics").read_text(encoding="utf-8")
-    assert ics.count("BEGIN:VEVENT") == 2 and "Party [CHECK]" in ics and "LOCATION:Main St\; Suite 2" in ics
+    assert ics.count("BEGIN:VEVENT") == 2 and "Party [CHECK]" in ics and r"LOCATION:Main St\; Suite 2" in ics
     md = (out / "dates-and-todos.md").read_text(encoding="utf-8")
     assert "Send the forms (due 2026-11-20) - Ann" in md and "Someday: no clear date" in md
 

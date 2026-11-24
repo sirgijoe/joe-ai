@@ -837,9 +837,11 @@ class Engine:
     CAPPED_KINDS = frozenset({"proofread", "translate"})
 
     def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState,
-              images: list[str] | None = None, model: str = "") -> ChatResult:
+              images: list[str] | None = None, model: str = "", temperature: float | None = None,
+              schema: dict | None = None) -> ChatResult:
         """One model call with retries. `images` (base64) go with the question to a vision
-        `model` (tools that look at the person's photos)."""
+        `model` (tools that look at the person's photos). `temperature` and `schema` are only for
+        replies that are a choice or JSON (ollama.DECIDE_TEMP); writing keeps the setting."""
         if not model and kind in self.BEST_MODEL_KINDS and not job.model:
             model = getattr(self, "best_text_model", "")
         model = model or (job.model if not job.media else "") or getattr(self, "text_model", "") \
@@ -849,6 +851,8 @@ class Engine:
         if job.job_id in getattr(self, "_no_think", set()):
             think = False                        # thinking used up the room last time (see _run_part)
         cap = len(user) // 2 + 2048 if kind in self.CAPPED_KINDS else None
+        extra = {k: v for k, v in (("max_tokens", cap), ("temperature", temperature), ("schema", schema))
+                 if v is not None}
         last_err = None
         for attempt in range(1, self.s.engine.max_retries + 1):
             if self.stop.is_set():
@@ -858,7 +862,8 @@ class Engine:
                 if images:
                     ask["images"] = images
                 r = self.client.chat([{"role": "system", "content": system}, ask], model=model,
-                                     think=think, **({"max_tokens": cap} if cap else {}))
+                                     think=think, **extra)
+                self._window_check(job, part, r, st)
                 st.tokens_in += r.prompt_tokens
                 st.tokens_out += r.output_tokens
                 st.model_seconds += r.seconds
@@ -877,6 +882,17 @@ class Engine:
                 if self.stop.wait(self.s.engine.retry_backoff_s * attempt):
                     raise Stopped()
         raise PartFailed(f"model unreachable after {self.s.engine.max_retries} tries: {last_err}")
+
+    WINDOW_FULL = "The model's window was full on part {n}, so the start of the instructions may have been cut."
+
+    def _window_check(self, job: Job, part: int, r: ChatResult, st: JobState) -> None:
+        """A question that filled the model's whole window: said once per task, in the log and the report."""
+        if not getattr(r, "full", False) or any("window was full" in f.get("flag", "") for f in st.flags):
+            return
+        msg = (self.WINDOW_FULL.format(n=part + 1)
+               + " Use smaller chunks or a bigger window (Setup > Writing).")
+        st.flags.append({"item": job.name, "flag": f"[CHECK] {msg}"})
+        self.log(f"  {msg}")
 
     def _top_up(self, job: Job, st: JobState, system: str, out) -> None:
         """A list that came up a few items short (repeats dropped, a part ran out of tries) gets

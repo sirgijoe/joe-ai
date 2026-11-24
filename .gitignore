@@ -14,3 +14,10 @@ NOTES_HISTORY.md
 IDEAS.md
 STYLE_NOTES.md
 pbs/
+# Personal files Joe writes next to his settings
+keys.dpapi.json
+phone.json
+agents.json
+memory.json
+settings.broken.json
+.ruff_cache/

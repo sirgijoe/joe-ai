@@ -40,13 +40,23 @@ def norm(text: str) -> str:
     return re.sub(r"\s+", " ", text or "").strip()
 
 
+def seq(text: str) -> str:
+    """{3} {4} {5} -> {1} {2} {3}: the window finds a line by position, so its placeholders count from 1 in order."""
+    order: dict[str, str] = {}
+    for n in re.findall(r"\{(\d+)\}", text):
+        order.setdefault(n, str(len(order) + 1))
+    return re.sub(r"\{(\d+)\}", lambda m: "{" + order[m.group(1)] + "}", text)
+
+
 def _wordy(t: str) -> bool:
     """Screen text, not code: has letters, isn't a path, an id, a CSS rule or a key name."""
     if len(t) < 2 or len(t) > 900 or not re.search(r"[A-Za-z]{2}", t):
         return False
     if re.match(r"^[#./]|^https?://|^[a-z0-9_-]+$|^[A-Z][a-z]+[A-Z]\w*$|^[a-z]+/[a-z0-9.+-]+$", t):   # ids, paths, camelCase, mime types
         return False
-    if re.search(r"[{};]\s*$|=>|\bfunction\b|\bconst\b|\bdocument\.|\bclassName\b|^\w+\(|\(\)|^\[data-|^\.[a-z]", t):
+    if re.search(r"[{};]\s*$", re.sub(r"\{\d+\}", "", t)):                    # code ends in { } ;  but a {1} placeholder is not code
+        return False
+    if re.search(r"=>|\bfunction\b|\bconst\b|\bdocument\.|\bclassName\b|^\w+\(|\(\)|^\[data-|^\.[a-z]", t):
         return False
     if re.fullmatch(r"[A-Z0-9_]+", t) and len(t) > 12:                           # CONSTANT_NAMES
         return False
@@ -54,7 +64,36 @@ def _wordy(t: str) -> bool:
         return False                                                            # X-NR-Token, Content-Type
     if re.search(r"\+=|querySelector|\s>\s[.#a-z]|===|!==|&&|\|\||^\w+\s*\+=|\bfield\(", t):
         return False
-    return True
+    return not _CODE.search(t)
+
+
+# Code that is picked up as if it were screen text: camelCase names, selectors, half a JS expression,
+# the keys of an object, an HTML attribute list, a URL query piece, a font list. A real screen line never
+# looks like these; "[ SAVE ]" (spaces inside the brackets), "{1} of {2}" and "Keep {1} in Favorites" don't.
+_CODE = re.compile(
+    r"^[a-z]+[A-Z]\w*$"                                   # joeToken, characterData
+    r"|^\(?\{\s*[a-z_]\w*\s*:"                             # ({ name:   { a: 1
+    r"|^[;)}\]?+]|^,\s*[a-z_]\w*:\s|^:\s*\"[^\"]*\",\s*\"|^:\s*\"\"|^:\s*[\w.$]+\s*\?"   # starts in the middle of an expression (not ", about {1} left.")
+    r"|\s[?:+]$|\s\?\s"                                    # ends in ? : +  ("return m.mission ?")
+    r"|^(?:return|else|if|for|while|const|let|var|switch|case|typeof)\b\s*[(\[{!=]"   # statements; not "if you ..." or "for the ..."
+    r"|^return\s+\S+\s*[-+*/?:|&(]|^else\s+if\b|^(?:const|let|var)\s+\w+\s*="
+    r"|\$\(|\.textContent|\.innerHTML|\.slice\(|\.join\(|\.replace\(|\.split\(|\.length\b|\.hidden\b"
+    r"|^[\w$]+(?:\.[\w$]+)+\s*=[^=]"                      # t.part_prompts = ...
+    r"|^[\w$]+\.\w+\("                                    # JoeFace.attach(
+    r"|^\[[a-z][\w-]*(?:[~^$*|]?=[^\]]*)?\]"                # [title]  [aria-hidden="true"]
+    r"|\w\[[a-z][\w-]*(?:[~^$*|]?=[^\]]*)?\]"              # input[data-pick]  video[data-src-path]
+    r"|\[[a-z][\w-]*(?:[~^$*|]?=[^\]]*)?\]\s*[,:]"          # [title],[placeholder]
+    r"|:not\(|:hover|::\w"                                # CSS
+    r"|\[\"\w+\",\s*\""                                    # ["painting", "Painting"]
+    r"|(?:^|\s)(?:[A-Z] ){2,}[A-Z]$"                       # dot D L L
+    r"|^[a-z_]\w*:\s*[\"'`]|^[a-z_]\w*:\s*[\w.$]+,\s*$"   # doc: "...",  audio: audioEl,
+    r"|[\w-]+=\"|^\w+=\d"                                 # title="{1}"   width=1100,height=760
+    r"|^[?&]\w+=|system-ui|sans-serif"                      # ?code=  &path=  font lists
+    r"|^[A-Za-z]:\\|^\w+/$|^<"                              # C:\JOE\  Output/  <button ...
+    r"|\bwidth=\d+,|\bdata-\w+|\bprefers-"
+    r"|^(?:s|t|ve|re|ll|d|m)\s+\S|\]\(\w+\)"                 # "t listen", "s ready": what is left after an apostrophe in a comment
+    r"|[A-Za-z]-\{\d|\bpx\b|\}px|\dpx\b|^(?:TASK|PART|SEED|SIZE|PROMPTS|PROJECT):\s*(?:\{\d+\}|as written|More like)"                              # ph-{1}  {1}px: pieces of markup, not sentences
+)
 
 
 class _HTML(html.parser.HTMLParser):
@@ -80,29 +119,150 @@ class _HTML(html.parser.HTMLParser):
             self.out.append(t)
 
 
-_JS_STR = re.compile(r"`(?:\\.|[^`\\])*`|\"(?:\\.|[^\"\\\n])*\"|'(?:\\.|[^'\\\n])*'")
+def _scan(src: str, i: int = 0, in_expr: bool = False) -> tuple[list[tuple[int, int]], int]:
+    """The quoted strings of a script as (start, end) spans, and where the scan stopped.
+    Comments and regular-expression literals are stepped over (a backtick or quote inside one must not throw
+    the pairing off for the rest of the file); a `template` may hold ${ expressions } with strings and
+    templates of their own. With in_expr the scan stops after the } that closes the ${ expression."""
+    out: list[tuple[int, int]] = []
+    n, depth, prev, word = len(src), 0, "", ""
+    while i < n:
+        c = src[i]
+        if c in " \t\r\n":
+            i += 1
+        elif src.startswith("//", i):
+            j = src.find("\n", i)
+            i = n if j < 0 else j
+        elif src.startswith("/*", i):
+            j = src.find("*/", i + 2)
+            i = n if j < 0 else j + 2
+        elif c in "\"'":
+            j = i + 1
+            while j < n and src[j] != c and src[j] != "\n":
+                j += 2 if src[j] == "\\" else 1
+            if j < n and src[j] == c:
+                out.append((i, j + 1))
+                i, prev = j + 1, c
+            else:
+                i += 1
+        elif c == "`":
+            j = i + 1
+            while j < n and src[j] != "`":
+                if src[j] == "\\":
+                    j += 2
+                elif src.startswith("${", j):
+                    j = _scan(src, j + 2, True)[1]
+                else:
+                    j += 1
+            out.append((i, min(j + 1, n)))
+            i, prev = j + 1, "`"
+        elif c == "/" and (prev == "" or prev in "(,=:[!&|?{};" or word in ("return", "typeof")):
+            j, in_class = i + 1, False                        # a regular expression: /.../flags
+            while j < n and src[j] != "\n" and (in_class or src[j] != "/"):
+                if src[j] == "\\":
+                    j += 1
+                elif src[j] == "[":
+                    in_class = True
+                elif src[j] == "]":
+                    in_class = False
+                j += 1
+            if j < n and src[j] == "/":
+                j += 1
+                while j < n and src[j].isalpha():
+                    j += 1
+                i, prev, word = j, "/", ""
+            else:
+                i, prev = i + 1, "/"
+        elif c.isalnum() or c in "_$":
+            j = i
+            while j < n and (src[j].isalnum() or src[j] in "_$"):
+                j += 1
+            i, prev, word = j, "a", src[i:j]
+        else:
+            if c == "{":
+                depth += 1
+            elif c == "}":
+                if in_expr and depth == 0:
+                    return out, i + 1
+                depth -= 1
+            i, prev, word = i + 1, c, ""
+    return out, n
+
+
+# Where a quoted string sits when it is code, not screen text: compared with something, a class name, a method
+# name, a list of lowercase ids or phrases the code listens for, a "key:" prefix, or after "||" as a default.
+_CODE_BEFORE = re.compile(r"(?:[!=]==?|\bclass(?:Name)?\s*=|\.method\s*=|\bmethod:|\.(?:open|add|remove|toggle|contains|includes|"
+                          r"startsWith|endsWith|has|closest|matches|getAttribute|setAttribute|querySelector(?:All)?|"
+                          r"normalize)\(|\bcase)\s*$")
+_NOT_TEXT = {"hey joe", "use strict", "thats right", "RIFF", "WAVE", "noopener noreferrer"}   # the wake-word default, the script's pragma, the last word of a list of yeses
+_LOWER_WORDS = re.compile(r"[a-z0-9][a-z0-9 .:'_/-]*")
+
+
+def _js_is_code(src: str, start: int, end: int, raw: str) -> bool:
+    """A string the script compares or listens for (not shown): judged by what is around it."""
+    t = norm(raw)
+    if t in _NOT_TEXT:
+        return True
+    line_start = src.rfind("\n", 0, start) + 1
+    before = src[line_start:start]
+    after = src[end:end + 12].lstrip()
+    token = " " not in t and re.fullmatch(r"[A-Za-z0-9._:/-]+", t) is not None
+    if (token or _LOWER_WORDS.fullmatch(t)) and _CODE_BEFORE.search(before[-40:]):
+        return True
+    if _LOWER_WORDS.fullmatch(t):
+        ctx = src[max(0, start - 200):start].rstrip()
+        if (ctx.endswith("[") or re.search(r"[\"'`]\s*,$", ctx)) and re.match(r",\s*[\"'`]", src[end:end + 8].lstrip()):
+            return True                                                      # in a run of quoted words: ["go ahead", "do it", ...]
+        if t.endswith(":") and not raw.endswith(" ") and after.startswith("+"):                        # "custom:" + id
+            return True
+    return False
+
+
+_ATTR = re.compile(r"""\b(?:title|placeholder|aria-label|data-title)=(?:"([^"]*)"|'([^']*)')""")
+
+
+def _in_markup(body: str, ph: str) -> bool:
+    """Is this ${...} placed inside a tag (class="${...}", <button${...}>) rather than in the text?
+    Strings in there are class names and flags, except in title/placeholder/aria-label, which people read."""
+    for tag in re.findall(r"<[a-zA-Z][^>]*(?:>|$)", body):
+        if ph in tag:
+            return not re.search(r"""\b(?:title|placeholder|aria-label|data-title)=(?:"[^"]*|'[^']*)""" + re.escape(ph), tag)
+    return False
 
 
 def _js_text(src: str) -> list[str]:
     """Screen text from the window's script: string pieces between tags, ${...} turned into {1}, {2}..."""
     out = []
-    for m in _JS_STR.finditer(src):
-        s = m.group(0)
+    for a, b in _scan(src)[0]:
+        s = src[a:b]
+        if _js_is_code(src, a, b, s[1:-1]):
+            continue
         q, body = s[0], s[1:-1]
+        inner: list[str] = []                                 # the ${...} pieces: they hold strings of their own
         if q == "`":
             n = 0
 
-            def ph(_):
+            def ph(expr):
                 nonlocal n
                 n += 1
+                inner.append(expr or "")
                 return "{" + str(n) + "}"
             body = _replace_expr(body, ph)
         body = body.replace("\\n", "\n").replace('\\"', '"').replace("\\'", "'").replace("\\\\", "\\")
+        for tag in re.findall(r"<[a-zA-Z][^>]*(?:>|$)", body):                 # title="..." / placeholder="..." inside a tag
+            for am in _ATTR.finditer(tag):
+                for line in (am.group(1) or am.group(2) or "").split("\n"):
+                    t = seq(norm(line))
+                    if t and _wordy(t) and not re.fullmatch(r"(\{\d+\}\s*)+", t) and "${" not in t:
+                        out.append(t)
         for piece in re.split(r"<[^>]*>", body):
             for line in piece.split("\n"):
-                t = norm(line)
+                t = seq(norm(line))
                 if t and _wordy(t) and not re.fullmatch(r"(\{\d+\}\s*)+", t) and "${" not in t:
                     out.append(t)
+        for n, expr in enumerate(inner, 1):
+            if not _in_markup(body, "{%d}" % n):
+                out.extend(_js_text(expr))
     return out
 
 
@@ -111,11 +271,8 @@ def _replace_expr(body: str, ph) -> str:
     res, i = [], 0
     while i < len(body):
         if body.startswith("${", i):
-            depth, j = 1, i + 2
-            while j < len(body) and depth:
-                depth += {"{": 1, "}": -1}.get(body[j], 0)
-                j += 1
-            res.append(ph(None))
+            j = _scan(body, i + 2, True)[1]
+            res.append(ph(body[i + 2:j - 1]))
             i = j
         else:
             res.append(body[i])

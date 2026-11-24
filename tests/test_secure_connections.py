@@ -3,6 +3,7 @@ Joe says the real reason a site didn't answer, DuckDuckGo gets one more try, and
 SECURE line. Found on a real PC (2026-11-15): Wikipedia "couldn't be reached" because Windows still
 held a copy of "ISRG Root X2" that ran out in September 2025. Pretend certificates and local servers only."""
 import datetime as dt
+import errno
 import socket
 import ssl
 import struct
@@ -242,6 +243,20 @@ def _kind(url, timeout=5):
         http.request_json("GET", url, timeout=timeout)
     assert str(e.value).startswith(f"can't reach {url}: ")        # the old words stay (comfy.py reads them)
     return e.value.kind
+
+
+def test_a_hang_up_is_known_by_its_number_too(monkeypatch):
+    import urllib.error
+    einval = urllib.error.URLError(OSError(errno.EINVAL, "Invalid argument"))
+    monkeypatch.setattr(http.sys, "platform", "darwin")            # a Mac reports a reset this way
+    assert http._kind(einval) == "dropped"
+    monkeypatch.setattr(http.sys, "platform", "linux")             # elsewhere EINVAL is too general
+    assert http._kind(einval) == ""
+    for n in (errno.ECONNRESET, errno.EPIPE, errno.ECONNABORTED, errno.ENOTCONN):
+        assert http._kind(urllib.error.URLError(OSError(n, "x"))) == "dropped"
+        assert http._kind(OSError(n, "x")) == "dropped"
+    assert http._kind(urllib.error.URLError(ConnectionRefusedError(errno.ECONNREFUSED, "no"))) == "refused"
+    assert http._kind(urllib.error.URLError(socket.timeout("timed out"))) == "timeout"
 
 
 def test_http_errors_say_what_kind_of_trouble_it_was(monkeypatch, site):

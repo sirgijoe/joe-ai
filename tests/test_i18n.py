@@ -31,7 +31,7 @@ def test_builtin_spanish_and_own_file_on_top(app):  # noqa: F811
     es2 = i18n.load("es", app.sb)
     assert es2["Joe Phone on"] == "Joe Phone encendido" and es2["Port"] == "Puerto"   # blank lines don't wipe
     cov = i18n.coverage("es", app.sb)
-    assert 10 < cov["pct"] < 100 and cov["total"] == len(i18n.extract())
+    assert 10 < cov["pct"] <= 100 and cov["total"] == len(i18n.extract())
     names = {c["code"]: c for c in i18n.choices(app.sb)}
     assert names["en"]["pct"] == 100 and names["es"]["pct"] > 10 and names["fr"]["pct"] == 0
 
@@ -65,3 +65,70 @@ def test_language_tool_is_ready_and_planned():
     t = tools.TOOLS["joe-language"]
     assert t.ready and not t.accepts and "TYPE: joe-language" in tools.planner_lines()
     assert ("spanish", "Español (Spanish)") in t.options[0].choices
+
+
+def test_extract_leaves_code_out_and_keeps_screen_lines():
+    lines = set(i18n.extract())
+    for code in ("joeToken", "({ name:", "return m.mission ?", "dot D L L", "[title]"):
+        assert code not in lines, code
+    for code_only in ("ok do it", "go ahead", "um, hey Joe ...", "C:\\JOE>", "Delete", "noopener noreferrer"):
+        assert code_only not in lines, code_only           # answers the script listens for, a path, a key name
+    for real in ("Home", "Tools", "Talk", "[ PAIR A PHONE ]", "[ STOP ]", "Needs your answer: {1}"):
+        assert real in lines, real
+
+
+def test_wordy_keeps_odd_looking_screen_lines():
+    for ok in ("[ SAVE ]", "{1} of {2}", "Keep {1} in Favorites", "Joe v{1} · GPL-3.0-or-later", "Esc"):
+        assert i18n._wordy(ok), ok
+    for bad in ("joeToken", "({ name:", "return m.mission ?", "dot D L L", "[title]", "[translate=\"no\"], textarea, pre",
+                "if (!t) { f.innerHTML = '", "18px {1}", "?force=1", "title=\"{1}\""):
+        assert not i18n._wordy(bad), bad
+
+
+def test_spanish_covers_nearly_every_screen_line():
+    assert i18n.coverage("es")["pct"] >= 98
+
+
+def test_extract_reads_text_hidden_behind_a_regex_or_comment_or_nested_string():
+    src = (
+        'x.replace(/[|#*`-]{2,}/g, " "); // a comment with a ` backtick and a "quote\n'
+        'const a = `<p title="Hover text">${ok ? "Shown in a ternary" : "Other text"}</p>` + "Plain line";\n'
+        'const b = `<div class="${hot ? "hot blink" : ""}">Real words ${n}</div>`;\n'
+    )
+    got = i18n._js_text(src)
+    for want in ("Hover text", "Shown in a ternary", "Other text", "Plain line", "Real words {1}"):
+        assert want in got, want
+    for bad in ("hot blink", "a comment with a", "quote"):
+        assert not any(bad in t for t in got), bad
+
+
+def test_spanish_file_is_valid_and_keeps_placeholders():
+    import re
+    es = i18n.load("es")
+    for k, v in es.items():
+        assert set(re.findall(r"\{\d+\}", k)) == set(re.findall(r"\{\d+\}", v)), k
+        if k.startswith("[ ") and k.endswith(" ]"):
+            assert v.startswith("[ ") and v.endswith(" ]"), k
+    assert es["Hey Joe"] == "Hey Joe" if "Hey Joe" in es else True
+
+
+def test_placeholders_count_from_one_in_order():
+    assert i18n.seq("Move {2} item{3} ({4}) to the Recycle Bin?") == "Move {1} item{2} ({3}) to the Recycle Bin?"
+    assert i18n.seq("{3}/{4} done, {3}") == "{1}/{2} done, {1}"
+    got = i18n._js_text("x = `<b>Hello ${q}</b> and ${r} more`; y = `<button aria-label=\"Edit ${a}\" title=\"Go ${b}\">`")
+    assert "Hello {1}" in got and "and {1} more" in got              # each line counts from 1 by itself
+    assert "Edit {1}" in got and "Go {1}" in got
+    for k in i18n.extract():
+        assert k == i18n.seq(k), k                    # the window matches by position: {1}, {2}, ... in order
+    for k, v in i18n.load("es").items():
+        if "{" in k:
+            assert k == i18n.seq(k), k
+            assert set(__import__("re").findall(r"\{(\d+)\}", v)) <= set(__import__("re").findall(r"\{(\d+)\}", k)), k
+
+
+def test_nested_template_and_a_tag_split_over_two_strings():
+    src = ("a = `<div>Installing${s ? \": \" + e(s) + (p ? ` ${p}%` : \"\") : \"…\"} (${q} more after this)</div>`;\n"
+           "b = `<button aria-label=\"Keep ${n} in Favorites\"` +\n `>x</button>`;")
+    got = i18n._js_text(src)
+    assert "Installing{1} ({2} more after this)" in got
+    assert "Keep {1} in Favorites" in got

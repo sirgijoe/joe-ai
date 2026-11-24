@@ -86,6 +86,7 @@ def test_mcp_shrink_reports_sizes_and_stays_in_folders(joe):
     out = joe.call("joe_shrink", {"path": "run.log"})
     assert out.startswith("[Output/run.log | log | ") and " -> " in out and "%)" in out
     (joe.sb.inbox / "x.json").write_text('{"a": [1, 2, 3, 4]}', encoding="utf-8")
+    joe.s.mcp_folders = True              # the Inbox opens only when the person ticks it in Setup
     assert "array[4]" in joe.call("joe_shrink", {"path": "Inbox/x.json"})
     for bad in ("../../settings.json", ".joe/state.json", "/etc/passwd"):
         with pytest.raises(Exception):

@@ -39,7 +39,8 @@ for (const [secs, rms, busy] of parts) {
 if (begun !== null) clips.push([begun / 1000, null]);
 console.log(JSON.stringify({ clips, floor: st.floor }));
 """ % (json.dumps(parts), pause, TICK, TICK)
-    r = subprocess.run([node, "-e", script], capture_output=True, text=True, timeout=30)
+    r = subprocess.run([node, "-e", script], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=30)        # node writes UTF-8; Windows would read it as its own code page
     assert r.returncode == 0, r.stderr[-800:]
     return json.loads(r.stdout)["clips"]
 
@@ -135,3 +136,154 @@ def test_each_recording_leaves_a_line_for_the_help_file(env):  # noqa: F811
     finally:
         httpd.shutdown()
     assert any(ln.endswith(mic_line(good)) for ln in app.debug_lines)
+
+
+# --- the rolling second (2026-11-22): the first syllable of "Hey Joe" isn't clipped -------------------------
+
+def _ring(script):
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node isn't installed here (GitHub's test machines have it)")
+    assert "// >>> mic-ring" in JS and "// <<< mic-ring" in JS
+    code = JS.split("// >>> mic-ring")[1].split("// <<< mic-ring")[0]
+    r = subprocess.run([node, "-e", code + script], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=30)        # node writes UTF-8; Windows would read it as its own code page
+    assert r.returncode == 0, r.stderr[-800:]
+    return json.loads(r.stdout)
+
+
+def test_the_rolling_second_keeps_only_the_last_second_and_in_order():
+    out = _ring("""
+const r = micRing(1000, 1);                     // 1000 samples a second
+let n = 0; for (let i = 0; i < 37; i++) { r.push(Float32Array.from({ length: 128 }, () => n++)); }
+const got = r.take();
+console.log(JSON.stringify({ len: got.length, first: got[0], last: got[got.length - 1], size: r.size(), n }));
+""")
+    assert out["len"] == 1000 and out["size"] == 1000                 # capped at one second, however long it listens
+    assert out["last"] == out["n"] - 1 and out["first"] == out["n"] - 1000    # the newest second, oldest first
+    out = _ring("const r = micRing(1000, 1); r.push(new Float32Array(300)); console.log(JSON.stringify({ len: r.take().length }));")
+    assert out["len"] == 300                                          # less than a second heard: just that
+
+
+def test_the_rolling_second_is_thrown_away_by_clear():
+    out = _ring("""
+const r = micRing(1000, 1); r.push(new Float32Array(500).fill(0.5)); r.clear();
+console.log(JSON.stringify({ size: r.size(), len: r.take().length }));
+""")
+    assert out == {"size": 0, "len": 0}
+
+
+def test_the_open_mic_keeps_the_second_only_while_listening_and_puts_it_in_front():
+    start = JS.split("async function openMicStart()")[1].split("function meter(")[0]
+    stop = JS.split("function openMicStop()")[1].split("// --- push-to-talk")[0]
+    assert "micRing(m.ctx.sampleRate, 1)" in start                    # made only when the open mic starts listening
+    assert "lead = ring.take(); ring.clear(); hold = true;" in start   # speech starts: the second goes in front, then stops filling
+    assert "if (joeBusy && !utter) ring.clear();" in start            # Joe's own voice is never kept
+    assert "ld, lr);" in start and "sendAudio(chunks, report, wake, lead, leadRate)" in JS
+    assert "micRoll.ring.clear(); micRoll = null;" in stop and "onaudioprocess = null" in stop   # listening stops: thrown away
+    assert "micRing(" not in JS.split("async function recStartFn()")[1].split("function recStopFn")[0]   # push-to-talk keeps nothing
+    assert "fetch(" not in JS.split("// >>> mic-ring")[1].split("// <<< mic-ring")[0]       # never sent or saved on its own
+    assert "ls.start(0)" in JS and "src.start(pre)" in JS             # in the file, the lead comes first
+
+
+# --- two starts at once (2026-11-22 review, finding 11): the microphone can't be left on ----------------------
+
+def _starts(scenario):
+    """Run openMicStart/openMicStop under node with a fake microphone that answers only when told to.
+    Returns what happened to every microphone and sound context handed out."""
+    node = shutil.which("node")
+    if not node:
+        pytest.skip("node isn't installed here (GitHub's test machines have it)")
+    parts = [JS.split("// >>> mic-ring")[1].split("// <<< mic-ring")[0],
+             JS.split("// >>> mic-step")[1].split("// <<< mic-step")[0],
+             JS.split("// >>> mic-start")[1].split("// <<< mic-start")[0]]
+    harness = """
+const streams = [], ctxs = [], pending = [], toasts = [], loops = new Set();
+let n = 0, ctxThrows = false;
+const navigator = { mediaDevices: { getUserMedia: () => new Promise((ok, no) => {
+  const s = { id: ++n, live: true, getTracks() { return [{ stop: () => { s.live = false; } }]; }, getAudioTracks() { return []; } };
+  streams.push(s); pending.push({ ok: () => ok(s), no: () => no(new Error("denied")) });
+}) } };
+class AudioContext {
+  constructor() { if (ctxThrows) throw new Error("no sound card"); this.state = "running"; this.sampleRate = 48000; this.closed = false; this.sp = null; ctxs.push(this); }
+  close() { this.closed = true; return Promise.resolve(); }
+  resume() { return Promise.resolve(); }
+  createAnalyser() { return { fftSize: 0, getFloatTimeDomainData() {}, connect() {} }; }
+  createMediaStreamSource() { return { connect() {} }; }
+  createScriptProcessor() { const sp = { onaudioprocess: null, attached: true, connect() {}, disconnect() { this.attached = false; } }; this.sp = sp; return sp; }
+  createGain() { return { gain: { value: 1 }, connect() {} }; }
+  get destination() { return {}; }
+}
+const setInterval = (f) => { const id = {}; loops.add(id); return id; };
+const clearInterval = (id) => { loops.delete(id); };
+const $ = () => null;
+let talkMode = "open", micMuted = false, voiceReady = true, current = "talk", wakeOn = true;
+let micStream = null, micCtx = null, micLoop = null, micRoll = null, micGen = 0;
+let busyTalking = false, speaking = false, audioEl = null, turnPause = 850;
+function toast(t) { toasts.push(t); } function pttLabel() {} function micName() {} function wakeBadge() {} function badge() {}
+function micReport() { return {}; } function sendAudio() {} function wakeMode() { return true; }
+const wait = () => new Promise((r) => setTimeout(r, 0));
+function report() {
+  console.log(JSON.stringify({ live: streams.filter((s) => s.live).map((s) => s.id), open: ctxs.filter((c) => !c.closed).length,
+    attached: ctxs.filter((c) => c.sp && c.sp.attached && c.sp.onaudioprocess).length, loops: loops.size,
+    current: micStream ? micStream.id : null, asked: streams.length, toasts, starting: micStarting }));
+}
+"""
+    script = harness + "\n".join(parts) + "\n(async () => {\n" + scenario + "\nreport();\n})().catch((e) => { console.error(e.stack); process.exit(1); });"
+    r = subprocess.run([node, "-e", script], capture_output=True, text=True, encoding="utf-8", errors="replace",
+                       timeout=30)        # node writes UTF-8; Windows would read it as its own code page
+    assert r.returncode == 0, r.stderr[-1500:]
+    return json.loads(r.stdout)
+
+
+def test_a_second_start_while_the_first_waits_makes_no_second_microphone():
+    out = _starts("""
+openMicStart(); openMicStart(); openMicStart();     // the wake check, a screen change and opening Talk, all at once
+pending[0].ok(); await wait(); await wait();
+""")
+    assert out["asked"] == 1 and out["live"] == [1] and out["current"] == 1 and out["loops"] == 1 and out["open"] == 1
+
+
+def test_mic_off_while_the_first_start_waits_leaves_nothing_on():
+    out = _starts("""
+openMicStart(); openMicStart();
+openMicStop();                                      // MIC OFF, or the wake word unticked, before the browser answered
+micMuted = true;
+pending[0].ok(); await wait(); await wait();
+""")
+    assert out["live"] == [] and out["open"] == 0 and out["attached"] == 0 and out["loops"] == 0 and out["current"] is None
+
+
+def test_off_then_on_again_while_waiting_ends_with_exactly_one_microphone():
+    out = _starts("""
+openMicStart();
+openMicStop(); openMicStart();                      // MIC OFF then MIC ON quickly: the second start waits its turn
+pending[0].ok(); await wait(); await wait();        // the first one lets go ...
+pending[1].ok(); await wait(); await wait();        // ... and a fresh one starts
+""")
+    assert out["asked"] == 2 and out["live"] == [2] and out["current"] == 2 and out["loops"] == 1 and out["open"] == 1
+
+
+def test_stop_after_a_start_lets_go_of_everything():
+    out = _starts("""
+openMicStart(); pending[0].ok(); await wait(); await wait();
+openMicStop(); await wait();
+""")
+    assert out["live"] == [] and out["open"] == 0 and out["attached"] == 0 and out["loops"] == 0 and not out["starting"]
+
+
+def test_a_start_that_fails_after_the_microphone_lets_it_go():
+    out = _starts("""
+ctxThrows = true;
+openMicStart(); pending[0].ok(); await wait(); await wait();
+""")
+    assert out["live"] == [] and out["current"] is None and out["loops"] == 0 and not out["starting"]
+    assert out["toasts"] == ["Joe's microphone didn't start. Press [ MIC OFF ] to try again."]
+
+
+def test_a_refused_microphone_says_so_once():
+    out = _starts("""
+openMicStart(); openMicStart(); pending[0].no(); await wait(); await wait();
+""")
+    assert out["asked"] == 1                                         # the second start didn't ask again
+    assert out["toasts"] == ["Joe can't hear you: allow the microphone for this window"] and out["current"] is None

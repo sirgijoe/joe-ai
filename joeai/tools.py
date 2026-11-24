@@ -23,6 +23,7 @@ from typing import TYPE_CHECKING
 
 from .fsutil import atomic_write_text
 from .items import count_words, find_flags
+from .ollama import DECIDE_TEMP
 
 if TYPE_CHECKING:                                    # pragma: no cover
     from .engine import Engine, JobState
@@ -846,12 +847,16 @@ TOOLS: dict[str, Tool] = {t.id: t for t in (
     Tool("animate-photo", "Animate a photo", "Video",
          "Turn one of your photos into a short clip.", accepts=COMFY_PHOTO_EXT, needs=("comfy",),
          ready=True,
+         options=(Option("end", "End on my last picture", default=False,
+                         hint="The last picture you add is where the clip ends. Needs the "
+                              "Wan22FirstLastFrameToVideoLatent add-on in ComfyUI."),),
          help="A 5-second clip that starts from your photo, made with the Wan 2.2 video model "
               "(Apache-2.0, the same one Joe's videos use). Describe the motion, or leave it empty "
               "for gentle natural movement. About 2 minutes a clip with the Turbo add-on, much longer "
               "without. Your originals are never changed.",
          plan_hint="Animate photos into clips: TYPE: animate-photo, INPUT: the photo file(s) from the "
-                   "list below, FORMAT: the motion they want (optional). No CHUNKS, no OPTIONS.",
+                   "list below, FORMAT: the motion they want (optional). OPTIONS: end only if they give a picture "
+                   "the clip must end on (it goes last in INPUT), else none. No CHUNKS.",
          examples=("Make this photo move", "Animate my product photo with a slow turn"),
          extra_label="What should move? (optional)", extra_hint="e.g. steam rising from the mug, slow camera push-in"),
     Tool("restyle-video", "Restyle a video", "Video",
@@ -2751,6 +2756,11 @@ are written in the cell; never invent, look up or correct anything. If a part is
 leave it "". Reply with ONLY a JSON array, nothing else."""
 
 
+# The shape of a categorize reply, for servers that can keep to one (the reply is still read the old way).
+CAT_SCHEMA = {"type": "array", "items": {"type": "object", "properties": {
+    "row": {"type": "integer"}, "category": {"type": "string"}}, "required": ["row", "category"]}}
+
+
 def parse_json_list(raw: str, of=dict) -> list | None:
     """A JSON array from a model reply (of dicts, or of strings), or None."""
     import json
@@ -2849,12 +2859,15 @@ def given_categories(fmt: str) -> list[str]:
 
 
 def _ask_list(engine: "Engine", job: "Job", st: "JobState", part: int, kind: str, system: str,
-              ask: str, of=dict) -> list | None:
+              ask: str, of=dict, temperature: float | None = None, schema: dict | None = None) -> list | None:
+    """A JSON array from the model (asked twice), or None. `temperature` and `schema` only where the
+    answer is a choice (see ollama.DECIDE_TEMP); the reply is still read the old way."""
     from .engine import PartFailed
+    extra = {k: v for k, v in (("temperature", temperature), ("schema", schema)) if v is not None}
     try:
         for attempt in range(2):
             r = engine._chat(job, part, kind, system, ask if not attempt else
-                             ask + "\n\nReply with ONLY the JSON array.", st)
+                             ask + "\n\nReply with ONLY the JSON array.", st, **extra)
             got = parse_json_list(r.text, of)
             if got is not None:
                 return got
@@ -3024,7 +3037,8 @@ def run_tidy_sheet(engine: "Engine", mission: "Mission", job: "Job", st: "JobSta
                                "categories. If none fits, use \"Other\".\nRows as JSON:\n"
                                f"{_rows_json_numbered(header, rows, idx, cols, rownum)}\n\n"
                                "Reply with one object per row: {\"row\": <row number>, \"category\": \"...\"}")
-                        got = _ask_list(engine, job, st, bi, "tidy-categorize", CAT_SYSTEM + rules, ask)
+                        got = _ask_list(engine, job, st, bi, "tidy-categorize", CAT_SYSTEM + rules, ask,
+                                        temperature=DECIDE_TEMP, schema=CAT_SCHEMA)
                         for f in got or []:
                             if f.get("row") in where:
                                 c = str(f.get("category") or "").strip()

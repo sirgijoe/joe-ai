@@ -26,6 +26,9 @@ from . import __version__
 
 PROTOCOL = "2025-06-18"
 MAX_READ = 200_000                       # characters returned from one file
+MAX_SHRINK = 20_000                      # most characters joe_shrink sends back in one call
+FOLDERS_CLOSED = ('That folder is closed to connected apps. The person can open it in Joe: '
+                  'Setup > Other AI apps > "Apps connected to Joe may read my Inbox and other folders".')
 
 # What every connected AI app reads first (MCP "instructions"): how to work WITH Joe, the way a
 # helper hands grunt work to an assistant and then polishes what comes back.
@@ -43,7 +46,8 @@ How to work with Joe:
    joe_make_pictures; for tools on the person's files, joe_list_inbox + joe_run_tool.
 3. Check in with joe_status and joe_report. When it's done, read the results with
    joe_list_files, joe_read_file and joe_show_picture. For big files, joe_shrink first
-   (joe_summarize if it's still too long).
+   (joe_summarize if it's still too long). These read what Joe made (his Output folder); his
+   Inbox and other folders only if the person has allowed it in Setup.
 4. Polish: fix facts, tighten wording, pick the best pictures, and fill in anything marked
    [CHECK] with the person. Tell them what Joe made and what you changed.
 Never invent results Joe didn't produce. If his window is closed, queued work waits until it
@@ -130,18 +134,21 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {"path": {"type": "string"}},
                      "required": ["path"]}},
     {"name": "joe_shrink",
-     "description": "Read a big text file in Joe's folders cheaply (no model): logs keep errors with context, "
+     "description": "Read a big text file in Joe's folders (Output always; Inbox, Missions, Projects, "
+                    "Workflows and Themes only when the person has allowed it in Setup; never his private ones) "
+                    "cheaply (no model), at most 20,000 characters a call: logs keep errors with context, "
                     "first/last 20 lines and fold repeats; JSON becomes its shape; HTML its visible text; "
                     "other text head + tail + grep hits. Lines are 'L12| ...'. Reports original vs shrunk size.",
      "inputSchema": {"type": "object", "properties": {
-         "path": {"type": "string", "description": "e.g. Output/run.log or Inbox/data.json"},
+         "path": {"type": "string", "description": "e.g. Output/run.log (Inbox/data.json when allowed)"},
          "kind": {"type": "string", "enum": ["auto", "log", "json", "html", "text"]},
          "max_chars": {"type": "integer"},
          "grep": {"type": "string", "description": "words to keep lines for (text files)"}},
          "required": ["path"]}},
     {"name": "joe_summarize",
      "description": "Shrink a file, then summarize it with Joe's local text model (never leaves the PC). "
-                    "Returns the answer and the lines it came from.",
+                    "Output always; Inbox, Missions, Projects, Workflows and Themes only when the person "
+                    "has allowed it in Setup. Returns the answer and the lines it came from.",
      "inputSchema": {"type": "object", "properties": {
          "path": {"type": "string"}, "question": {"type": "string"},
          "max_words": {"type": "integer"}}, "required": ["path"]}},
@@ -151,14 +158,40 @@ SHRINK_EXT = {".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".htm
 TEXT_EXT = {".md", ".txt", ".csv", ".json", ".html", ".py", ".js", ".css", ".srt", ".vtt", ".log"}
 
 
+def _shrink_chars(value) -> int:
+    """joe_shrink's max_chars as a whole number from 500 to MAX_SHRINK; empty or not a number means 8000."""
+    if not value or isinstance(value, bool):
+        return 8000
+    try:
+        n = int(float(value))
+    except (TypeError, ValueError, OverflowError):
+        return 8000
+    return max(500, min(n, MAX_SHRINK))
+
+
 class Joe:
     """Everything the connector does, on files in Joe's folder (no window needed)."""
 
     def __init__(self, settings=None):
         from .config import Settings
         from .sandbox import Sandbox
+        self._read_once = settings is None      # started by an AI app: these settings were read once, at its first call
         self.s = settings or Settings.load()
         self.sb = Sandbox(self.s.workspace_path).ensure()
+
+    def _folders_open(self) -> bool:
+        """Has the person ticked Setup > Other AI apps > "...may read my Inbox and other folders"?
+        Inside Joe's window the settings are live. The connector an AI app starts read them once, so it
+        looks at the settings file again each time: ticking or unticking the box works without
+        restarting that app. A file that can't be read means no."""
+        if not self._read_once:
+            return getattr(self.s, "mcp_folders", False) is True
+        from .config import config_path
+        try:
+            data = json.loads(config_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return False
+        return isinstance(data, dict) and data.get("mcp_folders") is True
 
     # -- tools --------------------------------------------------------------
     def status(self) -> str:
@@ -310,12 +343,18 @@ class Joe:
         return "\n".join(rows) or "(empty)"
 
     def _shrink_source(self, rel: str) -> tuple[str, str]:
-        """(label, text) of a text file in one of Joe's folders (Output by default), never a private one."""
+        """(label, text) of a text file in Output, or in Joe's other folders when the person ticked
+        Setup > Other AI apps > "...may read my Inbox and other folders" (Settings.mcp_folders);
+        never a private one."""
         from .sandbox import SandboxError
         from .shrink import MAX_FILE
         rel = (rel or "").strip()
         p = self.sb.resolve(rel, base="Output")
         self.sb.check_not_private(p)
+        if not self._folders_open():
+            out, real = self.sb.output.resolve(), p.resolve()     # a link in Output to the Inbox counts as the Inbox
+            if real != out and out not in real.parents:
+                raise SandboxError(FOLDERS_CLOSED)
         if not p.is_file():
             raise SandboxError("No such file in Joe's folders.")
         if p.suffix.lower() not in SHRINK_EXT:
@@ -323,10 +362,10 @@ class Joe:
         with open(p, encoding="utf-8", errors="replace") as f:
             return str(p.relative_to(self.sb.root)).replace("\\", "/"), f.read(MAX_FILE)
 
-    def shrink(self, rel: str, kind: str = "auto", max_chars: int = 8000, grep: str = "") -> str:
+    def shrink(self, rel: str, kind: str = "auto", max_chars=8000, grep: str = "") -> str:
         from . import shrink as sh
         label, text = self._shrink_source(rel)
-        r = sh.shrink(text, label, kind, max_chars, grep)
+        r = sh.shrink(text, label, kind, _shrink_chars(max_chars), grep)
         return sh.header(r, label) + "\n" + r["text"]
 
     def summarize(self, rel: str, question: str = "", max_words: int = 200) -> str:
@@ -353,7 +392,8 @@ class Joe:
             return "No such file in Output."
         if p.suffix.lower() not in TEXT_EXT:
             return f"{p.name} isn't a text file ({p.stat().st_size:,} bytes); open it in Joe's Files (F7)."
-        return p.read_text(encoding="utf-8", errors="replace")[:MAX_READ]
+        with open(p, encoding="utf-8", errors="replace") as f:
+            return f.read(MAX_READ)
 
     def make_pictures(self, description: str, count: int = 4, style: str = "", folder: str = "") -> str:
         from .mission import _safe
@@ -481,7 +521,7 @@ class Joe:
             return self.read_file(str(args.get("path", "")))
         if name == "joe_shrink":
             return self.shrink(str(args.get("path", "")), str(args.get("kind") or "auto"),
-                               int(args.get("max_chars") or 8000), str(args.get("grep", "")))
+                               args.get("max_chars"), str(args.get("grep", "")))
         if name == "joe_summarize":
             return self.summarize(str(args.get("path", "")), str(args.get("question", "")),
                                   int(args.get("max_words") or 200))

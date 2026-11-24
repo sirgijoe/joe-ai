@@ -285,13 +285,6 @@ def bg_graph(image: str, keep: str = "transparent", upscale: int = 0, prefix: st
     return g
 
 
-def upscale_graph(image: str, factor: int = 2, prefix: str = "Joe/tool") -> dict:
-    g: dict = {"1": _load(image)}
-    out = _upscale_nodes(g, ["1", 0], factor)
-    g["9"] = {"class_type": "SaveImage", "inputs": {"images": out, "filename_prefix": prefix}}
-    return g
-
-
 def edit_graph(image: str, instruction: str, seed: int, fast: bool = True, upscale: int = 0,
                prefix: str = "Joe/tool", megapixels: float = 0, encoder_on_cpu: bool = False,
                denoise: float = 1.0, passes: int = 1, extra_images: list[str] | None = None) -> dict:
@@ -366,10 +359,18 @@ def video_size(width: int, height: int) -> tuple[int, int]:
 
 def animate_graph(image: str, prompt: str, negative: str, seed: int, width: int, height: int,
                   frames: int = 0, steps: int = 20, cfg: float = 5.0, turbo: bool = False,
-                  prefix: str = "Joe/tool") -> dict:
+                  prefix: str = "Joe/tool", end_image: str = "",
+                  ends: tuple[str, str] | None = None) -> dict:
+    """`end_image` + `ends` (the add-on node's start and end input names): the clip also ends
+    on that picture. Without them it is ComfyUI's own start-picture graph, as before."""
     g = comfy_mod.wan_video_graph(frames=frames, steps=steps, cfg=cfg, turbo=turbo)
     g["56"] = _load(image)
-    g["55"]["inputs"].update(width=width, height=height, start_image=["56", 0])
+    if end_image and ends:
+        g["59"] = _load(end_image)
+        g["55"]["class_type"] = comfy_mod.WAN_ENDS["node"]
+        g["55"]["inputs"].update({"width": width, "height": height, ends[0]: ["56", 0], ends[1]: ["59", 0]})
+    else:
+        g["55"]["inputs"].update(width=width, height=height, start_image=["56", 0])
     g["6"]["inputs"]["text"] = prompt
     g["7"]["inputs"]["text"] = negative
     g["3"]["inputs"]["seed"] = seed
@@ -783,6 +784,15 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             engine.log(f"'{job.name}' failed: {st.note}")
             return st
         items, keys = files, [_key(engine, f) for f in files]
+    end_pic: Path | None = None
+    ends: tuple[str, str] | None = None
+    if tid == "animate-photo" and "end" in opts:
+        if len(items) < 2:
+            st.status, st.note = "failed", "add the picture to start from and, last, the picture the clip ends on"
+            engine.log(f"'{job.name}' failed: {st.note}")
+            return st
+        end_pic, items = items[-1], items[:-1]
+        keys = [f"{k} -> {end_pic.name}" for k in keys[:-1]]
     if tid == "restore-photo" and restore_is_true(job):
         return run_true_restore(engine, job, st, items, keys)
     if tid in NEW_EDITORS or tid in makers.TOOLS:
@@ -828,6 +838,15 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
     limit = engine.s.comfy.timeout_s if tid not in LONG_TOOLS else max(engine.s.comfy.timeout_s, 3600)
     from .doctor import comfy_models_dir
     client = comfy_mod.ComfyClient(engine.services.comfy_base, limit, comfy_models_dir(engine.s))
+    if end_pic is not None:
+        ends = comfy_mod.wan_ends_inputs(client.node_inputs(comfy_mod.WAN_ENDS["node"]))
+        if not ends:
+            st.status = "failed"
+            st.note = ("ending on a picture needs an add-on in ComfyUI: Manager > Custom Nodes Manager, search "
+                       f"'{comfy_mod.WAN_ENDS['node']}', install it and restart ComfyUI")
+            engine.log(f"'{job.name}' failed: {st.note}")
+            engine._save_state(job, st)
+            return st
     engine.log(f"{'Resuming' if st.titles else 'Starting'} '{job.name}': {len(items)} item(s) -> {st.output}")
     failed: list[str] = []
     prefix = f"Joe/{slug(job.name) or tid}"
@@ -860,7 +879,7 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
             t0 = time.monotonic()
             try:
                 graph, stem, ext = _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix,
-                                              client, cpu=cpu_enc)
+                                              client, cpu=cpu_enc, end=end_pic, ends=ends)
                 try:
                     entry = client.wait(client.submit(graph), stop=engine.stop)
                 except comfy_mod.WorkflowError as e:
@@ -1028,7 +1047,7 @@ def _on_white(engine, folder: Path, name: str) -> str:
 
 
 def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, megapixels: float = 0,
-               cpu: bool = False):
+               cpu: bool = False, end: Path | None = None, ends: tuple[str, str] | None = None):
     """(graph, output stem, fallback extension) for one item."""
     from .mission import slug
     from .tools import option_value
@@ -1081,13 +1100,21 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         # out of a simple beach picture (with the fast 4-step video, the no-list isn't used).
         prompt = (f"{motion}. Everything in the picture stays exactly as it is, the same scene from start to "
                   "end; nothing new appears and nothing turns into something else. Smooth, natural movement.")
+        end_name = ""
+        if end is not None and ends:
+            # The two pictures differ on purpose, so "stays exactly as it is" would fight the end picture.
+            motion = extra or "smooth natural movement from the first picture to the last"
+            prompt = (f"{motion}. The same scene and the same camera position from start to end; the clip "
+                      "moves smoothly from the first picture to the last picture. Smooth, natural movement.")
+            end_name = upload_image(client.base, end)
         from .doctor import comfy_models_dir
         turbo = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
         steps, cfg = (4, 1.0) if turbo else (20, 5.0)
         apref = wfp.get(engine.s, "animate")
         prompt = wfp.with_add(prompt, apref)
         return (animate_graph(name, prompt, wfp.with_avoid(comfy_mod.WAN_VIDEO["negative"], apref), seed, w, h,
-                              steps=steps, cfg=cfg, turbo=turbo, prefix=prefix), stem + "-moving", ".mp4")
+                              steps=steps, cfg=cfg, turbo=turbo, prefix=prefix, end_image=end_name, ends=ends),
+                stem + "-moving", ".mp4")
     raise comfy_mod.WorkflowError(f"unknown tool {tid}")
 
 
@@ -1096,6 +1123,8 @@ def _about(tid, job, opts, kind, upscale) -> str:
     lines = [f"# {job.name}", "", f"Made by Joe with ComfyUI on {datetime.now():%Y-%m-%d %H:%M}.", ""]
     for p in packs:
         lines.append(f"- Model: {PACKS[p].label} ({PACKS[p].license})")
+    if tid == "animate-photo" and "end" in opts:
+        lines.append(f"- Start and end picture: {comfy_mod.WAN_ENDS['label']} ({comfy_mod.WAN_ENDS['license']})")
     if "3d" in packs:
         lines += ["", "Tencent Hunyuan 3D 2.1 is licensed under the Tencent Hunyuan 3D 2.1 Community License "
                   "Agreement, Copyright (c) 2025 Tencent. All Rights Reserved. The license does not apply "

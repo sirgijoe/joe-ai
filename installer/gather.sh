@@ -6,7 +6,9 @@
 set -euo pipefail
 dest="$1"; kind="$2"; version="$3"
 mkdir -p "$dest"
-cp -R joeai docs Joe.pyw README.md LICENSE THIRD_PARTY.md "$dest"/
+cp -R joeai Joe.pyw README.md LICENSE THIRD_PARTY.md "$dest"/
+mkdir -p "$dest/docs"
+cp docs/GUIDE.md docs/ADDONS.md "$dest/docs"/
 find "$dest/joeai" -name "__pycache__" -prune -exec rm -rf {} +
 rm -f "$dest/joeai/_install.json"
 printf '{"kind": "%s", "version": "%s"}\n' "$kind" "$version" > "$dest/joeai/_install.json"

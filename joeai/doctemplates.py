@@ -766,7 +766,6 @@ def reference_docx(pandoc: str, t: dict, cache: Path, log=print, title: str = ""
         return None
     try:
         src = zipfile.ZipFile(io.BytesIO(p.stdout))
-        names = set(src.namelist())
         hid = "rIdJoeHeader" if "header" in parts else ""
         fid = "rIdJoeFooter" if "footer" in parts else ""
         buf = io.BytesIO()

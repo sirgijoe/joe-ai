@@ -11,6 +11,7 @@ changed: Joe only decides what he reads."""
 from __future__ import annotations
 
 import datetime as _dt
+import errno
 import http.client
 import json
 import socket
@@ -238,6 +239,15 @@ def _kind(e: BaseException) -> str:
         return "refused"
     if isinstance(r, (ConnectionResetError, ConnectionAbortedError, BrokenPipeError,
                       http.client.RemoteDisconnected, http.client.IncompleteRead, ssl.SSLEOFError)):
+        return "dropped"
+    # A hang-up can also come as a plain OSError, known only by its number. On a Mac, once the other
+    # side has reset the connection, Python's own "no delay" setting fails with EINVAL ("Invalid
+    # argument"); that is the same hang-up (found on GitHub's Mac run, 2026-11-22). EINVAL is too
+    # general to trust on other systems, so only a Mac reads it that way.
+    n = getattr(r, "errno", None)
+    if n in (errno.ECONNRESET, errno.ECONNABORTED, errno.EPIPE, errno.ENOTCONN):
+        return "dropped"
+    if n == errno.EINVAL and sys.platform == "darwin":
         return "dropped"
     return ""
 

@@ -235,6 +235,39 @@ def classify(text: str) -> dict:
     return {"kind": "plan"}
 
 
+# Commands that come through the wake word ("Hey Joe, ...", maybe from a TV): which ones Joe asks about first
+# ("Start the plan now? Say yes or no.") and which he just does. The window's wakeAskFirst (app.js) asks for
+# exactly the first group; tests/test_wake_word.py checks that every command above is in one of the two.
+# Typed or said in a Talk session you opened yourself, they all work right away, as always.
+WAKE_ASK_FIRST = {
+    "run": "starts the saved plan",
+    "agent-start": "starts or queues an agent's work",
+    "memory": "remember / forget change what Joe keeps about you (only reading it back is fine)",
+    "remind": "stores a reminder and pings your phone later",
+    "list-add": "changes a list",
+    "list-done": "changes a list",
+    "list-send": "sends a list to your phone",
+    "directions": "opens a web page with the spoken words",
+    "shop": "opens a web page with the spoken words",
+    "park": "stores an idea in Ideas.md",
+}
+WAKE_FINE = {
+    "stop": "stops work: never makes anything new",
+    "hush": "stops Joe talking",
+    "repeat": "says the last answer again",
+    "quick": "the time, the date or a sum, worked out on this PC",
+    "list-show": "only reads a list",
+    "abilities": "only shows what Joe can do",
+    "explain": "only shows how one thing works",
+    "help": "opens a screen", "report": "opens a screen", "files": "opens a screen", "tools": "opens a screen",
+    "setup": "opens a screen", "builder": "opens a screen", "stats": "opens a screen",
+    "check": "looks at this PC; fixing anything needs its own button",
+    "updates": "only looks for a new version; installing needs its own yes",
+    "talk": "not done from Talk: it goes to the model as words",
+    "new": "not done from Talk: it goes to the model as words",
+}
+
+
 def unclear_hint(word: str) -> str:
     return (f"I'm not sure what \"{word.strip()[:30]}\" means yet. Try a few more words, like "
             "\"20 captions for my candle shop\", \"fix my old photo\" or \"what can you do?\". "

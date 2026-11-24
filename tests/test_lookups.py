@@ -188,7 +188,7 @@ def test_research_task_names_its_source(env, monkeypatch, web):  # noqa: F811
     from joeai.mission import parse
     from joeai.server import App
     s, sb, fake = env
-    app = App(s)
+    App(s)
     monkeypatch.delenv("JOE_OFFLINE", raising=False)
     s.web.enabled = True
     logs = []

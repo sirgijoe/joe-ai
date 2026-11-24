@@ -8,8 +8,11 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
 class FakeOllama:
-    def __init__(self, fail_first: int = 0, dup_every: int = 3, short_every: int = 4):
+    def __init__(self, fail_first: int = 0, dup_every: int = 3, short_every: int = 4,
+                 refuse_format: bool = False, prompt_eval: int | None = None):
         self.fail_first = fail_first
+        self.refuse_format = refuse_format     # answer 400 to a chat that asks for a `format` (an older server)
+        self.prompt_eval = prompt_eval         # when set, every chat reply says it read this many tokens
         self.dup_every = dup_every
         self.short_every = short_every
         self.calls = 0
@@ -60,7 +63,14 @@ class FakeOllama:
                 if self.path == "/api/generate":
                     self._send(200, {"done": True})
                 elif self.path == "/api/chat":
+                    if fake.refuse_format and "format" in req:
+                        with fake.lock:
+                            fake.requests.append(req)
+                        self._send(400, {"error": "unknown field: format"})
+                        return
                     code, obj = fake.chat(req)
+                    if code == 200 and fake.prompt_eval is not None:
+                        obj = {**obj, "prompt_eval_count": fake.prompt_eval}
                     self._send(code, obj)
                 else:
                     self._send(404, {})

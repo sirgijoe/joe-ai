@@ -107,7 +107,7 @@ ABILITIES = {
         "needs": "Phone pings must be set up in Setup > Night shift and alerts.",
     },
     "code": {
-        "version": 1,
+        "version": 2,
         "title": "Write code and test it in the box",
         "can": "Write small Python programs for your job, write a test for each, and run that test in a sealed "
                "box on this PC. Code that passes is kept; code that never passes is set aside, marked.",
@@ -119,7 +119,8 @@ ABILITIES = {
                  "something. Read the code, or have a bigger AI check it, before you run it on anything "
                  "that matters.",
         "never": "It never runs code outside the box, never installs anything, never runs code from a web "
-                 "page or a file, and never changes a program you already have.",
+                 "page or a file, and never changes a program you already have. Joe won't write or run code "
+                 "in a run that has read a file or a web page.",
         "needs": "",
     },
 }

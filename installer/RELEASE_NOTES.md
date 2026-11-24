@@ -16,7 +16,7 @@
   list you already saved is left as it is.
 - **Big pictures no longer slow the picture lists down.** The picture strip on Home and the Files list show
   small preview copies (wallpaper-size pictures used to load in full before any showed). The BIG WINDOW has
-  PREVIOUS and NEXT (or the left and right arrow keys) through the pictures and videos in that folder.
+  big arrows at the left and right edges (or the left and right arrow keys) step through the pictures and videos in that folder.
 - **Hide personal details: blank out the pictures in a Word file.** Joe can't read words inside a picture (a
   signature, a logo, a scanned page). Tick "Blank out the pictures inside Word files" and every picture in
   the cleaned copy becomes a blank grey box.

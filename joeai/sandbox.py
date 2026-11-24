@@ -17,7 +17,9 @@ from pathlib import Path
 SUBFOLDERS = ("Inbox", "Output", "Projects", "Missions", "Workflows", "Themes")
 _BAD_CHARS = re.compile(r'[<>:"|?*\x00-\x1f]')
 _RESERVED = {"CON", "PRN", "AUX", "NUL", *(f"COM{i}" for i in range(1, 10)),
-             *(f"LPT{i}" for i in range(1, 10))}
+             *(f"LPT{i}" for i in range(1, 10)),
+             # Windows treats these as devices too: COM/LPT with superscript 1-3, and the console.
+             *(f"{d}{s}" for d in ("COM", "LPT") for s in "\u00b9\u00b2\u00b3"), "CONIN$", "CONOUT$"}
 
 
 class SandboxError(ValueError):

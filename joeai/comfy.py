@@ -403,6 +403,20 @@ class ComfyClient:
                 continue
         return names
 
+    def node_inputs(self, node: str) -> set[str] | None:
+        """The input names of one ComfyUI node, or None when this ComfyUI doesn't have it
+        (an add-on node that isn't installed)."""
+        try:
+            info = request_json("GET", f"{self.base}/object_info/{node}", timeout=10)
+            spec = info[node]["input"]
+        except (HttpError, KeyError, TypeError):
+            return None
+        names: set[str] = set()
+        for part in ("required", "optional"):
+            if isinstance(spec.get(part), dict):
+                names |= set(spec[part])
+        return names
+
     def free(self) -> None:
         request_json("POST", f"{self.base}/free", {"unload_models": True, "free_memory": True},
                      timeout=30)
@@ -691,6 +705,29 @@ WAN_TURBO = {
              "https://huggingface.co/Kijai/WanVideo_comfy/resolve/main/LoRAs/Wan22-Turbo/"
              "Wan22_TI2V_5B_Turbo_lora_rank_64_fp16.safetensors"),
 }
+
+
+# Optional: a clip that also ENDS on a chosen picture. ComfyUI's own Wan22ImageToVideoLatent only
+# takes a start picture; this add-on node (stduhpf, GPL-3.0, installed by the person from ComfyUI's
+# Manager) takes both, for the same Wan 2.2 5B model. Joe only uses it when it is there.
+WAN_ENDS = {
+    "node": "Wan22FirstLastFrameToVideoLatent",
+    "label": "Wan22FirstLastFrameToVideoLatent add-on for ComfyUI", "license": "GPL-3.0",
+    "url": "https://github.com/stduhpf/ComfyUI--Wan22FirstLastFrameToVideoLatent",
+    "start_names": ("start_image", "first_image", "start_frame", "first_frame"),
+    "end_names": ("end_image", "last_image", "end_frame", "last_frame"),
+}
+
+
+def wan_ends_inputs(names: set[str] | None) -> tuple[str, str] | None:
+    """(start input, end input) of the start-and-end node as this ComfyUI names them, or None
+    when the node is missing or doesn't look like the one Joe knows."""
+    if not names:
+        return None
+    start = next((n for n in WAN_ENDS["start_names"] if n in names), "")
+    end = next((n for n in WAN_ENDS["end_names"] if n in names), "")
+    need = {"vae", "width", "height", "length"}
+    return (start, end) if start and end and need <= names else None
 
 
 def wan_turbo_installed(models_dir: Path | None) -> bool:

@@ -9,6 +9,11 @@ from .http import HttpError, request_json
 
 _THINK = re.compile(r"<think>.*?</think>", re.S)
 _NO_THINK = re.compile(r"does not support think", re.I)   # Ollama, when asked to think with Llama, Gemma 3, Phi-4...
+_REFUSED = re.compile(r"^HTTP 4\d\d ")      # the server said no to the question as asked (an older one: no `format`)
+
+# For answers that are a choice, a category or JSON: the same question gets the same answer.
+# Writing for the person keeps the setting (Setup > Writing).
+DECIDE_TEMP = 0.1
 
 
 @dataclass
@@ -17,6 +22,12 @@ class ChatResult:
     prompt_tokens: int
     output_tokens: int
     seconds: float
+    ctx: int = 0                 # the window used (0 = not known)
+
+    @property
+    def full(self) -> bool:
+        """The question filled the window, so the model may not have seen its start."""
+        return bool(self.ctx) and self.prompt_tokens >= self.ctx - 32
 
 
 def auto_ctx() -> int:
@@ -52,37 +63,46 @@ class OllamaClient:
         return names
 
     def chat(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-             keep_alive: str | None = None, think: bool | None = None) -> ChatResult:
+             keep_alive: str | None = None, think: bool | None = None, temperature: float | None = None,
+             schema: dict | None = None) -> ChatResult:
+        ctx = self.cfg.num_ctx or auto_ctx()
         payload = {
             "model": model or self.cfg.text_model,
             "messages": messages,
             "stream": False,
             "think": self.cfg.think if think is None else think,
-            "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(), "temperature": self.cfg.temperature},
+            "options": {"num_ctx": ctx,
+                        "temperature": self.cfg.temperature if temperature is None else temperature},
         }
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens
         if keep_alive:
             payload["keep_alive"] = keep_alive
-        try:
-            r = request_json("POST", f"{self.base}/api/chat", payload,
-                             timeout=self.cfg.request_timeout_s)
-        except HttpError as e:
-            if not (payload["think"] and _NO_THINK.search(str(e))):
-                raise
-            payload["think"] = False                  # this model can't think first: just write
-            r = request_json("POST", f"{self.base}/api/chat", payload,
-                             timeout=self.cfg.request_timeout_s)
+        if schema:
+            payload["format"] = schema
+        for _ in range(3):                            # each fix below is tried once
+            try:
+                r = request_json("POST", f"{self.base}/api/chat", payload,
+                                 timeout=self.cfg.request_timeout_s)
+                break
+            except HttpError as e:
+                if payload["think"] and _NO_THINK.search(str(e)):
+                    payload["think"] = False          # this model can't think first: just write
+                elif "format" in payload and _REFUSED.match(str(e)):
+                    payload.pop("format")             # this server can't keep to a shape: ask plainly
+                else:
+                    raise
         text = _THINK.sub("", r.get("message", {}).get("content", "")).strip()
         return ChatResult(
             text=text,
             prompt_tokens=int(r.get("prompt_eval_count", 0)),
             output_tokens=int(r.get("eval_count", 0)),
             seconds=r.get("total_duration", 0) / 1e9,
+            ctx=ctx,
         )
 
     def chat_stream(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
-                    keep_alive: str | None = None, think: bool | None = None):
+                    keep_alive: str | None = None, think: bool | None = None, temperature: float | None = None):
         """Yield the reply a few words at a time (for talking: Joe starts speaking sooner).
         With think=True, a thinking model keeps its reasoning in a separate field (never yielded)."""
         import json as _json
@@ -90,7 +110,8 @@ class OllamaClient:
         import urllib.request
         payload = {"model": model or self.cfg.text_model, "messages": messages, "stream": True,
                    "think": self.cfg.think if think is None else think,
-                   "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(), "temperature": self.cfg.temperature}}
+                   "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(),
+                               "temperature": self.cfg.temperature if temperature is None else temperature}}
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens
         if keep_alive:

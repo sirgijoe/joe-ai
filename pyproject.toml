@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=68"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,3 +26,14 @@ joeai = ["model_picks.json", "ui/*.html", "ui/*.js", "ui/*.css", "ui/*.svg", "ui
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = [".", "tests"]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 200
+
+[tool.ruff.lint]
+select = ["F", "E9", "PLE"]
+
+[tool.ruff.lint.per-file-ignores]
+# tests import fixtures by name (F401) and then take them as arguments (F811)
+"tests/*" = ["F401", "F811"]

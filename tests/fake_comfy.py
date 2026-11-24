@@ -25,6 +25,7 @@ class FakeComfy:
         self.history: dict = {}
         self.freed = 0
         self.uploads: list[str] = []
+        self.nodes: dict = {}              # add-on nodes this ComfyUI "has": name -> its "input" spec
         fake = self
 
         class H(BaseHTTPRequestHandler):
@@ -47,7 +48,8 @@ class FakeComfy:
                     return self._json(200, {"CheckpointLoaderSimple": {"input": {"required": {
                         "ckpt_name": [fake.checkpoints]}}}})
                 if u.path.startswith("/object_info/"):
-                    return self._json(200, {})
+                    node = u.path.rsplit("/", 1)[1]
+                    return self._json(200, {node: {"input": fake.nodes[node]}} if node in fake.nodes else {})
                 if u.path.startswith("/history/"):
                     pid = u.path.rsplit("/", 1)[1]
                     return self._json(200, {pid: fake.history[pid]} if pid in fake.history else {})

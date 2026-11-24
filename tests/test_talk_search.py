@@ -439,7 +439,7 @@ def test_the_talk_page_says_which_microphone_joe_listens_through():
     js = (ROOT / "joeai" / "ui" / "app.js").read_text(encoding="utf-8")
     assert "function micName(stream)" in js and "getAudioTracks()[0]" in js
     assert "`Listening through: ${" in js
-    assert js.count("micName(micStream)") == 1 and js.count("micName(stream)") >= 2   # open mic and push-to-talk
+    assert js.count("micName(m.stream)") == 1 and js.count("micName(stream)") >= 2   # open mic and push-to-talk
     es = json.loads((ROOT / "joeai" / "lang" / "es.json").read_text(encoding="utf-8"))
     assert es["Listening through: {1}"] == "Escuchando por: {1}"
     assert es["Wait before Joe answers"] and es["Normal (about a second)"]

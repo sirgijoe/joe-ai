@@ -84,6 +84,12 @@ Postiz (AGPL-3.0); he never installs or runs Postiz or Mixpost and never posts f
 | Wan 2.2 Fun Control 5B (Alibaba PAI, repackaged by Comfy-Org) | Restyle a video | Apache-2.0 |
 | Hunyuan3D 2.1 (Tencent, repackaged by Comfy-Org) | Picture to 3D model | Tencent Hunyuan 3D 2.1 Community License (does not apply in the EU, UK or South Korea) |
 
+**ComfyUI add-on Joe can use but never installs himself**
+
+| Add-on | Used for | License |
+|---|---|---|
+| Wan22FirstLastFrameToVideoLatent (stduhpf) | Animate a photo > End on my last picture. You install it from ComfyUI's Manager; without it that option explains what is missing and everything else works as before | GPL-3.0 |
+
 **Picture models Joe recommends but doesn't download himself** (GET IT opens the model's page in
 your browser, and on Hugging Face starts the download there; you read its terms, then Joe moves the
 file into ComfyUI)

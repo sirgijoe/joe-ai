@@ -13,7 +13,11 @@ permissions:
   contents: read          # the build jobs only read; the release job below may write
 
 jobs:
+  tests:
+    uses: ./.github/workflows/tests.yml
+
   windows:
+    needs: tests
     runs-on: windows-latest
     defaults:
       run:
@@ -51,7 +55,9 @@ jobs:
         run: |
           d=build/windows
           mkdir -p "$d"
-          cp -r joeai docs Joe.pyw README.md LICENSE THIRD_PARTY.md "$d"/
+          cp -r joeai Joe.pyw README.md LICENSE THIRD_PARTY.md "$d"/
+          mkdir -p "$d/docs"
+          cp docs/GUIDE.md docs/ADDONS.md "$d/docs"/
           cp -r pbs/python "$d"/python
           find "$d/joeai" -name "__pycache__" -prune -exec rm -rf {} +
           rm -f "$d/joeai/_install.json"
@@ -98,6 +104,7 @@ jobs:
           path: dist/*
 
   mac:
+    needs: tests
     strategy:
       fail-fast: false
       matrix:
@@ -133,6 +140,7 @@ jobs:
           path: dist/*.dmg
 
   linux:
+    needs: tests
     strategy:
       fail-fast: false
       matrix:
@@ -162,7 +170,7 @@ jobs:
 
   release:
     if: always() && github.ref_type == 'tag' && needs.windows.result == 'success'
-    needs: [windows, mac, linux]
+    needs: [tests, windows, mac, linux]
     permissions:
       contents: write       # only this job publishes the release
     runs-on: ubuntu-latest
@@ -187,11 +195,17 @@ jobs:
         env:
           JOE_SIGNING_KEY: ${{ secrets.JOE_SIGNING_KEY }}
         run: |
-          if [ -n "$JOE_SIGNING_KEY" ]; then
-            python3 src/installer/sign_release.py dist/SHA256SUMS.txt
-          else
-            echo "::warning::The JOE_SIGNING_KEY secret isn't set, so this release isn't signed."
+          # This job only runs for a tag, and Joe won't offer an unsigned release as an update,
+          # so a missing key or a failed signature stops the release here and nothing is published.
+          if [ -z "$JOE_SIGNING_KEY" ]; then
+            echo "::error::The JOE_SIGNING_KEY secret isn't set, so this release can't be signed. Nothing was published."
+            exit 1
           fi
+          if ! python3 src/installer/sign_release.py dist/SHA256SUMS.txt; then
+            echo "::error::Signing the checksum list failed. Nothing was published."
+            exit 1
+          fi
+          test -s dist/SHA256SUMS.txt.sig || { echo "::error::SHA256SUMS.txt.sig is missing or empty. Nothing was published."; exit 1; }
       - name: Publish release
         run: |
           v="${GITHUB_REF_NAME#v}"

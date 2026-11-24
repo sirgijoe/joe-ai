@@ -217,6 +217,7 @@ class Settings:
     workflows: dict = field(default_factory=dict)   # Setup > Workflows: id -> {model, add, avoid, steps}
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)
     mcp_apps: list = field(default_factory=list)   # AI apps the person connected Joe to (System check watches them)
+    mcp_folders: bool = False        # connected apps may read Inbox, Projects, Missions, Workflows, Themes (Output always)
     pandoc: str = ""                 # blank = auto-detect
 
     @property
@@ -314,6 +315,11 @@ def _merge(obj, data: dict) -> None:
         val = data[f.name]
         if hasattr(cur, "__dataclass_fields__") and isinstance(val, dict):
             _merge(cur, val)
+        elif isinstance(val, bool) and not isinstance(cur, bool):
+            continue                                # true/false is never a number setting
+        elif isinstance(cur, int) and not isinstance(cur, bool) and isinstance(val, float):
+            if val.is_integer():                    # 22.0 for a whole-number setting is 22
+                setattr(obj, f.name, int(val))
         elif isinstance(val, type(cur)) or (isinstance(cur, float) and isinstance(val, int)):
             setattr(obj, f.name, val)
 

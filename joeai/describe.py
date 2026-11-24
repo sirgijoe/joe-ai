@@ -499,7 +499,7 @@ def keep_subject(request: str, mission_text: str) -> str:
         return mission_text
     from .mission import _safe
     said = _safe(" ".join(request.split())[:500])
-    out, in_writing = [], False
+    out = []
     lines = mission_text.splitlines()
     for i, ln in enumerate(lines):
         out.append(ln)

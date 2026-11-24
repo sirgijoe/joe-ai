@@ -1,17 +1,31 @@
 name: tests
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
         os: [windows-latest, ubuntu-latest, macos-latest]
-        python: ["3.12", "3.14"]          # 3.14: what Joe's own PC runs the tests with
+        python: ["3.11", "3.12", "3.13", "3.14"]          # 3.11 is the oldest Joe supports; 3.14 is what Joe's own PC runs the tests with
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
-      - run: pip install pytest
+      - run: pip install pytest ruff
+      - run: ruff check .
+      - name: Check the window's scripts parse
+        shell: bash
+        run: |
+          node --check joeai/ui/app.js
+          node --check joeai/ui/agent.js
+          node --check joeai/ui/joe.js
       - run: python -m pytest -q

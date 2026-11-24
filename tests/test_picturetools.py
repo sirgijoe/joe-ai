@@ -115,6 +115,57 @@ def test_animate_matches_the_photo_shape(studio):
     assert picturetools.picture_size(app.sb.inbox / "tall.png") == (900, 1600)
 
 
+ENDS_NODE = {"required": {"vae": ["VAE"], "width": ["INT"], "height": ["INT"], "length": ["INT"],
+                          "batch_size": ["INT"]},
+             "optional": {"start_image": ["IMAGE"], "end_image": ["IMAGE"]}}
+
+
+def test_animate_can_end_on_the_last_picture(studio):
+    app, comfy, _ = studio
+    comfy.nodes["Wan22FirstLastFrameToVideoLatent"] = ENDS_NODE
+    png(app.sb.inbox / "a.png")
+    png(app.sb.inbox / "b.png")
+    before = len(comfy.uploads)
+    _, st = run(app, "TASK: Pour  TYPE: animate-photo\nINPUT: a.png, b.png\nOPTIONS: end\nFORMAT: he pours the coffee")
+    assert st.status == "done", st.note
+    g = comfy.graphs[-1]
+    assert g["55"]["class_type"] == "Wan22FirstLastFrameToVideoLatent"
+    assert g["55"]["inputs"]["start_image"] == ["56", 0] and g["55"]["inputs"]["end_image"] == ["59", 0]
+    assert g["56"]["class_type"] == g["59"]["class_type"] == "LoadImage"
+    assert g["56"]["inputs"]["image"] != g["59"]["inputs"]["image"]
+    assert len(comfy.uploads) - before == 2
+    assert "stays exactly as it is" not in g["6"]["inputs"]["text"] and "he pours the coffee" in g["6"]["inputs"]["text"]
+    out = app.sb.output / st.output
+    assert sorted(p.name for p in out.iterdir()) == ["a-moving.mp4", "about.txt"]      # one clip, not two
+    assert "GPL-3.0" in (out / "about.txt").read_text(encoding="utf-8")
+
+
+def test_animate_end_uses_the_names_the_node_has(studio):
+    app, comfy, _ = studio
+    comfy.nodes["Wan22FirstLastFrameToVideoLatent"] = {
+        "required": dict(ENDS_NODE["required"]), "optional": {"first_frame": ["IMAGE"], "last_frame": ["IMAGE"]}}
+    png(app.sb.inbox / "a.png")
+    png(app.sb.inbox / "b.png")
+    _, st = run(app, "TASK: Pour  TYPE: animate-photo\nINPUT: a.png, b.png\nOPTIONS: end")
+    assert st.status == "done", st.note
+    i = comfy.graphs[-1]["55"]["inputs"]
+    assert i["first_frame"] == ["56", 0] and i["last_frame"] == ["59", 0] and "start_image" not in i
+
+
+def test_animate_end_explains_what_is_missing(studio):
+    app, comfy, _ = studio
+    png(app.sb.inbox / "a.png")
+    png(app.sb.inbox / "b.png")
+    n = len(comfy.graphs)
+    _, st = run(app, "TASK: Pour  TYPE: animate-photo\nINPUT: a.png, b.png\nOPTIONS: end")     # add-on not installed
+    assert st.status == "failed" and "Custom Nodes Manager" in st.note and len(comfy.graphs) == n
+    _, st = run(app, "TASK: Pour2  TYPE: animate-photo\nINPUT: a.png\nOPTIONS: end")
+    assert st.status == "failed" and "ends on" in st.note
+    _, st = run(app, "TASK: Plain  TYPE: animate-photo\nINPUT: a.png, b.png")                  # no option: as before
+    assert st.status == "done" and len(comfy.graphs) == n + 2
+    assert all(g["55"]["class_type"] == "Wan22ImageToVideoLatent" for g in comfy.graphs[n:])
+
+
 def test_restore_and_edit_prompts(studio):
     app, comfy, _ = studio
     png(app.sb.inbox / "nana.png")

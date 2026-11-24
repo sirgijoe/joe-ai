@@ -422,7 +422,8 @@ def make_handler(phone: Phone):
             return d
 
         def _body(self) -> dict:
-            n = int(self.headers.get("Content-Length") or 0)
+            raw = (self.headers.get("Content-Length") or "").strip()
+            n = int(raw) if raw.isascii() and raw.isdigit() else 0      # missing, not a number or negative: nothing
             if not 0 < n <= 200_000:
                 return {}
             try:

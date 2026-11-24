@@ -20,6 +20,29 @@ from .config import config_dir
 # the port. A random port each start made Edge ask for the mic every time, so Joe keeps one port.
 STABLE_PORTS = (47317, 47318, 47319, 47320)
 
+JOE_DIR = Path(__file__).parent          # Joe's own code (joeai/)
+
+
+def build_stamp(root: Path | None = None) -> str:
+    """A short fingerprint of Joe's own files (names, sizes, modification times), so he can tell when
+    they were changed while he runs. "" for an installed Joe (joeai/_install.json): an installer
+    replaces him whole, and his version number already says so."""
+    import hashlib
+    root = Path(root) if root is not None else JOE_DIR
+    if (root / "_install.json").exists():
+        return ""
+    files = list(root.glob("*.py"))
+    for pat in ("*.js", "*.html", "*.css"):
+        files += (root / "ui").glob(pat)
+    rows = []
+    for f in files:
+        try:
+            st = f.stat()
+        except OSError:
+            continue
+        rows.append((f.relative_to(root).as_posix(), st.st_size, st.st_mtime_ns))
+    return hashlib.sha1(repr(sorted(rows)).encode("utf-8")).hexdigest()[:12]
+
 
 def _serve_stable(app):
     from .server import serve
@@ -56,14 +79,16 @@ def _existing_url() -> str | None:
         with urllib.request.urlopen(req, timeout=2) as r:
             info2 = json.loads(r.read() or b"{}")
         from . import __version__
-        if info2.get("version") == __version__ or info2.get("running"):
-            return f"{url}/#t={info['token']}"     # same version, or mid-run: reuse it
+        theirs, mine = info2.get("stamp") or "", build_stamp()
+        same_files = not theirs or not mine or theirs == mine
+        if (info2.get("version") == __version__ and same_files) or info2.get("running"):
+            return f"{url}/#t={info['token']}"     # same version and files, or mid-run: reuse it
         quit_req = urllib.request.Request(url + "/api/quit", data=b"{}", method="POST",
                                           headers={"X-NR-Token": info["token"],
                                                    "Content-Type": "application/json"})
         urllib.request.urlopen(quit_req, timeout=2).close()
         import time
-        time.sleep(2)                              # old version shuts down; start the new one
+        time.sleep(2)                              # old version (or older files) shuts down; start the new one
     except (OSError, KeyError, ValueError):
         pass
     return None
@@ -109,7 +134,8 @@ def main() -> int:
     httpd = _serve_stable(app)
     port = httpd.server_address[1]
     from .fsutil import atomic_write_text
-    atomic_write_text(_lock_path(), json.dumps({"port": port, "token": app.token, "pid": os.getpid()}))
+    atomic_write_text(_lock_path(), json.dumps({"port": port, "token": app.token, "pid": os.getpid(),
+                                                "stamp": app.stamp}))
     try:                                     # the token is only for this user (mkstemp already makes 0600)
         if os.name != "nt":
             os.chmod(config_dir(), 0o700)
@@ -133,12 +159,32 @@ def main() -> int:
 
 
 def run_logged() -> None:
-    """Entry for pythonw (no console): write crashes to a log file instead."""
+    """Entry for pythonw (no console): write crashes to a log file instead (the last CRASHES_KEPT)."""
     try:
         sys.exit(main())
     except SystemExit:
         raise
     except BaseException:
-        config_dir().mkdir(parents=True, exist_ok=True)
-        (config_dir() / "crash.log").write_text(traceback.format_exc(), encoding="utf-8")
+        _log_crash(traceback.format_exc())
         raise
+
+
+CRASHES_KEPT = 5
+
+
+def _log_crash(text: str) -> None:
+    import re
+    from datetime import datetime
+    config_dir().mkdir(parents=True, exist_ok=True)
+    p = config_dir() / "crash.log"
+    try:
+        old = p.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        old = ""
+    entries = [e for e in re.split(r"(?m)^(?==== .* ===$)", old) if e.strip()]
+    entries.append(f"=== {datetime.now().isoformat(timespec='seconds')} ===\n{text.rstrip()}\n")
+    entries = [e if e.endswith("\n") else e + "\n" for e in entries[-CRASHES_KEPT:]]
+    try:
+        p.write_text("".join(entries), encoding="utf-8")
+    except OSError:
+        pass
