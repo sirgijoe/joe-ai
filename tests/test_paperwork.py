@@ -306,10 +306,10 @@ def test_hide_details_in_word_reaches_the_places_the_page_doesnt_show(app):  # n
 
 
 def test_hide_patterns_addresses_in_capitals_and_town_lines():
-    t = ("JOHN SMITH\n1234 MAPLE STREET APT 4\nBATTLE CREEK MI 49017-1234\nPO Box 77, Springfield, IL 62701\n"
+    t = ("JOHN SMITH\n1234 MAPLE STREET APT 4\nELMRIDGE OH 45999-1234\nPO Box 77, Springfield, IL 62701\n"
          "123 Broadway, New York, NY 10001\nTotal $1,234.56 on 2026-11-11. I paid 20 in May.\n")
     found = [t[a:b] for a, b, k in paperwork.hide_spans(t, paperwork.pattern_hits(t), []) if k == "address"]
-    assert found == ["1234 MAPLE STREET APT 4", "BATTLE CREEK MI 49017-1234", "PO Box 77", "Springfield, IL 62701",
+    assert found == ["1234 MAPLE STREET APT 4", "ELMRIDGE OH 45999-1234", "PO Box 77", "Springfield, IL 62701",
                      "123 Broadway", "New York, NY 10001"]
     hits = [t[a:b] for a, b, k in paperwork.hide_spans(t, paperwork.pattern_hits(t), [])]
     assert not any("\n" in h for h in hits)                    # a find never runs across a line break

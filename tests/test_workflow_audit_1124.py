@@ -217,3 +217,35 @@ def test_look_words_must_start_a_word():
     assert look("a night street", "bw") == "noir"
     assert look("a surface of water", "manga") == "quiet"        # "face" inside "surface"
     assert look("headphones levitating over a desk", "product") == "floating"
+
+
+
+# ------------------------------------------------------------------ music length from the words (2026-11-24)
+def test_music_length_comes_from_the_option_or_the_words():
+    from joeai import picturetools as pt
+    def j(fmt="", opts=()):
+        return NS(name="x", format=fmt, options=list(opts), type="music")
+    assert pt.music_seconds(j(), "calm piano") == 30.0                                  # nothing said: 30
+    assert pt.music_seconds(j(), "a 3 minute calm piano song") == 180.0
+    assert pt.music_seconds(j(), "two minutes of upbeat chiptune") == 120.0
+    assert pt.music_seconds(j(), "a minute of lo-fi beats") == 60.0
+    assert pt.music_seconds(j(), "45 seconds of 8-bit arcade music") == 45.0
+    assert pt.music_seconds(j(), "a 10 minute ambient track") == 180.0                  # music stops at 3 minutes
+    assert pt.music_seconds(j(), "two minutes of rain", "sfx") == 47.0                  # sound effects at 47 s
+    assert pt.music_seconds(j(opts=["length 120"]), "a 3 minute song") == 120.0         # the Length option wins
+    assert pt.music_seconds(j("a 90 seconds intro"), "upbeat intro") == 90.0            # the task's brief counts
+
+
+
+# ------------------------------------------------------------------ kids' pictures never ask for nudity (2026-11-24)
+def test_a_kids_picture_prompt_loses_every_nudity_word():
+    got = styles.kid_safe("an artistic nude figure study, (naked:1.3), topless, sexy pin-up, soft window light, "
+                          "fully clothed, modest, family-friendly")
+    for w in ("nude", "naked", "topless", "sexy", "pin-up", "1.3", "()"):
+        assert w not in got.lower(), (w, got)
+    assert got == "an artistic figure study, soft window light, fully clothed, modest, family-friendly"
+    assert styles.kid_safe("a mermaid with a shell top, starfish, bubbles") == "a mermaid with a shell top, starfish, bubbles"
+    assert styles.kid_safe("a mermaid in a shell bikini top") == "a mermaid in a shell bikini top"   # how she is covered
+    assert "seductive" not in styles.kid_safe("A Seductive mermaid, Erotic pose").lower()
+    assert styles.kid_safe("a mermaid, (nude, sexy:1.2), starfish") == "a mermaid, starfish"          # weighted groups
+    assert styles.kid_safe("(masterpiece, nude:1.2), a girl reading") == "(masterpiece), a girl reading"

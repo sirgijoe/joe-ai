@@ -60,8 +60,8 @@ def test_restyle_says_the_medium_replaces_the_photo():
 
 def test_part_instructions_copied_under_the_heading_are_dropped():
     from joeai.engine import _fix_part_heading
-    part = "## The cereal city. How Battle Creek became known for breakfast cereal."
-    got = _fix_part_heading("## The cereal city\nHow Battle Creek became known for breakfast cereal.\n\nIt began.", part)
+    part = "## The cereal city. How Elmridge became known for breakfast cereal."
+    got = _fix_part_heading("## The cereal city\nHow Elmridge became known for breakfast cereal.\n\nIt began.", part)
     assert got == "## The cereal city\n\nIt began."
     kept = _fix_part_heading("## The cereal city\nKellogg opened in 1906.", part)
     assert "Kellogg opened" in kept

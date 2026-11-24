@@ -23,6 +23,8 @@ def write_report(sb: Sandbox, mission: Mission, states: list, earlier: list | No
         if len(chain) > 1:
             L += [f"# Mission {n} of {len(chain)}", ""]
         L += _mission_lines(m, st)
+    L += ["---", "", "AI makes mistakes. Read, look over and listen to everything Joe made before you publish, "
+          "send, sell or rely on it; the flags above are where he was unsure, not the only places to check.", ""]
     text = "\n".join(L)
     path = sb.output / "_REPORT.md"
     atomic_write_text(path, text)

@@ -42,7 +42,7 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   split into small parts so the AI stays fast and doesn't lose the plot.
 - Whole documents, section by section, following your outline word for word.
 - Spreadsheets (CSV) that open cleanly in Excel, Google Sheets or a shop's product import.
-- Code drafts (Joe writes them; he never runs them).
+- Code drafts (Joe writes them; only Joe-AiGent runs code, below, and only after you say yes).
 - Checks his own work: no repeated titles, minimum lengths, and anything he isn't sure
   about is marked `[CHECK]`. He never makes up prices, reviews or quotes.
 
@@ -83,6 +83,15 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - **Park an idea**: type "park this: a recipe book for my mom" and Joe saves it, dated, in
   `Ideas.md` for later.
 
+**Joe-AiGent, the agent** (Tools **F3** > OPEN JOE-AIGENT)
+- Give him a whole job in your own words and go to bed: he makes a plan, works through it step by
+  step with Joe's own tools, ticks each point off, checks his own work and leaves a report of what is
+  done, what isn't and why.
+- He can write small Python programs and prove they work: the test comes first, and code runs only
+  in a sealed box (its own empty folder, no network, time and memory limits). Every risky ability is
+  off until you've read its screen and said yes. The box is a strong fence, not a vault; the guide
+  says exactly what it does and doesn't stop. A job that read a web page or a file writes no code.
+
 **Works with bigger AIs** (no keys, no accounts)
 - **ASK A BIGGER AI** (Home): Joe writes one message you paste into any chatbot (ChatGPT, Claude,
   Gemini...). Paste its answer back and Joe tidies it, checks it and shows it as a plan. Folder
@@ -106,6 +115,9 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   something failed and gets sleepy during the night shift. Setup > Voice and Talk > "Joe's face in
   Talk": On, Still (no blinking or moving mouth; also used when your computer is set to reduce
   motion) or Off.
+- **Wake word** (off unless you tick it): with the open mic, say "Hey Joe" from any screen and he
+  comes to Talk to answer. Anything else he hears is dropped at once and never leaves the PC; before
+  he starts work or changes something, he asks and waits for your yes.
 - He can read the morning report to you, or tell you his own backstory.
 - Ask him something current and, with online lookups on, he searches and shows his sources.
   **STOP** (or Esc) cuts him off mid-answer.
@@ -365,7 +377,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
 - Install or download anything without asking you first.
 - Collect data about you. There's no tracking and no analytics. (The update checks below only
   ask for version numbers and model lists, nothing about you.)
-- Listen unless the Talk screen is open with the mic on (or you're holding the talk key).
+- Listen unless the Talk screen is open with the mic on, you're holding the talk key, or you ticked
+  the wake word (then the mic is on while his window is open, and he only acts on "Hey Joe").
 
 ## When Joe uses the internet
 
@@ -486,8 +499,9 @@ That's 48 product blurbs and 10 pictures by morning. Every key is explained in t
   > Flat. TIDY MY OUTPUT sorts older work the same way, only moving things, with an UNDO. Group
   missions into **projects** (Files F7 > PROJECTS) with notes and a "what's left" list.
 
-- **AI makes mistakes.** Joe flags what he's unsure of, but always read before you publish,
-  sell, or rely on anything he writes.
+- **AI makes mistakes.** Joe flags what he's unsure of, but always check before you publish,
+  send, sell, or rely on anything he makes: writing, pictures, sound, video and Talk's answers.
+  Every morning report ends with the same reminder.
 - **Check model licenses** before using pictures or text commercially. Each AI model has its
   own license. [THIRD_PARTY.md](THIRD_PARTY.md) lists every program, model and font Joe ships
   or can fetch, with its license.

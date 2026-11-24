@@ -1840,6 +1840,17 @@ def make_handler(app: App):
             n = int(raw)
             return n if n <= limit else None
 
+        def _drain(self, limit: int = 65_536) -> None:
+            """Read and drop a small body before a refusal. Windows resets a connection that closes with
+            unread data, and the reset can arrive before the answer is read (GitHub, Windows 3.14:
+            WinError 10053 on a 401). A body over the limit is left alone."""
+            n = self._length(limit)
+            if n:
+                try:
+                    self.rfile.read(n)
+                except OSError:
+                    pass
+
         def _body(self) -> dict:
             n = self._length(2_000_000)
             if n is None:
@@ -2063,6 +2074,7 @@ def make_handler(app: App):
             key = app.settings.mcp_key
             got = (self.headers.get("Authorization") or "").removeprefix("Bearer ").strip()
             if not key or not got or not _sec.compare_digest(got.encode("utf-8"), key.encode("utf-8")):
+                self._drain()
                 return self._json({"error": "Joe's connector key is missing or wrong (Setup > Other AI apps)."}, 401)
             n = self._length(2_000_000) or 0
             if not 0 < n <= 2_000_000:

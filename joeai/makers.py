@@ -532,6 +532,8 @@ def graph_for(engine, job, tid: str, item: dict, i: int, prefix: str, client) ->
         if kids:
             prompt = f"{prompt}, {styles.KID_WORDS}"
         prompt = wfp.with_add(prompt, pref)
+        if kids:
+            prompt = styles.kid_safe(prompt)      # nothing undressed is ever asked for (2026-11-24)
         extra = ", ".join(x for x in (rec.negative, styles.KID_NEGATIVE if kids else "") if x)
         negative = wfp.with_avoid(comfy_mod.negative_for("sdxl", engine.s.comfy.negative, extra, rec.anatomy), pref)
         steps = pref.get("steps") or quality.pictures(engine.s).steps("sdxl")

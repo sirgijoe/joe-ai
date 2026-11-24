@@ -260,6 +260,26 @@ KID_NEGATIVE = ("(nsfw, nude, naked, topless, nipples, cleavage, lingerie, under
 
 KID_WORDS = "fully clothed, modest, family-friendly"      # in the picture prompt itself: FLUX.2 has no leave-out list
 
+# 2026-11-24 (Joseph OK'd): a kids' picture never asks the model for these, whoever wrote them (the request,
+# the prompt writer, Setup's "also add"). The leave-out list alone lost to a request that said "nude": the
+# picture came out nude and only the kids' picture check after it held it back. A shell or bikini top stays:
+# it's how a kids' mermaid is covered (test_dev2_3_26).
+_KID_STRIP = re.compile(
+    r"\b(?:nsfw|nude|nudity|naked|topless|bottomless|nipples?|areolas?|breasts?|bare[- ]chested|bare (?:skin|body)|"
+    r"undress\w*|unclothed|without (?:any )?cloth\w*|no cloth\w*|lingerie|underwear|cleavage|"
+    r"sexy|sexual\w*|seductive\w*|sensual\w*|erotic\w*|provocative|suggestive|pin-?ups?|"
+    r"boudoir|risqu[eé])\b(?::[\d.]+)?", re.I)
+
+
+def kid_safe(prompt: str) -> str:
+    """A kids' picture prompt with every nudity or sexual word taken out (weights and brackets too)."""
+    out = _KID_STRIP.sub("", prompt or "")
+    out = re.sub(r"\(\s*[,\s]*(?::[\d.]+)?\s*\)", "", out)     # "(nude, sexy:1.2)" leaves nothing behind
+    out = re.sub(r"\(\s*,\s*", "(", out)
+    out = re.sub(r"\s*,\s*(?=(?::[\d.]+)?\))", "", out)        # "(masterpiece, nude:1.2)" -> "(masterpiece)"
+    out = re.sub(r"\s*,(\s*,)+", ",", out)
+    return re.sub(r"[ \t]{2,}", " ", out).strip(" ,")
+
 
 def for_kids(job, mission=None, source=None) -> bool:
     """Is this task (or the book its pictures are FROM, or the whole mission) for children?

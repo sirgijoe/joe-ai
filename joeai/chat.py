@@ -189,7 +189,7 @@ def lookup_words(asked: str, history: list[dict] | None, text: str, files=None) 
 
 # --------------------------------------------------------------------------- search words
 # A search source wants a few words, not a spoken sentence: "Can you please look up the highest
-# hill in Calhoun County, Michigan?" sent whole to Wikipedia found politicians and TV shows.
+# hill in Ashford County, Ohio?" sent whole to Wikipedia found politicians and TV shows.
 WORDS_TOKENS = 40            # the most the model may write when asked for search words
 MAX_LOOKUPS = 2              # searches one Talk question may make (the first, and one more try)
 _ASKING = re.compile(r"\b(?:look(?:ing)?(?: (?:it|that|this))? up(?: (?:at|on|for))?|search (?:(?:the )?(?:web|internet)|online)"
@@ -255,7 +255,7 @@ def keywords(text: str) -> str:
 
 
 def spelled(text: str) -> str:
-    """A word the person spelled out letter by letter ("C-A-L-H-O-U-N" -> "Calhoun"), or ""."""
+    """A word the person spelled out letter by letter ("A-S-H-F-O-R-D" -> "Ashford"), or ""."""
     m = _SPELLED.search(text or "")
     if not m:
         return ""
@@ -264,7 +264,7 @@ def spelled(text: str) -> str:
 
 
 def correction(text: str) -> bool:
-    """The person is putting Joe right ("no, I said Calhoun", "it's spelled C-A-L-H-O-U-N")."""
+    """The person is putting Joe right ("no, I said Ashford", "it's spelled A-S-H-F-O-R-D")."""
     return bool(_CORRECTING.search(text or "") or spelled(text))
 
 
@@ -451,7 +451,7 @@ def prepare(app, history: list[dict], text: str, files: list[dict] | None = None
         last = getattr(app, "talk_lookup", None) or {}
         asked = last.get("ask", "") if last.get("said") == text else text
         if web_results is None:
-            # "no, it's C-A-L-H-O-U-N" right after a lookup: look again, with the word put right
+            # "no, it's A-S-H-F-O-R-D" right after a lookup: look again, with the word put right
             before = next((str(h.get("content", "")).split("\n\n[attached")[0] for h in reversed(history or [])
                            if h.get("role") == "user"), None)
             again = bool(last) and before == last.get("said") and correction(text)

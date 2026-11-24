@@ -1,4 +1,29 @@
-## What's new in 2.3 (in development)
+## What's new in 2.3
+
+- **Better pictures from the same words.** Every picture style was checked against the models it runs on
+  and retested side by side with 2.2 (same words, same seed). The look of a picture now follows what you
+  asked for: a fox gets the wildlife look, a castle at sunset the landscape look, a flat lay of products the
+  overhead look; a medium word wins ("a castle, photo" is a photo, "watercolor of a dragon" a watercolor);
+  the look picks the lens and background instead of fighting the writer over them. The prompt writer is
+  told which model will draw (short tags for anime models, a fuller sentence for FLUX.2), and a big
+  picture (a 1920x1080 wallpaper) is drawn at the size the model knows and then enlarged, so it no longer
+  comes out with doubled heads or stretched rooms.
+- **Your own picture models work better out of the box.** A Turbo, Lightning, Hyper or LCM model gets
+  its few steps and low prompt strength by itself; Pony and Illustrious models get their own quality words
+  and settings. Your style words are never changed.
+- **FLUX.2 still helps with the hard ones.** If you pick a model in Setup > Workflows, Joe still uses
+  FLUX.2 [klein] (when it's installed) for words in a picture, groups of people, two different animals,
+  neon streets and a story's pages, and the log says so. Tick "Always use my chosen model" to turn that off.
+- **Changed: the Pictures row of FINE-TUNING only fills in.** A style that has its own value (prompt
+  strength, sampler, detail pass) keeps it; the Pictures row is used where a style has none. Set a value on
+  the style itself to change it for that style.
+- **Kids' pictures:** "for my 6-year-old", "a 2nd grade class" and the like get kid-safe words and checks;
+  an adult's age ("a 45 year old man") no longer does.
+- **Animate a photo follows Setup > Quality and speed > Video** (Turbo when Video uses it) and keeps the
+  same faces and framing from start to end. **Music** takes its tempo, key and beat from your words ("slow",
+  "sad", "a waltz", "140 bpm") instead of always 110 BPM in C major.
+- **Steadier answers for exact jobs** (proofreading, translating, letters, summaries, minutes, dates) and longer jobs no longer run
+  out of room in the writing model.
 
 - **Joe-AiGent, the agent** (Tools > OPEN JOE-AIGENT). Give Joe a whole job and go to bed: he makes a plan,
   does it step by step with Joe's own tools, ticks each point off, checks his own work, and leaves a report
@@ -16,7 +41,8 @@
   list you already saved is left as it is.
 - **Big pictures no longer slow the picture lists down.** The picture strip on Home and the Files list show
   small preview copies (wallpaper-size pictures used to load in full before any showed). The BIG WINDOW has
-  big arrows at the left and right edges (or the left and right arrow keys) step through the pictures and videos in that folder.
+  big arrows at the left and right edges (or the left and right arrow keys): opened from the picture strip
+  they step through every picture of that run, opened from Files through that folder.
 - **Hide personal details: blank out the pictures in a Word file.** Joe can't read words inside a picture (a
   signature, a logo, a scanned page). Tick "Blank out the pictures inside Word files" and every picture in
   the cleaned copy becomes a blank grey box.
@@ -120,8 +146,8 @@
 - **Quicker Talk:** when the Talk model is blank (so the big writing model answers, 10-20 seconds),
   Setup > Start here offers a small model you already have, or a small one to download.
 - **Online lookups, more than one search source:** Setup > Privacy and internet > ONLINE LOOKUPS now
-  lists where Joe searches, in your order (tick, untick, UP, DOWN). Out of the box it's Ollama web
-  search (with your key) and then Wikipedia, exactly as before. When the first source can't answer,
+  lists where Joe searches, in your order (tick, untick, UP, DOWN). Out of the box it's Wikipedia (see
+  above). When the first source can't answer,
   Joe tries the next and tells you which one answered and why ("Found with Wikipedia, because Ollama
   web search didn't answer (the key was refused)"), under the reply and in Talk out loud; it used to
   fall back without a word. A source that fails rests for a few minutes, a task makes 10 searches at

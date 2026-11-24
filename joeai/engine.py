@@ -1792,7 +1792,8 @@ class Engine:
                                  "with every face different. Picture models still get groups wrong "
                                  "sometimes: VARIANTS: 3 gives you a few to pick from.")
                         self._group_said = True
-                g = comfy_mod.fill(graph, wfp.with_add(pos, wpref),
+                g = comfy_mod.fill(graph, styles_mod.kid_safe(wfp.with_add(pos, wpref)) if kids and job.type == "image"
+                                   else wfp.with_add(pos, wpref),
                                    negative, seed, w, h, ckpt,
                                    prefix=f"Joe/{slug(job.name)}")
                 stem = f"{pi + 1:03d}_{slug(p['title'])[:40]}" + (f"_{v + 1}" if job.variants > 1 else "")
@@ -2154,7 +2155,7 @@ def _fix_part_heading(text: str, part_prompt: str) -> str:
         head = m.group(2).strip()
         if head.lower().startswith(title.lower()) and len(head) > len(title) + 3:
             lines[n] = f"{m.group(1)} {title}"
-        # the instructions copied as the first line under the heading ("How Battle Creek became known
+        # the instructions copied as the first line under the heading ("How Elmridge became known
         # for breakfast cereal." under "## The cereal city", 2.3.0.dev26): drop that line
         for k in range(n + 1, min(n + 4, len(lines))):
             if not lines[k].strip():

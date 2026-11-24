@@ -402,6 +402,33 @@ def music_feel(prompt: str) -> tuple[int, str, str]:
     return bpm, key, "3" if _WALTZ.search(prompt or "") else "4"
 
 
+_NUMWORDS = {"one": 1, "a": 1, "an": 1, "two": 2, "three": 3, "four": 4, "five": 5, "half a": 0.5, "a half": 0.5}
+_LENGTH_RE = re.compile(r"\b(\d+(?:\.\d+)?|one|two|three|four|five|half a|an?)[- ]?(minutes?|mins?|seconds?|secs?)\b", re.I)
+
+
+def music_seconds(job, item: str, kind: str = "music") -> float:
+    """How long one piece is. The Length option when the task has one; else a length said in the words
+    ("a 3 minute song", "two minutes of rain", "45 seconds"); else 30. 2026-11-24: a request for a
+    3-minute track from Home got 30 seconds, because the plan had no length option.
+    Music stops at 3 minutes (the Tools form's longest), sound effects at 47 seconds (Stable Audio Open)."""
+    from .tools import option_value
+    cap = 47.0 if kind == "sfx" else 180.0
+    if any(str(t).partition(" ")[0] == "length" for t in getattr(job, "options", ()) or ()):
+        try:
+            return max(1.0, min(cap if kind == "sfx" else 600.0, float(option_value(job, "length"))))
+        except ValueError:
+            pass
+    text = f"{item if isinstance(item, str) else ''}\n{getattr(job, 'format', '') or ''}\n{getattr(job, 'name', '') or ''}"
+    m = _LENGTH_RE.search(text)
+    if m:
+        n = m.group(1).lower()
+        num = float(_NUMWORDS.get(n, 0) or n) if not n.replace(".", "").isdigit() else float(n)
+        secs = num * 60 if m.group(2).lower().startswith("m") else num
+        if secs >= 1:
+            return min(cap, secs)
+    return 30.0
+
+
 def music_graph(tags: str, seconds: float, seed: int, bpm: int = 0, prefix: str = "Joe/tool",
                 keyscale: str = "C major", timesignature: str = "4") -> dict:
     """ACE-Step 1.5 Turbo (ComfyUI's template), instrumental."""
@@ -1097,7 +1124,7 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
     extra = job.format.strip()
     from . import workflowprefs as wfp
     if tid == "music":
-        secs = float(option_value(job, "length") or 30)
+        secs = music_seconds(job, item, kind)
         stem = f"{i + 1:02d}-{slug(item)[:40] or 'sound'}"
         if kind == "sfx":
             return sfx_graph(wfp.with_add(item, wfp.get(engine.s, "sfx")), secs, seed, prefix), stem, ".mp3"

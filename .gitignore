@@ -21,3 +21,9 @@ agents.json
 memory.json
 settings.broken.json
 .ruff_cache/
+# Joe's own work folders stay local, even if one is ever made inside the code folder
+/Joe-ai/
+/Output/
+/Inbox/
+/Missions/
+/Projects/

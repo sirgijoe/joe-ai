@@ -1095,7 +1095,7 @@ _STREET_CAPS = re.compile(r"\b\d{1,6}[A-Z]?[ \t]+(?:[A-Z][A-Z'.-]*[ \t]+){1,4}(?
 _POBOX = re.compile(r"(?i)\bP\.?[ \t]?O\.?[ \t]*Box[ \t]+\d+\b")
 _US_STATES = ("AL|AK|AZ|AR|CA|CO|CT|DE|DC|FL|GA|HI|ID|IL|IN|IA|KS|KY|LA|ME|MD|MA|MI|MN|MS|MO|MT|NE|NV|NH|NJ|NM|NY|NC|"
               "ND|OH|OK|OR|PA|RI|SC|SD|TN|TX|UT|VT|VA|WA|WV|WI|WY|PR")
-# the town line of a US address: "Battle Creek, MI 49017" / "BATTLE CREEK MI 49017-1234"
+# the town line of a US address: "Elmridge, OH 45999" / "ELMRIDGE OH 45999-1234"
 _CITYZIP = re.compile(r"\b[A-Z][A-Za-z.'-]+(?:[ \t]+[A-Z][A-Za-z.'-]+){0,3},?[ \t]+(?:" + _US_STATES + r")[ \t]+\d{5}(?:-\d{4})?\b")
 _UK_POST = re.compile(r"\b[A-Z]{1,2}\d[A-Z\d]?[ \t]?\d[A-Z]{2}\b")
 # A street with no "Street/Ave" word ("123 Broadway"): a house number and a capitalised name count only when a town

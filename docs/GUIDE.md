@@ -160,8 +160,13 @@ In Step by step (F6) it's **Use the names from**.
   each for what it does): **prompt strength (CFG)** (lower it to 4-5 when pictures get fake writing
   or look overcooked), **style add-on strength** (LoRA), the **detail pass** (auto / on / off) and
   how much it may repaint, the **sampler**, and **versions per prompt** (make 3 and pick the best:
-  handy for people and animals). Only the values you change are kept. **Video clips** have
-  prompt strength and **motion** (low / normal / high).
+  handy for people and animals). Only the values you change are kept. The **Pictures** row only fills
+  in: a style that has its own value keeps it, so to change one style, set it on that style. **Video
+  clips** have prompt strength and **motion** (low / normal / high); **Animate a photo** has its own
+  prompt strength.
+  Picture models of a known kind are set up by themselves: a Turbo, Lightning, Hyper or LCM model gets
+  its few steps and low prompt strength, and Pony and Illustrious models get their own quality words and
+  settings. Your own words and FINE-TUNING values still win.
 - **MORE LIKE THIS** and **WHY DOES THIS LOOK WRONG?** (Files, F7, under a picture Joe made): the
   first puts that picture's recipe in the plan box with its seed locked, so changing a few words keeps
   the layout; the second asks what's wrong (fake writing, bad hands, cloned faces, plastic look,
@@ -1076,7 +1081,8 @@ FORMAT: calm acoustic guitar, warm | upbeat ukulele, cheerful
 All of these use the Qwen picture editor that Edit a picture uses (offered once, about 31 GB).
 On High quality, Joe's own pictures also get a second, 1.5x bigger detail pass.
 - **Animate a photo**: Wan 2.2 5B image-to-video, 5 seconds, sized to the photo (landscape
-  1280x704, portrait 704x1280, square 960x960). With the Turbo add-on about 2 minutes a clip.
+  1280x704, portrait 704x1280, square 960x960). It follows Setup > Quality and speed > Video: with
+  the Turbo add-on about 2 minutes a clip, without it (High) much longer but steadier faces.
 - **Music and sound effects**: no files needed; one piece per line (in a mission, separate them
   with `|`). `kind music` = ACE-Step 1.5 Turbo (MIT, about 10 GB), instrumental, any style;
   `kind sfx` = Stable Audio Open 1.0 (about 5 GB, Stability AI Community License: free for people
@@ -1120,7 +1126,10 @@ itself):
   that draws hands, faces and words far better, in 4 steps. When it's installed Joe uses it by
   himself for pictures with words in them ("a sign that says OPEN", "a poster with the title..."),
   when there's no SDXL model, or when a task says `MODEL: flux2`. To use it for every picture, pick
-  it in Setup > Workflows > Pictures (or for one style only). Style add-ons (LoRAs) and the High
+  it in Setup > Workflows > Pictures (or for one style only). If you pick another model there, Joe
+  still uses FLUX.2 for the pictures it draws far better (words in the picture, groups of people or a
+  rider, two different animals, neon streets, a story's pages) and the log says so; tick **Always use
+  my chosen model** (top of Setup > Workflows) to use yours every time. Style add-ons (LoRAs) and the High
   quality second pass are for SDXL models, so they're skipped with it.
 
 ## Joe-AiGent, the agent (Tools F3 > OPEN JOE-AIGENT)
@@ -1329,12 +1338,12 @@ When Joe can't find something he says the answer is from memory and may be wrong
 
 **How Joe searches in Talk.** A search source wants a few search words, not a spoken sentence, so
 Joe doesn't send what you said as it is: the Talk model turns it into a few search words first
-("Can you please look up the highest hill in Calhoun County, Michigan?" becomes something like
-"Calhoun County Michigan highest point"), and Joe's own plain version is used when the model
+("Can you please look up the highest hill in Ashford County, Ohio?" becomes something like
+"Ashford County Ohio highest point"), and Joe's own plain version is used when the model
 can't. When a file is attached, only words you said yourself are searched, never anything from the
 file. If the results don't answer the question, Joe may search **once more** with different words
 (two searches a question at most), and if that doesn't help he says so. Put him right ("no, I said
-Calhoun", or spell it: "C-A-L-H-O-U-N") straight after a lookup and he searches again with the
+Ashford", or spell it: "A-S-H-F-O-R-D") straight after a lookup and he searches again with the
 corrected word. He never says he looked something up when he didn't, and never tells you to say a
 command; if he says "I'll search again", he really does.
 
