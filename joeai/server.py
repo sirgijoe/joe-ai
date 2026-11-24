@@ -884,6 +884,17 @@ class App:
 
     MEDIA_EXT = (".png", ".jpg", ".jpeg", ".webp", ".gif", ".bmp", ".mp4", ".webm", ".mov")
 
+    def run_media(self) -> list[str]:
+        """This run's pictures and videos, newest first: what the viewer shows (the window gets the 12
+        newest), and what the BIG WINDOW's arrows step through when it was opened from the viewer."""
+        eng = self.engine
+        media: list[str] = []
+        if eng:
+            media += self.media_of(eng.live)
+        for _, states in self.chain:
+            media += [m for m in self.media_of(states) if m not in media]
+        return media[::-1]
+
     def media_of(self, states: list) -> list[str]:
         """Pictures and videos a run made, as Output/... paths. Media tasks list files from
         Output; tools list names inside their own folder."""
@@ -980,11 +991,7 @@ class App:
                              "note": s.note, "current": s.job_id == eng.current,
                              "phase": s.phase, "media": bool(s.prompts),
                              "images_done": s.images_done})
-        media = []                                   # newest pictures/videos from this run
-        if eng:
-            media += self.media_of(eng.live)
-        for _, states in self.chain:
-            media += [m for m in self.media_of(states) if m not in media]
+        media = self.run_media()[::-1]               # newest pictures/videos from this run
         eta = None
         if self.running and eng:
             done = sum(j["parts_done"] for j in jobs) - self.parts_at_start
@@ -2037,7 +2044,10 @@ def make_handler(app: App):
                     p = app.rel_path(arg)
                     if not p.is_file():
                         return self._json({"error": "not a file"}, 404)
-                    page, csp = player_page(app, p, arg)
+                    group = None
+                    if (q.get("set") or [""])[0] == "run":   # opened from the viewer: step through the run
+                        group = [m for m in app.run_media() if m.lower().endswith(App.MEDIA_EXT)]
+                    page, csp = player_page(app, p, arg, group)
                     return self._send(200, page.encode(), "text/html; charset=utf-8",
                                       {"Content-Security-Policy": csp})
             except (SandboxError, OSError) as e:
@@ -3023,18 +3033,29 @@ def player_neighbours(p: Path) -> tuple[list[Path], int]:
     return files, files.index(p)
 
 
-def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
+def player_page(app: App, p: Path, arg: str, group: list[str] | None = None) -> tuple[str, str]:
     """The BIG WINDOW: one picture or video, with big PREVIOUS / NEXT arrows at the sides, through the others in its folder
-    (or the left and right arrow keys). Returns (page, Content-Security-Policy)."""
+    (or the left and right arrow keys). Returns (page, Content-Security-Policy).
+    `group`: the Output/... paths to step through instead (opened from the viewer: the whole run, as the viewer
+    shows it, not only the folder this one is in; Joseph 2026-11-24)."""
     import secrets as _sec
     from html import escape
     from urllib.parse import quote
-    files, i = player_neighbours(p)
-    folder = arg.replace("\\", "/").strip("/").rpartition("/")[0]
+    norm = arg.replace("\\", "/").strip("/")
+    if group and norm in group and len(group) > 1:
+        rels, i, where = list(group), group.index(norm), "from this run"
+        files = [Path(r) for r in rels]
 
-    def link(f: Path) -> str:
-        rel = f"{folder}/{f.name}" if folder else f.name
-        return f"/player?t={quote(app.token)}&path={quote(rel)}"
+        def link(f: Path) -> str:
+            return f"/player?t={quote(app.token)}&path={quote(rels[files.index(f)])}&set=run"
+    else:
+        files, i = player_neighbours(p)
+        folder = norm.rpartition("/")[0]
+        where = "in this folder"
+
+        def link(f: Path) -> str:
+            rel = f"{folder}/{f.name}" if folder else f.name
+            return f"/player?t={quote(app.token)}&path={quote(rel)}"
 
     src = f"/raw?t={quote(app.token)}&path={quote(arg)}"
     vid = p.suffix.lower() in VIDEO_TYPES
@@ -3046,7 +3067,7 @@ def player_page(app: App, p: Path, arg: str) -> tuple[str, str]:
     nav = (f'<a id="prev" class="side" href="{escape(prev)}" aria-label="Previous: {escape(files[i - 1].name)}">&lt;</a>'
            f'<a id="next" class="side" href="{escape(nxt)}" aria-label="Next: {escape(files[(i + 1) % len(files)].name)}">&gt;</a>'
            ) if many else ""
-    count = f"{i + 1} of {len(files)} in this folder · left and right arrow keys work too · " if many else ""
+    count = f"{i + 1} of {len(files)} {where} · left and right arrow keys work too · " if many else ""
     nonce = _sec.token_urlsafe(12)
     script = (f'<script nonce="{nonce}">addEventListener("keydown",function(e){{'
               'if(e.altKey||e.ctrlKey||e.metaKey)return;var t=e.target&&e.target.tagName;'

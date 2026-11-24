@@ -204,3 +204,16 @@ def test_the_writers_own_lens_gives_way_to_the_looks():
     rec = styles.recipe(job("a castle on a hill at sunset, photo"))
     out = Engine._styled(NS(_lora_used=False), "A castle, shot on 35mm lens, f/1.8, golden light", rec, "sdxl")
     assert rec.look["id"] == "landscape" and "35mm" not in out and "16mm" in out
+
+
+# ------------------------------------------------------------------ look words start a word (baseline rerun, 2026-11-24)
+def test_look_words_must_start_a_word():
+    def look(name, style):
+        return styles.recipe(job(name=name, style=style)).look["id"]
+    assert look("Rerun 05 manga", "manga") == "quiet"            # "run" inside "Rerun" picked the action panel
+    assert look("a brunch table", "manga") == "quiet"
+    assert look("kids running in a park", "manga") == "action"   # a real word still matches, stems too
+    assert look("a knight in armor", "bw") != "noir"             # "night" inside "knight"
+    assert look("a night street", "bw") == "noir"
+    assert look("a surface of water", "manga") == "quiet"        # "face" inside "surface"
+    assert look("headphones levitating over a desk", "product") == "floating"

@@ -152,9 +152,10 @@ function applyUI(ui, themeVars) {
 
 let lastLogLen = -1, lastUI = "", lastBusy = "", lastMedia = "", viewing = "", lastFix = -1;
 const isVid = (p) => /\.(mp4|webm|mov|mkv|m4v)$/i.test(p);
-const playerUrl = (p) => "/player?t=" + encodeURIComponent(TOKEN) + "&path=" + encodeURIComponent(p);
-function mediaButtons(p) {
-  return `<div class="gbtns"><button type="button" data-window="${esc(p)}" title="Open it big in its own window.">[ BIG WINDOW ]</button>` +
+// set "run": the BIG WINDOW's arrows step through this run's pictures and videos (as in the viewer), not one folder
+const playerUrl = (p, set) => "/player?t=" + encodeURIComponent(TOKEN) + "&path=" + encodeURIComponent(p) + (set ? "&set=" + encodeURIComponent(set) : "");
+function mediaButtons(p, set) {
+  return `<div class="gbtns"><button type="button" data-window="${esc(p)}"${set ? ` data-set="${esc(set)}"` : ""} title="Open it big in its own window.">[ BIG WINDOW ]</button>` +
     `<button type="button" data-system="${esc(p)}" title="Open it in your usual picture or video program.">[ OPEN IN PLAYER ]</button>` +
     `<button type="button" data-open="${esc(p)}" title="Find it in Files (F7) to see how it was made, keep or reject it.">[ DETAILS F7 ]</button></div>`;
 }
@@ -178,12 +179,12 @@ function renderGallery(m) {
     ? `<span class="gvid${p === viewing ? " on" : ""}" data-view="${esc(p)}"><video class="gth" src="${rawSrc(p)}#t=0.5" muted preload="metadata"></video><b>▶</b></span>`
     : `<img class="gth${p === viewing ? " on" : ""}" src="${thumbSrc(p)}" alt="" loading="lazy" data-view="${esc(p)}">`).join("");
   $("#gallery").innerHTML = `<div class="gmain">${big}</div><div class="gname dim">${esc(viewing.split("/").pop())}</div>` +
-    mediaButtons(viewing) + `<div class="gstrip">${thumbs}</div>`;
+    mediaButtons(viewing, "run") + `<div class="gstrip">${thumbs}</div>`;
   watchVideoErrors($("#gallery"));
 }
 document.addEventListener("click", async (ev) => {
   const w = ev.target.closest("[data-window]");
-  if (w) { window.open(playerUrl(w.dataset.window), "_blank", "width=1100,height=760"); return; }
+  if (w) { window.open(playerUrl(w.dataset.window, w.dataset.set), "_blank", "width=1100,height=760"); return; }
   const sy = ev.target.closest("[data-system]");
   if (sy) { const r = await api("/api/open", { path: sy.dataset.system, how: "default" }); if (!r.ok) toast(r.error || "Could not open"); }
 });

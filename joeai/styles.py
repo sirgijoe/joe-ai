@@ -606,7 +606,9 @@ def recipe(job, picks: dict | None = None, kids: bool | None = None) -> Recipe:
 
 
 def _safe_search(pattern: str, text: str) -> bool:
+    # Each word must start a word: "run" is not in "Rerun" or "brunch", "ship" not in "friendship",
+    # "night" not in "knight", "face" not in "surface". Stems like "levitat" still match "levitating".
     try:
-        return bool(re.search(pattern, text))
+        return bool(re.search(rf"(?<![a-z0-9])(?:{pattern})", text))
     except re.error:
         return False

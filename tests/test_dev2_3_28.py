@@ -166,6 +166,26 @@ def test_big_window_steps_through_the_folder(tmp_path):
     assert "<video" in page and 'Next: a.png' in page
 
 
+def test_big_window_from_the_viewer_steps_through_the_whole_run(tmp_path):
+    """Joseph 2026-11-24: a run with 4 folders of 2 pictures showed 8 in the viewer, but the arrows only went
+    between the 2 in one folder. Opened from the viewer (set=run), they go through all 8, newest first."""
+    from joeai import server
+    run = [f"Output/run/{f}/{n}.png" for f in ("d", "c", "b", "a") for n in ("2", "1")]
+    for r in run:
+        (tmp_path / r).parent.mkdir(parents=True, exist_ok=True)
+        (tmp_path / r).write_bytes(b"x")
+    app = NS(token="t")
+    page, _ = server.player_page(app, tmp_path / run[1], run[1], run)
+    assert "2 of 8 from this run" in page and "path=Output/run/d/2.png&amp;set=run" in page
+    assert "path=Output/run/c/2.png&amp;set=run" in page
+    page, _ = server.player_page(app, tmp_path / run[7], run[7], run)                 # the last wraps to the first
+    assert "path=Output/run/d/2.png&amp;set=run" in page and "8 of 8 from this run" in page
+    page, _ = server.player_page(app, tmp_path / "Output/run/a/1.png", "Output/run/a/1.png", ["x.png"])
+    assert "1 of 2 in this folder" in page                                            # not in the run: its folder
+    js = (Path(server.__file__).with_name("ui") / "app.js").read_text(encoding="utf-8")
+    assert 'mediaButtons(viewing, "run")' in js and "&set=" in js
+
+
 def test_big_window_alone_in_its_folder_has_no_buttons_and_no_script(tmp_path):
     from joeai import server
     (tmp_path / "one.png").write_bytes(b"x")
