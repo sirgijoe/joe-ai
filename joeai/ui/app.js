@@ -1432,6 +1432,11 @@ function wfTune(r) {
   const t = r.tune || {};
   if (!Object.keys(t).length) return "";
   const h = (wfData.tune_help || {}), p = r.prefs, val = (k) => (p[k] !== undefined ? p[k] : t[k]);
+  if (r.id === "animate") {
+    return `<fieldset class="wftune"><legend>FINE-TUNING</legend>
+    <label title="${esc(h.cfg || "")}">Prompt strength (CFG) <input type="number" min="1" max="20" step="0.5" data-wff="cfg" value="${val("cfg")}"> <span class="dim small">Joe's: ${t.cfg} (not used with the Turbo add-on)</span></label>
+  </fieldset>`;
+  }
   if (r.id === "video") {
     const mo = val("motion");
     return `<fieldset class="wftune"><legend>FINE-TUNING</legend>

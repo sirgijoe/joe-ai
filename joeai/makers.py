@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import re
 import subprocess
+from types import SimpleNamespace
 from pathlib import Path
 
 from . import comfy as comfy_mod
@@ -282,9 +283,25 @@ def restyle_size(engine, w: int, h: int) -> tuple[int, int]:
 
 
 # --------------------------------------------------------------------------- graphs
+def _profiled(g: dict, prof, level: str) -> dict:
+    """A fast model's own steps, prompt strength and sampler in a ControlNet graph (node "5"), and clip
+    skip for Pony/Illustrious models (modelprofiles.py)."""
+    if not prof.kind or prof.kind == "animagine":
+        return g
+    ks = g["5"]["inputs"]
+    if prof.kind == "fast":
+        ks["steps"] = prof.low_steps if level == "low" and prof.low_steps else prof.steps
+        ks["cfg"], ks["sampler_name"], ks["scheduler"] = prof.cfg, prof.sampler, prof.scheduler
+    if prof.clip_skip:
+        g["15"] = {"class_type": "CLIPSetLastLayer", "inputs": {"stop_at_clip_layer": -abs(prof.clip_skip),
+                                                                "clip": ["4", 1]}}
+        g["6"]["inputs"]["clip"] = g["7"]["inputs"]["clip"] = ["15", 0]
+    return g
+
+
 def controlnet_graph(ckpt: str, image: str, prompt: str, negative: str, seed: int, controlnet: str,
                      strength: float, end: float, steps: int = 28, cfg: float = 6.0, invert: bool = False,
-                     union_type: str = "", prefix: str = "Joe/tool") -> dict:
+                     union_type: str = "", prefix: str = "Joe/tool", sampler: str = "dpmpp_2m") -> dict:
     """SDXL picture guided by a control picture (a sketch or a hidden pattern). The control
     picture is also encoded, only so the new picture gets its shape (denoise 1 = all new)."""
     g = {
@@ -300,7 +317,7 @@ def controlnet_graph(ckpt: str, image: str, prompt: str, negative: str, seed: in
             "strength": strength, "start_percent": 0.0, "end_percent": end, "vae": ["4", 2]}},
         "13": {"class_type": "VAEEncode", "inputs": {"pixels": ["2", 0], "vae": ["4", 2]}},
         "5": {"class_type": "KSampler", "inputs": {
-            "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": "dpmpp_2m", "scheduler": "karras",
+            "seed": seed, "steps": steps, "cfg": cfg, "sampler_name": sampler, "scheduler": "karras",
             "denoise": 1.0, "model": ["4", 0], "positive": ["12", 0], "negative": ["12", 1],
             "latent_image": ["13", 0]}},
         "8": {"class_type": "VAEDecode", "inputs": {"samples": ["5", 0], "vae": ["4", 2]}},
@@ -499,22 +516,39 @@ def graph_for(engine, job, tid: str, item: dict, i: int, prefix: str, client) ->
     from .tools import option_value
     seed = _seed(job, i)
     if tid in SDXL_TOOLS:
+        from . import modelprofiles
         style = style_for(job)
         pref = wfp.get(engine.s, "controlnet")
-        prompt = wfp.with_add(styles.add(item["prompt"], style), pref)
-        anatomy = style.id not in ("surreal", "abstract")
-        negative = wfp.with_avoid(comfy_mod.negative_for("sdxl", engine.s.comfy.negative, style.negative, anatomy), pref)
+        # 2026-11-24: the same recipe a picture task gets (look words, look leave-out words, the model's own
+        # quality tags), and kids' protection: "turn my child's drawing into a picture" had none.
+        kids = styles.for_kids(job)
+        sjob = SimpleNamespace(name=job.name, format=f"{job.format}\n{item['prompt']}", style=style.id,
+                               rules=getattr(job, "rules", ""), part_prompts=[], template=getattr(job, "template", ""))
+        rec = styles.recipe(sjob, _picks(), kids=kids)
+        prof = modelprofiles.for_checkpoint(item["ckpt"], "sdxl")
+        rec = modelprofiles.adapt_recipe(rec, prof)
+        words = styles.words_for(rec.words, "sdxl")
+        prompt = ", ".join(x for x in (rec.prefix, item["prompt"].rstrip(" .,"), words) if x)
+        if kids:
+            prompt = f"{prompt}, {styles.KID_WORDS}"
+        prompt = wfp.with_add(prompt, pref)
+        extra = ", ".join(x for x in (rec.negative, styles.KID_NEGATIVE if kids else "") if x)
+        negative = wfp.with_avoid(comfy_mod.negative_for("sdxl", engine.s.comfy.negative, extra, rec.anatomy), pref)
         steps = pref.get("steps") or quality.pictures(engine.s).steps("sdxl")
+        sampler = style.sampler or "dpmpp_2m"
         name = upload_image(client.base, item["src"])
         ckpt = api_name(client, item["ckpt"])
         if tid == "sketch-to-picture":
             strength, end = FOLLOW.get(option_value(job, "follow") or "some", FOLLOW["some"])
-            return (controlnet_graph(ckpt, name, prompt, negative, seed, PACKS["sketch"].files[0][1], strength, end,
-                                     steps, 6.0 + style.cfg, invert=item.get("invert", True),
-                                     union_type=item.get("union", ""), prefix=prefix), item["stem"], ".png")
-        strength, end = SHOW.get(option_value(job, "show") or "clear", SHOW["clear"])
-        return (controlnet_graph(ckpt, name, prompt, negative, seed, PACKS["illusion"].files[0][1], strength, end,
-                                 steps, 7.0, prefix=prefix), item["stem"], ".png")
+            g = controlnet_graph(ckpt, name, prompt, negative, seed, PACKS["sketch"].files[0][1], strength, end,
+                                 steps, max(2.0, (prof.cfg or 6.0) + (0 if prof.fixed_cfg else style.cfg)),
+                                 invert=item.get("invert", True), union_type=item.get("union", ""), prefix=prefix,
+                                 sampler=sampler)
+        else:
+            strength, end = SHOW.get(option_value(job, "show") or "clear", SHOW["clear"])
+            g = controlnet_graph(ckpt, name, prompt, negative, seed, PACKS["illusion"].files[0][1], strength, end,
+                                 steps, prof.cfg if prof.fixed_cfg else 7.0, prefix=prefix, sampler=sampler)
+        return _profiled(g, prof, quality.level(engine.s, "pictures")), item["stem"], ".png"
     if tid == "restyle-video":
         pref = wfp.get(engine.s, "restyle-video")
         name = upload_image(client.base, item["src"])

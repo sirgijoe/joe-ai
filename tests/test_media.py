@@ -352,7 +352,7 @@ def test_fine_tuning_reaches_the_picture_graph(env):
     s, sb, fo, fc = env
     s.quality.pictures = "high"
     assert wfp.save(s, "pictures", {"cfg": 4.5, "sampler": "euler", "hires": "off", "versions": 3})["ok"]
-    m = parse("TASK: Neon  SAVE: art/neon  TYPE: image  CHUNKS: 1 x 1")
+    m = parse("TASK: Hills  SAVE: art/hills  TYPE: image  CHUNKS: 1 x 1")
     logs = []
     st = Engine(s, sb, log=logs.append).run_mission(m)[0]
     assert st.status == "done", st.note
@@ -360,6 +360,9 @@ def test_fine_tuning_reaches_the_picture_graph(env):
     assert g["3"]["inputs"]["cfg"] == 4.5 and g["3"]["inputs"]["sampler_name"] == "euler"
     assert "12" not in g                                          # detail pass turned off on High
     assert st.items == 3 and any("prompt strength 4.5" in x for x in logs)
+    # 2026-11-24 (Joseph): the Pictures row only fills in; a style's own tuning comes first (Cyberpunk: 6 - 1).
+    Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Neon  SAVE: art/neon  TYPE: image  CHUNKS: 1 x 1"))
+    assert fc.graphs[-1]["3"]["inputs"]["cfg"] == 5.0 and fc.graphs[-1]["3"]["inputs"]["sampler_name"] == "euler"
     assert wfp.save(s, "pictures", {"hires": "on", "denoise": 0.25})["ok"]
     s.quality.pictures = "medium"
     Engine(s, sb, log=lambda x: None).run_mission(parse("TASK: Neon2  SAVE: art/neon2  TYPE: image  CHUNKS: 1 x 1"))

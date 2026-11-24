@@ -378,15 +378,40 @@ def animate_graph(image: str, prompt: str, negative: str, seed: int, width: int,
     return g
 
 
-def music_graph(tags: str, seconds: float, seed: int, bpm: int = 0, prefix: str = "Joe/tool") -> dict:
+_BPM_RE = re.compile(r"\b(\d{2,3})\s*bpm\b", re.I)
+_SLOW = re.compile(r"\b(?:slow|ballad|calm|ambient|lullaby|relax\w*|peaceful|gentle|soft|chill|lo-?fi|sleep\w*|"
+                   r"meditat\w*|dreamy|sad|melanchol\w*|somber|sombre)\b", re.I)
+_FAST = re.compile(r"\b(?:fast|upbeat|energetic|dance|edm|techno|house|punk|metal|chiptune|8-?bit|16-?bit|arcade|"
+                   r"drum and bass|dnb|action|chase|battle|boss fight|hype|rave)\b", re.I)
+_MINOR = re.compile(r"\b(?:sad|dark|melanchol\w*|moody|minor|tense|tension|horror|scary|spooky|eerie|mysterious|"
+                    r"suspense\w*|ominous|somber|sombre|noir|haunting|grief|lonely)\b", re.I)
+_WALTZ = re.compile(r"\b(?:waltz|3/4|three-four)\b", re.I)
+
+
+def music_feel(prompt: str) -> tuple[int, str, str]:
+    """(bpm, key, time signature) from the request (2026-11-24: every track was 110 BPM in C major).
+    A BPM the person wrote wins; slow words about 75, fast words about 150, else 110. Dark or sad
+    words get a minor key; "waltz" gets 3/4."""
+    m = _BPM_RE.search(prompt or "")
+    if m and 40 <= int(m.group(1)) <= 220:
+        bpm = int(m.group(1))
+    else:
+        slow, fast = len(_SLOW.findall(prompt or "")), len(_FAST.findall(prompt or ""))
+        bpm = 75 if slow > fast else 150 if fast > slow else 110
+    key = "A minor" if _MINOR.search(prompt or "") else "C major"
+    return bpm, key, "3" if _WALTZ.search(prompt or "") else "4"
+
+
+def music_graph(tags: str, seconds: float, seed: int, bpm: int = 0, prefix: str = "Joe/tool",
+                keyscale: str = "C major", timesignature: str = "4") -> dict:
     """ACE-Step 1.5 Turbo (ComfyUI's template), instrumental."""
     ck = PACKS["music"].files[0][1]
     return {
         "97": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ck}},
         "94": {"class_type": "TextEncodeAceStepAudio1.5", "inputs": {
             "clip": ["97", 1], "tags": tags, "lyrics": "[Instrumental]", "seed": seed,
-            "bpm": bpm or 110, "duration": float(seconds), "timesignature": "4", "language": "en",
-            "keyscale": "C major", "generate_audio_codes": True, "cfg_scale": 2.0,
+            "bpm": bpm or 110, "duration": float(seconds), "timesignature": timesignature, "language": "en",
+            "keyscale": keyscale, "generate_audio_codes": True, "cfg_scale": 2.0,
             "temperature": 0.85, "top_p": 0.9, "top_k": 0, "min_p": 0.0}},
         "78": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["97", 0], "shift": 3.0}},
         "47": {"class_type": "ConditioningZeroOut", "inputs": {"conditioning": ["94", 0]}},
@@ -401,6 +426,18 @@ def music_graph(tags: str, seconds: float, seed: int, bpm: int = 0, prefix: str 
     }
 
 
+def sfx_negative(prompt: str) -> str:
+    """The sound-effect leave-out list without words the request asks for ("radio static", "distorted
+    guitar"). 2026-11-24"""
+    p = (prompt or "").lower()
+    keep = ["low quality"]
+    if not re.search(r"noise|static|hiss|crackl|fuzz", p):
+        keep.append("noise")
+    if "distort" not in p:
+        keep.append("distorted")
+    return ", ".join(keep)
+
+
 def sfx_graph(prompt: str, seconds: float, seed: int, prefix: str = "Joe/tool") -> dict:
     """Stable Audio Open 1.0 (ComfyUI's template)."""
     ck, t5 = (f[1] for f in PACKS["sfx"].files)
@@ -408,7 +445,7 @@ def sfx_graph(prompt: str, seconds: float, seed: int, prefix: str = "Joe/tool") 
         "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ck}},
         "10": {"class_type": "CLIPLoader", "inputs": {"clip_name": t5, "type": "stable_audio", "device": "default"}},
         "6": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["10", 0]}},
-        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": "low quality, noise, distorted", "clip": ["10", 0]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": sfx_negative(prompt), "clip": ["10", 0]}},
         "11": {"class_type": "EmptyLatentAudio", "inputs": {"seconds": float(min(seconds, 47)), "batch_size": 1}},
         "3": {"class_type": "KSampler", "inputs": {
             "seed": seed, "steps": 50, "cfg": 5.0, "sampler_name": "dpmpp_3m_sde_gpu",
@@ -836,6 +873,11 @@ def run(engine: "Engine", mission: "Mission", job: "Job", st: "JobState") -> "Jo
         engine._save_state(job, st)
         return st
     limit = engine.s.comfy.timeout_s if tid not in LONG_TOOLS else max(engine.s.comfy.timeout_s, 3600)
+    from . import quality as _q
+    if tid not in LONG_TOOLS and _q.level(engine.s, "pictures") == "high":
+        # High = the editor's 40 full steps: about 7-8 minutes a picture on a 12 GB card with the text
+        # encoder on the processor, and one went past the 900 s limit (log 2026-11-23). 2026-11-24
+        limit = max(limit, 1800)
     from .doctor import comfy_models_dir
     client = comfy_mod.ComfyClient(engine.services.comfy_base, limit, comfy_models_dir(engine.s))
     if end_pic is not None:
@@ -1059,7 +1101,9 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         stem = f"{i + 1:02d}-{slug(item)[:40] or 'sound'}"
         if kind == "sfx":
             return sfx_graph(wfp.with_add(item, wfp.get(engine.s, "sfx")), secs, seed, prefix), stem, ".mp3"
-        return music_graph(wfp.with_add(item, wfp.get(engine.s, "music")), secs, seed, prefix=prefix), stem, ".mp3"
+        tempo, key, beats = music_feel(item)
+        return (music_graph(wfp.with_add(item, wfp.get(engine.s, "music")), secs, seed, bpm=tempo, prefix=prefix,
+                            keyscale=key, timesignature=beats), stem, ".mp3")
     epref = wfp.get(engine.s, "editor")
     from . import quality as quality_mod
     fast = quality_mod.level(engine.s, "pictures") != "high"      # High = 40 full steps, slow
@@ -1097,9 +1141,10 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
         w, h = video_size(pw, ph)
         motion = extra or "gentle natural motion, subtle camera push-in, lifelike movement"
         # Don't name things the photo may not have: "keep the people" made the model grow a face
-        # out of a simple beach picture (with the fast 4-step video, the no-list isn't used).
-        prompt = (f"{motion}. Everything in the picture stays exactly as it is, the same scene from start to "
-                  "end; nothing new appears and nothing turns into something else. Smooth, natural movement.")
+        # out of a simple beach picture. 2026-11-24: the motion itself and what stays the same, said plainly;
+        # video models handle "nothing ... / never ..." badly (the drift words are in ANIMATE_NEGATIVE).
+        prompt = (f"{motion}. The same scene, the same faces and the same camera framing as the photo from start "
+                  "to end. Smooth, natural, realistic movement.")
         end_name = ""
         if end is not None and ends:
             # The two pictures differ on purpose, so "stays exactly as it is" would fight the end picture.
@@ -1108,11 +1153,15 @@ def _graph_for(engine, job, tid, item, i, opts, kind, upscale, prefix, client, m
                       "moves smoothly from the first picture to the last picture. Smooth, natural movement.")
             end_name = upload_image(client.base, end)
         from .doctor import comfy_models_dir
-        turbo = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
-        steps, cfg = (4, 1.0) if turbo else (20, 5.0)
         apref = wfp.get(engine.s, "animate")
+        # Joseph 2026-11-24: Animate follows Setup > Quality and speed > Video, like a clip made from words.
+        # High = full steps without the Turbo add-on (it kept the photo less well); Low/Medium use Turbo.
+        installed = comfy_mod.wan_turbo_installed(comfy_models_dir(engine.s))
+        vp = quality_mod.video(engine.s, installed)
+        turbo = vp.turbo
+        steps, cfg = (4, 1.0) if turbo else (vp.steps, float(apref.get("cfg") or wfp.ANIMATE_CFG))
         prompt = wfp.with_add(prompt, apref)
-        return (animate_graph(name, prompt, wfp.with_avoid(comfy_mod.WAN_VIDEO["negative"], apref), seed, w, h,
+        return (animate_graph(name, prompt, wfp.with_avoid(comfy_mod.ANIMATE_NEGATIVE, apref), seed, w, h,
                               steps=steps, cfg=cfg, turbo=turbo, prefix=prefix, end_image=end_name, ends=ends),
                 stem + "-moving", ".mp4")
     raise comfy_mod.WorkflowError(f"unknown tool {tid}")

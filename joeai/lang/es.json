@@ -2071,5 +2071,8 @@
  "{1} suggested name(s) or folder(s) wait for your OK.": "{1} nombre(s) o carpeta(s) sugeridos esperan tu visto bueno.",
  "[ APPLY ]": "[ APLICAR ]",
  "[ UNDO THE LAST CHANGES ]": "[ DESHACER LOS ÚLTIMOS CAMBIOS ]",
- "[ ITS LAST RUN ]": "[ SU ÚLTIMA EJECUCIÓN ]"
+ "[ ITS LAST RUN ]": "[ SU ÚLTIMA EJECUCIÓN ]",
+ "When you pick a model below, Joe still uses FLUX.2 (if it's installed) for the pictures it draws far better: words in the picture, groups of people or a rider, two different animals, neon streets and a story's pages. The log says when. Tick this to use your model every time.": "Cuando eliges un modelo abajo, Joe sigue usando FLUX.2 (si está instalado) para las imágenes que dibuja mucho mejor: palabras en la imagen, grupos de personas o un jinete, dos animales distintos, calles de neón y las páginas de un cuento. El registro lo indica. Marca esto para usar tu modelo siempre.",
+ "Always use my chosen model, even when FLUX.2 would do better": "Usar siempre el modelo que elegí, aunque FLUX.2 lo haría mejor",
+ "Joe's: {1} (not used with the Turbo add-on)": "De Joe: {1} (no se usa con el complemento Turbo)"
 }

@@ -2,9 +2,11 @@
 illustration, a mascot, a product shot, a coloring page) and uses it for three things:
 which installed checkpoint draws it, what the prompt writer is told, and what is left out.
 
-A task can say which one with STYLE: one of NAMES (photo, anime, painting, concept, render3d,
-scifi, cartoon, pixel, surreal, illustration, character, product, coloring, general).
-Without it Joe guesses from the task's name and brief. Which checkpoints suit each style is
+A task can say which one with STYLE: one of NAMES (photo, bw, anime, manga, painting, watercolor,
+concept, fantasy, render3d, scifi, cyberpunk, cartoon, comic, pixel, surreal, abstract, illustration,
+character, product, coloring, general). Without it Joe guesses from the task's name and brief: a
+word for how it should look (photo, watercolor, pixel art) beats a word for what is in it (castle,
+neon, spaceship). Which checkpoints suit each style is
 matched by words in their file names; the lists live in model_picks.json ("styles"), so they
 can be changed on GitHub without a new version. Nothing here downloads anything.
 """
@@ -20,11 +22,12 @@ NAMES = ("general", "photo", "bw", "anime", "manga", "painting", "watercolor", "
 # words in a checkpoint's file name -> good for that style (first match wins)
 PHOTO_HINTS = ["juggernaut", "realvis", "realism", "realistic", "epicrealism", "photon", "absolutereality",
                "cyberrealistic", "dirtymoss", "photo"]
-ART_HINTS = ["illustr", "anime", "animagine", "toon", "cartoon", "flat", "vector", "pony", "counterfeit",
+ART_HINTS = ["illustration", "anime", "animagine", "toon", "cartoon", "flat", "vector", "pony", "counterfeit",
              "dreamshaper", "meina", "aam", "comic"]
-ANIME_HINTS = ["animagine", "anime", "pony", "meina", "counterfeit", "aam", "illustr"]
-TOON_HINTS = ["toon", "cartoon", "comic", "flat", "vector", "dreamshaper", "illustr"]
-PAINT_HINTS = ["dreamshaper", "paint", "art", "illustr", "sdxl_base", "sd_xl_base"]
+# 2026-11-24: "illustr" also matched Illustrious anime models in the drawing styles; anime asks for them by name.
+ANIME_HINTS = ["animagine", "anime", "illustrious", "noob", "pony", "meina", "counterfeit", "aam"]
+TOON_HINTS = ["toon", "cartoon", "comic", "flat", "vector", "dreamshaper", "illustration"]
+PAINT_HINTS = ["dreamshaper", "paint", "art", "illustration", "sdxl_base", "sd_xl_base"]
 # Product shots: RealVisXL first (it is the model recommended for them; with Juggernaut first it was never used).
 PRODUCT_HINTS = ["realvis"] + [h for h in PHOTO_HINTS if h != "realvis"]
 # Illustration, mascot, coloring page: DreamShaper first (an anime model came first and won when both were there).
@@ -86,7 +89,7 @@ STYLES = {
                    "faces, bold flat color areas, simple soft backgrounds. No camera or lens words.",
                    "anime style, cel shaded, clean line art", NEG_ANIMAGINE, cfg=0.0,
                    sampler="euler_ancestral", denoise=0.3),
-    "painting": Style("painting", "Painting (oil, watercolor...)",
+    "painting": Style("painting", "Painting (oil, gouache, ink)",
                       "STYLE: traditional painting. Name the medium (oil on canvas, watercolor on paper, ink "
                       "wash, gouache) and describe brush strokes, paper or canvas texture and the color mixing. "
                       "No camera or lens words.", "traditional painting, visible brush strokes",
@@ -100,11 +103,11 @@ STYLES = {
                       "subsurface skin), studio or HDRI lighting, soft global illumination, shallow depth of "
                       "field.", "3d render, octane render, global illumination",
                       "photo, drawing, sketch, painting, flat colors, line art"),
-    "scifi": Style("scifi", "Sci-fi / cyberpunk",
+    "scifi": Style("scifi", "Sci-fi",
                    "STYLE: science fiction. Futuristic technology, neon or cool artificial lights, reflections "
                    "on wet or metal surfaces, haze, strong color contrast (cyan and magenta).",
                    "sci-fi, futuristic, cinematic lighting", "medieval, rustic, old-fashioned"),
-    "cartoon": Style("cartoon", "Cartoon / comic",
+    "cartoon": Style("cartoon", "Cartoon",
                      "STYLE: western cartoon or comic art. Bold black outlines, flat bright colors, simple "
                      "exaggerated shapes, optional halftone dots. No camera or lens words.",
                      "cartoon, bold outlines, flat colors", NEG_ART + ", anime", cfg=1.0),
@@ -114,7 +117,7 @@ STYLES = {
                    "pixel art, 16-bit, limited palette, crisp pixels",
                    NEG_ART + ", blurry, smooth gradients, soft shading, anti-aliasing, high detail", cfg=1.0, lora=("pixel",),
                    lora_strength=1.0, hires=False, pixelate=8),
-    "surreal": Style("surreal", "Surreal / abstract",
+    "surreal": Style("surreal", "Surreal",
                      "STYLE: surreal or abstract art. Dreamlike impossible scenes, unexpected scale and "
                      "combinations, or non-representational shapes and color fields; still a clear focal point.",
                      "surreal art, dreamlike", "photo, ordinary, cluttered, low contrast", cfg=0.5),
@@ -198,7 +201,7 @@ GROUP_WORDS = "medium shot, every face different, natural poses, correct anatomy
 _SIGNS = re.compile(r"\b(?:glowing\s+|neon\s+|holographic\s+|digital\s+|giant\s+|flickering\s+)*"
                     r"(?:signs?|signage|billboards?|advertisements?|adverts?|ads|shop\s+signs?|storefront\s+signs?|"
                     r"banners?|kanji|lettering|logos?|text|words|writing)\b", re.I)
-NO_SIGN_STYLES = frozenset({"cyberpunk", "scifi", "synthwave", "neon"})
+NO_SIGN_STYLES = frozenset({"cyberpunk", "scifi"})
 
 
 def no_signs(prompt: str) -> str:
@@ -234,7 +237,7 @@ _WORDS = [
     ("cartoon", r"cartoon"),
     ("bw", r"black[- ]and[- ]white (?:photo\w*|portrait|picture|video|clip|film|footage)|\bb&w\b|monochrome|grayscale photo"),
     ("photo", r"\bphoto(?:s|graph\w*|real\w*)?\b|realistic|real[- ]life|portrait|candid|\bdslr\b|bokeh"),
-    ("illustration", r"illustrat\w*|\bflat\b|vector|drawing|clip ?art|storybook|children'?s book|"
+    ("illustration", r"illustrat\w*|\bflat\b(?![\s-]*lays?\b)|vector|drawing|clip ?art|storybook|children'?s book|"
                      r"\bicons?\b"),
 ]
 
@@ -244,8 +247,11 @@ _WORDS = [
 KIDS = re.compile(r"\b(?:kids?|kiddos?|child(?:ren|'s)?|toddlers?|preschool\w*|pre-?k|kindergarten|nursery|"
                   r"family[- ]friendly|for (?:my |our )?(?:son|daughter|grandkids?|grandchild(?:ren)?|granddaughter|"
                   r"grandson|niece|nephew|students?|class(?:room)?|little ones?)|grandkids?|granddaughter|grandson|"
-                  r"baby|babies|young readers|(?:1st|2nd|3rd|[4-6]th|first|second|third|fourth|fifth|sixth) grade\w*|"
-                  r"elementary|\d{1,2}[- ]?(?:year|yr)s?[- ]?olds?|boys? and girls?|bedtime stor(?:y|ies))\b", re.I)
+                  r"baby|babies|young readers|(?:1st|2nd|3rd|[4-6]th|first|second|third|fourth|fifth|sixth) grade\w*(?!\s+teachers?\b)|"
+                  r"elementary|(?<![\w-])(?:[1-9]|1[0-2]|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)"
+                  r"[- ]?(?:year|yr)s?[- ]?olds?|boys? and girls?|bedtime stor(?:y|ies))\b", re.I)
+# 2026-11-24 (Joseph): kids mode is for ages under 13. Any age used to count, so "a 45 year old man" and a
+# "3rd grade teacher" mug got the kids' leave-out list and the kids' picture check.
 KID_NOTE = ("FOR CHILDREN: everything is family-friendly. Every person or creature is fully clothed or "
             "covered (a mermaid wears a shell top), nothing scary, violent or suggestive.")
 KID_NEGATIVE = ("(nsfw, nude, naked, topless, nipples, cleavage, lingerie, underwear, sexy, suggestive, pin-up, "
@@ -302,17 +308,45 @@ def pick(job) -> Style:
     return st
 
 
+# Styles that a SUBJECT word picks (a castle, neon, a spaceship): when the person also names how it should
+# look ("..., photo", "watercolor of a dragon"), that word wins (Joseph 2026-11-24: "a castle on a hill at
+# sunset, photo" was a fantasy painting with "photo" in its leave-out list). Their own medium words still count.
+SUBJECT_STYLES = frozenset({"fantasy", "cyberpunk", "scifi"})
+_SUBJECT_ONLY = {"comic": r"superhero"}           # a superhero is a subject; "comic book" is a look
+_MEDIUM_OF_SUBJECT = {"fantasy": r"fantasy (?:art|painting|illustration)",
+                      "cyberpunk": r"cyberpunk (?:art|style|aesthetic|illustration)",
+                      "scifi": r"sci[- ]?fi (?:art|illustration|style)"}
+
+
 def _pick(job) -> Style:
     s = (getattr(job, "style", "") or "").strip().lower()
     if s in STYLES:
         return STYLES[s]
     text = f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}".lower()
-    best, most = "general", 0
-    for sid, pat in _WORDS:                    # most matching words wins; ties go to the earlier style
+    medium: dict[str, int] = {}
+    subject: dict[str, int] = {}
+    for sid, pat in _WORDS:
         n = len(re.findall(pat, text))
-        if n > most:
-            best, most = sid, n
-    return STYLES[best]
+        if not n:
+            continue
+        if sid in SUBJECT_STYLES:
+            subject[sid] = n
+            m = len(re.findall(_MEDIUM_OF_SUBJECT[sid], text))
+            if m:
+                medium[sid] = m
+        elif sid in _SUBJECT_ONLY:
+            only = len(re.findall(_SUBJECT_ONLY[sid], text))
+            if n - only:
+                medium[sid] = n - only
+            if only:
+                subject[sid] = only
+        else:
+            medium[sid] = n
+    order = [sid for sid, _ in _WORDS]
+    for counts in (medium, subject):           # most matching words wins; ties go to the earlier style
+        if counts:
+            return STYLES[max(counts, key=lambda k: (counts[k], -order.index(k)))]
+    return STYLES["general"]
 
 
 def hints(style: str, picks: dict | None = None) -> list[str]:
@@ -387,6 +421,7 @@ class Recipe:
     anatomy: bool       # use Joe's general anatomy leave-out list
     trigger: str        # words a style add-on (LoRA) needs, used only when one is installed
     lora_settings: dict
+    prefix: str = ""    # the picture model's own quality tags, put first (modelprofiles.py)
 
 
 # Animals (singular stems; plurals match too). Used for the photo Wildlife look and to spot pictures
@@ -430,12 +465,115 @@ def wants_no_humans(prompt: str, style_id: str) -> bool:
 LOOK_EDITS: dict = {}
 
 
-def recipe(job, picks: dict | None = None) -> Recipe:
+# A person in the request (people words only: "portrait", "face" and pronouns also fit a dog's portrait).
+_HUMAN_RE = re.compile(r"\b(?:\d+(?:girl|boy)s?|" + _PEOPLE + r"|person|man|woman|girl|boy|kid|child|baby|toddler|"
+                       r"teen(?:ager)?|lady|guy|mother|father|mom|dad|son|daughter|brother|sister|grandma|grandpa|"
+                       r"grand(?:mother|father)|couple|bride|groom|farmer|soldier|chef|doctor|nurse|worker)\b", re.I)
+LENS_RE = _LENS_RE = re.compile(r"\b\d{2,3}\s?mm\b|\bf/\d+(?:\.\d)?", re.I)
+_BACKGROUND_RE = re.compile(r"background|backdrop|surface|mid-air|flat lay", re.I)
+
+
+def strip_lens(text: str) -> str:
+    """A prompt without the lens and aperture the writer chose ("shot on 35mm lens", "24mm", "f/1.8"),
+    tidied up, for when the look gives its own."""
+    t = re.sub(r"\b(?:shot|taken)\s+(?:on|with)\s+(?:an?\s+)?\d{2,3}\s?mm(?:\s+(?:lens|prime|telephoto))?", "", text or "",
+               flags=re.I)
+    t = re.sub(r"\b\d{2,3}\s?mm(?:\s+(?:lens|prime))?\b|\bf/\d+(?:\.\d)?", "", t, flags=re.I)
+    t = re.sub(r"[ \t]{2,}", " ", t)
+    t = re.sub(r"\s+([,.])", r"\1", t)
+    t = re.sub(r",(?:\s*,)+", ",", t)
+    t = re.sub(r"\.\s*,", ".", t)
+    t = re.sub(r"(^|[.,]\s*)(?:wide|telephoto|portrait)?\s*(?=[.,])", r"\1", t, flags=re.I)
+    t = re.sub(r",(?:\s*,)+", ",", t)
+    return t.strip(" ,.")
+
+
+def names_human(text: str) -> bool:
+    return bool(_HUMAN_RE.search(text or ""))
+
+
+def split_parts(text: str) -> list[str]:
+    """Comma-separated prompt parts, keeping a weighted group "(a, b:1.4)" whole."""
+    out, cur, depth = [], "", 0
+    for ch in text or "":
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth = max(0, depth - 1)
+        if ch == "," and depth == 0:
+            out.append(cur.strip())
+            cur = ""
+        else:
+            cur += ch
+    out.append(cur.strip())
+    return [p for p in out if p]
+
+
+def _key(part: str) -> str:
+    return " ".join(part.lower().replace("-", " ").split())
+
+
+def dedupe(text: str) -> str:
+    """Each prompt word once (repeats push harder than meant and use up the picture model's ~75-word
+    window). A plain part that a weighted group "(...:1.4)" already holds is dropped too; the first copy stays."""
+    parts = split_parts(text)
+    weighted = set()
+    for p in parts:
+        m = re.fullmatch(r"\((.*):\s*[\d.]+\)", p, re.S)
+        if m:
+            weighted |= {_key(x) for x in m.group(1).split(",")}
+    seen, out = set(), []
+    for p in parts:
+        k = _key(p)
+        plain = not p.startswith("(")
+        if k in seen or (plain and k in weighted):
+            continue
+        seen.add(k)
+        out.append(p)
+    return ", ".join(out)
+
+
+# Quality tags only tag-trained SDXL models understand; FLUX.2 reads them as words.
+_TAG_ONLY = {"masterpiece", "best quality", "high score", "great score", "absurdres", "amazing quality",
+             "very aesthetic", "score_9", "score_8_up", "score_7_up", "score_6_up"}
+
+
+def words_for(text: str, family: str) -> str:
+    """Style words fitted to the model that draws (2026-11-24).
+    FLUX.2: no "(words:1.4)" weights and no tag-only quality words (its text encoder reads them as text).
+    SD1.5/SDXL: no "no X" parts, because CLIP reads "no signage" as "signage" (they stay in the leave-out list)."""
+    out = []
+    for p in split_parts(text):
+        if family == "flux2":
+            m = re.fullmatch(r"\((.*):\s*[\d.]+\)", p, re.S)
+            if m:
+                out += [x.strip() for x in m.group(1).split(",") if x.strip()]
+                continue
+            if " ".join(p.lower().split()) in _TAG_ONLY:
+                continue
+        elif re.match(r"no\s", p, re.I):
+            continue
+        out.append(p)
+    return dedupe(", ".join(out))
+
+
+def _look_ok(look: dict, kids: bool, text: str) -> bool:
+    if look.get("not_for_kids") and kids:
+        return False                          # a kids' coloring page never gets the adult intricate look
+    if look.get("no_person") and names_human(text):
+        return False                          # "a woman with her dog": portrait, not wildlife
+    return True
+
+
+def recipe(job, picks: dict | None = None, kids: bool | None = None) -> Recipe:
     """Everything one picture task gets from its style and sub-look."""
     st = pick(job)
     data = _looks(picks).get(st.id) or {}
     text = f"{getattr(job, 'name', '')}\n{getattr(job, 'format', '')}".lower()
-    looks = [l for l in data.get("looks") or [] if isinstance(l, dict)]
+    if kids is None:
+        kids = for_kids(job)
+    looks = [l for l in data.get("looks") or [] if isinstance(l, dict) and _look_ok(l, kids, text)] \
+        or [l for l in data.get("looks") or [] if isinstance(l, dict)]
     look = next((l for l in looks if l.get("match") and _safe_search(l["match"], text)), None) \
         or next((l for l in looks if not l.get("match")), None) or (looks[0] if looks else {})
     if look and LOOK_EDITS.get(st.id, {}).get(look.get("id")):
@@ -444,11 +582,24 @@ def recipe(job, picks: dict | None = None) -> Recipe:
     if data.get("note"):
         notes.append(str(data["note"]))
     if look.get("example"):
-        how = "comma-separated tags" if data.get("prompt_style") == "tags" else "the same pattern"
+        how = ("comma-separated tags (this style reads tags, so here they replace the one-paragraph rule)"
+               if data.get("prompt_style") == "tags" else "the same pattern")
         notes.append(f"LOOK: {look.get('label', '')}. Write each prompt in {how}, like this example "
                      f"(change the subject, keep the kind of detail): {look['example']}")
-    words = ", ".join(x for x in (st.suffix, look.get("words", "")) if x)
-    neg = ", ".join(x for x in (look.get("negative", ""), data.get("negative", ""), st.negative) if x)
+    look_words = str(look.get("words", "") or "")
+    suffix = st.suffix
+    # The look owns lens, background and light (Joseph 2026-11-24): the style's own words step aside.
+    lens = _LENS_RE.findall(look_words)
+    if lens:
+        suffix = ", ".join(p for p in split_parts(suffix) if not _LENS_RE.search(p))
+        notes.append(f"CAMERA: use the look's lens and aperture ({', '.join(lens)}) in every prompt; don't name a "
+                     "different lens.")
+    if _BACKGROUND_RE.search(look_words):
+        suffix = ", ".join(p for p in split_parts(suffix) if "background" not in p.lower())
+        bg = [p for p in split_parts(look_words) if _BACKGROUND_RE.search(p)]
+        notes.append(f"BACKGROUND: use the look's background or surface ({', '.join(bg)}), not a different one.")
+    words = dedupe(", ".join(x for x in (suffix, look_words) if x))
+    neg = dedupe(", ".join(x for x in (look.get("negative", ""), data.get("negative", ""), st.negative) if x))
     return Recipe(st, look, notes, words, neg, not (data.get("no_anatomy") or look.get("no_anatomy")),
                   str(data.get("trigger") or ""),
                   data.get("lora_settings") if isinstance(data.get("lora_settings"), dict) else {})

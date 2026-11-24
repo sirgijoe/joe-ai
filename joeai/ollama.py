@@ -30,11 +30,22 @@ class ChatResult:
         return bool(self.ctx) and self.prompt_tokens >= self.ctx - 32
 
 
-def auto_ctx() -> int:
-    """Context size that leaves room on this PC's GPU (bigger cards get more)."""
+def auto_ctx(need: int = 0) -> int:
+    """Context size that leaves room on this PC's GPU (bigger cards get more). `need` (tokens: the text
+    sent, the reply and any thinking) moves up to one bigger size only when the normal one would cut
+    the input (2026-11-24: long Summarize / Ask my files / Compare inputs lost their end, and thinking
+    shares the same room). Only two sizes, because Ollama reloads the model when the size changes."""
     from .hardware import vram_total_gb
     v = vram_total_gb()
-    return 8192 if v >= 16 else 6144 if v >= 10 else 4096
+    base = 8192 if v >= 16 else 6144 if v >= 10 else 4096
+    big = 16384 if v >= 16 else 12288 if v >= 10 else 8192
+    return big if need > base else base
+
+
+def need_tokens(messages: list[dict], max_tokens: int | None = None, think: bool | None = None) -> int:
+    """A rough token count for one call (about 3.5 characters a token)."""
+    chars = sum(len(str(m.get("content") or "")) for m in messages or [])
+    return int(chars / 3.5) + (max_tokens or 1500) + (3000 if think else 0)
 
 
 class OllamaClient:
@@ -65,7 +76,8 @@ class OllamaClient:
     def chat(self, messages: list[dict], model: str | None = None, max_tokens: int | None = None,
              keep_alive: str | None = None, think: bool | None = None, temperature: float | None = None,
              schema: dict | None = None) -> ChatResult:
-        ctx = self.cfg.num_ctx or auto_ctx()
+        want_think = self.cfg.think if think is None else think
+        ctx = self.cfg.num_ctx or auto_ctx(need_tokens(messages, max_tokens, want_think))
         payload = {
             "model": model or self.cfg.text_model,
             "messages": messages,
@@ -110,7 +122,7 @@ class OllamaClient:
         import urllib.request
         payload = {"model": model or self.cfg.text_model, "messages": messages, "stream": True,
                    "think": self.cfg.think if think is None else think,
-                   "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(),
+                   "options": {"num_ctx": self.cfg.num_ctx or auto_ctx(need_tokens(messages, max_tokens, think)),
                                "temperature": self.cfg.temperature if temperature is None else temperature}}
         if max_tokens:
             payload["options"]["num_predict"] = max_tokens

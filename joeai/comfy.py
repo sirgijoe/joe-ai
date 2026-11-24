@@ -370,7 +370,16 @@ def best_image_model(models: list[ImageModel], vram_gb: float, kind: str = "imag
         return None
     vram = vram_gb or 8
     fits = [m for m in pool if FAMILY_VRAM.get(m.family, 8) <= vram + 0.5] or pool
-    return max(fits, key=lambda m: (FAMILY_RANK.get(m.family, 0), m.mtime))
+    # Same pick every time (2026-11-24): the newest file used to win, so downloading any test model
+    # changed what every "general" picture used. Joe's well-known all-rounders first, then by name.
+    def known(m: ImageModel) -> int:
+        n = m.name.lower()
+        return next((len(GENERAL_PREF) - i for i, w in enumerate(GENERAL_PREF) if w in n), 0)
+    return min(fits, key=lambda m: (-FAMILY_RANK.get(m.family, 0), -known(m), m.name.lower()))
+
+
+# All-round checkpoints Joe prefers when no style picks one (best first).
+GENERAL_PREF = ("juggernaut", "dreamshaper", "realvis", "sd_xl_base", "sdxl_base")
 
 
 # --------------------------------------------------------------------------- client
@@ -556,6 +565,47 @@ def with_hires(g: dict, scale: float = 1.5, denoise: float = 0.4, steps: int = 1
     return g
 
 
+def with_clip_skip(g: dict, layer: int = -2) -> dict:
+    """Clip skip (CLIPSetLastLayer) for models trained with it (Pony, Illustrious): without it they
+    draw "low quality blobs". Works before or after with_lora (that rewires the clip it reads)."""
+    g = copy.deepcopy(g)
+    g["15"] = {"class_type": "CLIPSetLastLayer", "inputs": {"stop_at_clip_layer": layer, "clip": ["4", 1]}}
+    for nid in ("6", "7"):
+        if g.get(nid, {}).get("inputs", {}).get("clip") == ["4", 1]:
+            g[nid]["inputs"]["clip"] = ["15", 0]
+    return g
+
+
+# Sizes SDXL was trained on (about 1 megapixel). A bigger SIZE drawn directly gives doubled subjects
+# and extra limbs; Joe draws at the nearest of these and enlarges the finished picture (2026-11-24).
+SDXL_SIZES = ((1024, 1024), (1152, 896), (896, 1152), (1216, 832), (832, 1216), (1344, 768), (768, 1344),
+              (1536, 640), (640, 1536))
+SD15_SIZES = ((512, 512), (576, 448), (448, 576), (640, 448), (448, 640), (704, 384), (384, 704))
+
+
+def native_size(family: str, width: int, height: int) -> tuple[int, int] | None:
+    """The model's own size with the same shape when the asked size is well past what it was trained
+    on, else None (draw as asked)."""
+    if family not in ("sdxl", "sd15") or not width or not height:
+        return None
+    sizes = SD15_SIZES if family == "sd15" else SDXL_SIZES
+    base = sizes[0][0] * sizes[0][1]
+    if width * height <= base * 1.35:
+        return None
+    r = width / height
+    return min(sizes, key=lambda s: abs((s[0] / s[1]) / r - 1))
+
+
+def with_final_size(g: dict, width: int, height: int, method: str = "lanczos") -> dict:
+    """Enlarge the finished picture to the asked size (cropped to the exact shape; nearest-exact keeps
+    pixel art's square pixels)."""
+    g = copy.deepcopy(g)
+    g["22"] = {"class_type": "ImageScale", "inputs": {"image": g["9"]["inputs"]["images"], "upscale_method": method,
+                                                      "width": int(width), "height": int(height), "crop": "center"}}
+    g["9"]["inputs"]["images"] = ["22", 0]
+    return g
+
+
 def with_pixelate(g: dict, factor: int = 8) -> dict:
     """Pixel art finish: shrink by `factor` (each block averaged to one colour), then enlarge
     back with nearest-neighbour so every pixel is a crisp square. Done last, after any other pass
@@ -665,6 +715,13 @@ WAN_NEGATIVE = ("色调艳丽，过曝，静态，细节模糊不清，字幕，
                 "fused fingers, malformed hands, deformed body, duplicate person, merged bodies, "
                 "watermark, text, subtitles")
 WAN_VIDEO["negative"] = WAN_NEGATIVE
+
+# Animate a photo has its own leave-out list (2026-11-24). Wan's list above pushes away from "static,
+# still, motionless frame", which is right for a clip made from words but pulls a photo away from
+# itself; drift words take their place. (Not used with the Turbo add-on: prompt strength 1 has no list.)
+ANIMATE_NEGATIVE = (WAN_NEGATIVE.replace("静态，", "").replace("静止，", "").replace("静止不动的画面，", "")
+                    + ", morphing, face changing, identity change, different person, extra people, "
+                      "new objects appearing, warped face")
 
 # Default "leave out" for pictures (Stable Diffusion 1.5 / SDXL models). Anatomy words first:
 # CLIP pays most attention to the start of the list.

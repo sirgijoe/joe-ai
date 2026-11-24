@@ -19,7 +19,7 @@ import time
 from pathlib import Path
 
 FIELDS = ("model", "add", "avoid", "steps", "note", "words", "leave",
-          "cfg", "lora", "hires", "denoise", "sampler", "versions")
+          "cfg", "lora", "hires", "denoise", "sampler", "versions", "motion")
 # Fine-tuning for the built-in picture graph (Pictures and each picture style). Shown filled in
 # with Joe's own value; only a value that differs from Joe's is stored. Showcase QC 2026-11-09:
 # several bad pictures were one fixed setting overpowering the words (neon signs: prompt
@@ -31,7 +31,9 @@ SAMPLERS = ("euler", "euler_ancestral", "dpmpp_2m", "dpmpp_2m_sde", "dpmpp_3m_sd
 TUNE_HELP = {
     "cfg": "Prompt strength (CFG): how hard the picture follows your words. Lower = more natural, "
            "fewer made-up details (try 4-5 if pictures get fake writing or look overcooked); higher = "
-           "follows the words more literally.",
+           "follows the words more literally. SD1.5 models run 1 higher than the number shown. Fast models "
+           "(Turbo, Lightning, Hyper) use their own low number unless you set one here. For Animate a photo: "
+           "lower keeps the photo closer (only used without the Turbo add-on).",
     "lora": "Style add-on strength (LoRA): how much the style's add-on changes the look, 0 to 1.5. "
             "Only used when the add-on is installed.",
     "hires": "Detail pass: a second, 1.5x bigger pass that adds fine detail. Auto = only on High "
@@ -49,9 +51,12 @@ TUNE_HELP = {
 
 
 def tune_defaults(wid: str) -> dict:
-    """Joe's own fine-tuning values for a picture workflow (SDXL numbers) or Video clips, or {}."""
+    """Joe's own fine-tuning values for a picture workflow (SDXL numbers; SD1.5 models run 1 higher)
+    or Video clips / Animate a photo, or {}."""
     if wid == "video":
         return {"cfg": 5.0, "motion": "normal"}
+    if wid == "animate":
+        return {"cfg": ANIMATE_CFG}
     if wid != "pictures" and not wid.startswith("style:"):
         return {}
     from . import styles
@@ -65,6 +70,7 @@ def tune_defaults(wid: str) -> dict:
         out["lora"] = st.lora_strength
     _ = styles
     return out
+ANIMATE_CFG = 5.0          # Animate a photo without Turbo (lower = closer to the photo, less movement)
 TEXT_FIELDS = ("note", "words", "leave")       # Joe's own words, shown and editable (replace his)
 TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe adds to every prompt (positive prompt)",
                "leave": "Joe's leave-out list (negative prompt)"}
@@ -72,12 +78,16 @@ TEXT_LABELS = {"note": "What Joe tells the prompt writer", "words": "Words Joe a
 # id -> (group, label, what it covers, can pick a model, can set steps)
 BUILTIN = {
     "pictures": ("Joe's built-in", "Pictures (every style)", "Joe's own text-to-picture graph, used by every picture task "
-                 "that has no workflow file. A picture style's own settings below come first. Pick the "
-                 "FLUX.2 klein model to use it for every picture.", True, True),
+                 "that has no workflow file. These values only fill in where a picture style has none of its "
+                 "own: a style's settings below, and Joe's built-in tuning for a style (Photo's prompt strength, "
+                 "Anime's sampler, Pixel art's detail pass off), always come first. Pick the FLUX.2 klein model "
+                 "to use it for every picture.", True, True),
     "video": ("Joe's built-in", "Video clips", "Wan 2.2 video tasks (and black-and-white video).", False, False),
     "editor": ("Joe's built-in", "Picture editor tools", "Edit a picture, AI photo repair, Fix one spot, Put pictures "
                "together, Change the lighting, Redraw, Make it bigger, character tools.", False, False),
-    "animate": ("Joe's built-in", "Animate a photo", "Photo-to-clip (Wan 2.2).", False, False),
+    "animate": ("Joe's built-in", "Animate a photo", "Photo-to-clip (Wan 2.2). Follows Setup > Quality and speed > "
+                "Video: High = full steps without the Turbo add-on (keeps the photo closer, but much slower).",
+                False, False),
     "controlnet": ("Joe's built-in", "Sketch to picture and illusions", "The SDXL model and steps for Sketch to "
                    "picture and Hidden-picture illusion (ControlNet).", True, True),
     "restyle-video": ("Joe's built-in", "Restyle a video", "Wan 2.2 Fun Control: keeps a video's motion, "
@@ -97,6 +107,7 @@ def _originals() -> dict:
         _ORIG["wan"] = comfy.WAN_NEGATIVE
         _ORIG["video_extra"] = engine.VIDEO_EXTRA
         _ORIG["image_negative"] = comfy.IMAGE_NEGATIVE
+        _ORIG["animate"] = comfy.ANIMATE_NEGATIVE
     return _ORIG
 
 
@@ -131,6 +142,8 @@ def builtin_text(wid: str) -> dict:
         return {"leave": o["image_negative"]}
     if wid == "video":
         return {"note": o["video_extra"], "leave": o["wan"]}
+    if wid == "animate":
+        return {"leave": o["animate"]}
     if wid.startswith("style:"):
         st = o["styles"].get(wid[6:])
         if st:
@@ -246,6 +259,8 @@ def apply(settings) -> None:
     comfy.WAN_NEGATIVE = v.get("leave", o["wan"])
     comfy.WAN_VIDEO["negative"] = comfy.WAN_NEGATIVE
     engine.VIDEO_EXTRA = v.get("note", o["video_extra"])
+    a = _clean(wf.get("animate"), "animate")          # Animate has its own list now (it used Video's)
+    comfy.ANIMATE_NEGATIVE = a.get("leave", o["animate"])
 
 
 def merged(settings, ids: list[str]) -> dict:
@@ -261,6 +276,30 @@ def merged(settings, ids: list[str]) -> dict:
             adds.append(p["add"])
         if p.get("avoid"):
             avoids.append(p["avoid"])
+    if adds:
+        out["add"] = ", ".join(adds)
+    if avoids:
+        out["avoid"] = ", ".join(avoids)
+    return out
+
+
+def picture_prefs(settings, style) -> dict:
+    """Setup > Workflows values for one built-in picture: the style's own row first, then the Pictures
+    row, which only fills in where the style has no built-in value of its own (Joseph 2026-11-24: a
+    Pictures prompt strength used to replace Photo's 4.5, Anime's sampler and Pixel art's detail pass)."""
+    mine = get(settings, f"style:{style.id}")
+    pics = get(settings, "pictures")
+    own = {"cfg": bool(style.cfg), "sampler": bool(style.sampler), "hires": not style.hires,
+           "denoise": abs(style.denoise - 0.4) > 1e-6, "lora": bool(style.lora), "steps": bool(style.steps)}
+    out = dict(mine)
+    for k, v in pics.items():
+        if k in ("add", "avoid") or k in out or own.get(k):
+            continue
+        out[k] = v
+    adds = [p["add"] for p in (mine, pics) if p.get("add")]
+    avoids = [p["avoid"] for p in (mine, pics) if p.get("avoid")]
+    out.pop("add", None)
+    out.pop("avoid", None)
     if adds:
         out["add"] = ", ".join(adds)
     if avoids:

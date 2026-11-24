@@ -835,6 +835,14 @@ class Engine:
     # that starts repeating itself stops in a few minutes instead of hitting the 10-min timeout
     # (big test 2026-11-05: one proofread call still hung 10 min with thinking off).
     CAPPED_KINDS = frozenset({"proofread", "translate"})
+    # Jobs that check, copy, pull out or sum up facts: a low temperature gives the same right answer
+    # every time (2026-11-24: they all ran at the 0.7 meant for creative writing). Writing, prompts,
+    # brainstorm and rewrite keep the setting.
+    PRECISE_TEMPS = {"proofread": 0.2, "translate": 0.3, "ask-files": 0.2, "ask-summary": 0.3, "ask-sheet": 0.2,
+                     "letter": 0.2, "calendar": 0.1, "minutes": 0.3, "summarize": 0.3, "transcribe-notes": 0.3,
+                     "resume": 0.4, "code-review": 0.2, "sort-files": 0.2, "study": 0.4, "ai-search": 0.4,
+                     "meal-plan": 0.5, "dub": 0.3, "read-scans": 0.1, "sort-photos": 0.2, "tidy-categories": 0.1,
+                     "tidy-categorize": 0.1, "tidy-spelling": 0.1, "tidy-split": 0.1}
 
     def _chat(self, job: Job, part: int, kind: str, system: str, user: str, st: JobState,
               images: list[str] | None = None, model: str = "", temperature: float | None = None,
@@ -851,6 +859,8 @@ class Engine:
         if job.job_id in getattr(self, "_no_think", set()):
             think = False                        # thinking used up the room last time (see _run_part)
         cap = len(user) // 2 + 2048 if kind in self.CAPPED_KINDS else None
+        if temperature is None:
+            temperature = self.PRECISE_TEMPS.get(kind)
         extra = {k: v for k, v in (("max_tokens", cap), ("temperature", temperature), ("schema", schema))
                  if v is not None}
         last_err = None
@@ -1198,20 +1208,66 @@ class Engine:
                 self._picks_cache = None
         return self._picks_cache
 
-    def _styled(self, prompt: str, rec) -> str:
-        """The prompt plus the style's words (and an add-on's trigger words first, if one is used)."""
+    def _styled(self, prompt: str, rec, family: str = "sdxl") -> str:
+        """The prompt plus the style's words fitted to the model that draws (and an add-on's trigger words
+        or the model's own quality tags first)."""
         out = prompt.rstrip(" .,")
-        if rec.words:
-            out += ", " + rec.words
+        if styles_mod.LENS_RE.search(str(rec.look.get("words", "") or "")):
+            # the look owns the lens (Joseph 2026-11-24): a lens the writer chose anyway would fight it
+            out = styles_mod.strip_lens(out)
+        words = styles_mod.words_for(rec.words, family) if rec.words else ""
+        if words:
+            out += ", " + words
         if styles_mod.wants_no_humans(prompt, rec.style.id):     # per prompt: "a woman reading" keeps people
             out += ", no humans"
+        if getattr(rec, "prefix", "") and family != "flux2":
+            out = f"{rec.prefix}, {out}"
         if rec.trigger and getattr(self, "_lora_used", False):
             out = f"{rec.trigger}, {out}"
         return out
 
+    def _predict_family(self, mission: Mission, job: Job) -> str:
+        """Which picture model will draw this task's pictures ("flux2", "sdxl", "sd15"), so the prompt
+        writer can write for it; "" when Joe can't tell yet (a workflow file, nothing scanned)."""
+        if job.type != "image" or job.workflow:
+            return ""
+        try:
+            style = styles_mod.pick(job)
+            if style.id != "general" and (self.sb.workflows / f"style-{style.id}.json").is_file():
+                return ""
+            from .doctor import image_models
+            from . import workflowprefs as wfp
+            basic = [m for m in image_models(self.s) if m.family in ("sdxl", "sd15", "other")
+                     and m.folder == "checkpoints"]
+            before = getattr(self, "_mission", None)
+            self._mission = mission                    # story pages count (_story_source)
+            try:
+                flux = self._use_flux2(job, basic, wfp.picture_prefs(self.s, style), quiet=True)[0]
+            finally:
+                self._mission = before
+            if flux:
+                return "flux2"
+            return "sdxl" if any(m.family == "sdxl" for m in basic) else ("sd15" if basic else "")
+        except Exception:                        # noqa: BLE001  (a hint for the writer, never a failure)
+            return ""
+
     def _image_system(self, mission: Mission, job: Job) -> str:
         parts = [IMAGE_SYSTEM + ("\n" + VIDEO_EXTRA if job.type == "video" else "")]
-        parts += styles_mod.recipe(job, self._picks()).notes
+        rec = styles_mod.recipe(job, self._picks(), kids=self._for_kids(mission, job))
+        if job.type == "video":
+            # The picture styles' notes (lens, brush strokes, "no camera words") fight the video rules;
+            # a video only gets the look's name (audit 2026-11-24).
+            if rec.style.id not in ("general", "photo", "bw", "product"):
+                parts.append(f"LOOK: {rec.style.label}. Keep that look, but follow the video rules above.")
+        else:
+            parts += rec.notes
+            fam = self._predict_family(mission, job)
+            if fam == "flux2":
+                parts.append("PICTURE MODEL: FLUX.2, which reads whole sentences. Use the full 50-70 words in plain "
+                             "natural sentences, the medium and style first. No tag lists and no (word:1.2) weights.")
+            elif fam in ("sdxl", "sd15") and "comma-separated tags" not in " ".join(rec.notes):
+                parts.append("PICTURE MODEL: it reads about 75 words at a time and Joe adds the style's own words "
+                             "after yours, so keep each prompt to about 30-45 words, the most important first.")
         if self._for_kids(mission, job):
             parts.append(styles_mod.KID_NOTE)
         project = job.project or mission.project
@@ -1419,12 +1475,16 @@ class Engine:
             self.log(f"  This reads as a product shot, but {styles_mod.PRODUCT_PERSON_NOTE}: using the Photo "
                      "style. Write STYLE: product in the task to keep the product look.")
         m = None
-        from . import workflowprefs as wfp
-        wpref = wfp.merged(self.s, [f"style:{style.id}", "pictures"])
+        from . import modelprofiles, workflowprefs as wfp
+        self._profile = modelprofiles.NONE
+        wpref = wfp.picture_prefs(self.s, style)
         use_flux2, why = self._use_flux2(job, basic, wpref)
         if use_flux2:
             self.log(f"  Picture model: {comfy_mod.FLUX2['label']} ({why})")
-            return comfy_mod.flux2_graph(), "", "flux2", f"built-in {comfy_mod.FLUX2['label']}"
+            g = comfy_mod.flux2_graph()
+            if style.pixelate > 1:                  # the crisp-pixel finish on FLUX.2 too (2026-11-24)
+                g = comfy_mod.with_pixelate(g, style.pixelate)
+            return g, "", "flux2", f"built-in {comfy_mod.FLUX2['label']}"
         if comfy_mod.FLUX2_WANT.search(job.model or ""):
             self.log(f"  MODEL: {job.model} asks for the FLUX.2 [klein] picture model, which isn't installed "
                      "(Setup > Models offers it); using the usual picture model.")
@@ -1466,6 +1526,11 @@ class Engine:
             self.log(f"  Picture quality: {quality_mod.NAMES[lv]} ({steps} steps)")
         self._lora_used = False
         g = comfy_mod.basic_graph(m.family, steps, style.sampler or pp.sampler, style.cfg)
+        prof = modelprofiles.for_checkpoint(m.name, m.family)
+        if prof.kind and prof.kind != "animagine":
+            g = modelprofiles.apply_graph(g, prof, lv, style.sampler, style.cfg)
+            self.log(f"  Model settings: {prof.describe()}")
+        self._profile = prof
         label = "built-in text-to-image"
         if style.lora and m.family == "sdxl":
             from .doctor import comfy_models_dir
@@ -1505,7 +1570,8 @@ class Engine:
         if tuned:
             self.log("  Your fine-tuning: " + ", ".join(tuned))
         if hires and job.type == "image":
-            g = comfy_mod.with_hires(g, denoise=float(wpref.get("denoise") or style.denoise))
+            g = comfy_mod.with_hires(g, denoise=float(wpref.get("denoise") or style.denoise),
+                                     steps=prof.hires_steps or 14)
             label += " + hi-res second pass"
             if not getattr(self, "_hires_said", False):
                 self.log("  High quality: each picture gets a second, 1.5x bigger detail pass.")
@@ -1515,7 +1581,7 @@ class Engine:
             label += " + crisp pixels"
         return g, api_name(m), m.family, label
 
-    def _use_flux2(self, job: Job, basic: list, wpref: dict) -> tuple[bool, str]:
+    def _use_flux2(self, job: Job, basic: list, wpref: dict, quiet: bool = False) -> tuple[bool, str]:
         """FLUX.2 [klein] instead of an SD1.5/SDXL checkpoint? (True, why) when it's installed and
         the task or Setup > Workflows asks for it, the pictures need readable words, or there's no
         SD checkpoint at all."""
@@ -1528,15 +1594,31 @@ class Engine:
         except Exception:                       # noqa: BLE001  (finder trouble = not installed)
             ready = False
         if not ready:
-            try:
-                Engine._suggest_flux2(self, job)
-            except Exception:                   # noqa: BLE001  (a tip must never stop a picture)
-                pass
+            if not quiet:
+                try:
+                    Engine._suggest_flux2(self, job)
+                except Exception:               # noqa: BLE001  (a tip must never stop a picture)
+                    pass
             return False, ""
         if job.model:
             return bool(comfy_mod.FLUX2_WANT.search(job.model)), "the task asks for it"
-        if wpref.get("model"):
-            return bool(comfy_mod.FLUX2_WANT.search(wpref["model"])), "your Setup > Workflows choice"
+        picked = wpref.get("model", "")
+        if picked:
+            if comfy_mod.FLUX2_WANT.search(picked):
+                return True, "your Setup > Workflows choice"
+            if getattr(self.s.comfy, "always_my_model", False):
+                return False, ""
+            # Joseph 2026-11-24: a model picked in Setup > Workflows is used, except for the cases FLUX.2
+            # does far better, which used to be switched off silently. The log says so.
+            hard, why = Engine._flux2_case(self, job, basic)
+            if hard:
+                return True, (f"{why}. Your Setup > Workflows model is {picked}; tick 'Always use my chosen "
+                              "model' there to use it for these too")
+            return False, ""
+        return Engine._flux2_case(self, job, basic)
+
+    def _flux2_case(self, job: Job, basic: list) -> tuple[bool, str]:
+        """The pictures FLUX.2 draws far better than an SD1.5/SDXL checkpoint, with the reason."""
         if not basic:
             return True, "no SD1.5/SDXL picture model is installed"
         if comfy_mod.WORDS_IN_PICTURE.search(f"{job.name}\n{job.format}"):
@@ -1617,10 +1699,28 @@ class Engine:
             w, h = None, None
         if family == "flux2" and w and h:
             w, h = max(256, w // 16 * 16), max(256, h // 16 * 16)     # FLUX.2 wants sizes in 16s
-        rec = styles_mod.recipe(job, self._picks())
-        style = rec.style
         kids = self._for_kids(mission, job)
+        rec = styles_mod.recipe(job, self._picks(), kids=kids)
+        style = rec.style
         kids_made: list[str] = []
+        shown_size = f"{w}x{h}" if w else ""
+        if builtin and job.type == "image" and family in ("sdxl", "sd15", "other") and job.width:
+            # A SIZE well past what SD models were trained on is drawn at their own size with the same
+            # shape, then enlarged (drawn directly it gave doubled subjects and extra limbs). 2026-11-24
+            ns = comfy_mod.native_size("sd15" if family == "sd15" else "sdxl", w, h)
+            if ns:
+                graph = comfy_mod.with_final_size(graph, w, h, "nearest-exact" if style.pixelate > 1 else "lanczos")
+                self.log(f"  Size: drawn at {ns[0]}x{ns[1]} (the model's own size, same shape), then enlarged "
+                         f"to {w}x{h}.")
+                w, h = ns
+        if builtin and job.type == "image":
+            from . import modelprofiles
+            rec = modelprofiles.adapt_recipe(rec, getattr(self, "_profile", modelprofiles.NONE))
+        if job.type == "video" and builtin and style.id != "bw":
+            # Picture words ("35mm lens", "photo", "traditional painting") and the picture leave-out list
+            # fight the video rules (they freeze the clip): only a short look word, Wan's own list. 2026-11-24
+            short = "" if style.id in ("general", "photo", "product") else (styles_mod.split_parts(style.suffix)[:1] or [""])[0]
+            rec = dc_replace(rec, words=short, negative="")
         # Black-and-white video: Wan makes it in color (asking Wan for monochrome fought its own
         # leave-out list, which includes "greyish", and gave bad hands and missing fingers), then
         # FFmpeg turns it black and white. The photo style words ("photograph", lens, grain) and
@@ -1634,9 +1734,10 @@ class Engine:
         negative = comfy_mod.negative_for(family, self.s.comfy.negative, extra, rec.anatomy) if builtin \
             else job.negative
         from . import workflowprefs as wfp
-        wf_ids = (["video"] if job.type == "video" else [f"style:{style.id}", "pictures"]) if builtin \
-            else [f"file:{wf_label}", f"style:{style.id}"]
-        wpref = wfp.merged(self.s, wf_ids)
+        if builtin and job.type != "video":
+            wpref = wfp.picture_prefs(self.s, style)
+        else:
+            wpref = wfp.merged(self.s, ["video"] if builtin else [f"file:{wf_label}", f"style:{style.id}"])
         negative = wfp.with_avoid(negative, wpref)
         if wpref.get("add") or wpref.get("avoid"):
             self.log("  Your workflow settings: " + "; ".join(
@@ -1679,7 +1780,7 @@ class Engine:
                 raw = p["prompt"]
                 if builtin and job.type == "image" and style.id in styles_mod.NO_SIGN_STYLES:
                     raw = styles_mod.no_signs(raw)        # before the style's own "no signage" words
-                pos = self._styled(raw, rec) if builtin else raw
+                pos = self._styled(raw, rec, family) if builtin else raw
                 if kids and job.type == "image":
                     pos = f"{pos.rstrip(' .,')}, {styles_mod.KID_WORDS}"
                 if job.type == "video" and wpref.get("motion") in wfp.MOTION_WORDS:
@@ -1736,7 +1837,7 @@ class Engine:
                         media_mod.record(folder, fn, {"title": p["title"], "prompt": p["prompt"],
                                                       "negative": negative, "seed": seed,
                                                       "model": ckpt, "workflow": wf_label,
-                                                      "size": f"{w}x{h}" if w else ""}, job=job.name)
+                                                      "size": shown_size}, job=job.name)
                     st.media_files += [f"{st.output}/{fn}" for fn in saved]
                     st.items += len(saved)
                     if kids and job.type == "image":

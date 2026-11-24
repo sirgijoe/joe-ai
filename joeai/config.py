@@ -57,6 +57,7 @@ class ComfySettings:
     negative: str = ""                 # empty = Joe's default list (comfy.IMAGE_NEGATIVE)
     output_dir: str = ""         # blank = auto (ComfyUI's own output folder)
     delete_copies: bool = True   # remove ComfyUI's copy of a picture once Joe has saved his
+    always_my_model: bool = False    # Setup > Workflows: never switch a picked model to FLUX.2 for the hard cases
 
 
 @dataclass

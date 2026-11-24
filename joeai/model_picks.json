@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated": "2026-11-21",
+  "updated": "2026-11-24",
   "note": "Which Ollama models Joe suggests for each amount of graphics memory (GB). Joe reads the copy of this file on GitHub (main branch) about once a week, so suggestions can change without a new release. Only Ollama library names, sizes in GB. \"writing\": \"role\" recommended (Joe's pick), alternative (the other good choice) or free (little to no filtering); Joe's pick for each card size (name) plus \"others\": two more choices the person can pick instead, each with who made it and a plain note. At least one choice per size is lightly filtered or unfiltered (\"role\": \"free\"), so people can pick freedom over a company's filters. \"styles\": words in picture-model file names that suit each picture style, best first. \"style_models\": community picture models Joe recommends per style (the person downloads them from the page; Joe moves them into ComfyUI). \"looks\": sub-looks per picture style (match words, prompt words, example for the prompt writer, targeted leave-out words, trigger words for add-ons).",
   "writing": [
     {
@@ -182,7 +182,7 @@
     ],
     "illustration": [
       "dreamshaper",
-      "illustr",
+      "illustration",
       "anime",
       "animagine",
       "toon",
@@ -197,7 +197,7 @@
     ],
     "character": [
       "dreamshaper",
-      "illustr",
+      "illustration",
       "anime",
       "animagine",
       "toon",
@@ -212,7 +212,7 @@
     ],
     "coloring": [
       "dreamshaper",
-      "illustr",
+      "illustration",
       "anime",
       "animagine",
       "toon",
@@ -228,11 +228,12 @@
     "anime": [
       "animagine",
       "anime",
+      "illustrious",
+      "noob",
       "pony",
       "meina",
       "counterfeit",
-      "aam",
-      "illustr"
+      "aam"
     ],
     "cartoon": [
       "toon",
@@ -241,13 +242,13 @@
       "flat",
       "vector",
       "dreamshaper",
-      "illustr"
+      "illustration"
     ],
     "painting": [
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ],
@@ -255,7 +256,7 @@
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ],
@@ -263,7 +264,7 @@
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ],
@@ -275,7 +276,7 @@
       "flat",
       "vector",
       "dreamshaper",
-      "illustr"
+      "illustration"
     ],
     "render3d": [
       "3d",
@@ -296,11 +297,12 @@
     "manga": [
       "animagine",
       "anime",
+      "illustrious",
+      "noob",
       "pony",
       "meina",
       "counterfeit",
-      "aam",
-      "illustr"
+      "aam"
     ],
     "comic": [
       "toon",
@@ -309,13 +311,13 @@
       "flat",
       "vector",
       "dreamshaper",
-      "illustr"
+      "illustration"
     ],
     "watercolor": [
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ],
@@ -323,7 +325,7 @@
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ],
@@ -331,7 +333,7 @@
       "dreamshaper",
       "paint",
       "art",
-      "illustr",
+      "illustration",
       "sdxl_base",
       "sd_xl_base"
     ]
@@ -408,6 +410,16 @@
     "photo": {
       "looks": [
         {
+          "id": "wildlife",
+          "label": "Wildlife",
+          "match": "\\b(?:animal|wildlife|raccoon|racoon|turtle|tortoise|otter|beaver|squirrel|chipmunk|rabbit|bunny|hare|fox|wolf|coyote|dog|puppy|cat|kitten|lion|tiger|leopard|cheetah|jaguar|bear|panda|deer|elk|moose|horse|pony|donkey|cow|bull|calf|pig|goat|sheep|lamb|chicken|hen|rooster|duck|goose|swan|owl|eagle|hawk|falcon|parrot|bird|crow|raven|penguin|frog|toad|snake|lizard|gecko|iguana|alligator|crocodile|fish|trout|salmon|shark|whale|dolphin|walrus|octopus|crab|lobster|spider|bee|butterfly|moth|ant|beetle|mice|rat|hamster|hedgehog|porcupine|skunk|opossum|possum|badger|weasel|ferret|mink|monkey|ape|gorilla|chimpanzee|elephant|giraffe|zebra|rhino|hippo|camel|kangaroo|koala|sloth)(?:e?s)?\\b",
+          "words": "telephoto 200mm, f/4, natural light, crisp fur, feather and scale detail, nature documentary photograph",
+          "example": "A wildlife photograph of a grey raccoon with a black eye mask and ringed tail crouched over a box turtle with a scaly reptile head, hard beak and domed brown shell, on a damp forest floor, soft overcast light, telephoto 200mm, f/4, crisp fur and shell detail.",
+          "negative": "hybrid animal, merged animals, two animals fused together, wrong species features, mammal face on a reptile, furry reptile, extra heads, extra legs, plush toy, cartoon",
+          "no_anatomy": true,
+          "no_person": true
+        },
+        {
           "id": "portrait",
           "label": "Portrait",
           "match": "portrait|headshot|\\bface\\b|close-?up of (?:a|an|the) (?:man|woman|person|girl|boy)",
@@ -416,18 +428,9 @@
           "negative": "plastic skin, airbrushed, poreless, deformed face, asymmetrical face, bad teeth, dead eyes, crossed eyes"
         },
         {
-          "id": "wildlife",
-          "label": "Wildlife",
-          "match": "\\b(?:animal|wildlife|raccoon|racoon|turtle|tortoise|otter|beaver|squirrel|chipmunk|rabbit|bunny|hare|fox|wolf|coyote|dog|puppy|cat|kitten|lion|tiger|leopard|cheetah|jaguar|bear|panda|deer|elk|moose|horse|pony|donkey|cow|bull|calf|pig|goat|sheep|lamb|chicken|hen|rooster|duck|goose|swan|owl|eagle|hawk|falcon|parrot|bird|crow|raven|penguin|frog|toad|snake|lizard|gecko|iguana|alligator|crocodile|fish|trout|salmon|shark|whale|dolphin|walrus|octopus|crab|lobster|spider|bee|butterfly|moth|ant|beetle|mice|rat|hamster|hedgehog|porcupine|skunk|opossum|possum|badger|weasel|ferret|mink|monkey|ape|gorilla|chimpanzee|elephant|giraffe|zebra|rhino|hippo|camel|kangaroo|koala|sloth)(?:e?s)?\\b",
-          "words": "telephoto 200mm, f/4, natural light, crisp fur, feather and scale detail, nature documentary photograph",
-          "example": "A wildlife photograph of a grey raccoon with a black eye mask and ringed tail crouched over a box turtle with a scaly reptile head, hard beak and domed brown shell, on a damp forest floor, soft overcast light, telephoto 200mm, f/4, crisp fur and shell detail.",
-          "negative": "hybrid animal, merged animals, two animals fused together, wrong species features, mammal face on a reptile, furry reptile, extra heads, extra legs, plush toy, cartoon",
-          "no_anatomy": true
-        },
-        {
           "id": "landscape",
           "label": "Landscape",
-          "match": "landscape|mountain|lake|forest|valley|coast|sunrise over|sunset over|vista|countryside",
+          "match": "landscape|mountain|lake|forest|valley|coast|sunrise|sunset|\\bhills?\\b|vista|countryside",
           "words": "wide-angle 16mm, f/8, natural light, hyper-detailed",
           "example": "A breathtaking wide-angle landscape photograph of a misty alpine lake at sunrise, snow-capped peaks reflecting on calm water, golden sun rays through low fog, rich pine forests, 16mm, f/8, natural lighting.",
           "negative": "oversaturated, underexposed, overexposed, power lines, distortion, painting, drawing"
@@ -799,10 +802,11 @@
         {
           "id": "adult",
           "label": "Adult",
-          "match": "adult|intricate|mandala|detailed|pattern",
+          "match": "adult|intricate|mandala|zentangle",
           "words": "intricate line art, fine clean lines, detailed patterns",
           "example": "adult coloring page, an owl surrounded by intricate botanical patterns, fine clean black lines, white background.",
-          "negative": "color, shading, gray, filled areas, cross-hatching"
+          "negative": "color, shading, gray, filled areas, cross-hatching",
+          "not_for_kids": true
         },
         {
           "id": "simple",
