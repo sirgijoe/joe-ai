@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 
 
@@ -214,12 +215,35 @@ class _Https(urllib.request.HTTPSHandler):
             raise
 
 
+class _KeysStayHome(urllib.request.HTTPRedirectHandler):
+    """Follow a redirect, but a key never goes along to another site. Python's own handler copies every
+    header to wherever the redirect points (another host, or from https down to plain http), so a search
+    source or a writing service could pass Joe's key on just by answering with a redirect
+    (security review 2026-11-24). Same scheme, host and port: headers kept. Anywhere else: only the
+    plain ones below go along."""
+    PLAIN = {"user-agent", "accept", "accept-language", "accept-encoding", "content-type"}
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        new = super().redirect_request(req, fp, code, msg, headers, newurl)
+        if new is None:
+            return None
+        a, b = urllib.parse.urlsplit(req.full_url), urllib.parse.urlsplit(new.full_url)
+        if (a.scheme, a.hostname, a.port) != (b.scheme, b.hostname, b.port):
+            for k in list(new.headers):
+                if k.lower() not in self.PLAIN:
+                    del new.headers[k]
+            for k in list(new.unredirected_hdrs):
+                if k.lower() not in self.PLAIN:
+                    del new.unredirected_hdrs[k]
+        return new
+
+
 def install() -> bool:
     """Make every urllib request in Joe (lookups, update checks, downloads) use tls_context().
     Called once when Joe starts (joeai/__init__.py). Reads nothing and connects to nothing itself.
     False when it couldn't be set up (Joe still starts; connections then go Python's own way)."""
     try:
-        urllib.request.install_opener(urllib.request.build_opener(_Https()))
+        urllib.request.install_opener(urllib.request.build_opener(_Https(), _KeysStayHome()))
         return True
     except Exception:                                  # noqa: BLE001 (never stop Joe from starting)
         return False

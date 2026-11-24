@@ -259,7 +259,8 @@ public Wi-Fi.
 ### Joe's screens in other languages (Setup > Look and sound > Language)
 
 Pick a language and press SAVE: Joe's window switches right away. Spanish comes with the main
-screens done; anything not translated yet stays in English, so a half-made language still works.
+screens done (machine-translated and not yet checked by a native speaker, so some lines may read
+oddly: fix them as below, and corrections are welcome on GitHub); anything not translated yet stays in English, so a half-made language still works.
 **MAKE IT** has Joe translate the rest of his screens himself with the writing model (a queued task,
 good for the night shift; a stopped run carries on next time). He saves it to
 `Languages/<code>.json` in Joe's folder: English on the left, the translation on the right. Fix any

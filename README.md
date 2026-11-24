@@ -309,7 +309,8 @@ electricity. Joe does that part, so you spend your time and money on the finishi
   "send my shopping list to my phone". Lists are plain files in Joe's `Lists` folder.
 - "Directions to the feed store", "where can I buy a cheap air fryer?": opens your map or shopping
   site (picked in Setup > Voice and Talk) in the browser. Joe doesn't pick stores or track you.
-- **Joe in your language** (Setup > Look and sound): Spanish built in for the main screens; MAKE IT has
+- **Joe in your language** (Setup > Look and sound): Spanish built in for the main screens (machine-translated, not yet checked by
+  a native speaker: corrections welcome); MAKE IT has
   Joe translate the rest of his window into any of 23 languages overnight. Edit any line yourself.
 - **Add-ons from other people** (Setup > Add-ons): new tools, starter packs, picture workflows and
   themes in a .zip. Each stays off until you've read what it runs; changed files switch it off again.

@@ -4529,7 +4529,9 @@ function langCover() {
   const opt = sel.selectedOptions[0];
   const pct = opt && /— (\d+)%/.exec(opt.textContent);
   $("#lang-cover").textContent = sel.value === "en" ? "" :
-    `${pct ? pct[1] : 0}% of Joe's screens are translated; the rest stays English. MAKE IT has Joe translate the rest.`;
+    `${pct ? pct[1] : 0}% of Joe's screens are translated; the rest stays English. MAKE IT has Joe translate the rest. ` +
+    `Machine-translated and not yet checked by a native speaker: fix any line in Joe's folder > Languages > ${sel.value}.json ` +
+    `(corrections are welcome on GitHub too).`;
 }
 $("#lang-select").addEventListener("change", langCover);
 i18nStart();

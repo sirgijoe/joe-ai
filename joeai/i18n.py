@@ -336,7 +336,9 @@ def choices(sb=None) -> list[dict]:
             out.append({"code": code, "name": own, "pct": 100})
             continue
         n = len(load(code, sb))
-        out.append({"code": code, "name": f"{own} ({en})", "pct": coverage(code, sb)["pct"] if n else 0})
+        # every translation is made by a writing model and none has been checked by a native speaker yet
+        # (2026-11-24, Joseph: say so in the list)
+        out.append({"code": code, "name": f"{own} ({en}, machine-translated)", "pct": coverage(code, sb)["pct"] if n else 0})
     return out
 
 

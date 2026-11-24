@@ -219,7 +219,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       - **Search sources** (`websearch.py`): only the search words go to each source; sources are off
         until ticked (default list = the old Ollama-then-Wikipedia); a refused key / 429 / failure rests the
         source; per-task cap; results are data (`as_context`). `tests/test_lookups.py`.
-      - **LangSearch and "your own search source"** (`websearch.py`, 2026-11-15; NOT YET REVIEWED): two more
+      - **LangSearch and "your own search source"** (`websearch.py`, 2026-11-15; REVIEWED 2026-11-24, see the end): two more
         sources, off until ticked. LangSearch: search words + its key to `api.langsearch.com` only. Own
         source: the address the person typed (http(s) only, no user:pw, may be on the home network like
         SearXNG), `{query}` percent-encoded into the address or JSON-escaped into the posted body; the key
@@ -238,7 +238,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         no cookies/Referer/auth sent, never raises. Ollama's web_fetch never gets a home address either.
         `tests/test_pagereader.py`. Try: IPv6 tricks, DNS rebinding, redirect chains, slow drips, a huge
         page, a page that pretends to be HTML but is a program.
-      - **The Tester's box** (`codebox.py`, 2026-11-21; NOT YET REVIEWED): the only place code Joe wrote is
+      - **The Tester's box** (`codebox.py`, 2026-11-21; REVIEWED 2026-11-24, see the end): the only place code Joe wrote is
         run (Joe-AiGent's "code" action, `agentrun.do_code`; ability "code", off until its screen is OK'd).
         A second Python (`-I -S -B`) per test run: files written to a fresh temp folder outside the Joe
         folder (plain names only, text only), deleted after; bare environment (no keys, no PATH, HOME/TEMP
@@ -248,7 +248,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         `ctypes.*`, `winreg.*`, `os.kill`, `mmap`, `fcntl`, raising its own limits); rlimits (memory, CPU,
         file size) on Linux/Mac, EXCEPT memory on a Mac: macOS doesn't keep to the memory rlimit (found on
         GitHub's Mac run, 2026-11-22), so there `codebox.MemoryWatch` reads the box's process group with
-        `ps` ten times a second from Joe's side and kills the group when it is over (NOT YET REVIEWED, and
+        `ps` ten times a second from Joe's side and kills the group when it is over (REVIEWED 2026-11-24, see the end, and
         first proven on GitHub's Mac: a watch is slower than a limit, a quick grab can pass between two
         looks; no `ps` = no watch and the fence list doesn't claim one); a Windows Job Object (memory,
         one process, kill-on-close); wall-clock
@@ -263,7 +263,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         bombs via threads, reading other users' files through Python's library folders, Windows-only paths
         (`\\?\`, short names, drive-relative), the Job Object on a PC where Joe already runs in a job.
       - **The Tester's box, AFTER THE INDEPENDENT REVIEW of 2026-11-22** (an Opus helper starting cold; 19 findings,
-        the box ones fixed the same day; the fixes themselves are NOT YET REVIEWED). As the code is now: a guard
+        the box ones fixed the same day; the fixes themselves are REVIEWED 2026-11-24, see the end). As the code is now: a guard
         inside the box's Python refuses reading outside the box and Python's own library; writing, deleting or
         renaming outside the box (the library included); changing folder outside the box; folder handles (dir_fd);
         SQLite reaching outside (ATTACH, VACUUM INTO, "file:" names, extensions); named pipes; network; other
@@ -278,7 +278,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         connection, os.stat seeing whether outside files exist, signalling Joe through a pidfd (Linux), _winapi and
         UNC paths (Windows: realpath on a UNC path can contact a file server). From the review: a web page or
         file an agent read can steer what the Coder writes (finding 8), so "code only for the owner's job" was
-        not strictly true. DECIDED by Joseph, 2026-11-23 (NOT YET REVIEWED): text from outside can carry
+        not strictly true. DECIDED by Joseph, 2026-11-23 (REVIEWED 2026-11-24, see the end): text from outside can carry
         instructions, so once a run has read any, it doesn't write or run code. `agentrun.Run.read_outside` is
         true from the moment the run took in a file (`web.tainted`: a trigger file, a file in its folder, a tool
         run on one) or something found online (a search that returned results, a page read), and stays true for
@@ -291,17 +291,17 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         Not covered: words the owner pasted into the job, a request handed on by another agent (only words of
         that agent's own job pass), memory notes and add-on tools. Could not be run on
         Windows or a Mac: the pipe reader thread, the Job Object order, Python 3.14's shutil inside the box.
-      - **Wake word** (`ui/app.js` wakeSplit, 2026-11-21; NOT YET REVIEWED): off unless ticked. The open mic
+      - **Wake word** (`ui/app.js` wakeSplit, 2026-11-21; REVIEWED 2026-11-24, see the end): off unless ticked. The open mic
         then stays on outside Talk; each utterance goes through the same local `/api/voice/listen` (the
         recording file is deleted as before; with `X-Joe-Wake` no mic levels are logged) and is dropped in
         the page unless it starts with the wake words. Nothing is shown, kept or sent for dropped speech.
         `tests/test_wake_word.py`. Try: a wake phrase inside a played video, very long wake words.
-        Rolling second (`ui/app.js` micRing, 2026-11-22; NOT YET REVIEWED): while the open mic listens, the
+        Rolling second (`ui/app.js` micRing, 2026-11-22; REVIEWED 2026-11-24, see the end): while the open mic listens, the
         last 1 s of sound is kept in the page's memory only, so the first syllable isn't cut off; never
         written or sent alone; cleared when a recording starts, while Joe speaks, and in openMicStop; not
         used by push-to-talk. `tests/test_open_mic.py`. Try: stop the mic mid-sentence, check nothing is sent.
       - **Wake word and open mic, AFTER THE INDEPENDENT REVIEW of 2026-11-22** (fixed the same day by Joseph's
-        decisions; the fixes are NOT YET REVIEWED and need his microphone). Only words that start with the wake
+        decisions; the fixes are REVIEWED 2026-11-24, see the end and need his microphone). Only words that start with the wake
         words count, on any screen AND on Talk once "Hey Joe" brought it there: after Joe answers he waits for them
         again until the person opens Talk themselves (Talk tab, F4, TALK TO JOE, sending typed text, the mic
         button, a saved chat, a dropped file). Everything else is dropped in the window before it is routed.
@@ -375,7 +375,7 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
       `check_hostname = False`, `_create_unverified_context` appear nowhere), and a site no trusted
       certificate vouches for is still refused. Tests: `tests/test_secure_connections.py` (pretend
       certificates in `tests/pretend_certs.py`; its one private key only answers as "localhost").
-- [ ] Audit fixes, 2026-11-23 (NOT YET REVIEWED; from `AUDIT_2026-11-23.md`):
+- [ ] Audit fixes, 2026-11-23 (REVIEWED 2026-11-24, see the end; from `AUDIT_2026-11-23.md`):
       - **Request guards** (`server.py` `H._length`, `_mcp_http`; `phone.py` `_body`): a raw body's
         `Content-Length` must be a whole number from 0 to the route's limit, else the route gives its
         usual "empty or too big" answer; the `/mcp` key is compared as bytes, so a key with odd characters
@@ -407,3 +407,42 @@ Python, no `shell=True`, help-file scrubbing, tests that run offline.
         2026-11-22 review, decided by Joseph): a run that has read a file, a search result or a web page is
         refused a code step, isn't offered one, and says why once. See the Tester's box above.
         `tests/test_agent_code_after_reading.py`. Try: a run that reads in a way that doesn't set the flag.
+
+## Review of 2026-11-24 (Opus, before the 2.3 release)
+
+Done in the same working session as the day's other 2.3 changes, not in a fresh chat. The reviewer wrote
+none of the code below except the three changes marked (new today), which therefore still want a second
+pair of eyes. Read every item marked NOT YET REVIEWED above; tried the "Try:" lists where this PC (Linux)
+can; ran the matching tests (all pass).
+
+- **Found and fixed: keys followed redirects to other sites** (`http.py` `_KeysStayHome`, new today).
+  Python's own redirect handler copies every header to wherever a redirect points, so LangSearch, your own
+  search source, Ollama web search or a writing service could pass Joe's key to another host, or from https
+  down to plain http, just by answering with a redirect. Shown with two local servers before the fix. Now a
+  redirect to another scheme, host or port carries only User-Agent, Accept and Content-Type; the same site
+  keeps them. `tests/test_security_review_1124.py`.
+- **LangSearch and your own search source**: keys go only to their own address (with the fix above); the
+  search words are percent-encoded into the address or JSON-escaped into the body (a word can't add JSON
+  fields: an unquoted {query} with quotes in it just fails as bad JSON); header names letters/digits/- only;
+  result links http(s) only.
+- **The Tester's box** (Linux, real code): reading /etc and /proc, a symlink pointing out, listing /,
+  copying out, SQLite ATTACH, posix.system, and swapping posixpath.abspath inside the box were all refused;
+  nothing escaped. Not checked here: the Windows Job Object and Windows paths, the Mac memory watch (no
+  Windows or Mac on this PC; GitHub runs the box tests on both). The listed NOT COVERED escapes stand: the box
+  is a fence against wrong code, not a vault.
+- **No code after reading**: every way a run takes in outside text sets the flag: trigger and folder files
+  (tainted from the start, and they are the only outside files a step may name), reading a file outside the
+  run, a tool on outside files, a search with results, a page read. No tool an agent may use reaches the
+  internet (find-book is blocked) and a step can't turn on RESEARCH. Known gaps unchanged (owner's pasted
+  words, a handed-on request, memory notes).
+- **Wake word and ask-first** (code read, no microphone here): words without the wake words are dropped
+  before anything is routed; every command is sorted into ask-first or fine and the window asks for exactly
+  the first group (a test checks both lists against route.py and the window); a yes counts only within the
+  time limit and only from the fixed yes words; recordings are temp files with a fixed extension, deleted in
+  a finally and swept. Still needs Joseph's microphone for the live part.
+- **The 2026-11-23 audit fixes**: request guards, build stamp, connector cap, connector folders (a link in
+  Output to the Inbox counts as the Inbox), model-call options: as described; tests pass.
+- **New today, still wanting a second look**: the connector reads a refused request's small body (64 KB at
+  most) before its 401, so Windows doesn't reset the connection (`server.py` `_drain`); kids' picture
+  prompts lose nudity and sexual words before drawing (`styles.kid_safe`), the record shows the cleaned
+  prompt, and the picture check after is unchanged.

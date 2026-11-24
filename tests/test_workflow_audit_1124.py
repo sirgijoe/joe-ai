@@ -266,3 +266,11 @@ def test_a_held_back_kids_picture_says_why_in_whole_words(tmp_path, monkeypatch)
     eng.Engine._kids_check(me, NS(name="Study", job_id="j"), st, tmp_path, ["001_study.png"])
     flag = st.flags[0]["flag"]
     assert "partially exposed" in flag and "not in the book" not in flag and "kept apart from the others" in flag
+
+
+
+def test_the_language_list_says_a_translation_is_machine_made():
+    from joeai import i18n
+    es = next(c for c in i18n.choices() if c["code"] == "es")
+    assert es["name"] == "Español (Spanish, machine-translated)"
+    assert next(c for c in i18n.choices() if c["code"] == "en")["name"] == "English"
