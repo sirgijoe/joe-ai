@@ -274,3 +274,13 @@ def test_the_language_list_says_a_translation_is_machine_made():
     es = next(c for c in i18n.choices() if c["code"] == "es")
     assert es["name"] == "Español (Spanish, machine-translated)"
     assert next(c for c in i18n.choices() if c["code"] == "en")["name"] == "English"
+
+
+
+def test_the_old_window_closes_itself_after_update():
+    """2.3.0 -> 2.3.1 on Joseph's PC: the update worked, but the old Joe's window stayed open."""
+    from pathlib import Path
+    js = (Path(__file__).parent.parent / "joeai" / "ui" / "app.js").read_text(encoding="utf-8")
+    assert 'updating = !!(x.ok && (r.kind === "windows-installer" || r.kind === "linux-appimage"))' in js
+    assert "if (updating && fails === 2) { closeForUpdate(); return; }" in js      # the old Joe has gone
+    assert 'fr.ok && fr.action === "update-joe" && updating) closeForUpdate()' in js

@@ -193,12 +193,22 @@ document.addEventListener("click", (ev) => {
   if (t) { viewing = t.dataset.view; renderGallery((state && state.media) || []); }
 });
 let lastRunKey = "";
+// 2026-11-24: after UPDATE the old Joe stepped aside but his window stayed open next to the new one.
+// Once an update is installing, this window closes itself: when Joe says the installer started, or
+// when the old Joe has gone.
+let updating = false;
+function closeForUpdate() {
+  toast("The new Joe is installing and opens by himself in a moment. This window closes now.", 8000);
+  setTimeout(() => { try { window.close(); } catch (e) {} }, 3000);
+}
 async function poll() {
   try {
     state = await api("/api/state");
     fails = 0;
   } catch (e) {
-    if (++fails === 3) $("#status").innerHTML = "&nbsp;CONNECTION LOST — close this window and start Joe again";
+    fails++;
+    if (updating && fails === 2) { closeForUpdate(); return; }
+    if (fails === 3) $("#status").innerHTML = "&nbsp;CONNECTION LOST — close this window and start Joe again";
     return;
   }
   heldPlanTick();
@@ -291,7 +301,9 @@ async function poll() {
   if (state.busy !== lastBusy) { lastBusy = state.busy; if (!state.busy) loadDoctor(); }
   const fr = state.fix_result || {};
   if (fr.n && fr.n !== lastFix) {
-    if (lastFix !== -1 && !fr.ok && fr.action === "update-joe") {
+    if (lastFix !== -1 && fr.ok && fr.action === "update-joe" && updating) closeForUpdate();
+    else if (lastFix !== -1 && !fr.ok && fr.action === "update-joe") {
+      updating = false;
       $("#setup-msg") && ($("#setup-msg").textContent = "The update didn't finish: " + (fr.error || ""));
       confirmBox(`The update didn't finish.\n\n${fr.error || "The log on the main screen says why."}\n\nYou can always download the installer yourself from the release page and run it; your files and settings are kept.\n\nOpen the release page?`,
         () => window.open(fr.url || "https://github.com/sirgijoe/joe-ai/releases/latest", "_blank", "noopener"));
@@ -3481,6 +3493,7 @@ async function checkUpdate(manual) {
     confirmBox(`Joe ${r.latest} is out. You have ${r.current}.\n\n${notes}Download and install it now${mb}? It's checked against the release's checksum first. ${how} Your files and settings are kept.`,
       async () => {
         const x = await api("/api/doctor/fix", { action: "update-joe", approved: true });
+        updating = !!(x.ok && (r.kind === "windows-installer" || r.kind === "linux-appimage"));
         $("#setup-msg").textContent = x.ok ? "Downloading the update…" : x.error;
       });
     return;
