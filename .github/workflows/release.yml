@@ -98,7 +98,7 @@ jobs:
           Start-Sleep 5
           if (Test-Path "$dir\joeai") { throw "uninstall left program files" }
 
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: joe-windows
           path: dist/*
@@ -134,7 +134,7 @@ jobs:
           python3 installer/smoke_test.py mac-app -- "$RUNNER_TEMP/Joe.app/Contents/MacOS/Joe"
           # Joe never writes inside his own app (that would break the signature)
           codesign --verify --deep --strict "$RUNNER_TEMP/Joe.app"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: joe-mac-${{ matrix.arch }}
           path: dist/*.dmg
@@ -163,7 +163,7 @@ jobs:
         run: |
           img=$(ls dist/Joe-*-linux-*.AppImage)
           APPIMAGE_EXTRACT_AND_RUN=1 python3 installer/smoke_test.py linux-appimage -- "$img"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: joe-linux-${{ matrix.arch }}
           path: dist/*.AppImage
