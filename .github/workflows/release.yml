@@ -25,7 +25,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - name: Version
         id: v
@@ -115,7 +115,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Version
         id: v
         run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
@@ -151,7 +151,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - name: Version
         id: v
         run: echo "version=$(python3 -c "import re;print(re.search(r'__version__ = \"(.+?)\"', open('joeai/__init__.py').read()).group(1))")" >> "$GITHUB_OUTPUT"
@@ -188,7 +188,7 @@ jobs:
           cd dist && sha256sum * > SHA256SUMS.txt
           # the version goes inside the signed list: Joe won't install an older signed release offered as new
           echo "# joe-ai version ${GITHUB_REF_NAME#v}" >> SHA256SUMS.txt && cat SHA256SUMS.txt
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           path: src
       - name: Sign the checksum list (Joe checks it before installing an update)
