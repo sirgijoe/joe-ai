@@ -106,6 +106,69 @@ def _cert_problem(e) -> bool:
     return "certificate verify failed" in str(e).lower() or "CERTIFICATE_VERIFY_FAILED" in str(e)
 
 
+def _needs_backup(e) -> bool:
+    """Python's own secure connection didn't work, but the computer's might: its certificate list was
+    behind, or the connection was cut off while being set up (antivirus and firewalls that check web
+    traffic do this). 2026-11-24: on Joseph's PC the button had never once worked, since launch."""
+    if _cert_problem(e) or getattr(e, "kind", "") in ("cert", "dropped"):
+        return True
+    reason = getattr(e, "reason", None)
+    text = f"{e} {reason or ''}".lower()
+    return isinstance(e, (ConnectionResetError, ConnectionAbortedError)) or any(
+        w in text for w in ("ssl", "certificate", "eof occurred", "connection reset", "connection aborted",
+                            "forcibly closed", "10054", "10053"))
+
+
+def _powershell(url: str, dest: Path, timeout: float, headers: dict | None) -> None:
+    """Windows' own web download (PowerShell), which uses Windows' certificate list and its proxy and
+    antivirus settings, like a browser. The address and file go in through the environment, never
+    into the command text. No Accept header: Windows PowerShell 5.1 refuses to set it that way, and
+    GitHub answers in JSON without it. https only; the checksum and signature are checked afterwards either way."""
+    import shutil
+    from .system import no_window_flags
+    ps = shutil.which("powershell") or shutil.which("pwsh")
+    if os.name != "nt" or not ps:
+        raise OSError("no PowerShell to fall back on")
+    if not url.lower().startswith("https://"):
+        raise OSError("only https addresses")
+    env = dict(os.environ, JOE_URL=url, JOE_OUT=str(dest),
+               JOE_UA=(headers or {}).get("User-Agent", f"joe-ai/{__version__}"))
+    script = ("$ProgressPreference='SilentlyContinue';"
+              "[Net.ServicePointManager]::SecurityProtocol=[Net.ServicePointManager]::SecurityProtocol -bor 3072;"
+              "Invoke-WebRequest -UseBasicParsing -Uri $env:JOE_URL -OutFile $env:JOE_OUT "
+              "-UserAgent $env:JOE_UA -TimeoutSec " + str(int(timeout)))
+    try:
+        r = subprocess.run([ps, "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass", "-Command", script],
+                           capture_output=True, timeout=timeout + 30, stdin=subprocess.DEVNULL, env=env,
+                           creationflags=no_window_flags())
+    except subprocess.SubprocessError as e:
+        raise OSError(str(e)) from e
+    if r.returncode != 0 or not dest.exists():
+        raise OSError(r.stderr.decode("utf-8", "replace").strip()[:200] or f"PowerShell exit {r.returncode}")
+
+
+def _backup_fetch(url: str, dest: Path | None = None, timeout: float = 60, headers: dict | None = None) -> bytes:
+    """The computer's own tools when Python's connection failed: curl first, then (Windows) PowerShell.
+    Returns the bytes, or writes them to `dest` (and returns b"")."""
+    try:
+        return _curl(url, dest=dest, timeout=timeout, headers=headers)
+    except OSError as e:
+        first = e
+    if os.name != "nt":
+        raise first
+    out = dest if dest is not None else updates_dir() / f"_fetch_{os.getpid()}.tmp"
+    try:
+        _powershell(url, out, timeout, headers)
+        if dest is not None:
+            return b""
+        return out.read_bytes()
+    except OSError as e:
+        raise OSError(f"curl: {first}; PowerShell: {e}") from e
+    finally:
+        if dest is None:
+            out.unlink(missing_ok=True)
+
+
 def _curl(url: str, dest: Path | None = None, timeout: float = 60, headers: dict | None = None) -> bytes:
     """Fetch with the computer's own curl (Windows 10+, Mac and Linux have it), which uses the
     system's up-to-date certificate list. Still a fully checked secure connection (https only),
@@ -116,10 +179,29 @@ def _curl(url: str, dest: Path | None = None, timeout: float = 60, headers: dict
     if not curl:
         raise OSError("this computer has no curl to fall back on")
     cmd = [curl, "-sS", "-f", "-L", "--proto", "=https", "--proto-redir", "=https", "--max-time", str(int(timeout))]
+    if os.name == "nt":
+        # Windows' curl refuses a connection when it can't reach the certificate's revocation server,
+        # which antivirus and some networks block. Best effort: still checked when the server answers.
+        cmd.append("--ssl-revoke-best-effort")
     for k, v in (headers or {}).items():
         cmd += ["-H", f"{k}: {v}"]
     if dest is not None:
         cmd += ["-o", str(dest)]
+    try:
+        r = subprocess.run(cmd + [url], capture_output=True, timeout=timeout + 15, stdin=subprocess.DEVNULL,
+                           creationflags=no_window_flags())
+    except subprocess.SubprocessError as e:
+        raise OSError(str(e)) from e
+    if r.returncode != 0 and "--ssl-revoke-best-effort" in cmd and b"ssl-revoke-best-effort" in r.stderr:
+        cmd.remove("--ssl-revoke-best-effort")          # an older curl (Windows 10 before 2021) lacks it
+        return _curl_run(cmd, url, timeout)
+    if r.returncode != 0:
+        raise OSError(r.stderr.decode("utf-8", "replace").strip()[:200] or f"curl exit {r.returncode}")
+    return r.stdout
+
+
+def _curl_run(cmd: list, url: str, timeout: float) -> bytes:
+    from .system import no_window_flags
     try:
         r = subprocess.run(cmd + [url], capture_output=True, timeout=timeout + 15, stdin=subprocess.DEVNULL,
                            creationflags=no_window_flags())
@@ -154,11 +236,11 @@ def check(force: bool = False, fetch=request_json) -> dict:
         rel = fetch("GET", url, timeout=15, headers=heads)
     except HttpError as e:
         problem = e
-        if _cert_problem(e):                      # Python's certificate list is behind: ask with curl
+        if _needs_backup(e):                      # Python's connection failed: ask with the computer's own tools
             try:
-                rel = json.loads(_curl(url, timeout=20, headers=heads))
-            except (OSError, ValueError):
-                rel = None
+                rel = json.loads(_backup_fetch(url, timeout=20, headers=heads))
+            except (OSError, ValueError) as e2:
+                rel, problem = None, HttpError(f"{e}; then {e2}", getattr(e, "kind", ""))
     if not isinstance(rel, dict):
         err = str(problem or "GitHub sent something odd back")
         if "HTTP 404" in err:
@@ -214,14 +296,14 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
                     progress(100 * got / total)
     except OSError as e:
         part.unlink(missing_ok=True)
-        if not _cert_problem(e):
+        if not _needs_backup(e):
             log(f"Couldn't download the update: {e}")
             return None
-        # Python's certificate list is behind (common on Windows): the computer's own curl has the
-        # current one. The checksum and signature below are checked exactly the same.
-        log("  Python couldn't check GitHub's certificate; downloading with this computer's own curl instead.")
+        # Python's connection failed (an out-of-date certificate list, or antivirus cutting it off):
+        # the computer's own curl or PowerShell. The checksum and signature below are checked the same.
+        log("  Python's connection to GitHub failed; downloading with this computer's own tools instead.")
         try:
-            _curl(a["url"], dest=part, timeout=1800)
+            _backup_fetch(a["url"], dest=part, timeout=1800)
             h = hashlib.sha256()
             with open(part, "rb") as f:
                 while chunk := f.read(1 << 20):
@@ -236,8 +318,8 @@ def download(info: dict, log, progress=None, opener=urllib.request.urlopen) -> P
             with opener(url, timeout=30) as r:
                 return r.read()
         except OSError as e:
-            if _cert_problem(e):
-                return _curl(url, timeout=30)
+            if _needs_backup(e):
+                return _backup_fetch(url, timeout=30)
             raise
 
     want, sums = "", b""

@@ -57,3 +57,41 @@ def test_a_key_never_follows_a_redirect_to_another_site():
     assert seen[0] == ("/elsewhere", None, None, "Joe")             # another site (another port): no keys
     assert seen[1] == ("/hop", "Bearer SECRET", "K2", "Joe")
     assert seen[2] == ("/final", "Bearer SECRET", "K2", "Joe")      # the same site: kept
+
+
+
+def test_update_uses_the_computers_own_tools_when_the_connection_is_cut(tmp_path, monkeypatch):
+    """The UPDATE button had never worked on Joseph's PC: Python's secure connection failed, and the backup
+    only ran on the exact words "certificate verify failed". Now a cut-off connection counts too (antivirus
+    and firewalls that check web traffic do this), and on Windows PowerShell is tried when curl fails."""
+    from joeai import update
+    from joeai.http import HttpError
+    monkeypatch.setattr(update, "updates_dir", lambda: tmp_path)
+    for err in (HttpError("can't reach https://api.github.com: connection reset", "dropped"),
+                HttpError("can't reach https://api.github.com: [SSL: UNEXPECTED_EOF_WHILE_READING]", ""),
+                ConnectionResetError(10054, "An existing connection was forcibly closed by the remote host")):
+        assert update._needs_backup(err), err
+    assert not update._needs_backup(OSError("network is down"))
+    assert not update._needs_backup(HttpError("HTTP 404 Not Found", ""))
+
+    def dropped(*a, **k):
+        raise HttpError("can't reach https://api.github.com: connection reset", "dropped")
+    tried = []
+
+    def no_curl(url, dest=None, timeout=60, headers=None):
+        tried.append("curl")
+        raise OSError("curl: (35) schannel: failed to receive handshake")
+
+    def ps(url, dest, timeout, headers):
+        tried.append("powershell")
+        dest.write_bytes(b'{"tag_name": "v9.9.9", "assets": []}')
+    monkeypatch.setattr(update, "_curl", no_curl)
+    monkeypatch.setattr(update, "_powershell", ps)
+    monkeypatch.setattr(update.os, "name", "nt")
+    update._CACHE.clear()
+    try:
+        r = update.check(force=True, fetch=dropped)
+    finally:
+        update._CACHE.clear()
+    assert r["ok"] and r["latest"] == "9.9.9" and tried == ["curl", "powershell"]
+    assert not list(tmp_path.glob("_fetch_*"))                      # the scratch file is gone

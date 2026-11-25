@@ -1,3 +1,12 @@
+## What's new in 2.3.1
+
+- **The UPDATE button works on more PCs.** When Python's own secure connection to GitHub fails (an
+  out-of-date certificate list, or antivirus or a firewall cutting the connection off), Joe now tries the
+  computer's own curl and then, on Windows, PowerShell, which use Windows' certificates like a browser.
+  The download is still checked against the signed checksum list exactly as before.
+- **Updating from 2.2.0 or 2.3.0:** if the button still can't reach GitHub, download the installer for
+  your computer from this page and run it: it installs over your old Joe and keeps your settings and work.
+
 ## What's new in 2.3
 
 - **Better pictures from the same words.** Every picture style was checked against the models it runs on
