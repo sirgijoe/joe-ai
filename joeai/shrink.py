@@ -200,7 +200,13 @@ def header(r: dict, label: str) -> str:
 
 def is_local(url: str) -> bool:
     host = (urlparse(url).hostname or "").lower()
-    return host in ("localhost", "127.0.0.1", "::1") or host.startswith("127.")
+    if host == "localhost":
+        return True
+    try:                                       # a real loopback address, not a name that merely starts with "127."
+        import ipaddress
+        return ipaddress.ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _chunks(text: str) -> list[str]:

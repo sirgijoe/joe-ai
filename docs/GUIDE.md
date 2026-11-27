@@ -448,6 +448,42 @@ What a connected app can read, so there are no surprises:
 - **Never** Joe's private folders (the ones whose names start with a dot, like `Output\.joe`,
   where your chats and run notes are kept).
 
+**Dev tools** (Setup > Other AI apps > Dev tools; off when Joe comes). These are for people who write
+software with an AI app. If that isn't you, leave the box unticked and none of this exists for a
+connected app. Ticked, a connected app can:
+
+- **Run a command you listed** (`joe_run_command`). You type a short list in Setup: a project name, its
+  folder, and commands with names of your own ("tests" = `py -m pytest -q`). The app picks a project
+  and a command by name and Joe runs it exactly as you typed it, in that folder. The app can't add
+  anything to it, can't type a command of its own and can't change the list (only Joe's own window
+  can). One command at a time, with a time limit you set (15 minutes when blank); at the limit Joe ends
+  the program and anything it started. The app gets how it ended, how long it took, the totals and the
+  failing lines; the whole output is kept in `Output\dev`, and every run is written down in
+  `Output\dev\_runs.txt`. A command is one program with its arguments: `|`, `>` and `&&` don't work
+  (put those in a script and list the script).
+- **See a listed project's git state** (`joe_repo`): branch, last commit, uncommitted files, and whether
+  the folder matches a git bundle. Bringing a bundle in is a separate tick box under each project, off
+  when Joe comes. Ticked, the app can bring in a bundle file (its name ends in `.bundle`) that is inside
+  the project folder or in Joe's Inbox, by fast-forward only, never when you have uncommitted changes.
+  It never pushes or goes online, Git LFS files come in as pointers (run `git lfs pull` yourself), and
+  every pull is written down in `Output\dev\_runs.txt`.
+- **See this computer's status** (`joe_computer`): processor, memory, graphics card, free disk space,
+  which of Ollama, ComfyUI and Unsloth Studio are running, and the running programs with how much
+  each uses. Names and numbers only: no window titles, no file paths, no command lines. It never ends
+  or changes a program.
+
+What could go wrong, plainly:
+
+- A listed command does whatever its program does, as often as the app asks. List only commands you'd
+  be happy to run yourself at any moment.
+- Bringing in a bundle changes the project's files, and a listed command then runs whatever is in the
+  folder. Tick that box only for projects where you want it, and only bring in bundles you trust.
+- The app is shown the folders and commands on your list as you typed them, each command's output, and
+  the names of the programs you have open. Don't put a password or key in a command.
+
+A project folder can't be Joe's own folder, a folder around it, or one inside it. A backup never carries
+your Dev tools list or switch, and restoring one never turns them on; neither does a portable drive.
+
 Setup > Other AI apps > **SHOW CONNECT OPTIONS** lists the apps Joe knows on this PC. Wherever an app has
 its own way to add a connector, Joe uses it, so the app itself asks you and nobody has to open a
 settings file:

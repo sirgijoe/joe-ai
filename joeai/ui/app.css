@@ -149,6 +149,9 @@ body.modern .srow .sbar i { background: var(--accent); }
 .setup label { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); gap: 10px; align-items: center; }
 .setup label input:not([type=checkbox]), .setup label select { width: 100%; min-width: 0; }
 .setup label input[type=checkbox] { justify-self: start; }
+/* Setup > Other AI apps > DEV TOOLS: one box per project, its commands set in under it */
+.devproj { display: flex; flex-direction: column; gap: 6px; border-top: 1px dashed var(--ph-dim); padding-top: 6px; margin-top: 4px; }
+.devcmd { display: flex; flex-direction: column; gap: 6px; margin-left: 1.5em; padding-left: 8px; border-left: 1px solid var(--ph-dim); }
 .help pre { margin: 0; font: inherit; }
 
 /* ---------- footer ---------- */

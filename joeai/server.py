@@ -1669,7 +1669,8 @@ class App:
         clean_favorites(self.settings)
         clean_web(self.settings)
         clean_voice(self.settings)
-        from . import websearch
+        from . import devprojects, websearch
+        devprojects.clean_settings(self.settings)   # Dev tools: the project list is kept in its plain form
         websearch.reset_cooldowns()                 # a changed key, address or order gets a fresh try
         if (self.settings.engine.daily_restart, self.settings.engine.restart_time) != old_daily:
             self.daily.reset(self.settings)           # a new daily restart time counts from now (starring a tool

@@ -693,6 +693,8 @@ def portable_settings(settings) -> dict:
         d[head][key] = ""
     d["pandoc"] = ""
     d["schedule"]["enabled"] = False
+    d["dev_tools"] = False                   # Dev tools name folders and commands on THIS PC: never carried to another
+    d["dev_projects"] = []
     d["mcp_key"] = ""                        # keys and the phone-ping topic stay off a drive that's easy to lose
     d["web"]["ollama_key"] = ""
     d["web"]["langsearch_key"] = ""

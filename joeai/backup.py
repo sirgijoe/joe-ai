@@ -38,7 +38,10 @@ LOCAL_PATHS = (("workspace",), ("pandoc",), ("ollama", "exe"), ("ollama", "engin
 # Joe works on to that machine without a word.
 URL_PATHS = (("ollama", "url"), ("ollama", "engine_url"), ("comfy", "url"))
 # Never switched on by a backup: Joe Phone opens Joe to the home network, so that's a choice made here.
-NEVER_RESTORED = (("phone", "enabled"),)
+# Nor do a backup's "connected apps may read my folders" tick, its Dev tools switch or its list of projects and
+# commands come in: a backup from someone else would otherwise let a connected app run that person's commands here
+# (2026-11-27 security review). They are left out when a backup is made, too: the list holds this PC's own folders.
+NEVER_RESTORED = (("phone", "enabled"), ("mcp_folders",), ("dev_tools",), ("dev_projects",))
 MAX_TOTAL = 300_000_000            # a settings backup is small; refuse anything huge
 MAX_FILES = 5000
 MARK = "joe-settings-backup"
@@ -87,6 +90,8 @@ def make(settings, sb, keys: bool = False, memory: bool = False) -> Path:
             if _get(data, p) not in (None, ""):
                 _set(data, p, "")
     for p in LOCAL_PATHS:                 # meaningless on another computer
+        _drop(data, p)
+    for p in (("dev_tools",), ("dev_projects",)):    # this PC's own folders and commands: never in a backup
         _drop(data, p)
     out_dir = sb.output / "Backups"
     out_dir.mkdir(parents=True, exist_ok=True)

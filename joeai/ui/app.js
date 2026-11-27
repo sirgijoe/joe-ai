@@ -1212,6 +1212,7 @@ async function loadSetup() {
       el.add(new Option(String(v), String(v)));          // a choice whose list isn't loaded yet (e.g. the language)
     if (el.type === "checkbox") el.checked = !!v; else el.value = v ?? "";
   });
+  devProjRender(s.dev_projects);
   qualityHelp(); engineHelp(); loadWebProviders();
   $("#setup-msg").textContent = "";
   $("#set-dirty").hidden = true;
@@ -1224,6 +1225,7 @@ async function saveSetup(ev) {
     if (el.type === "number" || el.dataset.path === "ui.crt") v = Number(v);
     setPath(out, el.dataset.path, v);
   });
+  if (devProj) out.dev_projects = devProjRead();      // Dev tools: the project list (Setup > Other AI apps)
   const r = await api("/api/settings", out);
   if (!r.ok && r.fixes && r.fixes.length) {          // "7am" -> "07:00": Joe asks before using it
     const lines = r.fixes.map((f) => `${f.label}: you typed "${f.said}", so Joe changed it to "${f.fixed}".`).join("\n");
@@ -1242,6 +1244,7 @@ async function saveSetup(ev) {
   $("#setup-msg").textContent = r.ok ? "Saved." : "ERROR: " + r.error;
   if (r.ok) { toast("Settings saved"); voiceSettings().then(wakeApply); $("#set-dirty").hidden = true; if (setupPageName === "phone") setTimeout(loadPhone, 500);
     if (setupPageName === "privacy") loadWebProviders();
+    devProjSaved(out.dev_projects);
     if ((out.ui || {}).language !== I18N.code) i18nStart(); }
 }
 $("#setup").addEventListener("submit", saveSetup);
@@ -1619,6 +1622,91 @@ $("#web-prov").addEventListener("click", (ev) => {
   (same && !same.disabled ? same : document.querySelector(`#web-prov [data-provon="${j}"]`)).focus();
   $("#web-msg").textContent = `${webProv[j].label} is now number ${j + 1}. Save to keep it.`;
 });
+/* Setup > Other AI apps > DEV TOOLS: the project folders and the commands a connected AI app may run in them,
+   picked by name (devprojects.py). Saved as dev_projects with the rest of Setup (SAVE), like the search sources
+   above: drawn from what Joe holds, read back off the screen when saving. Joe cleans the list (names in small
+   letters, empty rows left out) and it is drawn again as he keeps it after saving. */
+let devProj = null;            // null until Setup has loaded it: SAVE never sends a list it didn't show
+function devProjRender(list) {
+  devProj = Array.isArray(list) ? list : [];
+  const box = $("#dev-list"); if (!box) return;
+  const cmdHtml = (c, i, j, who) => `<div class="devcmd" role="group" aria-label="Command ${j + 1} of ${esc(who)}">` +
+    `<label title="A short name the AI app uses to pick this command, like tests or check.">Command name <input data-devf="cname" maxlength="32" value="${esc(c.name || "")}" placeholder="e.g. tests"></label>` +
+    `<label title="One program with its arguments, exactly as it runs in the project's folder. Nothing can be added to it.">Command <input data-devf="run" maxlength="500" value="${esc(c.run || "")}" placeholder="e.g. python -m pytest -q"></label>` +
+    `<label title="The time limit for one run: 15 minutes when blank, 240 at most.">Minutes <input data-devf="minutes" type="number" min="1" max="240" step="1" value="${c.minutes == null ? "" : esc(c.minutes)}" placeholder="15"></label>` +
+    `<div class="row"><button type="button" data-devcmddel="${i}.${j}" aria-label="Remove command ${j + 1} of ${esc(who)}" title="Take this command off the list. Asks first.">[ REMOVE COMMAND ]</button></div></div>`;
+  box.innerHTML = devProj.length ? devProj.map((p, i) => {
+    const who = p.name || `project ${i + 1}`, cmds = Array.isArray(p.commands) ? p.commands : [];
+    return `<div role="listitem" class="devproj">` +
+      `<label title="A short name the AI app uses to pick this project: small letters, digits, - and _.">Project name <input data-devf="name" maxlength="32" value="${esc(p.name || "")}" placeholder="e.g. my-app"></label>` +
+      `<label title="The project's folder on this PC. Its commands run in this folder.">Folder <input data-devf="folder" maxlength="400" value="${esc(p.folder || "")}" data-pick="folder" data-pick-title="Choose the project's folder"></label>` +
+      `<label for="dev-pull-${i}" title="Off: connected AI apps can only look at this project's git state. On: an app can also bring in a bundle file you saved in the project folder or in Joe's Inbox. That changes the project's files, and a command you listed then runs whatever those files say.">` +
+      `A connected AI app may bring a git bundle into this project (fast-forward only) <input type="checkbox" id="dev-pull-${i}" data-devf="pull"${p.pull === true ? " checked" : ""} aria-label="${esc(who)}: a connected AI app may bring a git bundle into this project (fast-forward only)"></label>` +
+      cmds.map((c, j) => cmdHtml(c, i, j, who)).join("") +
+      (cmds.length ? "" : `<div class="dim small">No commands yet.</div>`) +
+      `<div class="row"><button type="button" data-devadd="${i}" aria-label="Add a command to ${esc(who)}">[ ADD A COMMAND ]</button>` +
+      `<button type="button" data-devdel="${i}" aria-label="Remove project ${esc(who)}" title="Take this project and its commands off the list. Asks first.">[ REMOVE PROJECT ]</button></div></div>`;
+  }).join("") : `<div class="dim small">No projects yet.</div>`;
+  addPickButtons();
+}
+function devProjRead() {       // the list as it is on screen now (Joe cleans it when it is saved)
+  return [...document.querySelectorAll("#dev-list .devproj")].map((p) => ({
+    name: p.querySelector('[data-devf="name"]').value.trim(),
+    folder: p.querySelector('[data-devf="folder"]').value.trim(),
+    pull: p.querySelector('[data-devf="pull"]').checked === true,
+    commands: [...p.querySelectorAll(".devcmd")].map((c) => {
+      const m = c.querySelector('[data-devf="minutes"]').value.trim();
+      return { name: c.querySelector('[data-devf="cname"]').value.trim(), run: c.querySelector('[data-devf="run"]').value.trim(), minutes: m === "" ? "" : Number(m) };
+    }),
+  }));
+}
+async function devProjSaved(sent) {     // after SAVE: draw the list as Joe keeps it, and say so when he tidied it
+  if (!sent) return;
+  const s = await api("/api/settings").catch(() => null); if (!s) return;
+  devProjRender(s.dev_projects);
+  const sig = (l) => JSON.stringify(l.map((p) => [p.name, p.folder, (p.commands || []).map((c) => [c.name, c.run])]));
+  $("#dev-msg").textContent = sig(sent) === sig(devProj) ? "" :
+    "Saved as Joe keeps it: names in small letters, and rows with no name, folder or command left out.";
+}
+function devProjChanged(msg, focus) {
+  $("#set-dirty").hidden = false;
+  $("#dev-msg").textContent = msg;
+  if (focus) focus.focus();
+}
+if ($("#dev-box")) {
+  $("#dev-list").addEventListener("input", () => { $("#set-dirty").hidden = false; });
+  $("#dev-list").addEventListener("change", () => { $("#set-dirty").hidden = false; });      // the bundle tick box
+  $("#dev-box").addEventListener("click", (ev) => {
+    const b = ev.target.closest("button"); if (!b) return;
+    if (b.dataset.devadd === "project") {
+      devProjRender([...devProjRead(), { name: "", folder: "", pull: false, commands: [] }]);
+      const rows = document.querySelectorAll("#dev-list .devproj");
+      devProjChanged("Project added. Fill in its name and folder, then press SAVE.", rows[rows.length - 1].querySelector('[data-devf="name"]'));
+    } else if (b.dataset.devadd != null) {
+      const i = +b.dataset.devadd, list = devProjRead();
+      list[i].commands.push({ name: "", run: "", minutes: "" });
+      devProjRender(list);
+      const cmds = document.querySelectorAll("#dev-list .devproj")[i].querySelectorAll(".devcmd");
+      devProjChanged("Command added. Fill it in, then press SAVE.", cmds[cmds.length - 1].querySelector('[data-devf="cname"]'));
+    } else if (b.dataset.devcmddel) {
+      const [i, j] = b.dataset.devcmddel.split(".").map(Number), list = devProjRead(), c = list[i].commands[j];
+      confirmBox(`Remove the command "${c.name || "with no name"}" from this list?\n\n` +
+        "Once you press SAVE, connected AI apps can't run it any more.\n\nAre you sure?", () => {
+          list[i].commands.splice(j, 1);
+          devProjRender(list);
+          devProjChanged("Command removed. Press SAVE to keep the change.", document.querySelector(`#dev-list [data-devadd="${i}"]`));
+        });
+    } else if (b.dataset.devdel != null) {
+      const i = +b.dataset.devdel, list = devProjRead(), p = list[i], n = p.commands.length;
+      confirmBox(`Remove the project "${p.name || "with no name"}" and its ${n} command${n === 1 ? "" : "s"} from this list?\n\n` +
+        "Once you press SAVE, connected AI apps can't run them any more. The folder and its files are not touched.\n\nAre you sure?", () => {
+          list.splice(i, 1);
+          devProjRender(list);
+          devProjChanged("Project removed. Press SAVE to keep the change.", document.querySelector('#dev-box [data-devadd="project"]'));
+        });
+    }
+  });
+}
 // --- Setup > Add-ons -----------------------------------------------------------------------------
 let addonList = [];
 async function loadAddons() {
@@ -1830,7 +1918,7 @@ document.addEventListener("click", async (ev) => {
       catch (e) { $("#mcp-msg").textContent = "Select the lines and copy them by hand."; }
     }
     if (act === "quality-offer") await takeQualityOffer();
-    if (b.dataset.gotoPage) setupPage(b.dataset.gotoPage);
+    if (b.dataset.gotoPage) { if (current === "setup") setupPage(b.dataset.gotoPage); else show("setup", b.dataset.gotoPage); }
     if (act === "wf-save") await wfSave(b);
     if (act === "wf-reset") wfReset(b);
     if (act === "wf-edit") wfEdit(b);
@@ -4030,6 +4118,10 @@ function toolFavHtml() {
     ? `<div class="tchips" role="group" aria-labelledby="tfav-h">` + ts.map((t) => `<button type="button" class="tchip" data-tool="${t.id}" title="${esc(t.blurb)}">${esc(t.name)}</button>`).join("") + `</div>`
     : `<p class="dim small">Click the star on a tool to keep it here.</p>`) + `</div>`;
 }
+// Dev tools are for AI apps connected to Joe (the connector), not buttons here: this box says what they are and where they're turned on.
+const toolDevHtml = () => `<div class="tgroup tdev"><h3 class="tgname">Dev tools</h3>` +
+  `<p class="dim small">These are for AI apps connected to Joe, not buttons you press. Always on: count tokens. With Dev tools turned on in Setup: run a command you listed, a project's git status, and this PC's status.</p>` +
+  `<div class="row"><button type="button" data-goto-page="otherai" title="Turn Dev tools on or off and list your projects and commands.">[ OPEN SETUP: OTHER AI APPS ]</button></div></div>`;
 function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting for a pick)
   const cats = TOOL_CATS.map((c) => ({ name: c[0], label: c[1], parent: c[2], tools: [] }));
   const more = { name: "More tools", label: "More tools", parent: "", tools: [] };
@@ -4071,7 +4163,7 @@ function renderToolGrid(lit) {     // lit: tool ids to highlight (files waiting 
       `<div class="tcards">` + fit.map((t) => toolCardHtml(t, lit)).join("") + `</div>` +
       `<div class="row"><button type="button" data-act="tool-fit-clear">[ NOT THESE: SHOW ALL TOOLS ]</button></div></div>` + html;
   }
-  if (!words.length && !(lit && lit.length)) html = toolFavHtml() + toolRecentHtml() + html;
+  if (!words.length && !(lit && lit.length)) html = toolFavHtml() + toolRecentHtml() + html + toolDevHtml();
   const found = cats.reduce((a, c) => a + c.tools.length, 0), msg = $("#tool-find-msg");
   if (words.length && !found) html = `<p class="dim">No tool matches "${esc(q)}". Try one word, like "photo" or "pdf".</p>`;
   if (msg) msg.textContent = words.length ? (found ? `${found} tool${found === 1 ? "" : "s"} found` : "No tools found") : "";

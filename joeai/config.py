@@ -219,6 +219,8 @@ class Settings:
     mcp_key: str = ""                # password for Joe's local connector address (made on first use)
     mcp_apps: list = field(default_factory=list)   # AI apps the person connected Joe to (System check watches them)
     mcp_folders: bool = False        # connected apps may read Inbox, Projects, Missions, Workflows, Themes (Output always)
+    dev_tools: bool = False          # Setup > Other AI apps > Dev tools: connected apps may use the projects below, and see this PC's status
+    dev_projects: list = field(default_factory=list)   # [{name, folder, commands: [{name, run, minutes}]}], typed by the person (devprojects.py)
     pandoc: str = ""                 # blank = auto-detect
 
     @property
@@ -256,7 +258,8 @@ class Settings:
         clean_favorites(s)
         clean_web(s)
         clean_voice(s)
-        from . import portable
+        from . import devprojects, portable
+        devprojects.clean_settings(s)
         portable.adjust_settings(s)
         return s
 
@@ -326,7 +329,8 @@ def _merge(obj, data: dict) -> None:
 
 
 # Setup > Reset: these stay as they are (where your files live, keys you typed, first-start state, starred tools).
-KEEP_ON_RESET = ("workspace", "web.ollama_key", "web.langsearch_key", "web.custom_key", "ui.welcomed", "mcp_key", "workflows", "templates", "ui.favorite_tools")
+KEEP_ON_RESET = ("workspace", "web.ollama_key", "web.langsearch_key", "web.custom_key", "ui.welcomed", "mcp_key", "workflows", "templates", "ui.favorite_tools",
+                 "dev_projects")      # the list is the person's own typing; Reset turns Dev tools off (dev_tools) and keeps the list
 
 
 def reset_paths(s: "Settings", paths: list[str] | None = None) -> list[str]:

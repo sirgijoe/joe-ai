@@ -86,6 +86,65 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
         call). Caps: 200 files, 5,000,000 characters, 5,000 lines a call. To check: can the counts
         of chosen pieces leak a closed file's content (no: a closed path raises before any count),
         and can a huge `texts` list tie up the model (bounded by the character cap).
+      - REVIEWED ONCE 2026-11-27 by a fresh agent that hadn't seen it built (findings and what was done about
+        each are at the end of this item); the fixes themselves are new code and want a second look, and the
+        Windows behaviour is reasoned, not tested. **Dev tools**
+        (`Settings.dev_tools`, off by default; `Settings.dev_projects`; `devprojects.py`,
+        `repostatus.py`, `pcstatus.py`; connector tools `joe_run_command`, `joe_repo`, `joe_computer`,
+        hidden from `tools/list` while off and answering `devprojects.OFF` if called anyway). This is the
+        first connector path that runs a program outside Joe's own tools and reads folders outside his
+        workspace, so it wants the hardest look.
+        - Who can change the switch or the list: only `/api/settings` with the window token
+          (`test_only_the_window_can_turn_it_on_or_change_the_list`); no connector tool takes either;
+          a connector an app started re-reads the settings file on every call (`Joe._dev`). Setup >
+          Reset turns the switch off and keeps the list.
+        - `joe_run_command`: reads two strings (project, command) and nothing else from the app; both
+          must equal a listed name after trimming and lower-casing (`devprojects.said`, so "../tests"
+          and "tests --x" match nothing). The command line is the person's own text, started with
+          `subprocess.Popen` and no shell (Windows: the string as typed to CreateProcess; elsewhere
+          `shlex.split`), `cwd` the listed folder (must be a full path to a real folder), stdin closed,
+          one at a time (`Output/dev/_running.txt`), ended with its whole process tree at the person's
+          time limit or at 20 MB of output. To check: a `.bat`/`.cmd` target on Windows goes through
+          cmd.exe by Windows' own rule; `shell_words` only warns about `| > &&`, it doesn't block.
+        - `joe_repo`: the folder is a listed project's; the bundle must resolve inside that folder or
+          Joe's Inbox (`Joe._bundle_path`, realpath check, so a link out is refused); `pull` acts only
+          on a real JSON true. `repostatus._git`: argv only, hooks/fsmonitor/pager/credential helper/
+          local filters switched off per call, `GIT_ALLOW_PROTOCOL=file`, read-only calls take no
+          locks; pull is `fetch` from the bundle file then `merge --ff-only <checked commit>`, refused on
+          uncommitted changes. Known gaps (from the build): `hook.<name>.command` config hooks in very
+          new git and `core.alternateRefsCommand` are not overridden; global/system filters (Git LFS)
+          still run by design.
+        - `joe_computer`: program names and numbers only (no command lines, window titles, paths or
+          user names; `tasklist` without `/V`, `ps` with `comm` only, `/proc/<pid>/stat` only); nothing
+          is ended or changed. Shows which programs are open to the connected app: said plainly in Setup.
+        - The 2026-11-27 review's findings (each proved with a script unless marked) and the answer:
+          1. HIGH: a restored backup switched Dev tools on with its own commands. Fixed: `dev_tools`,
+             `dev_projects` and `mcp_folders` are in `backup.NEVER_RESTORED`, left out of `backup.make`,
+             and blanked in `portable.portable_settings`.
+          2. HIGH: `joe_repo pull=true` then `joe_run_command` runs whatever the bundle brought in.
+             Answer: pulling needs a per-project tick (`pull`, off by default, window only), every pull is
+             written to `Output/dev/_runs.txt`, and Setup says plainly what a pull means. With the tick
+             on this is still true and is the feature: only tick it where bundles are trusted.
+          3. MEDIUM: a filter set through `include.path` wasn't switched off, so `joe_repo` alone could
+             run a program after a pull. Fixed: `git config --includes` in `repostatus._local_filters`.
+          4. MEDIUM: a run outlived the connector with no limit or output cap. Fixed: a separate minder
+             program (`devrun.py`) holds both; the "running" note is in the settings folder
+             (`devprojects.state_dir`), made in one step, and stops counting when the minder is gone.
+          5. MEDIUM: an old uncollected result was handed over as fresh. Fixed: the command line is part
+             of the job's key, a result older than 10 minutes is dropped, a late one says how late.
+          6. MEDIUM (partly proved): a project folder overlapping Joe's workspace. Fixed: refused for
+             commands and pulls (`devprojects.overlaps`).
+          7. LOW: commands were tidied and cut at 500 characters. Fixed: kept as typed; too long or
+             two lines is left out, never cut. The 20 MB cap is now exact (the minder copies the output).
+             A bundle argument must end in `.bundle` (it was a does-this-file-exist probe).
+             `shrink.is_local` took any host starting "127."; now a real loopback address only.
+          Left open, on purpose or for later: a refused pull has already stored the bundle's objects
+          (`fetch.fsckObjects` didn't apply to bundle fetches on git 2.43; checkout protection held);
+          `taskkill /T` misses a grandchild whose parent already exited (a Windows Job Object would fix
+          it); global or system git filters other than LFS still run on pulled files; `http.py` uses the
+          system proxy settings even for local addresses; an add-on runs as an ordinary program and
+          could write the settings file itself; Joe's daily restart doesn't wait for a dev run (the
+          minder carries on and finishes it).
 - [ ] `connect.py` edits other apps' config files (Claude Desktop and others): it keeps a copy
       of the old file and only touches Joe's own entry. Check the JSON merge and the backup.
 

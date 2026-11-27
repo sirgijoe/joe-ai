@@ -17,6 +17,7 @@ Standard library only; no network.
 from __future__ import annotations
 
 import json
+import re
 import sys
 import time
 from datetime import datetime
@@ -177,7 +178,39 @@ TOOLS = [
                                                     "qwen3:14b. Empty = Joe's writing model"},
          "per_line": {"type": "boolean", "description": "one file, one example per line"},
          "limit": {"type": "integer", "description": "with per_line: list the lines over this many tokens"}}}},
+    {"name": "joe_run_command",
+     "description": "Dev tools (listed only while the person has them on in Setup). Run one command the person "
+                    "put on their own list for a project folder on this PC (a test suite, a check, an eval), "
+                    "picked by project name and command name. It runs exactly as they typed it: nothing can be "
+                    "added. Answers with how it ended, how long it took, the totals and the failing lines; the "
+                    "whole output is saved in Output/dev (joe_shrink reads it). A run over 90 seconds answers "
+                    "STILL RUNNING: ask again with the same names to wait for it (never started twice). With no "
+                    "names it lists the projects and commands.",
+     "inputSchema": {"type": "object", "properties": {
+         "project": {"type": "string"}, "command": {"type": "string"}}}},
+    {"name": "joe_computer",
+     "description": "Dev tools (listed only while the person has them on in Setup). This computer right now, so "
+                    "nobody has to send a screenshot of Task Manager: processor load, memory, graphics card "
+                    "(memory, temperature, load), free disk space, which of Ollama / ComfyUI / Unsloth Studio "
+                    "are running and which models are loaded, and the running programs largest first (names "
+                    "and numbers only; read-only, it never ends or changes a program). joe_status has Joe's "
+                    "own queue.",
+     "inputSchema": {"type": "object", "properties": {
+         "processes": {"type": "integer", "description": "rows of running programs, 1-100 (25 when left out)"}}}},
+    {"name": "joe_repo",
+     "description": "Dev tools (listed only while the person has them on in Setup). The git state of one of the "
+                    "person's listed project folders: branch, last commit, uncommitted files, ahead/behind as of "
+                    "the last fetch, and whether it matches a git bundle. Read-only unless pull is true. "
+                    "pull=true brings the bundle in by fast-forward only (refused if there are uncommitted "
+                    "changes, if it isn't a fast-forward, or if the person hasn't ticked 'may bring in bundles' "
+                    "for that project in Setup): use it ONLY when the person asked for the pull in this request. Never pushes, never reaches the network. bundle is a file inside the "
+                    "project folder (e.g. sync/work.bundle) or in Joe's Inbox (Inbox/work.bundle).",
+     "inputSchema": {"type": "object", "properties": {
+         "project": {"type": "string"}, "bundle": {"type": "string"},
+         "pull": {"type": "boolean"}, "branch": {"type": "string", "description": "with pull: the branch (empty = the current one)"}},
+         "required": ["project"]}},
 ]
+DEV_TOOLS = ("joe_run_command", "joe_computer", "joe_repo")      # listed only while Setup > Other AI apps > Dev tools is on
 SHRINK_EXT = {".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".html", ".htm", ".xml", ".py",
               ".js", ".css", ".srt", ".vtt", ".log", ".out", ".err", ".yaml", ".yml", ".toml", ".ini"}
 TEXT_EXT = {".md", ".txt", ".csv", ".json", ".html", ".py", ".js", ".css", ".srt", ".vtt", ".log"}
@@ -217,6 +250,82 @@ class Joe:
         except (OSError, ValueError):
             return False
         return isinstance(data, dict) and data.get("mcp_folders") is True
+
+    def _dev(self):
+        """The Dev tools switch and project list as they are now. Like _folders_open: a connector an AI app
+        started looks at the settings file again on every call, and a file that can't be read means off."""
+        from types import SimpleNamespace
+        if not self._read_once:
+            return self.s
+        from .config import config_path
+        try:
+            data = json.loads(config_path().read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            data = {}
+        data = data if isinstance(data, dict) else {}
+        return SimpleNamespace(dev_tools=data.get("dev_tools") is True, dev_projects=data.get("dev_projects") or [])
+
+    def _bundle_path(self, folder: Path, rel: str) -> Path:
+        """A bundle file inside the project's folder, or in Joe's Inbox ("Inbox/x.bundle"). Never a full path,
+        never '..', and never a link that leads out of either place."""
+        import os
+        from .sandbox import SandboxError
+        raw = (rel or "").strip().replace("\\", "/")
+        if not raw.lower().endswith(".bundle"):               # nothing else is ever opened: not a way to probe other files
+            raise SandboxError("A bundle file's name ends in .bundle.")
+        if raw.lower().startswith("inbox/"):
+            p = self.sb.resolve_input(raw)                    # Joe's own checks: inside the Inbox, not private
+        else:
+            if not raw or raw.startswith("/") or re.match(r"^[A-Za-z]:", raw) or ".." in raw.split("/") or ":" in raw:
+                raise SandboxError("The bundle must be a file inside the project folder or in Joe's Inbox (Inbox/name.bundle).")
+            p = folder.joinpath(*[x for x in raw.split("/") if x not in ("", ".")])
+            real, top = Path(os.path.realpath(p)), Path(os.path.realpath(folder))
+            if top != real and top not in real.parents:
+                raise SandboxError("That bundle leads outside the project folder.")
+        if not p.is_file():
+            raise SandboxError(f"No such bundle file: {rel}")
+        return p
+
+    def repo(self, project: str, bundle: str = "", pull=False, branch: str = "") -> str:
+        from . import devprojects as dp, repostatus
+        dev = self._dev()
+        if not dp.is_on(dev):
+            return dp.OFF
+        p = dp.find(dev, project)
+        if p is None:
+            return f"No project called '{dp.said(project)[:40]}' on the list.\n" + dp.listing(dev)
+        folder = dp.folder_of(p)
+        if folder is None:
+            return f"The folder for {p['name']} isn't there: {p['folder']}. The person can fix it in Setup > Other AI apps > Dev tools."
+        if pull is True:                                      # only a real true: "yes", 1 and "true" don't pull
+            if not p["pull"]:                                 # ...and only where the person ticked it for this project
+                return (f"Bringing a bundle into {p['name']} isn't allowed. The person can allow it in Joe: Setup > "
+                        "Other AI apps > Dev tools, the tick box under that project. Without pull, joe_repo still "
+                        "says how the folder compares with the bundle.")
+            if dp.overlaps(folder, self.sb.root):
+                return f"{p['name']} is Joe's own folder, or holds it, or is inside it: bundles aren't pulled in there."
+            if not (bundle or "").strip():
+                return "To pull, name the bundle file (inside the project folder, or Inbox/name.bundle)."
+        b = self._bundle_path(folder, bundle) if (bundle or "").strip() else None
+        if pull is True:
+            out = repostatus.pull_bundle(folder, b, str(branch or ""))
+            dp.note_run(self.sb.output / "dev" / "_runs.txt", f"{datetime.now():%Y-%m-%d %H:%M:%S}",
+                        f"{p['name']} / bundle pull ({bundle.strip()[:120]})", out.splitlines()[0][:200] if out else "no answer")
+            return out
+        return repostatus.status(folder, b)
+
+    def computer(self, processes=25) -> str:
+        from . import devprojects as dp, pcstatus
+        if not dp.is_on(self._dev()):
+            return dp.OFF
+        return pcstatus.report(self.s, processes)
+
+    def run_command(self, project: str = "", command: str = "") -> str:
+        from . import devprojects as dp
+        dev = self._dev()
+        if not (project or "").strip() and not (command or "").strip():
+            return dp.listing(dev)
+        return dp.run(dev, self.sb, project, command, dp.WAIT_S)
 
     # -- tools --------------------------------------------------------------
     def status(self) -> str:
@@ -660,6 +769,13 @@ class Joe:
         if name == "joe_count_tokens":
             return self.count_tokens(args.get("paths"), args.get("texts"), str(args.get("model") or ""),
                                      bool(args.get("per_line")), args.get("limit"))
+        if name == "joe_repo":
+            return self.repo(str(args.get("project") or ""), str(args.get("bundle") or ""), args.get("pull"),
+                             str(args.get("branch") or ""))
+        if name == "joe_computer":
+            return self.computer(args.get("processes") or 25)
+        if name == "joe_run_command":            # the two names only: anything else an app sends is never read
+            return self.run_command(str(args.get("project") or ""), str(args.get("command") or ""))
         if name == "joe_make_pictures":
             return self.make_pictures(str(args.get("description", "")), args.get("count") or 4,
                                       str(args.get("style", "")), str(args.get("folder", "")))
@@ -751,8 +867,13 @@ def _handle(joe: Joe | None, msg: dict) -> dict | None:
             have_agents = bool(agents.load())
         except Exception:                                # noqa: BLE001
             have_agents = False
+        try:                                             # Dev tools: listed only while the person has them on
+            dev_on = (joe or Joe())._dev().dev_tools is True
+        except Exception:                                # noqa: BLE001
+            dev_on = False
         return ok({"tools": [t for t in TOOLS if (share or t["name"] != "joe_memory")
-                             and (have_agents or t["name"] != "joe_start_agent")]})
+                             and (have_agents or t["name"] != "joe_start_agent")
+                             and (dev_on or t["name"] not in DEV_TOOLS)]})
     if method == "tools/call":
         p = msg.get("params") or {}
         try:

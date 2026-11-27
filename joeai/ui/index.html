@@ -870,6 +870,30 @@ FORMAT: ...
                 <div id="mcp-http" class="dim small" hidden></div>
                 <label title="Off: connected AI apps can read only what Joe made (his Output folder). On: they can also read short versions of text files in your Inbox, Projects, Missions, Workflows and Themes folders.">Apps connected to Joe may read my Inbox and other folders <input type="checkbox" data-path="mcp_folders"></label>
               </fieldset>
+              <fieldset id="dev-box"><legend>DEV TOOLS</legend>
+                <label title="Off: connected AI apps can't run anything on this PC or see its status. On: they can run only the commands you list below, picked by name, and see this PC's status. Leave it off if you don't write software with an AI app.">Dev tools: connected AI apps may run the commands I list below and see this PC's status <input type="checkbox" data-path="dev_tools"></label>
+                <div class="dim small">This is for people who write software with an AI app. Leave it off if that isn't you.</div>
+                <div class="dim small">When it's on, an AI app connected to Joe can:
+                  <ul>
+                    <li>Run a command you listed here, picked by its name, exactly as you typed it and in that project's folder. It can't add anything to it, type its own command, or change this list.</li>
+                    <li>See the state of a listed project's git folder (branch, changed files). It can bring in a git bundle, by fast-forward only, only for a project where you ticked the box for that below. It never pushes.</li>
+                    <li>See this computer's status: processor, memory, graphics card, disk space, and the names of running programs with how much each uses. Names and numbers only: no window titles, no file paths, no command lines.</li>
+                  </ul></div>
+                <div class="dim small">What could go wrong:
+                  <ul>
+                    <li>A command does whatever its program does: a test suite that deletes files will delete them. List only commands you would be happy to run yourself at any moment.</li>
+                    <li>An AI app can run a listed command as often as it likes.</li>
+                    <li>The names of the programs you have open are shown to that app.</li>
+                    <li>Bringing in a bundle changes the project's files. A command you listed then runs whatever is in the folder, so only bring in bundles you trust, and only tick that box for projects where you want it.</li>
+                    <li>The app is shown the folders and the commands on this list as you typed them, and each command's output. Don't put a password or key in a command.</li>
+                  </ul></div>
+                <div class="dim small">Each command is one program with its arguments. Signs like <code>|</code> <code>&gt;</code> <code>&amp;&amp;</code> don't work here: put those in a script and list the script. A project folder can't be Joe's own folder or inside it.</div>
+                <div class="dim small">Every run is written down in Output/dev/_runs.txt, and its whole output is kept in Output/dev.</div>
+                <div class="dim small">Your projects and their commands. Names may use small letters, digits, - and _ (Joe changes them to fit when you save). Minutes is the time limit for one run: 15 when blank, 240 at most. Press SAVE to keep changes.</div>
+                <div id="dev-list" role="list"></div>
+                <div class="row"><button type="button" data-devadd="project" title="Add an empty project to the list. Nothing counts until you press SAVE.">[ ADD A PROJECT ]</button>
+                  <span id="dev-msg" class="dim small" aria-live="polite"></span></div>
+              </fieldset>
             </div>
 
             <!-- THIS PC AND BACKUP -->
