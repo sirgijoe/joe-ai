@@ -429,6 +429,17 @@ What a connected app can read, so there are no surprises:
   file at a time.
 - **A short version of a long text file** Joe made, in Output. Joe trims it first (at most
   20,000 characters at a time), or sums it up with your own writing model on this PC.
+- **How many tokens a text is** for one of your own models (`joe_count_tokens`). A connected app
+  has no way to count tokens for a local model, so Joe asks the model's own tokenizer on this PC
+  and hands back only the numbers: tokens and characters for each file or piece of text, a total,
+  and for two things the difference (handy for "did this trim make it shorter?"). The model writes
+  nothing and nothing leaves the PC. It counts any text file in Output (and in the other folders
+  once you tick the box below), or one example per line for training files. The first line of the
+  answer says how it was counted: **exact** (llama.cpp, LocalAI and others with a tokenizer call,
+  and an Ollama new enough to have one), **counted by the model reading it** (other Ollama
+  versions; long files go in pieces and can be off by a token or two per piece), or
+  **ESTIMATE ONLY** (LM Studio and other programs with no tokenizer call: about 3.5 characters a
+  token, and it says so).
 - **Your Inbox, Projects, Missions, Workflows and Themes folders stay closed** until you tick
   "Apps connected to Joe may read my Inbox and other folders" in Setup > Other AI apps (it's off
   when Joe comes). Ticked, the app can read short versions of the text files there too, the same

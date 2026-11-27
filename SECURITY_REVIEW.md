@@ -74,6 +74,18 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
         20,000 characters a call whatever `max_chars` says (`MAX_SHRINK`). `joe_summarize` sends
         the shrunk text only to Joe's model server when it is on this PC (`shrink.is_local`), and
         returns the answer with the line numbers it came from.
+      - NOT YET REVIEWED (added 2026-11-27, wants a fresh-chat review before release):
+        `joe_count_tokens` (`Joe.count_tokens`, `tokens.py`). Same reach as `joe_shrink`
+        (`_allowed_path`: Output only while `mcp_folders` is off, checked on the resolved path before
+        the model is asked anything; never a dot folder), with two differences: any file that isn't
+        binary counts (no `SHRINK_EXT` list, so `.hua`, `.rs` and the like work), and a folder path
+        counts every file under it (each one checked again with `Sandbox.check` and
+        `check_not_private`, so a link leading outside is skipped). Only numbers and the file names
+        asked for come back, never file text. The text goes only to the writing program when it is
+        on this PC (`shrink.is_local`), with nothing written (`num_predict` 0, or a tokenizer
+        call). Caps: 200 files, 5,000,000 characters, 5,000 lines a call. To check: can the counts
+        of chosen pieces leak a closed file's content (no: a closed path raises before any count),
+        and can a huge `texts` list tie up the model (bounded by the character cap).
 - [ ] `connect.py` edits other apps' config files (Claude Desktop and others): it keeps a copy
       of the old file and only touches Joe's own entry. Check the JSON merge and the backup.
 

@@ -27,6 +27,9 @@ from . import __version__
 PROTOCOL = "2025-06-18"
 MAX_READ = 200_000                       # characters returned from one file
 MAX_SHRINK = 20_000                      # most characters joe_shrink sends back in one call
+MAX_COUNT_FILES = 200                    # most files joe_count_tokens counts in one call
+MAX_COUNT_CHARS = 5_000_000              # most characters it counts in one call
+MAX_COUNT_LINES = 5000                   # most lines with per_line
 FOLDERS_CLOSED = ('That folder is closed to connected apps. The person can open it in Joe: '
                   'Setup > Other AI apps > "Apps connected to Joe may read my Inbox and other folders".')
 
@@ -46,7 +49,9 @@ How to work with Joe:
    joe_make_pictures; for tools on the person's files, joe_list_inbox + joe_run_tool.
 3. Check in with joe_status and joe_report. When it's done, read the results with
    joe_list_files, joe_read_file and joe_show_picture. For big files, joe_shrink first
-   (joe_summarize if it's still too long). These read what Joe made (his Output folder); his
+   (joe_summarize if it's still too long). To see how many tokens a text is for the local model
+   (is this trim shorter? will this example fit?), joe_count_tokens: you have no tokenizer, Joe
+   asks the model's own. These read what Joe made (his Output folder); his
    Inbox and other folders only if the person has allowed it in Setup.
 4. Polish: fix facts, tighten wording, pick the best pictures, and fill in anything marked
    [CHECK] with the person. Tell them what Joe made and what you changed.
@@ -152,6 +157,26 @@ TOOLS = [
      "inputSchema": {"type": "object", "properties": {
          "path": {"type": "string"}, "question": {"type": "string"},
          "max_words": {"type": "integer"}}, "required": ["path"]}},
+    {"name": "joe_count_tokens",
+     "description": "Real token counts from a local model's own tokenizer on the person's PC (you have no "
+                    "tokenizer; this is how you see token use). Nothing is written by the model and nothing "
+                    "leaves the PC; only numbers come back. Give files in Joe's folders (any text file; a "
+                    "folder counts every text file in it; Output always, the other folders only when allowed "
+                    "in Setup) and/or pieces of text. Answers with a small table: tokens and characters each, "
+                    "a total, and with exactly two things the difference (did a trim help or hurt?). The first "
+                    "line says whether the numbers are exact, counted by the model reading the text, or only "
+                    "an ESTIMATE (a writing program with no tokenizer call). per_line=true treats one file as "
+                    "one example per line (JSONL training data) and gives shortest/middle/longest and the "
+                    "lines over `limit`.",
+     "inputSchema": {"type": "object", "properties": {
+         "paths": {"type": "array", "items": {"type": "string"},
+                   "description": "files or folders, e.g. [\"Projects/hooah/before.md\", \"Projects/hooah/after.md\"]"},
+         "texts": {"type": "array", "items": {"type": "string"},
+                   "description": "text to count as given (shown as text 1, text 2...)"},
+         "model": {"type": "string", "description": "a model installed in the writing program, e.g. "
+                                                    "qwen3:14b. Empty = Joe's writing model"},
+         "per_line": {"type": "boolean", "description": "one file, one example per line"},
+         "limit": {"type": "integer", "description": "with per_line: list the lines over this many tokens"}}}},
 ]
 SHRINK_EXT = {".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".html", ".htm", ".xml", ".py",
               ".js", ".css", ".srt", ".vtt", ".log", ".out", ".err", ".yaml", ".yml", ".toml", ".ini"}
@@ -342,19 +367,23 @@ class Joe:
                 break
         return "\n".join(rows) or "(empty)"
 
-    def _shrink_source(self, rel: str) -> tuple[str, str]:
-        """(label, text) of a text file in Output, or in Joe's other folders when the person ticked
-        Setup > Other AI apps > "...may read my Inbox and other folders" (Settings.mcp_folders);
-        never a private one."""
+    def _allowed_path(self, rel: str) -> Path:
+        """A path in Output, or in Joe's other folders when the person ticked Setup > Other AI apps >
+        "...may read my Inbox and other folders" (Settings.mcp_folders); never a private one."""
         from .sandbox import SandboxError
-        from .shrink import MAX_FILE
-        rel = (rel or "").strip()
-        p = self.sb.resolve(rel, base="Output")
+        p = self.sb.resolve((rel or "").strip(), base="Output")
         self.sb.check_not_private(p)
         if not self._folders_open():
             out, real = self.sb.output.resolve(), p.resolve()     # a link in Output to the Inbox counts as the Inbox
             if real != out and out not in real.parents:
                 raise SandboxError(FOLDERS_CLOSED)
+        return p
+
+    def _shrink_source(self, rel: str) -> tuple[str, str]:
+        """(label, text) of a text file _allowed_path lets a connected app read."""
+        from .sandbox import SandboxError
+        from .shrink import MAX_FILE
+        p = self._allowed_path(rel)
         if not p.is_file():
             raise SandboxError("No such file in Joe's folders.")
         if p.suffix.lower() not in SHRINK_EXT:
@@ -385,6 +414,109 @@ class Joe:
         r = sh.summarize(text, label, chat, question, max_words)
         lines = ", ".join(r["lines"]) or "none"
         return f"{r['answer']}\n\nFrom: {lines}\n{sh.header(r['shrink'], label)}"
+
+    def _count_files(self, rel: str) -> list[Path]:
+        """The file, or every file under the folder (not Joe's private ones), that joe_count_tokens may read."""
+        from .sandbox import SandboxError
+        p = self._allowed_path(rel)
+        if p.is_file():
+            return [p]
+        if not p.is_dir():
+            raise SandboxError(f"No such file or folder in Joe's folders: {rel}")
+        found = []
+        for c in sorted(p.rglob("*"), key=lambda c: str(c).lower()):
+            if not c.is_file() or any(part.startswith(".") for part in c.relative_to(p).parts):
+                continue
+            try:
+                self.sb.check(c)                    # a link that leads outside Joe's folders is not followed
+                self.sb.check_not_private(c)
+                if not self._folders_open():
+                    out = self.sb.output.resolve()
+                    if out not in c.resolve().parents:
+                        continue
+            except SandboxError:
+                continue
+            found.append(c)
+        return found
+
+    @staticmethod
+    def _text_of(p: Path, room: int) -> str | None:
+        """The file's text (at most `room` characters); None for a file that isn't text."""
+        with open(p, "rb") as f:
+            if b"\x00" in f.read(8192):
+                return None
+        with open(p, encoding="utf-8", errors="replace", newline="") as f:
+            return f.read(room)
+
+    def count_tokens(self, paths=None, texts=None, model: str = "", per_line: bool = False, limit=0) -> str:
+        from . import tokens as tk
+        from .doctor import resolve_text_model
+        from .services import ServiceManager
+        from .shrink import is_local
+        from .textengines import engine_id, engine_url
+        paths = [str(p) for p in ([paths] if isinstance(paths, str) else paths or []) if str(p).strip()]
+        texts = [str(t) for t in ([texts] if isinstance(texts, str) else texts or []) if str(t)]
+        if not paths and not texts:
+            return "Nothing to count: give paths (files or folders in Joe's folders) and/or texts."
+        cfg = self.s.ollama
+        if not is_local(cfg.url if engine_id(cfg) == "ollama" else engine_url(cfg)):
+            return "Joe's model server isn't on this PC, so nothing was sent and nothing was counted."
+        files, skipped = [], []
+        for rel in paths:                           # every path is checked before the model is asked anything
+            files += self._count_files(rel)
+        if len(files) > MAX_COUNT_FILES:
+            skipped.append(f"{len(files) - MAX_COUNT_FILES} files past the first {MAX_COUNT_FILES} (ask again for those)")
+            files = files[:MAX_COUNT_FILES]
+        model = (model or "").strip()
+        if not model:
+            model = resolve_text_model(self.s, ServiceManager(self.s, log=lambda *_: None), lambda *_: None)
+        counter = tk.Counter(cfg, model, getattr(cfg, "num_ctx", 0) or 0)
+        room = MAX_COUNT_CHARS
+
+        def label(p: Path) -> str:
+            return str(p.relative_to(self.sb.root)).replace("\\", "/")
+
+        try:
+            if per_line:
+                if len(files) != 1 or texts:
+                    return "per_line counts one file at a time: give exactly one file path and no texts."
+                text = self._text_of(files[0], room)
+                if text is None:
+                    return f"{label(files[0])} isn't a text file."
+                rows = [(i, ln) for i, ln in enumerate(text.splitlines(), 1) if ln.strip()]
+                counts = [(i, counter.count(ln)) for i, ln in rows[:MAX_COUNT_LINES]]
+                try:
+                    limit = max(0, int(limit or 0))
+                except (TypeError, ValueError):
+                    limit = 0
+                return tk.lines_table(counter, label(files[0]), counts, limit, max(0, len(rows) - MAX_COUNT_LINES))
+            out = []
+            for p in files:
+                if room <= 0:
+                    skipped.append(f"{label(p)} (over {MAX_COUNT_CHARS:,} characters in one call; ask again for it)")
+                    continue
+                text = self._text_of(p, room + 1)
+                if text is None:
+                    skipped.append(f"{label(p)} (not a text file)")
+                    continue
+                if len(text) > room:
+                    skipped.append(f"{label(p)} (over {MAX_COUNT_CHARS:,} characters in one call; ask again for it)")
+                    room = 0
+                    continue
+                room -= len(text)
+                out.append((label(p), counter.count(text), len(text)))
+            for i, t in enumerate(texts, 1):
+                if len(t) > room:
+                    skipped.append(f"text {i} (over {MAX_COUNT_CHARS:,} characters in one call)")
+                    continue
+                room -= len(t)
+                out.append((f"text {i}", counter.count(t), len(t)))
+        except tk.HttpError as e:
+            return (f"Joe couldn't count: {counter.label} didn't answer for model {model or '(none set)'} ({e}). "
+                    "Is it running, and is that model installed? joe_status shows what's up.")
+        if not out:
+            return "Nothing counted.\n" + "\n".join(f"skipped: {s}" for s in skipped)
+        return tk.table(counter, out, skipped)
 
     def read_file(self, rel: str) -> str:
         p = self._inside_output(rel)
@@ -525,6 +657,9 @@ class Joe:
         if name == "joe_summarize":
             return self.summarize(str(args.get("path", "")), str(args.get("question", "")),
                                   int(args.get("max_words") or 200))
+        if name == "joe_count_tokens":
+            return self.count_tokens(args.get("paths"), args.get("texts"), str(args.get("model") or ""),
+                                     bool(args.get("per_line")), args.get("limit"))
         if name == "joe_make_pictures":
             return self.make_pictures(str(args.get("description", "")), args.get("count") or 4,
                                       str(args.get("style", "")), str(args.get("folder", "")))

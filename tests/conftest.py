@@ -16,6 +16,19 @@ def _search_sources_rested():
 
 
 @pytest.fixture(autouse=True)
+def _no_real_joe_starts(monkeypatch):
+    """No test starts a real Joe or opens his window. Found 2026-11-27: a full run that was going at
+    06:00 (the daily restart's time when Setup's box is blank) restarted every App a test had made, so
+    about ten real Joe windows opened on the PC running the tests. RESTART JOE and the daily restart
+    both go through app.restart; here it says "couldn't start", so nothing is started and the App a
+    test is using doesn't quit under it. A test of restarting passes its own do_restart or sets its own."""
+    from joeai import app
+    monkeypatch.setattr(app, "restart", lambda log=print: False)
+    monkeypatch.setenv("JOE_NO_WINDOW", "1")
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _no_real_graphics_card(request, monkeypatch):
     """Tests behave the same on every machine: the test PC's own graphics card (an Apple chip on
     the Mac runner, an NVIDIA card on a developer's PC) is never seen. Tests that need a card
