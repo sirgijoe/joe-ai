@@ -31,6 +31,10 @@ MAX_SHRINK = 20_000                      # most characters joe_shrink sends back
 MAX_COUNT_FILES = 200                    # most files joe_count_tokens counts in one call
 MAX_COUNT_CHARS = 5_000_000              # most characters it counts in one call
 MAX_COUNT_LINES = 5000                   # most lines with per_line
+COUNT_WAIT_S = 90                        # how long one joe_count_tokens question waits before answering STILL COUNTING
+COUNT_KEEP_S = 600                       # a finished count nobody asked about again is forgotten after this
+_counts: dict = {}                       # the question (its arguments) -> the count going or just finished
+_counts_lock = None                      # made on first use (threading is only needed here)
 FOLDERS_CLOSED = ('That folder is closed to connected apps. The person can open it in Joe: '
                   'Setup > Other AI apps > "Apps connected to Joe may read my Inbox and other folders".')
 
@@ -163,7 +167,9 @@ TOOLS = [
                     "tokenizer; this is how you see token use). Nothing is written by the model and nothing "
                     "leaves the PC; only numbers come back. Give files in Joe's folders (any text file; a "
                     "folder counts every text file in it; Output always, the other folders only when allowed "
-                    "in Setup) and/or pieces of text. Answers with a small table: tokens and characters each, "
+                    "in Setup), or files inside a dev project the person listed (project=its name), and/or "
+                    "pieces of text. A count that takes over 90 seconds answers STILL COUNTING: ask again with "
+                    "exactly the same arguments to get the result (never started twice). Answers with a small table: tokens and characters each, "
                     "a total, and with exactly two things the difference (did a trim help or hurt?). The first "
                     "line says whether the numbers are exact, counted by the model reading the text, or only "
                     "an ESTIMATE (a writing program with no tokenizer call). per_line=true treats one file as "
@@ -176,6 +182,9 @@ TOOLS = [
                    "description": "text to count as given (shown as text 1, text 2...)"},
          "model": {"type": "string", "description": "a model installed in the writing program, e.g. "
                                                     "qwen3:14b. Empty = Joe's writing model"},
+         "project": {"type": "string", "description": "a dev project the person listed (Dev tools on in Setup): "
+                                                      "paths are then inside that project's folder, e.g. "
+                                                      "project hooah, paths [\"docs/spec/fm.md\"]"},
          "per_line": {"type": "boolean", "description": "one file, one example per line"},
          "limit": {"type": "integer", "description": "with per_line: list the lines over this many tokens"}}}},
     {"name": "joe_run_command",
@@ -557,7 +566,75 @@ class Joe:
         with open(p, encoding="utf-8", errors="replace", newline="") as f:
             return f.read(room)
 
-    def count_tokens(self, paths=None, texts=None, model: str = "", per_line: bool = False, limit=0) -> str:
+    def _project_files(self, folder: Path, rel: str) -> list[Path]:
+        """A file, or every file under a folder, inside a listed dev project (never '..', a full path, a link
+        that leads out, or anything in a folder whose name starts with a dot, such as .git)."""
+        import os
+        from .sandbox import SandboxError
+        raw = (rel or "").strip().replace("\\", "/")
+        parts = [x for x in raw.split("/") if x not in ("", ".")]
+        if not parts or raw.startswith("/") or re.match(r"^[A-Za-z]:", raw) or ".." in parts or ":" in raw \
+                or any(x.startswith(".") for x in parts):
+            raise SandboxError("Give a path inside the project folder (no '..', no full path, no dot folders).")
+        top = Path(os.path.realpath(folder))
+
+        def inside(q: Path) -> bool:
+            real = Path(os.path.realpath(q))
+            return real == top or top in real.parents
+
+        p = folder.joinpath(*parts)
+        if not inside(p):
+            raise SandboxError("That path leads outside the project folder.")
+        if p.is_file():
+            return [p]
+        if not p.is_dir():
+            raise SandboxError(f"No such file or folder in the project: {rel}")
+        return [c for c in sorted(p.rglob("*"), key=lambda c: str(c).lower())
+                if c.is_file() and not any(x.startswith(".") for x in c.relative_to(p).parts) and inside(c)]
+
+    def count_tokens(self, paths=None, texts=None, model: str = "", per_line: bool = False, limit=0,
+                     project: str = "") -> str:
+        """The count, or STILL COUNTING when it takes longer than COUNT_WAIT_S (many lines, a model that has
+        to load first): the count carries on, and asking again with the same arguments waits for it and hands
+        the answer over once. It is never started twice. (The Hooah chat, 2026-11-27: 359 lines one at a
+        time and a second model both ran past the AI app's own two-minute limit and the answers were lost.)"""
+        import threading
+        global _counts_lock
+        if _counts_lock is None:
+            _counts_lock = threading.Lock()
+        key = json.dumps([self.s.workspace, paths, texts, model, bool(per_line), limit, project], sort_keys=True, default=str)
+        with _counts_lock:
+            for k, j in list(_counts.items()):
+                if j["done"].is_set() and time.monotonic() - j["finished"] > COUNT_KEEP_S:
+                    del _counts[k]
+            job = _counts.get(key)
+            if job is None:
+                job = _counts[key] = {"done": threading.Event(), "out": "", "error": None, "started": time.monotonic(),
+                                      "finished": 0.0, "progress": {"done": 0, "of": 0, "what": ""}}
+
+                def work():
+                    try:
+                        job["out"] = self._count_tokens_now(paths, texts, model, per_line, limit, project, job["progress"])
+                    except Exception as e:                # noqa: BLE001 (handed to whoever asks, as it would have been)
+                        job["error"] = e
+                    finally:
+                        job["finished"] = time.monotonic()
+                        job["done"].set()
+                threading.Thread(target=work, daemon=True).start()
+        if not job["done"].wait(COUNT_WAIT_S):
+            pr = job["progress"]
+            how_far = f", {pr['done']:,} of {pr['of']:,} {pr['what']} done" if pr["of"] else ""
+            return (f"[tokens | STILL COUNTING, {time.monotonic() - job['started']:.0f} s so far{how_far}]\n"
+                    "Ask again with exactly the same arguments to wait for it; it is not started twice.")
+        with _counts_lock:
+            _counts.pop(key, None)
+        if job["error"] is not None:
+            raise job["error"]
+        return job["out"]
+
+    def _count_tokens_now(self, paths=None, texts=None, model: str = "", per_line: bool = False, limit=0,
+                          project: str = "", progress: dict | None = None) -> str:
+        progress = progress if progress is not None else {"done": 0, "of": 0, "what": ""}
         from . import tokens as tk
         from .doctor import resolve_text_model
         from .services import ServiceManager
@@ -571,19 +648,40 @@ class Joe:
         if not is_local(cfg.url if engine_id(cfg) == "ollama" else engine_url(cfg)):
             return "Joe's model server isn't on this PC, so nothing was sent and nothing was counted."
         files, skipped = [], []
+        base, prefix = self.sb.root, ""
+        if (project or "").strip():                 # a listed dev project: paths are inside its folder (Dev tools on)
+            from . import devprojects as dp
+            dev = self._dev()
+            if not dp.is_on(dev):
+                return dp.OFF
+            proj = dp.find(dev, project)
+            if proj is None:
+                return f"No project called '{dp.said(project)[:40]}' on the list.\n" + dp.listing(dev)
+            base = dp.folder_of(proj)
+            if base is None:
+                return f"The folder for {proj['name']} isn't there: {proj['folder']}."
+            prefix = proj["name"] + ":"
         for rel in paths:                           # every path is checked before the model is asked anything
-            files += self._count_files(rel)
+            files += self._project_files(base, rel) if prefix else self._count_files(rel)
         if len(files) > MAX_COUNT_FILES:
             skipped.append(f"{len(files) - MAX_COUNT_FILES} files past the first {MAX_COUNT_FILES} (ask again for those)")
             files = files[:MAX_COUNT_FILES]
         model = (model or "").strip()
         if not model:
             model = resolve_text_model(self.s, ServiceManager(self.s, log=lambda *_: None), lambda *_: None)
+        if engine_id(cfg) == "ollama" and model:    # a model that isn't installed: say so, with what is (not a long wait)
+            try:
+                have = ServiceManager(self.s, log=lambda *_: None).ollama.list_models()
+            except Exception:                       # noqa: BLE001 (not running: the count itself says that plainly)
+                have = None
+            if have is not None and model not in have and f"{model}:latest" not in have:
+                return (f"The model '{model}' isn't installed in Ollama on this PC, so nothing was counted. "
+                        "Installed: " + (", ".join(have[:30]) or "none") + ".")
         counter = tk.Counter(cfg, model, getattr(cfg, "num_ctx", 0) or 0)
         room = MAX_COUNT_CHARS
 
         def label(p: Path) -> str:
-            return str(p.relative_to(self.sb.root)).replace("\\", "/")
+            return prefix + str(p.relative_to(base)).replace("\\", "/")
 
         try:
             if per_line:
@@ -593,13 +691,18 @@ class Joe:
                 if text is None:
                     return f"{label(files[0])} isn't a text file."
                 rows = [(i, ln) for i, ln in enumerate(text.splitlines(), 1) if ln.strip()]
-                counts = [(i, counter.count(ln)) for i, ln in rows[:MAX_COUNT_LINES]]
+                counts = []
+                progress.update(of=min(len(rows), MAX_COUNT_LINES), what="lines")
+                for i, ln in rows[:MAX_COUNT_LINES]:
+                    counts.append((i, counter.count(ln)))
+                    progress["done"] = len(counts)
                 try:
                     limit = max(0, int(limit or 0))
                 except (TypeError, ValueError):
                     limit = 0
                 return tk.lines_table(counter, label(files[0]), counts, limit, max(0, len(rows) - MAX_COUNT_LINES))
             out = []
+            progress.update(of=len(files) + len(texts), what="files")
             for p in files:
                 if room <= 0:
                     skipped.append(f"{label(p)} (over {MAX_COUNT_CHARS:,} characters in one call; ask again for it)")
@@ -614,6 +717,7 @@ class Joe:
                     continue
                 room -= len(text)
                 out.append((label(p), counter.count(text), len(text)))
+                progress["done"] = len(out)
             for i, t in enumerate(texts, 1):
                 if len(t) > room:
                     skipped.append(f"text {i} (over {MAX_COUNT_CHARS:,} characters in one call)")
@@ -768,7 +872,7 @@ class Joe:
                                   int(args.get("max_words") or 200))
         if name == "joe_count_tokens":
             return self.count_tokens(args.get("paths"), args.get("texts"), str(args.get("model") or ""),
-                                     bool(args.get("per_line")), args.get("limit"))
+                                     bool(args.get("per_line")), args.get("limit"), str(args.get("project") or ""))
         if name == "joe_repo":
             return self.repo(str(args.get("project") or ""), str(args.get("bundle") or ""), args.get("pull"),
                              str(args.get("branch") or ""))

@@ -86,6 +86,9 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
         call). Caps: 200 files, 5,000,000 characters, 5,000 lines a call. To check: can the counts
         of chosen pieces leak a closed file's content (no: a closed path raises before any count),
         and can a huge `texts` list tie up the model (bounded by the character cap).
+        Added 2026-11-27 10:15, NOT YET REVIEWED: `project=` lets it count files inside a listed dev project
+        (`Joe._project_files`): Dev tools must be on and the project listed; the path is inside that folder
+        by realpath (no `..`, no full path, no link out) and never in a dot folder (`.git`); numbers only.
       - REVIEWED ONCE 2026-11-27 by a fresh agent that hadn't seen it built (findings and what was done about
         each are at the end of this item); the fixes themselves are new code and want a second look, and the
         Windows behaviour is reasoned, not tested. **Dev tools**

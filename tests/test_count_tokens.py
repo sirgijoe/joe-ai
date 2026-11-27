@@ -104,6 +104,7 @@ class Pretend:
 def make(tmp_path, monkeypatch):
     monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))
     tokens.reset()
+    mcp._counts.clear()
     made = []
 
     def _make(kind: str = "ollama", folders: bool = False, ctx: int = 0):
@@ -150,7 +151,7 @@ def numbers(out: str, what: str) -> tuple[int, int]:
 # ------------------------------------------------------------------ it is on the connector
 def test_tool_is_listed_and_the_instructions_mention_it():
     tool = next(t for t in mcp.TOOLS if t["name"] == "joe_count_tokens")
-    assert set(tool["inputSchema"]["properties"]) == {"paths", "texts", "model", "per_line", "limit"}
+    assert set(tool["inputSchema"]["properties"]) == {"paths", "texts", "model", "per_line", "limit", "project"}
     assert "required" not in tool["inputSchema"]
     assert "joe_count_tokens" in mcp.INSTRUCTIONS
 
@@ -392,3 +393,96 @@ def test_count_in_reads_each_programs_answer():
     assert tokens._count_in({"value": 5}) == 5
     assert tokens._count_in({"count": True}) is None and tokens._count_in({"error": "x"}) is None
     assert tokens._count_in([1, 2]) is None
+
+
+# ------------------------------------------------------------------ files in a listed dev project (outside Joe's folders)
+@pytest.fixture
+def hooah(make, tmp_path):
+    """Dev tools on, with a project "hooah" in a folder outside Joe's workspace (Joseph's Desktop\\HUA case)."""
+    joe = make("llamacpp")
+    proj = tmp_path / "HUA"
+    (proj / "docs" / "spec").mkdir(parents=True)
+    (proj / ".git").mkdir()
+    (proj / "docs" / "spec" / "fm.md").write_text("one two three four", encoding="utf-8")
+    (proj / "docs" / "pilot.jsonl").write_text("a b\nc d e\n", encoding="utf-8")
+    (proj / ".git" / "config").write_text("secret words here", encoding="utf-8")
+    (tmp_path / "outside.txt").write_text("not yours", encoding="utf-8")
+    joe.s.dev_tools = True
+    joe.s.dev_projects = [{"name": "hooah", "folder": str(proj), "commands": []}]
+    joe.proj = proj
+    return joe
+
+
+def test_a_file_in_a_listed_project_is_counted_by_project_name(hooah):
+    out = hooah.call("joe_count_tokens", {"project": "hooah", "paths": ["docs/spec/fm.md"]})
+    assert numbers(out, "hooah:docs/spec/fm.md") == (4, 18)
+    out = hooah.call("joe_count_tokens", {"project": " Hooah ", "paths": ["docs"]})          # a folder: every text file in it
+    assert numbers(out, "hooah:docs/pilot.jsonl")[0] == 5 and numbers(out, "total")[0] == 9
+    per = hooah.call("joe_count_tokens", {"project": "hooah", "paths": ["docs/pilot.jsonl"], "per_line": True})
+    assert "hooah:docs/pilot.jsonl: 2 lines, 5 tokens in all" in per
+
+
+def test_a_project_needs_dev_tools_on_and_a_listed_name(hooah):
+    assert "No project called 'elsewhere'" in hooah.call("joe_count_tokens", {"project": "elsewhere", "paths": ["x"]})
+    hooah.s.dev_tools = False
+    assert hooah.call("joe_count_tokens", {"project": "hooah", "paths": ["docs/spec/fm.md"]}).startswith("Dev tools are off.")
+    assert hooah.fake.calls == []
+
+
+@pytest.mark.parametrize("bad", ["../outside.txt", "docs/../../outside.txt", "/etc/passwd", "C:/x.txt", ".git/config",
+                                 ".git", "docs/nothing.md", "docs/spec/fm.md:stream"])
+def test_paths_out_of_the_project_or_into_dot_folders_are_refused(hooah, bad):
+    with pytest.raises(SandboxError):
+        hooah.call("joe_count_tokens", {"project": "hooah", "paths": [bad, "docs/spec/fm.md"]})
+    assert hooah.fake.calls == []
+
+
+def test_a_whole_project_walk_skips_dot_folders_and_links_out(hooah, tmp_path):
+    try:
+        (hooah.proj / "docs" / "link.txt").symlink_to(tmp_path / "outside.txt")
+    except OSError:
+        pass
+    out = hooah.call("joe_count_tokens", {"project": "hooah", "paths": ["docs", "docs/spec"]})
+    assert "config" not in out and "link.txt" not in out and "secret" not in json.dumps(hooah.fake.calls)
+
+
+def test_without_a_project_joes_own_folder_rules_are_unchanged(hooah):
+    with pytest.raises(SandboxError):
+        hooah.call("joe_count_tokens", {"paths": [str(hooah.proj / "docs" / "spec" / "fm.md")]})
+
+
+# ------------------------------------------------------------------ long counts, and a model that isn't there
+def test_a_long_count_says_still_counting_and_is_never_started_twice(make, monkeypatch):
+    """The Hooah chat, 2026-11-27: 359 lines took longer than the AI app waits, and the answer was lost."""
+    import time as _time
+    joe = make("llamacpp")
+    put(joe, "Output/train.jsonl", "".join(f"a b c {i}\n" for i in range(30)))
+    slow = tokens.Counter.count
+    monkeypatch.setattr(tokens.Counter, "count", lambda self, text: (_time.sleep(0.05), slow(self, text))[1])
+    monkeypatch.setattr(mcp, "COUNT_WAIT_S", 0.3)
+    args = {"paths": ["train.jsonl"], "per_line": True}
+    first = joe.call("joe_count_tokens", args)
+    assert first.startswith("[tokens | STILL COUNTING, ") and " of 30 lines done]" in first and "not started twice" in first
+    assert joe.call("joe_count_tokens", dict(args)).startswith("[tokens | STILL COUNTING, ")
+    assert len(mcp._counts) == 1                                        # the same count, not a second one
+    monkeypatch.setattr(mcp, "COUNT_WAIT_S", 30)
+    done = joe.call("joe_count_tokens", dict(args))
+    assert "Output/train.jsonl: 30 lines, 120 tokens in all" in done
+    assert sum(1 for p, _ in joe.fake.calls if p == "/tokenize") <= 31  # each line asked once (plus the first check)
+    assert mcp._counts == {}                                            # handed over once
+
+
+def test_a_refused_path_is_still_refused_at_once(make, monkeypatch):
+    joe = make()
+    monkeypatch.setattr(mcp, "COUNT_WAIT_S", 30)
+    with pytest.raises(SandboxError):
+        joe.call("joe_count_tokens", {"paths": ["Inbox/x.md"]})
+    assert mcp._counts == {}
+
+
+def test_a_model_that_is_not_installed_is_said_at_once_with_what_is(make):
+    joe = make()
+    out = joe.call("joe_count_tokens", {"texts": ["hello"], "model": "qwen3.5:4b"})
+    assert out.startswith("The model 'qwen3.5:4b' isn't installed in Ollama on this PC, so nothing was counted.")
+    assert "Installed: qwen3:14b, llama3.1:8b." in out
+    assert not any(p == "/api/generate" for p, _ in joe.fake.calls)
