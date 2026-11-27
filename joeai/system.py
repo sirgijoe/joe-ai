@@ -144,6 +144,33 @@ def open_window(url: str, profile: Path) -> None:
                     "--window-size=1280,860"])
 
 
+def open_page(url: str) -> None:
+    """Open an outside web page in a Joe window, never in the person's everyday browser.
+    Same app-mode browser and the same profile folder as Joe's own window (config_dir() / "window"),
+    as its own smaller window. Only http:// and https:// addresses: anything else (a file: address,
+    a --flag, javascript:) opens nothing, so no odd string ever reaches the browser's command line.
+    No app-mode browser: the default browser, like Joe's own window then. JOE_NO_WINDOW: nothing."""
+    if os.environ.get("JOE_NO_WINDOW"):      # tests and the installer smoke test: show nothing
+        return
+    from urllib.parse import urlsplit
+    url = url if isinstance(url, str) else ""
+    if not url or any(c.isspace() or ord(c) < 32 for c in url):
+        return
+    try:
+        parts = urlsplit(url)
+    except ValueError:
+        return
+    if parts.scheme.lower() not in ("http", "https") or not parts.netloc:
+        return
+    exe = app_browser()
+    if not exe:
+        webbrowser.open(url)
+        return
+    popen_detached([exe, f"--app={url}", f"--user-data-dir={config_dir() / 'window'}",
+                    "--no-first-run", "--no-default-browser-check",
+                    "--window-size=1100,800"])
+
+
 def open_path(p: Path) -> None:
     """Open a file or folder with whatever program the system uses for it."""
     if WINDOWS:

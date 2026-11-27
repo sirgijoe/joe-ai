@@ -16,7 +16,6 @@ import subprocess
 import sys
 import threading
 import urllib.request
-import webbrowser
 from pathlib import Path
 from typing import Callable
 
@@ -102,9 +101,9 @@ def run_install(tool: str, label: str, page: str, log: Log) -> bool:
     mgr = system.manager_label(plan.get("manager"))
     if plan["kind"] == "page":
         log(f"There's no automatic install for {label} on {system.pretty_name()} here; "
-            "opening the official download page instead.")
+            "opening the official download page in a Joe window instead.")
         if page:
-            webbrowser.open(page)
+            system.open_page(page)
         return False
     if plan["kind"] == "joe":
         from . import upkeep

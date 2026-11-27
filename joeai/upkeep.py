@@ -316,8 +316,8 @@ def install_ollama_mac(log: Log, fetch=request_json, download=None) -> bool:
         if dmg:
             log("Opening Ollama's installer: drag Ollama into Applications, open it once, "
                 "then press CHECK AGAIN.")
-            import webbrowser
-            webbrowser.open(dmg["browser_download_url"])
+            from . import system
+            system.open_page(dmg["browser_download_url"])
         return False
     tmp = _cache_dir() / "Ollama-darwin.zip"
     log(f"Downloading Ollama {rel.get('tag_name', '')} for Mac...")

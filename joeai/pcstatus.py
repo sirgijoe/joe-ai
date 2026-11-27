@@ -16,6 +16,9 @@ Where the numbers come from (standard library only, nothing installed):
   Mac       ps -axo pid=,pcpu=,rss=,comm=, sysctl and vm_stat, df -kP
   Linux     /proc/<pid>/stat (sampled twice, so the processor share is "right now"), /proc/meminfo,
             /proc/mounts; ps as a fallback
+  Windows   a second PowerShell call (run alongside) to the graphics card's own counters: load and
+            memory for every program, browsers and games included, as Task Manager's GPU column
+  Linux     nvidia-smi pmon -c 1 for graphics card load per program (NVIDIA only)
   all       nvidia-smi for graphics memory per program, where it's there
 
 Privacy for programs: names and numbers ONLY. No window titles, no command lines or arguments, no
@@ -49,6 +52,17 @@ _PS_PERF = ("Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | "
             "Select-Object Name,IDProcess,PercentProcessorTime,WorkingSetPrivate | "
             "ConvertTo-Csv -NoTypeInformation")
 _NVIDIA_APPS = ["nvidia-smi", "--query-compute-apps=pid,used_memory", "--format=csv,noheader,nounits"]
+_NVIDIA_PMON = ["nvidia-smi", "pmon", "-c", "1", "-s", "u"]
+# The graphics card's counters on Windows 10 1709 and newer (any card maker). Both lists come back
+# from one PowerShell start, as two CSV blocks with a marker line between them. A missing class only
+# writes an error (SilentlyContinue keeps it quiet), so the block is just empty.
+GPU_MARK = "#JOE-GPU-MEMORY#"
+_PS_GPU = ("$ErrorActionPreference = 'SilentlyContinue'; "
+           "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine | "
+           "Select-Object Name,UtilizationPercentage | ConvertTo-Csv -NoTypeInformation; "
+           f"'{GPU_MARK}'; "
+           "Get-CimInstance Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory | "
+           "Select-Object Name,DedicatedUsage,SharedUsage | ConvertTo-Csv -NoTypeInformation")
 
 # Linux file systems that are real places to keep files (the rest are the system's own: proc, tmpfs, ...)
 REAL_FS = {"ext2", "ext3", "ext4", "xfs", "btrfs", "zfs", "f2fs", "vfat", "exfat", "ntfs", "ntfs3",
@@ -210,6 +224,96 @@ def parse_nvidia_apps(text: str | None) -> dict[int, int]:
         mib = _float(cells[-1])
         if mib is not None:
             out[int(cells[0])] = out.get(int(cells[0]), 0) + int(mib * 2**20)
+    return out
+
+
+def _num_text(s: str) -> float | None:
+    """'12', '1,5' (comma decimal), '1\u202f234' (thin-space thousands) -> a number, or None."""
+    t = re.sub(r"[\s\u00a0\u202f']", "", str(s or "")).replace(",", ".")
+    if t.count(".") > 1:
+        t = t.replace(".", "")
+    try:
+        return float(t)
+    except ValueError:
+        return None
+
+
+def _gpu_pid(instance: str) -> int | None:
+    m = re.match(r"^pid_(\d+)_", (instance or "").strip())
+    return int(m.group(1)) if m else None
+
+
+def _csv_rows(text: str | None) -> list[dict]:
+    try:
+        return list(csv.DictReader(io.StringIO((text or "").lstrip("\ufeff").strip() + "\n")))
+    except csv.Error:
+        return []
+
+
+def split_win_gpu(text: str | None) -> tuple[str, str]:
+    """The combined PowerShell answer -> (engine CSV, memory CSV)."""
+    a, _, b = (text or "").partition(GPU_MARK)
+    return a, b
+
+
+def parse_win_gpu_engine(text: str | None) -> dict[int, float]:
+    """Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine CSV -> {pid: load percent}.
+
+    Instance names look like pid_1234_luid_0x00000000_0x0000C3A1_phys_0_eng_0_engtype_3D. Per
+    process, the engines of one kind on one card (3D, Copy, VideoDecode, ...) are added up, and the
+    busiest kind is the answer, capped at 100. That is what Task Manager's GPU column shows (the
+    busiest engine, not the sum over all kinds), so the numbers can be compared with it directly;
+    adding 3D + Copy + VideoDecode would overstate a program that uses several at once."""
+    by: dict[int, dict[str, float]] = {}
+    for r in _csv_rows(text):
+        name = r.get("Name") or ""
+        pid = _gpu_pid(name)
+        val = _num_text(r.get("UtilizationPercentage") or "")
+        if pid is None or pid == 0 or val is None:
+            continue
+        m = re.search(r"_luid_(\w+?)_phys_(\d+)_eng_\d+_engtype_(.*)$", name)
+        kind = f"{m.group(1)}|{m.group(2)}|{m.group(3).strip().lower()}" if m else "?"
+        kinds = by.setdefault(pid, {})
+        kinds[kind] = kinds.get(kind, 0.0) + max(val, 0.0)
+    return {pid: min(100.0, max(kinds.values())) for pid, kinds in by.items() if kinds}
+
+
+def parse_win_gpu_memory(text: str | None) -> dict[int, int]:
+    """Win32_PerfFormattedData_GPUPerformanceCounters_GPUProcessMemory CSV -> {pid: bytes} of the
+    card's own (dedicated) memory, added over cards. Shared memory is main memory, so it's left out."""
+    out: dict[int, int] = {}
+    for r in _csv_rows(text):
+        pid = _gpu_pid(r.get("Name") or "")
+        val = _num_text(r.get("DedicatedUsage") or "")
+        if pid is None or pid == 0 or val is None:
+            continue
+        out[pid] = out.get(pid, 0) + int(val)
+    return out
+
+
+def parse_nvidia_pmon(text: str | None) -> dict[int, float]:
+    """nvidia-smi pmon -c 1 -> {pid: load percent (the sm column)}. Columns are found from the
+    header line, because newer drivers add some; the command-name column is never read. '-' (idle)
+    is left out; a process on two cards is added up, capped at 100."""
+    out: dict[int, float] = {}
+    cols: list[str] = []
+    for line in (text or "").splitlines():
+        cells = line.split()
+        if not cells:
+            continue
+        if cells[0] == "#":
+            if not cols and "pid" in cells and "sm" in cells:
+                cols = cells[1:]
+            continue
+        if not cols or len(cells) < len(cols) - 1:
+            continue
+        try:
+            pid = int(cells[cols.index("pid")])
+        except (ValueError, IndexError):
+            continue
+        val = _num_text(cells[cols.index("sm")])
+        if val is not None:
+            out[pid] = min(100.0, out.get(pid, 0.0) + val)
     return out
 
 
@@ -381,8 +485,63 @@ def gpu_memory_by_pid() -> dict[int, int] | None:
     return None if text is None else parse_nvidia_apps(text)
 
 
+def windows_gpu_by_pid() -> tuple[dict[int, float] | None, dict[int, int] | None]:
+    """(load percent, card memory bytes) per process id from Windows' graphics card counters.
+    None for a list that didn't come back (old Windows, no PowerShell, too slow)."""
+    text = _run(["powershell", "-NoProfile", "-NonInteractive", "-Command", _PS_GPU], timeout=PS_TIMEOUT_S)
+    if text is None:
+        return None, None
+    eng, mem = split_win_gpu(text)
+    load, used = parse_win_gpu_engine(eng), parse_win_gpu_memory(mem)
+    return (load or None), (used or None)
+
+
+def gpu_load_by_pid() -> dict[int, float] | None:
+    """Graphics card load per process id from nvidia-smi pmon (Linux), or None."""
+    text = _run(_NVIDIA_PMON, timeout=RUN_TIMEOUT_S)
+    if text is None:
+        return None
+    out = parse_nvidia_pmon(text)
+    return out if out or "pid" in text else None       # a header with no rows: known, nothing busy
+
+
+def _graphics_per_program() -> tuple[dict | None, dict | None]:
+    """(load by pid, memory by pid) from whatever this system gives; each None when not known.
+    Windows: its own counters first, nvidia-smi memory when those are missing. Linux: nvidia-smi.
+    Mac: nothing (the system has no per-program graphics numbers without extra software)."""
+    o = _os()
+    load = mem = None
+    if o == "windows":
+        try:
+            load, mem = windows_gpu_by_pid()
+        except Exception:                             # noqa: BLE001
+            load, mem = None, None
+    elif o == "linux":
+        try:
+            load = gpu_load_by_pid()
+        except Exception:                             # noqa: BLE001
+            load = None
+    if mem is None:
+        try:
+            mem = gpu_memory_by_pid()
+        except Exception:                             # noqa: BLE001
+            mem = None
+    return load, mem
+
+
 def running_processes() -> dict | None:
-    """{'rows': [{pid, name, cpu, mem, gpu}], 'gpu_known': bool}, or None when not known."""
+    """{'rows': [{pid, name, cpu, mem, gpu, gpu_pct}], 'gpu_known': bool, 'gpu_load_known': bool},
+    or None when not known. gpu = graphics card memory, gpu_pct = graphics card load. The graphics
+    numbers are asked for at the same time as the program list, so the report isn't slower."""
+    box: dict = {}
+
+    def graphics():
+        try:
+            box["v"] = _graphics_per_program()
+        except Exception:                             # noqa: BLE001 (the rest still counts)
+            pass
+    t = threading.Thread(target=graphics, daemon=True)
+    t.start()
     o = _os()
     if o == "windows":
         rows = _windows_processes()
@@ -390,30 +549,32 @@ def running_processes() -> dict | None:
         rows = _linux_processes() or _ps_processes()
     else:
         rows = _ps_processes()
+    t.join(PS_TIMEOUT_S + 2)
     if not rows:
         return None
-    try:
-        g = gpu_memory_by_pid()
-    except Exception:                                 # noqa: BLE001 (the rest still counts)
-        g = None
-    for r in rows:
-        r["gpu"] = g.get(r["pid"]) if g else None
-    return {"rows": rows, "gpu_known": g is not None}
+    load, mem = box.get("v", (None, None))
+    for r in rows:                                    # a process that ended in between is simply not matched
+        r["gpu"] = mem.get(r["pid"]) if mem else None
+        r["gpu_pct"] = load.get(r["pid"], 0.0) if load is not None else None
+    return {"rows": rows, "gpu_known": mem is not None, "gpu_load_known": load is not None}
 
 
 def group(rows: list[dict]) -> list[dict]:
-    """Same name (any case) added together: {name, count, cpu, mem, gpu}, largest memory first,
-    then processor share."""
+    """Same name (any case) added together: {name, count, cpu, mem, gpu, gpu_pct}, largest memory
+    first, then processor share. Graphics card load is added up too, capped at 100."""
     groups: dict[str, dict] = {}
     for r in rows:
         name = r.get("name") or "?"
-        g = groups.setdefault(name.lower(), {"name": name, "count": 0, "cpu": None, "mem": 0, "gpu": None})
+        g = groups.setdefault(name.lower(), {"name": name, "count": 0, "cpu": None, "mem": 0, "gpu": None,
+                                                     "gpu_pct": None})
         g["count"] += 1
         g["mem"] += r.get("mem") or 0
         if r.get("cpu") is not None:
             g["cpu"] = (g["cpu"] or 0) + r["cpu"]
         if r.get("gpu") is not None:
             g["gpu"] = (g["gpu"] or 0) + r["gpu"]
+        if r.get("gpu_pct") is not None:
+            g["gpu_pct"] = min(100.0, (g["gpu_pct"] or 0) + r["gpu_pct"])
     return sorted(groups.values(), key=lambda g: (-g["mem"], -(g["cpu"] or 0), g["name"].lower()))
 
 
@@ -430,19 +591,38 @@ def process_lines(info: dict | None, rows: int = DEFAULT_ROWS) -> list[str]:
         return [f"Processes: {NOT_KNOWN}"]
     groups = group(info["rows"])
     top = groups[:clamp_rows(rows)]
-    show_gpu = info.get("gpu_known")
-    note = "" if show_gpu else "; graphics memory per program not reported here"
+    show_gpu, show_load = info.get("gpu_known"), info.get("gpu_load_known")
+    note = ("" if show_gpu and show_load else
+            "; graphics card use per program not reported here" if not show_gpu and not show_load else
+            "; graphics card load per program not reported here" if show_gpu else
+            "; graphics card memory per program not reported here")
     cpu_note = "" if any(g["cpu"] is not None for g in groups) else "; processor share not known"
-    out = [f"Processes (top {len(top)} of {len(groups)} by memory, then processor; "
-           f"{len(info['rows'])} running; names and numbers only{note}{cpu_note}):"]
-    out.append("  memory    processor" + ("  graphics" if show_gpu else "") + "  name")
+    out = []
+    busy = busiest_on_graphics(groups)
+    if busy:
+        out.append("Using the graphics card now: " + busy)
+    out.append(f"Processes (top {len(top)} of {len(groups)} by memory, then processor; "
+               f"{len(info['rows'])} running; names and numbers only{note}{cpu_note}):")
+    out.append("  memory    processor" + ("  graphics mem" if show_gpu else "") + ("  graphics %" if show_load else "") + "  name")
     for g in top:
-        name = g["name"] + (f" x{g['count']}" if g["count"] > 1 else "")
         line = f"  {size(g['mem']):>8}  {_pct(g['cpu']):>9}"
         if show_gpu:
-            line += f"  {size(g['gpu']):>8}"
-        out.append(f"{line}  {name}")
+            line += f"  {size(g['gpu']):>12}"
+        if show_load:
+            line += f"  {_pct(g['gpu_pct']):>10}"
+        out.append(f"{line}  {_label(g)}")
     return out
+
+
+def _label(g: dict) -> str:
+    return g["name"] + (f" x{g['count']}" if g["count"] > 1 else "")
+
+
+def busiest_on_graphics(groups: list[dict], top: int = 3, above: float = 1.0) -> str:
+    """'chrome.exe x18 21%, ollama.exe 3%': up to three programs using the graphics card most right
+    now (more than 1%), or '' when none is."""
+    busy = sorted((g for g in groups if (g.get("gpu_pct") or 0) > above), key=lambda g: -g["gpu_pct"])[:top]
+    return ", ".join(f"{_label(g)} {_pct(g['gpu_pct'])}" for g in busy)
 
 
 # --------------------------------------------------------------------------- processor, memory, graphics, disks

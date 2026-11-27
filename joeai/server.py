@@ -1092,9 +1092,8 @@ class App:
             page = textengines.PAGES.get(textengines.engine_id(self.settings.ollama), "")
             if not page:
                 return {"ok": False, "error": "No download page for that one: get it from its own site."}
-            import webbrowser
-            webbrowser.open(page)
-            self.log(f"Opened {page} in your browser.")
+            system.open_page(page)
+            self.log(f"Opened {page} in a Joe window.")
             return {"ok": True}
         if action == "use-ollama":
             if self.running:
@@ -1210,17 +1209,16 @@ class App:
                         if ok and self.services.comfy_up():
                             self.log("Restart ComfyUI (close and reopen it) so it sees the new model.")
                     elif b.get("page", "").startswith(stylemodels.PAGE_HOSTS):
-                        import webbrowser
                         link = stylemodels.download_link(b["page"], file=str(b.get("file") or ""))
                         if link != b["page"]:
-                            webbrowser.open(b["page"])          # the license and model card
-                        webbrowser.open(link)
+                            system.open_page(b["page"])         # the license and model card
+                        system.open_page(link)
                         self.models_pending_until = time.time() + 6 * 3600     # Joe watches for the finished file
-                        said.append("Joe opened the model's page in your browser. Download the file there. When it "
+                        said.append("Joe opened the model's page in a Joe window. Download the file there. When it "
                                     "has finished, Joe asks to move it into ComfyUI (or press GET IT again).")
                         if "/resolve/" in link:
-                            self.log("Opened the model's page (license) and started the download in your "
-                                     "browser. When it's finished, press GET IT again and Joe moves it "
+                            self.log("Opened the model's page (license) and started the download in a Joe "
+                                     "window. When it's finished, press GET IT again and Joe moves it "
                                      "into ComfyUI.")
                         else:
                             self.log(f"Opened {link}. Read its license, download the .safetensors file "
@@ -2102,6 +2100,7 @@ def make_handler(app: App):
             if u.path == "/mcp":                        # Joe's connector over HTTP, for AI apps on this PC
                 return self._mcp_http()
             if not self._authed({}):
+                self._drain()                           # see _drain: Windows, unread body, reset before the 401
                 return self._json({"error": "bad token"}, 401)
             app.last_seen = time.monotonic()
             if u.path == "/api/addons/upload":          # Setup > Add-ons > ADD AN ADD-ON (.zip body)

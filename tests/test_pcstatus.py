@@ -107,7 +107,9 @@ map auto_home            0         0         0   100%    /System/Volumes/Data/ho
 
 
 class FakeRun:
-    """Stands in for pcstatus._run: answers by the command's first word; records every command."""
+    """Stands in for pcstatus._run: answers by the command's first word; records every command.
+    Two commands share a first word, so they have their own keys: "powershell-gpu" (the graphics
+    card counters) and "nvidia-smi-pmon" (load per program)."""
 
     def __init__(self, answers: dict):
         self.answers = answers
@@ -115,7 +117,12 @@ class FakeRun:
 
     def __call__(self, argv, timeout=pcstatus.RUN_TIMEOUT_S):
         self.calls.append(list(argv))
-        a = self.answers.get(argv[0])
+        key = argv[0]
+        if argv[0] == "powershell" and "GPUPerformanceCounters" in argv[-1]:
+            key = "powershell-gpu"
+        elif argv[:2] == ["nvidia-smi", "pmon"]:
+            key = "nvidia-smi-pmon"
+        a = self.answers.get(key)
         if isinstance(a, BaseException):
             raise a
         return a
@@ -334,7 +341,7 @@ def test_process_lines_counts_and_columns():
 def test_process_lines_without_graphics_or_processor_numbers_say_so():
     out = pcstatus.process_lines({"rows": [{"pid": 1, "name": "a", "cpu": None, "mem": 5 * MB, "gpu": None}],
                                   "gpu_known": False})
-    assert "graphics memory per program not reported here" in out[0]
+    assert "graphics card use per program not reported here" in out[0]
     assert "processor share not known" in out[0]
     assert "graphics" not in out[1]
     assert out[2].split() == ["5", "MB", "-", "a"]
@@ -520,9 +527,12 @@ def test_privacy_nothing_but_names_and_numbers_reaches_the_report(fake, monkeypa
     ps = PS_MAC + "  950   0.1  4000 /usr/local/bin/runner --api-key hunter2\n"
     monkeypatch.setattr(pcstatus, "_services", lambda s: FakeServices(False, False))
     monkeypatch.setattr(pcstatus, "_usage", lambda p: None)
-    for os_name, cmds in (("windows", {"tasklist": TASKLIST + TASKLIST_V, "powershell": WIN_PERF, "nvidia-smi": nvidia}),
+    for os_name, cmds in (("windows", {"tasklist": TASKLIST + TASKLIST_V, "powershell": WIN_PERF, "nvidia-smi": nvidia,
+                                       "powershell-gpu": WIN_GPU}),
+                          ("linux", {"ps": PS_LINUX, "nvidia-smi-pmon": PMON, "nvidia-smi": nvidia}),
                           ("mac", {"ps": ps, "nvidia-smi": None})):
         run = fake(os_name, cmds)
+        monkeypatch.setattr(pcstatus, "_linux_snapshot", lambda: {})
         if os_name == "windows":
             monkeypatch.setattr(pcstatus, "_windows_memory", lambda: None)
             monkeypatch.setattr(pcstatus, "_windows_drives", lambda: [])
@@ -647,3 +657,169 @@ def test_report_clamps_rows_and_when_everything_fails(fake, monkeypatch):
     text = pcstatus.report(Settings(), processes=500)
     assert "Processes (top 100 of 299" in text
     assert len([ln for ln in text.splitlines() if ln.startswith("  ") and "prog" in ln]) == 100
+
+
+# --------------------------------------------------------------------------- graphics card use per program
+_L = "luid_0x00000000_0x0000C3A1_phys_0"
+WIN_GPU_ENGINE = f'''"Name","UtilizationPercentage"
+"pid_1200_{_L}_eng_0_engtype_3D","12"
+"pid_1200_{_L}_eng_1_engtype_3D","3"
+"pid_1200_{_L}_eng_5_engtype_VideoDecode","9"
+"pid_1200_{_L}_eng_2_engtype_Copy","1"
+"pid_1201_{_L}_eng_0_engtype_3D","6"
+"pid_3300_{_L}_eng_0_engtype_Compute_0","3"
+"pid_3300_{_L}_eng_2_engtype_Copy","2"
+"pid_9999_{_L}_eng_0_engtype_3D","50"
+"pid_4400_{_L}_eng_0_engtype_3D","0,5"
+"pid_0_{_L}_eng_0_engtype_3D","80"
+"_Total","99"
+not,a,real,line
+'''
+WIN_GPU_MEMORY = f'''"Name","DedicatedUsage","SharedUsage"
+"pid_1200_{_L}","104857600","1000"
+"pid_1201_{_L}","52\u202f428\u202f800","0"
+"pid_3300_{_L}","8482560000","0"
+"pid_3300_luid_0x00000000_0x0000D001_phys_0","1048576","0"
+"pid_9999_{_L}","999","0"
+"pid_4400_{_L}","garbage","0"
+'''
+WIN_GPU = WIN_GPU_ENGINE + pcstatus.GPU_MARK + "\r\n" + WIN_GPU_MEMORY
+WIN_GPU_MISSING = ('Get-CimInstance : Invalid class "Win32_PerfFormattedData_GPUPerformanceCounters_GPUEngine"\r\n'
+                   "At line:1 char:1\r\n" + pcstatus.GPU_MARK + "\r\n")
+PMON = """# gpu         pid   type     sm    mem    enc    dec    jpg    ofa    command
+# Idx           #    C/G      %      %      %      %      %      %    name
+    0       3300     C     45     20      -      -      -      -    ollama
+    0        500     G      3      1      -      -      -      -    firefox --secret
+    1        500     G      2      0      -      -      -      -    firefox --secret
+    0          -     -      -      -      -      -      -      -    -
+"""
+
+
+def test_parse_win_gpu_engine_busiest_kind_per_program():
+    load = pcstatus.parse_win_gpu_engine(WIN_GPU_ENGINE)
+    assert load[1200] == 15.0                  # 3D 12 + 3 on two 3D engines beats VideoDecode 9 and Copy 1
+    assert load[1201] == 6.0 and load[3300] == 3.0
+    assert load[4400] == 0.5                   # "0,5" from a comma-decimal language
+    assert load[9999] == 50.0                  # still parsed; the report just won't find that process
+    assert 0 not in load
+
+
+def test_parse_win_gpu_engine_caps_at_100_and_reads_nothing_odd():
+    text = f'"Name","UtilizationPercentage"\n"pid_7_{_L}_eng_0_engtype_3D","70"\n"pid_7_{_L}_eng_1_engtype_3D","60"\n'
+    assert pcstatus.parse_win_gpu_engine(text) == {7: 100.0}
+    for junk in ("", None, "garbage\n\x00\x01", '"Name","UtilizationPercentage"\n', WIN_GPU_MISSING, '"Name"\n"pid_x_y"\n'):
+        assert pcstatus.parse_win_gpu_engine(junk) == {}
+
+
+def test_parse_win_gpu_memory_dedicated_only_added_over_cards():
+    mem = pcstatus.parse_win_gpu_memory(WIN_GPU_MEMORY)
+    assert mem == {1200: 104857600, 1201: 52428800, 3300: 8482560000 + 1048576, 9999: 999}
+    assert pcstatus.parse_win_gpu_memory("") == {} and pcstatus.parse_win_gpu_memory(None) == {}
+
+
+def test_split_win_gpu():
+    eng, mem = pcstatus.split_win_gpu(WIN_GPU)
+    assert "UtilizationPercentage" in eng and "DedicatedUsage" in mem
+    assert pcstatus.split_win_gpu(None) == ("", "")
+
+
+def test_parse_nvidia_pmon_reads_pid_and_sm_from_the_header():
+    assert pcstatus.parse_nvidia_pmon(PMON) == {3300: 45.0, 500: 5.0}
+    old = "# gpu   pid  type  sm  mem  enc  dec  command\n# Idx  #  C/G  %  %  %  %  name\n    0  42  C  7  1  -  -  python\n"
+    assert pcstatus.parse_nvidia_pmon(old) == {42: 7.0}
+    assert pcstatus.parse_nvidia_pmon("") == {} and pcstatus.parse_nvidia_pmon("Failed to initialize NVML\n") == {}
+
+
+def test_windows_load_and_memory_for_every_program(fake):
+    fake("windows", {"tasklist": TASKLIST, "powershell": WIN_PERF, "powershell-gpu": WIN_GPU, "nvidia-smi": NVIDIA_APPS})
+    info = pcstatus.running_processes()
+    assert info["gpu_known"] and info["gpu_load_known"]
+    by = {r["pid"]: r for r in info["rows"]}
+    assert by[1200]["gpu_pct"] == 15.0 and by[1200]["gpu"] == 104857600     # counters beat nvidia-smi's 300 MB
+    assert by[4]["gpu_pct"] == 0.0 and by[4]["gpu"] is None                  # System: on no list
+    assert 9999 not in by                                                    # ended between the two calls
+    out = pcstatus.process_lines(info)
+    assert out[0] == "Using the graphics card now: chrome.exe x2 21%, ollama.exe 3.0%"
+    assert out[2].split() == ["memory", "processor", "graphics", "mem", "graphics", "%", "name"]
+    chrome = [ln for ln in out if ln.endswith("chrome.exe x2")][0]
+    assert chrome.split()[:6] == ["238", "MB", "3.0%", "150", "MB", "21%"]
+    ollama = [ln for ln in out if ln.endswith("ollama.exe")][0]
+    assert "7.9 GB" in ollama and "3.0%" in ollama
+
+
+@pytest.mark.parametrize("answer", [None, WIN_GPU_MISSING, "", "garbage"])
+def test_windows_falls_back_to_todays_numbers_when_the_counters_dont_answer(fake, answer):
+    fake("windows", {"tasklist": TASKLIST, "powershell": WIN_PERF, "powershell-gpu": answer, "nvidia-smi": NVIDIA_APPS})
+    info = pcstatus.running_processes()
+    assert info["gpu_known"] and not info["gpu_load_known"]
+    out = pcstatus.process_lines(info)
+    assert out[0].startswith("Processes (") and "graphics card load per program not reported here" in out[0]
+    assert "graphics %" not in out[1] and "7.7 GB" in "\n".join(out)          # nvidia-smi memory as before
+
+
+def test_windows_counters_that_raise_or_are_slow_fall_back(fake, monkeypatch):
+    fake("windows", {"tasklist": TASKLIST, "powershell": WIN_PERF})
+
+    def boom():
+        raise subprocess.TimeoutExpired(cmd="powershell", timeout=20)
+    monkeypatch.setattr(pcstatus, "windows_gpu_by_pid", boom)
+    info = pcstatus.running_processes()
+    assert info and not info["gpu_known"] and not info["gpu_load_known"]
+    assert "graphics card use per program not reported here" in pcstatus.process_lines(info)[0]
+
+
+def test_linux_load_from_pmon(fake, monkeypatch):
+    fake("linux", {"ps": PS_LINUX, "nvidia-smi-pmon": PMON, "nvidia-smi": "500, 300\n"})
+    monkeypatch.setattr(pcstatus, "_linux_snapshot", lambda: {})
+    info = pcstatus.running_processes()
+    assert info["gpu_load_known"] and info["gpu_known"]
+    out = pcstatus.process_lines(info)
+    assert out[0] == "Using the graphics card now: firefox 5.0%"
+    assert "--secret" not in "\n".join(out) and "ollama" not in "\n".join(out)
+
+
+def test_linux_without_nvidia_and_mac_never_ask_for_load(fake, monkeypatch):
+    monkeypatch.setattr(pcstatus, "_linux_snapshot", lambda: {})
+    fake("linux", {"ps": PS_LINUX})
+    info = pcstatus.running_processes()
+    assert not info["gpu_load_known"] and not info["gpu_known"]
+    run = fake("mac", {"ps": PS_MAC, "nvidia-smi-pmon": PMON})
+    info = pcstatus.running_processes()
+    assert not info["gpu_load_known"]
+    assert not any(c[:2] == ["nvidia-smi", "pmon"] or "GPUPerformanceCounters" in c[-1] for c in run.calls)
+    assert "graphics card use per program not reported here" in pcstatus.process_lines(info)[0]
+
+
+def test_group_adds_graphics_load_and_caps_it():
+    rows = [{"name": "game.exe", "cpu": 1.0, "mem": 10, "gpu": None, "gpu_pct": 60.0},
+            {"name": "game.exe", "cpu": 1.0, "mem": 10, "gpu": None, "gpu_pct": 70.0},
+            {"name": "idle.exe", "cpu": 1.0, "mem": 5, "gpu": None, "gpu_pct": 0.0},
+            {"name": "mac", "cpu": 1.0, "mem": 5, "gpu": None, "gpu_pct": None}]
+    g = {x["name"]: x for x in pcstatus.group(rows)}
+    assert g["game.exe"]["gpu_pct"] == 100.0 and g["idle.exe"]["gpu_pct"] == 0.0 and g["mac"]["gpu_pct"] is None
+
+
+def test_busy_line_only_above_one_percent_and_at_most_three():
+    def info(*loads):
+        return {"rows": [{"pid": i, "name": f"p{i}", "cpu": 0.0, "mem": MB, "gpu": None, "gpu_pct": v}
+                         for i, v in enumerate(loads)], "gpu_known": False, "gpu_load_known": True}
+    assert pcstatus.process_lines(info(1.0, 0.5, 0.0))[0].startswith("Processes (")
+    assert pcstatus.process_lines(info(1.5))[0] == "Using the graphics card now: p0 1.5%"
+    assert pcstatus.process_lines(info(5, 40, 2, 90, 0.2))[0] == "Using the graphics card now: p3 90%, p1 40%, p0 5.0%"
+
+
+def test_report_on_windows_with_graphics_counters(fake, monkeypatch):
+    fake("windows", {"tasklist": TASKLIST, "powershell": WIN_PERF, "powershell-gpu": WIN_GPU})
+    _quiet(monkeypatch)
+    lines = pcstatus.report(Settings(), processes=3).splitlines()
+    assert lines[6] == "Using the graphics card now: chrome.exe x2 21%, ollama.exe 3.0%"
+    assert lines[7].startswith("Processes (top 3 of 4 by memory, then processor")
+    assert lines[-1] == pcstatus.FOOTER
+
+
+def test_new_graphics_commands_ask_for_numbers_only():
+    for word in ("CommandLine", "MainWindowTitle", "UserName", "Owner", "ExecutablePath", "Path"):
+        assert word not in pcstatus._PS_GPU
+    assert "Select-Object Name,UtilizationPercentage" in pcstatus._PS_GPU
+    assert "Select-Object Name,DedicatedUsage,SharedUsage" in pcstatus._PS_GPU
+    assert pcstatus._NVIDIA_PMON == ["nvidia-smi", "pmon", "-c", "1", "-s", "u"]

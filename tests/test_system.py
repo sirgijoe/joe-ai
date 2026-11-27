@@ -88,7 +88,7 @@ def test_run_install_opens_page_when_no_package(monkeypatch):
     _as(monkeypatch, "linux")
     monkeypatch.setattr(system, "package_manager", lambda: None)
     opened = []
-    monkeypatch.setattr(doctor.webbrowser, "open", opened.append)
+    monkeypatch.setattr(system, "open_page", opened.append)      # a Joe window, never the everyday browser
     assert doctor.run_install("ffmpeg", "FFmpeg", "", lambda s: None) is False
     assert opened == ["https://ffmpeg.org/download.html"]
 
