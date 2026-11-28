@@ -205,16 +205,35 @@ def open_in_editor(p: Path) -> None:
         popen_detached([editor, str(p)] if editor else ["xdg-open", str(p)])
 
 
-def popen_detached(cmd: list[str] | str, cwd: str | None = None) -> subprocess.Popen:
+CREATE_BREAKAWAY_FROM_JOB = 0x01000000
+
+
+def popen_breakaway(cmd, flags: int = 0, **kwargs) -> subprocess.Popen:
+    """subprocess.Popen that, on Windows, also asks to leave the job Joe's own program sits in (a launcher or
+    a connected app may have put Joe in one that ends everything in it when it closes), so a program meant to
+    outlive Joe does. Windows refuses that when the job doesn't allow it: then it is started again without
+    it, as before. Elsewhere `flags` is not used."""
+    if WINDOWS:
+        try:
+            return subprocess.Popen(cmd, creationflags=flags | CREATE_BREAKAWAY_FROM_JOB, **kwargs)
+        except OSError:
+            return subprocess.Popen(cmd, creationflags=flags, **kwargs)
+    return subprocess.Popen(cmd, **kwargs)
+
+
+def popen_detached(cmd: list[str] | str, cwd: str | None = None, env: dict | None = None) -> subprocess.Popen:
     """Start a program in the background with no console window; it outlives Joe."""
     kwargs: dict = {"cwd": cwd or None, "stdout": subprocess.DEVNULL,
                     "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
+    if env is not None:
+        kwargs["env"] = env
+    flags = 0
     if WINDOWS:
-        kwargs["creationflags"] = (subprocess.CREATE_NO_WINDOW            # type: ignore[attr-defined]
-                                   | subprocess.CREATE_NEW_PROCESS_GROUP)  # type: ignore[attr-defined]
+        flags = (subprocess.CREATE_NO_WINDOW            # type: ignore[attr-defined]
+                 | subprocess.CREATE_NEW_PROCESS_GROUP)  # type: ignore[attr-defined]
     else:
         kwargs["start_new_session"] = True
-    return subprocess.Popen(cmd, shell=isinstance(cmd, str), **kwargs)
+    return popen_breakaway(cmd, flags, shell=isinstance(cmd, str), **kwargs)
 
 
 def no_window_flags() -> int:

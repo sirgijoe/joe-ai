@@ -24,6 +24,12 @@ def project(folder, **commands):
             "commands": [{"name": n, "run": r, "minutes": 1} for n, r in commands.items()]}
 
 
+@pytest.fixture(autouse=True)
+def _joes_window_is_open(monkeypatch):
+    """A run or a pull needs Joe's window open (tests/test_devrun_view.py covers the closed case)."""
+    monkeypatch.setattr(mcp, "_window_open", lambda: True)
+
+
 @pytest.fixture
 def joe(tmp_path, monkeypatch):
     monkeypatch.setenv("JOE_CONFIG", str(tmp_path / "settings.json"))

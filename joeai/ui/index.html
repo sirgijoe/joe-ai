@@ -31,6 +31,7 @@
     </nav>
     <span class="grow"></span>
     <button type="button" id="runbtn" class="runbtn" data-key="F5" title="Run the plan on the Home screen, or stop the run that's going (F5).">RUN<b>F5</b></button>
+    <button type="button" id="devbadge" class="toolsbadge devbadge" hidden title="A connected AI app has a command running. Click to watch it on Home.">DEV RUN GOING <span class="blink" aria-hidden="true">●</span></button>
     <span id="toolsbadge" class="toolsbadge" tabindex="0" role="button" title="What's installed for the tools. Click for Setup > Start here.">TOOLS …</span>
     <span id="title-screen" class="dim" hidden>QUEUE</span>
     <span id="ver" class="dim"></span> <span id="pt-badge" class="dim" hidden title="Joe is running from a drive: everything stays in that folder.">PORTABLE</span>
@@ -125,6 +126,21 @@ FORMAT: ...
     </section>
 
     <div class="rightcol">
+    <section id="devrun" class="panel devrun" aria-labelledby="devrun-h" hidden>
+      <h2 id="devrun-h">DEV TOOLS</h2>
+      <div class="devrun-head"><span id="devrun-status" role="status" aria-live="polite"></span>
+        <span id="devrun-time" class="dim" translate="no"></span></div>
+      <div id="devrun-last" class="small" hidden><span>Last run:</span> <span id="devrun-last-what" translate="no"></span>, <span id="devrun-last-how"></span>, <span id="devrun-last-ago"></span></div>
+      <div id="devrun-cmd" class="small dim" translate="no"></div>
+      <pre id="devrun-tail" class="out devrun-tail" translate="no" tabindex="0" role="group" aria-label="The last lines the program printed"></pre>
+      <div id="devrun-end" class="devrun-end" role="status" aria-live="polite" hidden><b id="devrun-how"></b> <span id="devrun-totals" class="dim" translate="no"></span></div>
+      <div class="row buttons">
+        <button type="button" id="devrun-stop" data-act="devrun-stop" title="Ends the program and everything it started.">[ STOP ]</button>
+        <button type="button" id="devrun-log" data-act="devrun-log" hidden title="Opens the whole output in a text editor.">[ OPEN THE LOG ]</button>
+        <button type="button" id="devrun-recent" data-act="devrun-recent" aria-expanded="false" aria-controls="devrun-runs" title="The last runs Joe has written down (Output/dev/_runs.txt).">[ RECENT RUNS ]</button>
+      </div>
+      <pre id="devrun-runs" class="out devrun-runs" translate="no" tabindex="0" role="group" aria-label="Recent runs" hidden></pre>
+    </section>
     <section class="panel jobs">
         <h2>QUEUE</h2>
         <div id="joblist"><div class="dim">Nothing running. Tell Joe what you need on the left, or build it step by step with F6.</div></div>

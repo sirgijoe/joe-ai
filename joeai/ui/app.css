@@ -772,3 +772,19 @@ body.modern .agentstrip { border-radius: var(--radius); border-color: var(--line
    picture floated beside it). With the face off the bar is full width as before. */
 .aw-sprite.joeface:not([hidden]) ~ .aw-bar { width: auto; overflow: hidden; }
 @media (prefers-reduced-motion: reduce) { .aw * { transition: none !important; animation: none !important; } }
+
+/* ---------- Home: the Dev tools run panel, and the "Dev run going" light on the other pages ---------- */
+#s-queue .rightcol > .panel.devrun { flex: 0 0 auto; max-height: 60%; min-height: 0; overflow: auto; }
+.devrun-head { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: baseline; }
+.devrun-head #devrun-status { color: var(--ph); text-shadow: 0 0 8px var(--glow); }
+.devrun-tail, .devrun-runs { font-family: Consolas, "Cascadia Mono", "Lucida Console", monospace; font-size: .72em; line-height: 1.25;
+  border: 1px dashed var(--ph-dim); padding: 4px 6px; margin: 4px 0; overflow: auto; word-break: break-all; }
+.devrun-tail { height: 10.5em; }
+.devrun-runs { max-height: 8em; color: var(--ph-dim); }
+.devrun-tail:focus-visible, .devrun-runs:focus-visible { outline: 1px solid var(--ph); }
+.devrun-end { margin: 2px 0 4px; }
+.devrun.going h2 { animation: none; }
+.devbadge { background: none; font: inherit; color: var(--ph); }
+.devbadge[hidden] { display: none; }
+body.modern .devbadge { border-radius: 6px; }
+@media (prefers-reduced-motion: reduce) { .devbadge .blink { animation: none; } }

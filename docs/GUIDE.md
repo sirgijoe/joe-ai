@@ -461,6 +461,23 @@ connected app. Ticked, a connected app can:
   failing lines; the whole output is kept in `Output\dev`, and every run is written down in
   `Output\dev\_runs.txt`. A command is one program with its arguments: `|`, `>` and `&&` don't work
   (put those in a script and list the script).
+
+  **A run always shows in Joe's window while it happens.** Nothing is done on Joe that you can't see.
+  If Joe is closed when an app asks for a run (or a bundle to be brought in), Joe opens himself first
+  (the way he opens when you double-click him) and the run starts once his window is up. If he can't
+  open, nothing is run and the app is told why. On Home, a "Dev tools" box appears while a run is going
+  and for a few minutes after: which project and command, which app asked, how long it has run, the
+  last lines it printed (updating about every two seconds), and a **STOP** button (it asks "are you
+  sure?" first). STOP ends the program and everything it started. When it is over the box says how it
+  ended and shows the totals, with **OPEN THE LOG** and **RECENT RUNS** (the last lines of
+  `Output\dev\_runs.txt`). On other pages a small "DEV RUN GOING" light in the top bar takes you back
+  to Home. The app can also stop its own run (`joe_stop_command`; only the app that started it); `_runs.txt`
+  then says who stopped it. "Window open" means Joe's window is really showing (it reports in every two
+  seconds), not only that Joe is running; if it is closed during a run, Joe opens it again. Joe never
+  opens his window in your everyday browser for an app: if he has no browser of his own to use, the app
+  is told to ask you to open Joe. After the first five minutes the box shrinks to one line
+  ("Last run: ...") with RECENT RUNS. A run that was left behind by a restart or a crash of the PC
+  disappears by itself.
 - **See a listed project's git state** (`joe_repo`): branch, last commit, uncommitted files, and whether
   the folder matches a git bundle. Bringing a bundle in is a separate tick box under each project, off
   when Joe comes. Ticked, the app can bring in a bundle file (its name ends in `.bundle`) that is inside

@@ -5046,3 +5046,109 @@ document.addEventListener("click", async (ev) => {
     }
   } catch (e) { toast(e.message); }
 });
+
+/* ---------------- Home: Dev tools run panel (self-contained) ----------------
+   "There will never be anything done on Joe that isn't viewable": a run or a bundle pull that a connected AI app
+   starts is shown here while it happens (and for a few minutes after), with a STOP button. On the other pages a
+   small "DEV RUN GOING" light in the top bar leads here. Reads /api/devrun about every 2 seconds. */
+let devRun = null, devRunTimer = null, devRunOpen = false, devRunSince = 0;
+function devDur(s) {
+  s = Math.max(0, Math.round(s));
+  if (s < 60) return `${s} s`;
+  if (s < 3600) return `${Math.floor(s / 60)} min ${s % 60} s`;
+  return `${Math.floor(s / 3600)} h ${Math.floor((s % 3600) / 60)} min`;
+}
+function devOutcome(r) {
+  const o = r.outcome || "";
+  if (o === "ok") return "Finished OK";
+  if (o === "failed") return `FAILED (exit code ${r.code})`;
+  if (o === "limit") return `STOPPED at its time limit (${r.minutes} min)`;
+  if (o === "cap") return "STOPPED: it printed too much";
+  if (o === "didnt") return "It didn't start";
+  if (o === "stopped") return r.by && r.by !== "the person in Joe's window" ? `STOPPED by ${r.by}` : "STOPPED by the person in Joe's window";
+  return r.how || "";
+}
+function devRunPaintBadge() {
+  const b = $("#devbadge");
+  if (b) b.hidden = !(devRun && devRun.running) || current === "queue";
+}
+function devRunPaint() {
+  const d = devRun, box = $("#devrun");
+  if (!box) return;
+  devRunPaintBadge();
+  const going = !!(d && d.running);
+  const r = d && (d.running || d.last);                 // a last-run note keeps at least the one line on Home
+  box.hidden = !r;
+  if (!r) { devRunOpen = false; return; }
+  const full = going || !!d.show;                       // the whole panel for a run going and for 5 minutes after; then one line
+  box.classList.toggle("going", going);
+  const status = going ? `${r.what} — started by ${r.who}` : full ? `${r.what} — ended` : "";
+  if ($("#devrun-status").textContent !== status) $("#devrun-status").textContent = status;
+  $("#devrun-last").hidden = full;
+  if (!full) {
+    $("#devrun-last-what").textContent = r.what;
+    $("#devrun-last-how").textContent = devOutcome(r);
+    $("#devrun-last-ago").textContent = `${devDur(r.ago_s || 0)} ago`;
+  }
+  $("#devrun-time").hidden = !full;
+  $("#devrun-cmd").hidden = !full;
+  $("#devrun-tail").hidden = !full;
+  $("#devrun-time").textContent = going ? devDur(r.secs + (Date.now() - devRunSince) / 1000) : devDur(r.secs);
+  $("#devrun-cmd").textContent = r.run || "";
+  const tail = $("#devrun-tail");
+  const text = (d.tail || []).join("\n");
+  if (tail.textContent !== text) {
+    const stick = tail.scrollHeight - tail.scrollTop - tail.clientHeight < 24;      // follows the end unless the person scrolled up
+    tail.textContent = text;
+    if (stick) tail.scrollTop = tail.scrollHeight;
+  }
+  $("#devrun-stop").hidden = !(going && r.can_stop);
+  $("#devrun-end").hidden = going || !full;
+  $("#devrun-log").hidden = going || !full || !r.log;
+  if (!going && full) {
+    $("#devrun-how").textContent = devOutcome(r);
+    $("#devrun-totals").textContent = r.totals || "";
+  }
+  const runs = $("#devrun-runs");
+  runs.hidden = !devRunOpen;
+  $("#devrun-recent").setAttribute("aria-expanded", devRunOpen ? "true" : "false");
+  if (devRunOpen) runs.textContent = (d.runs || []).join("\n") || "(nothing written down yet)";
+}
+async function devRunTick() {
+  try {
+    const d = await api("/api/devrun");               // this poll is also Joe's window telling him it is open (the connector only runs things while it is)
+    d.running = d.running || null;
+    devRunSince = Date.now();
+    devRun = d;
+  } catch (e) { return; }
+  devRunPaint();
+}
+function devRunStart() {
+  if (devRunTimer) return;
+  devRunTick();
+  devRunTimer = setInterval(devRunTick, 2000);
+  setInterval(() => { if (devRun && devRun.running) devRunPaint(); else devRunPaintBadge(); }, 1000);
+}
+document.addEventListener("click", (ev) => {
+  const t = ev.target && ev.target.closest ? ev.target.closest("#devbadge, #devrun-stop, #devrun-log, #devrun-recent") : null;
+  if (!t) return;
+  if (t.id === "devbadge") { show("queue"); devRunPaintBadge(); return; }
+  if (t.id === "devrun-recent") { devRunOpen = !devRunOpen; devRunPaint(); return; }
+  const r = devRun && (devRun.running || devRun.last);
+  if (!r) return;
+  if (t.id === "devrun-log") { api("/api/open", { path: r.log, how: "editor" }).catch((e) => toast(e.message)); return; }
+  if (t.id === "devrun-stop") {
+    confirmBox(`Stop ${r.what}? The program and everything it started will be ended.`, async () => {
+      try {
+        const res = await api("/api/devrun/stop", {});
+        toast(res.ok ? "Stopped." : res.message);
+      } catch (e) { toast(e.message); }
+      devRunTick();
+    });
+  }
+});
+/* The window is going away: say so, so a connected app is never told "open" about a window nobody can see. */
+window.addEventListener("pagehide", () => {
+  try { fetch("/api/window/bye", { method: "POST", keepalive: true, headers: { "X-NR-Token": TOKEN, "Content-Type": "application/json" }, body: "{}" }); } catch (e) { /* closing anyway */ }
+});
+devRunStart();

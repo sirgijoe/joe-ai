@@ -107,7 +107,7 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
           `subprocess.Popen` and no shell (Windows: the string as typed to CreateProcess; elsewhere
           `shlex.split`), `cwd` the listed folder (must be a full path to a real folder), stdin closed,
           one at a time (`Output/dev/_running.txt`), ended with its whole process tree at the person's
-          time limit or at 20 MB of output. To check: a `.bat`/`.cmd` target on Windows goes through
+          time limit, at 20 MB of output, or when STOP is pressed (see "Always viewable" below). To check: a `.bat`/`.cmd` target on Windows goes through
           cmd.exe by Windows' own rule; `shell_words` only warns about `| > &&`, it doesn't block.
         - `joe_repo`: the folder is a listed project's; the bundle must resolve inside that folder or
           Joe's Inbox (`Joe._bundle_path`, realpath check, so a link out is refused); `pull` acts only
@@ -117,6 +117,30 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
           uncommitted changes. Known gaps (from the build): `hook.<name>.command` config hooks in very
           new git and `core.alternateRefsCommand` are not overridden; global/system filters (Git LFS)
           still run by design.
+        - Always viewable (2026-11-28, the owner's rule "there will never be anything done on Joe that isn't
+          viewable"): `joe_run_command` and `joe_repo pull=true` first check that Joe's window is open
+          (`mcp._window_open`) and otherwise start Joe the way he normally starts (`mcp._open_joe`: this
+          Python with `Joe.pyw`, pythonw on Windows, the AppImage on Linux, the same `JOE_CONFIG`; Joe opens
+          his own window, never a browser) and wait up to 45 s; if he doesn't come up, nothing runs and the
+          answer says why. "Open" means Joe's PAGE is showing, not that Joe answers: the page polls
+          `GET /api/devrun` every 2 s (that token-checked branch alone stamps `app.ui_seen`), `/api/ping`
+          reports `"window"` = polled within 75 s, and `pagehide` posts `/api/window/bye` (token, keepalive)
+          to zero it. The connector's pings stamp nothing and no longer keep Joe from idling out. Over the
+          HTTP port the same test applies (the app opens the window and waits for the first poll); a run
+          going with no window makes Joe reopen it (once a minute) and he doesn't idle-exit mid-run. Joe
+          is never opened in the person's own browser for an app: `_open_joe` refuses when his window
+          would fall back to `webbrowser.open` (no app-mode browser) or `JOE_NO_WINDOW` is set. A lock
+          keeps two first requests from starting two Joes. The window reads
+          `GET /api/devrun` (token needed; the run's note, the last 40 lines of its log read from the file's
+          end only, and the end of `_runs.txt`; a log outside `Output/dev` is never read) and `POST
+          /api/devrun/stop` (token needed; the connector key can't reach it). STOP and `joe_stop_command`
+          write a stop file; the minder ends the whole tree (`devrun.kill_tree`: `taskkill /PID n /T /F` on
+          Windows, the program's own process group elsewhere, never Joe's own group) and writes "STOPPED by
+          ..." to `_runs.txt`; if it doesn't answer in 8 s, STOP ends the minder and the program itself.
+          `joe_stop_command` stops only the run named by its two names, only while it is going, only with
+          Dev tools on. The time limit and the output cap use the same `kill_tree`. A bundle pull takes the
+          same "running" note (so a run and a pull never overlap) and can't be stopped half way. Windows:
+          written to the same pattern as Mac/Linux but not run on Windows here.
         - `joe_computer`: program names and numbers only (no command lines, window titles, paths or
           user names; `tasklist` without `/V`, `ps` with `comm` only, `/proc/<pid>/stat` only); nothing
           is ended or changed. Shows which programs are open to the connected app: said plainly in Setup.
@@ -143,8 +167,16 @@ Please note each finding as **file:line, what can happen, who can trigger it**, 
              `shrink.is_local` took any host starting "127."; now a real loopback address only.
           Left open, on purpose or for later: a refused pull has already stored the bundle's objects
           (`fetch.fsckObjects` didn't apply to bundle fetches on git 2.43; checkout protection held);
-          `taskkill /T` misses a grandchild whose parent already exited (a Windows Job Object would fix
-          it); global or system git filters other than LFS still run on pulled files; `http.py` uses the
+          Stale notes: a "running" note written before the PC last started (boot time: `GetTickCount64`,
+          `/proc/uptime`, `sysctl kern.boottime`) is deleted with its program and stop notes, since program
+          numbers are handed out again after a restart; `kill_tree` never ends Joe's own program or his
+          parent; `_alive` on Windows asks OpenProcess + GetExitCodeProcess. Windows Job Object (DONE, NEEDS A
+          WINDOWS CHECK; ctypes, only mocks cover it here): the minder puts the program in a
+          kill-on-close job right after starting it (a program that starts a child in the first
+          milliseconds, before it is assigned, can escape; taskkill /T stays as the fallback) and ends the
+          job when the program ends normally; Mac/Linux end the leftover process group then.
+          `CREATE_BREAKAWAY_FROM_JOB` is asked for when starting the minder and any detached program, and
+          retried without if Windows refuses. Still true on Windows: not run there; global or system git filters other than LFS still run on pulled files; `http.py` uses the
           system proxy settings even for local addresses; an add-on runs as an ordinary program and
           could write the settings file itself; Joe's daily restart doesn't wait for a dev run (the
           minder carries on and finishes it).

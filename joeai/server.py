@@ -61,6 +61,8 @@ SECONDS_PER_PART = 25
 SECONDS_PER_IMAGE = 30
 SECONDS_PER_VIDEO = 600                  # a 5 s Wan clip took 9-11 min on a 12 GB card (2026-11-09)
 IDLE_EXIT_S = 180
+WINDOW_FRESH_S = 75                       # Joe's window counts as open while his page has polled within this long (it polls every 2 s)
+WINDOW_REOPEN_S = 60                      # a run going with no window: open it again at most this often
       # window gone (no polling) and no run -> quit
 
 
@@ -87,6 +89,11 @@ class App:
         self.run_started = 0.0
         self.parts_at_start = 0
         self.last_seen = time.monotonic()
+        self.ui_seen = 0.0                   # when Joe's PAGE last polled /api/devrun (monotonic; 0 = never). Only the page does.
+        self.url = ""                        # Joe's own address with the window's key (set when the server is up)
+        self._reopen_lock = threading.Lock()
+        self._dev_reopen_at = -1e9
+        self.mcp_sessions: dict[str, str] = {}   # connector session id -> the app's name (HTTP connector)
         self.quit_now = False
         from .dailyrestart import DailyRestart
         self.daily = DailyRestart(self.settings)      # Setup > Night shift and alerts > DAILY RESTART
@@ -171,12 +178,49 @@ class App:
         return self.models_waiting
 
     def background_work(self) -> bool:
-        """A download, install or portable copy is still going (closing the window mustn't kill it)."""
+        """A download, install, portable copy or a Dev tools run is still going (closing the window mustn't kill it)."""
         try:
+            from . import devprojects
             return bool(self.busy or (self.dl_all or {}).get("running")
-                        or self.portable_job.status().get("running"))
+                        or self.portable_job.status().get("running") or devprojects.running_note())
         except Exception:                          # noqa: BLE001
             return False
+
+    # -- Joe's window: is it really there? ------------------------------------------
+    def window_alive(self) -> bool:
+        """Joe's page has reported in lately (it polls /api/devrun every 2 s; closing it says goodbye). A connector
+        or anything else asking Joe a question proves only that Joe is running, not that anyone can see."""
+        return self.ui_seen > 0 and time.monotonic() - self.ui_seen < WINDOW_FRESH_S
+
+    def reopen_window(self, wait_s: float = 0.0) -> str:
+        """Open Joe's window if it is not open, and wait up to wait_s for its page to report in. '' = open;
+        otherwise the plain reason. Never opens the person's everyday browser (see mcp.cant_open_window)."""
+        if self.window_alive():
+            return ""
+        from .mcp import cant_open_window
+        why = cant_open_window()
+        if why:
+            return why
+        with self._reopen_lock:
+            if not self.window_alive() and self.url:
+                from .app import open_window
+                open_window(self.url)
+        end = time.monotonic() + max(0.0, wait_s)
+        while not self.window_alive():
+            if time.monotonic() >= end:
+                return f"Joe's window didn't open within {int(wait_s)} seconds."
+            time.sleep(0.25)
+        return ""
+
+    def dev_window_tick(self) -> None:
+        """A Dev tools run is going and nobody can see it: open the window again (at most once a minute)."""
+        if self.window_alive() or time.monotonic() - self._dev_reopen_at < WINDOW_REOPEN_S:
+            return
+        from . import devprojects
+        if devprojects.running_note() is None:
+            return
+        self._dev_reopen_at = time.monotonic()
+        self.reopen_window(0)
 
     def refresh_services(self) -> None:
         try:
@@ -1810,8 +1854,8 @@ def make_handler(app: App):
             if self.command != "HEAD":
                 self.wfile.write(body)
 
-        def _json(self, obj, code=200):
-            self._send(code, json.dumps(obj).encode(), "application/json")
+        def _json(self, obj, code=200, extra: dict | None = None):
+            self._send(code, json.dumps(obj).encode(), "application/json", extra)
 
         def _file(self, f: Path, ctype: str, extra: dict | None = None):
             """One of Joe's own UI files; 404 when it's missing (a half-copied folder), not a dropped line."""
@@ -1866,7 +1910,8 @@ def make_handler(app: App):
                 return self._send(403, b"forbidden", "text/plain")
             u = urlparse(self.path)
             q = parse_qs(u.query)
-            app.last_seen = time.monotonic()
+            if not u.path.startswith("/api/"):         # the page and its files (anything asked of the API counts only once its key is checked)
+                app.last_seen = time.monotonic()
             if u.path in ("/", "/index.html"):
                 try:
                     html = (UI_DIR / "index.html").read_text(encoding="utf-8")
@@ -1909,14 +1954,21 @@ def make_handler(app: App):
                                    "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'"})
             if not self._authed(q, link_ok=u.path in ("/raw", "/player", "/thumb")):
                 return self._json({"error": "bad token"}, 401)
+            if u.path != "/api/ping":                  # a question from the connector keeps nothing alive
+                app.last_seen = time.monotonic()
             arg = (q.get("path") or [""])[0]
             try:
                 if u.path == "/api/ping":
                     from .update import install_kind
                     return self._json({"ok": True, "version": __version__, "running": app.running,
-                                       "install_kind": install_kind(), "stamp": app.stamp})
+                                       "install_kind": install_kind(), "stamp": app.stamp,
+                                       "window": app.window_alive()})
                 if u.path == "/api/state":
                     return self._json(app.state())
+                if u.path == "/api/devrun":              # Home > Dev tools panel: the run going (or just ended), its last lines
+                    from . import devprojects
+                    app.ui_seen = time.monotonic()        # the window's heartbeat: only Joe's page polls this, every 2 s, with his key
+                    return self._json({"ok": True, **devprojects.view(app.sb)})
                 if u.path == "/api/mission":
                     return self._json({"text": app.mission_text})
                 if u.path == "/api/files":
@@ -2085,13 +2137,25 @@ def make_handler(app: App):
             from . import mcp as mcp_mod
             joe = mcp_mod.Joe(app.settings)
             joe.sb = app.sb
+            joe.per_session = True                      # several apps can be connected: each session has its own name
+            sid = (self.headers.get("Mcp-Session-Id") or "")[:64]
+            joe.client = app.mcp_sessions.get(sid, "")
+            joe.window_check = app.window_alive         # "open" = Joe's page has reported in, not just that this server answers
+            joe.window_opener = lambda: app.reopen_window(mcp_mod.OPEN_WAIT_S)
             if isinstance(msg, list):
                 out = [r for r in (mcp_mod.handle(joe, m) for m in msg if isinstance(m, dict)) if r is not None]
                 return self._send(202, b"", "application/json") if not out else self._json(out)
             reply = mcp_mod.handle(joe, msg) if isinstance(msg, dict) else None
             if reply is None:
                 return self._send(202, b"", "application/json")
-            return self._json(reply)
+            extra = None
+            if isinstance(msg, dict) and msg.get("method") == "initialize":
+                sid = _sec.token_urlsafe(12)            # the app sends this back on its later calls
+                app.mcp_sessions[sid] = joe.client
+                while len(app.mcp_sessions) > 50:
+                    app.mcp_sessions.pop(next(iter(app.mcp_sessions)))
+                extra = {"Mcp-Session-Id": sid}
+            return self._json(reply, 200, extra)
 
         def do_POST(self):
             if not self._host_ok():
@@ -2404,6 +2468,12 @@ def make_handler(app: App):
                 if u.path == "/api/phone/remove":
                     from .phone import remove_device
                     return self._json({"ok": remove_device(str(b.get("id", "")))})
+                if u.path == "/api/devrun/stop":         # STOP on the Dev tools panel (this window's token only)
+                    from . import devprojects
+                    return self._json(devprojects.stop_run(devprojects.WINDOW_STOP, sb=app.sb))
+                if u.path == "/api/window/bye":          # the page is closing: it is not a window any more
+                    app.ui_seen = 0.0
+                    return self._json({"ok": True})
                 if u.path == "/api/stop":
                     app.stop.set()
                     app.log("Stop requested: finishing the current step... (missions waiting in line are kept on hold)")
@@ -3112,6 +3182,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
     else:
         httpd = ThreadingHTTPServer(("127.0.0.1", port), make_handler(app))
     httpd.daemon_threads = True
+    app.url = f"http://127.0.0.1:{httpd.server_address[1]}/#t={app.token}"   # how Joe's window is opened again if a run needs it
     try:
         app.phone.apply()                              # Joe Phone, when it's turned on
     except Exception as e:                             # noqa: BLE001 (never stop Joe starting for it)
@@ -3139,6 +3210,7 @@ def serve(app: App, port: int = 0) -> ThreadingHTTPServer:
             step("Voice", app.clone.idle_check)
             step("Mission queue", app.watch_queue_folder)   # mission files dropped in Missions/Queue
             step("Model downloads", app.models_waiting_tick)   # a picture model downloaded after GET IT
+            step("Dev run window", app.dev_window_tick)        # a run is going and no window shows it: open it again
             if not app.quit_now:
                 step("Daily restart", app.daily_restart_tick)
             for _ in range(10):

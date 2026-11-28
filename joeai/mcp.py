@@ -19,6 +19,7 @@ from __future__ import annotations
 import json
 import re
 import sys
+import threading
 import time
 from datetime import datetime
 from pathlib import Path
@@ -194,9 +195,19 @@ TOOLS = [
                     "added. Answers with how it ended, how long it took, the totals and the failing lines; the "
                     "whole output is saved in Output/dev (joe_shrink reads it). A run over 90 seconds answers "
                     "STILL RUNNING: ask again with the same names to wait for it (never started twice). With no "
-                    "names it lists the projects and commands.",
+                    "names it lists the projects and commands. The run is always shown in Joe's window while it "
+                    "happens (with a STOP button for the person); if his window is closed Joe opens it first, and "
+                    "if he can't, nothing is run. joe_stop_command ends a run you started.",
      "inputSchema": {"type": "object", "properties": {
          "project": {"type": "string"}, "command": {"type": "string"}}}},
+    {"name": "joe_stop_command",
+     "description": "Dev tools (listed only while the person has them on in Setup). Stop a command you started "
+                    "with joe_run_command, by the same project name and command name. It ends the program and "
+                    "everything it started. It only stops that run, and only while it is going: it never stops "
+                    "a different run, and it can't start, change or add anything. The person can also press "
+                    "STOP in Joe's window.",
+     "inputSchema": {"type": "object", "properties": {
+         "project": {"type": "string"}, "command": {"type": "string"}}, "required": ["project", "command"]}},
     {"name": "joe_computer",
      "description": "Dev tools (listed only while the person has them on in Setup). This computer right now, so "
                     "nobody has to send a screenshot of Task Manager: processor load, memory, graphics card "
@@ -213,13 +224,15 @@ TOOLS = [
                     "pull=true brings the bundle in by fast-forward only (refused if there are uncommitted "
                     "changes, if it isn't a fast-forward, or if the person hasn't ticked 'may bring in bundles' "
                     "for that project in Setup): use it ONLY when the person asked for the pull in this request. Never pushes, never reaches the network. bundle is a file inside the "
-                    "project folder (e.g. sync/work.bundle) or in Joe's Inbox (Inbox/work.bundle).",
+                    "project folder (e.g. sync/work.bundle) or in Joe's Inbox (Inbox/work.bundle). A pull is "
+                    "shown in Joe's window while it happens; if his window is closed Joe opens it first, and "
+                    "if he can't, nothing is pulled in.",
      "inputSchema": {"type": "object", "properties": {
          "project": {"type": "string"}, "bundle": {"type": "string"},
          "pull": {"type": "boolean"}, "branch": {"type": "string", "description": "with pull: the branch (empty = the current one)"}},
          "required": ["project"]}},
 ]
-DEV_TOOLS = ("joe_run_command", "joe_computer", "joe_repo")      # listed only while Setup > Other AI apps > Dev tools is on
+DEV_TOOLS = ("joe_run_command", "joe_stop_command", "joe_computer", "joe_repo")      # listed only while Setup > Other AI apps > Dev tools is on
 SHRINK_EXT = {".md", ".txt", ".csv", ".tsv", ".json", ".jsonl", ".ndjson", ".html", ".htm", ".xml", ".py",
               ".js", ".css", ".srt", ".vtt", ".log", ".out", ".err", ".yaml", ".yml", ".toml", ".ini"}
 TEXT_EXT = {".md", ".txt", ".csv", ".json", ".html", ".py", ".js", ".css", ".srt", ".vtt", ".log"}
@@ -245,6 +258,10 @@ class Joe:
         self._read_once = settings is None      # started by an AI app: these settings were read once, at its first call
         self.s = settings or Settings.load()
         self.sb = Sandbox(self.s.workspace_path).ensure()
+        self.client = ""                        # this session's app name (HTTP path only: per_session)
+        self.per_session = False
+        self.window_check = None                # over HTTP: the running Joe's own window test and opener
+        self.window_opener = None
 
     def _folders_open(self) -> bool:
         """Has the person ticked Setup > Other AI apps > "...may read my Inbox and other folders"?
@@ -317,7 +334,19 @@ class Joe:
                 return "To pull, name the bundle file (inside the project folder, or Inbox/name.bundle)."
         b = self._bundle_path(folder, bundle) if (bundle or "").strip() else None
         if pull is True:
-            out = repostatus.pull_bundle(folder, b, str(branch or ""))
+            why = self._window_ready("pulled in")           # Joe's window shows it while it happens
+            if why:
+                return why
+            what = f"{p['name']} / bundle pull"
+            started = time.time()
+            lock = dp.begin_pull(what, self._who(), p["name"], bundle.strip())
+            if lock is None:
+                return f"Joe is already running {dp._busy() or 'a command'}. One thing at a time: ask again when it has finished."
+            out = "The pull didn't finish."
+            try:
+                out = repostatus.pull_bundle(folder, b, str(branch or ""))
+            finally:
+                dp.end_pull(lock, self._who(), what, p["name"], bundle.strip(), started, out)
             dp.note_run(self.sb.output / "dev" / "_runs.txt", f"{datetime.now():%Y-%m-%d %H:%M:%S}",
                         f"{p['name']} / bundle pull ({bundle.strip()[:120]})", out.splitlines()[0][:200] if out else "no answer")
             return out
@@ -329,12 +358,48 @@ class Joe:
             return dp.OFF
         return pcstatus.report(self.s, processes)
 
+    def _who(self) -> str:
+        """The connected app's name for Joe's window: this session's own on the HTTP path (several apps can be
+        connected at once), the one connection's name when Joe is started by the app (stdio)."""
+        raw = self.client if getattr(self, "per_session", False) else CLIENT["name"]
+        from .devprojects import app_name
+        return app_name(raw)
+
+    def _window_ready(self, doing: str) -> str:
+        """'' when Joe's window is really open (his page is showing and has reported in within the last
+        seconds), opening it first if it was closed. Otherwise the plain reason, and the caller does
+        nothing: whatever an AI app starts here must be viewable in Joe's window while it happens. Over
+        HTTP the check and the opening are the running Joe's own (window_check / window_opener)."""
+        check = getattr(self, "window_check", None) or _window_open
+        opener = getattr(self, "window_opener", None) or _open_joe
+        with _OPEN_LOCK:                          # two first requests must not start two Joes
+            if check():
+                return ""
+            why = opener()
+        return f"Joe's window could not be opened, so nothing was {doing}: {why}" if why else ""
+
     def run_command(self, project: str = "", command: str = "") -> str:
         from . import devprojects as dp
         dev = self._dev()
         if not (project or "").strip() and not (command or "").strip():
             return dp.listing(dev)
-        return dp.run(dev, self.sb, project, command, dp.WAIT_S)
+        return dp.run(dev, self.sb, project, command, dp.WAIT_S, who=self._who(),
+                      ready=lambda: self._window_ready("run"))
+
+    def stop_command(self, project: str = "", command: str = "") -> str:
+        """End the run this app started (by the same two names); never any other run."""
+        from . import devprojects as dp
+        dev = self._dev()
+        if not dp.is_on(dev):
+            return dp.OFF
+        p = dp.find(dev, project)
+        if p is None:
+            return f"No project called '{dp.said(project)[:40]}' on the list.\n" + dp.listing(dev)
+        c = next((c for c in p["commands"] if c["name"] == dp.said(command)), None)
+        if c is None:
+            return f"No command called '{dp.said(command)[:40]}' for {p['name']}.\n" + dp.listing(dev)
+        me = self._who()
+        return dp.stop_run(me, only=(p["name"], c["name"]), sb=self.sb, who=me)["message"]
 
     # -- tools --------------------------------------------------------------
     def status(self) -> str:
@@ -878,6 +943,8 @@ class Joe:
                              str(args.get("branch") or ""))
         if name == "joe_computer":
             return self.computer(args.get("processes") or 25)
+        if name == "joe_stop_command":            # the two names only
+            return self.stop_command(str(args.get("project") or ""), str(args.get("command") or ""))
         if name == "joe_run_command":            # the two names only: anything else an app sends is never read
             return self.run_command(str(args.get("project") or ""), str(args.get("command") or ""))
         if name == "joe_make_pictures":
@@ -919,16 +986,65 @@ def _mission_files(folder: Path, max_age_s: float = 0) -> list[str]:
 
 
 def _window_open() -> bool:
+    """Is Joe's window really open? Not just "Joe answers": his page polls him every 2 seconds, and /api/ping says
+    whether it has done so lately ("window")."""
     try:
         from .app import _lock_path
         import urllib.request
         info = json.loads(_lock_path().read_text(encoding="utf-8"))
         req = urllib.request.Request(f"http://127.0.0.1:{info['port']}/api/ping",
                                      headers={"X-NR-Token": info["token"]})
-        with urllib.request.urlopen(req, timeout=2):
-            return True
-    except (OSError, KeyError, ValueError):
+        with urllib.request.urlopen(req, timeout=2) as r:
+            return json.loads(r.read() or b"{}").get("window") is True
+    except (OSError, KeyError, ValueError, AttributeError):
         return False
+
+
+OPEN_WAIT_S = 45                         # how long the connector waits for Joe's window after starting him
+CLIENT = {"name": ""}                    # the connected app's name from its MCP initialize, when Joe is started by it (stdio)
+_OPEN_LOCK = threading.Lock()
+
+
+def cant_open_window() -> str:
+    """'' when Joe can open his own window; otherwise the plain reason he can't. Joe's window is an app window of
+    a separate browser profile of his own; when there is no such browser Joe's launch falls back to the
+    person's everyday browser (and their profile), which a connected app is never allowed to cause."""
+    import os
+    from . import system
+    if os.environ.get("JOE_NO_WINDOW"):
+        return "Joe's window is switched off on this PC (JOE_NO_WINDOW), so nothing could be shown."
+    if system.app_browser() is None:
+        return ("Joe has no browser of his own to show his window in here, and he never opens your everyday "
+                "browser (or your profile) for an AI app. Open Joe yourself first.")
+    return ""
+
+
+def _open_joe(wait_s: float = OPEN_WAIT_S) -> str:
+    """Start Joe the way he normally starts (this Python with Joe.pyw, or the AppImage; pythonw on Windows so
+    no console shows) with the same settings file this connector uses (JOE_CONFIG), and wait for his window
+    to report in (his page's heartbeat). A Joe that is already running just opens his window again.
+    Joe opens his own window, never a tab in the person's browser. '' = open; otherwise the plain reason."""
+    import os
+    from . import system
+    why = cant_open_window()
+    if why:
+        return why
+    try:
+        env = dict(os.environ)                         # JOE_CONFIG (a test copy's settings file) rides along
+        proc = system.popen_detached(system.joe_command("", console=False), env=env)
+    except (OSError, ValueError) as e:
+        return f"Joe couldn't be started ({e})"
+    end = time.monotonic() + max(0.0, float(wait_s))
+    while True:
+        if _window_open():
+            return ""
+        code = proc.poll()
+        if code not in (None, 0):
+            return (f"Joe closed again right after starting (code {code}). The reason is in crash.log in Joe's "
+                    "settings folder.")
+        if time.monotonic() >= end:
+            return f"Joe's window didn't open within {int(wait_s)} seconds."
+        time.sleep(0.5)
 
 
 # --------------------------------------------------------------------------- JSON-RPC
@@ -953,6 +1069,14 @@ def _handle(joe: Joe | None, msg: dict) -> dict | None:
         return {"jsonrpc": "2.0", "id": mid, "result": result}
 
     if method == "initialize":
+        info = (msg.get("params") or {}).get("clientInfo")
+        if isinstance(info, dict):                       # who is asking: shown in Joe's window beside a run
+            from .devprojects import app_name
+            name = "" if not (info.get("title") or info.get("name")) else app_name(info.get("title") or info.get("name"))
+            if getattr(joe, "per_session", False):       # over HTTP: this session's own name (the server keeps it per session)
+                joe.client = name
+            else:
+                CLIENT["name"] = name
         want = (msg.get("params") or {}).get("protocolVersion") or PROTOCOL
         return ok({"protocolVersion": want, "capabilities": {"tools": {}, "prompts": {}},
                    "serverInfo": {"name": "joe", "title": "Joe (joe-ai)", "version": __version__},
